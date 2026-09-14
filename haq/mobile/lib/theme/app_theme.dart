@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 /// Palet Core Dashboard (template admin) — aksen biru #2A85FF.
 class Tw {
@@ -49,8 +50,10 @@ class AppTheme {
     final primary = seed;
     final primaryDark = Color.lerp(seed, Colors.black, 0.22)!;
     final primaryLight = Color.lerp(seed, Colors.white, 0.72)!;
+    final textTheme = GoogleFonts.nunitoTextTheme();
     final base = ThemeData(
       useMaterial3: true,
+      textTheme: textTheme,
       colorScheme: ColorScheme.fromSeed(
         seedColor: seed,
         brightness: Brightness.light,
@@ -68,13 +71,13 @@ class AppTheme {
     );
 
     return base.copyWith(
-      appBarTheme: const AppBarTheme(
+      appBarTheme: AppBarTheme(
         backgroundColor: Tw.white,
         foregroundColor: Tw.gray900,
         elevation: 0,
         scrolledUnderElevation: 0,
         centerTitle: false,
-        titleTextStyle: TextStyle(
+        titleTextStyle: GoogleFonts.nunito(
           color: Tw.gray900,
           fontSize: 17,
           fontWeight: FontWeight.w700,
@@ -118,7 +121,7 @@ class AppTheme {
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           elevation: 0,
           shadowColor: primary.withOpacity(0.25),
-          textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14, letterSpacing: 0.1),
+          textStyle: GoogleFonts.nunito(fontWeight: FontWeight.w700, fontSize: 14, letterSpacing: 0.1),
           disabledBackgroundColor: Tw.gray200,
           disabledForegroundColor: Tw.gray500,
         ),
@@ -130,7 +133,7 @@ class AppTheme {
           minimumSize: const Size(0, 48),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           side: const BorderSide(color: Tw.primary, width: 1.5),
-          textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+          textStyle: GoogleFonts.nunito(fontWeight: FontWeight.w700, fontSize: 14),
           disabledForegroundColor: Tw.gray400,
         ),
       ),
@@ -140,7 +143,7 @@ class AppTheme {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           minimumSize: const Size(0, 44),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+          textStyle: GoogleFonts.nunito(fontWeight: FontWeight.w700, fontSize: 14),
           disabledForegroundColor: Tw.gray400,
         ),
       ),
@@ -188,7 +191,7 @@ class AppTheme {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         extendedPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
         extendedIconLabelSpacing: 8,
-        extendedTextStyle: const TextStyle(
+        extendedTextStyle: GoogleFonts.nunito(
             fontWeight: FontWeight.w700, fontSize: 14, letterSpacing: 0.1),
       ),
       dialogTheme: DialogThemeData(
@@ -202,13 +205,13 @@ class AppTheme {
           borderRadius: BorderRadius.circular(22),
           side: const BorderSide(color: Tw.gray100, width: 1),
         ),
-        titleTextStyle: const TextStyle(
+        titleTextStyle: GoogleFonts.nunito(
           color: Tw.gray900,
           fontSize: 17,
           fontWeight: FontWeight.w700,
           letterSpacing: -0.2,
         ),
-        contentTextStyle: const TextStyle(color: Tw.gray700, fontSize: 14, height: 1.45),
+        contentTextStyle: GoogleFonts.nunito(color: Tw.gray700, fontSize: 14, height: 1.45),
         actionsPadding: const EdgeInsets.fromLTRB(20, 8, 20, 18),
         insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 32),
       ),
