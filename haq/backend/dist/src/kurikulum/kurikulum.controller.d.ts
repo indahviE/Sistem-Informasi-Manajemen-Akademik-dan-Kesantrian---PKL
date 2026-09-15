@@ -18,8 +18,8 @@ export declare class KurikulumController {
         tenantId: string;
         nama: string;
         createdAt: Date;
-        tahunAjaranId: string | null;
         aktif: boolean;
+        tahunAjaranId: string | null;
         deskripsi: string | null;
     })[]>;
     createKurikulum(tenantId: string, dto: CreateKurikulumDto): Promise<{
@@ -34,8 +34,8 @@ export declare class KurikulumController {
         tenantId: string;
         nama: string;
         createdAt: Date;
-        tahunAjaranId: string | null;
         aktif: boolean;
+        tahunAjaranId: string | null;
         deskripsi: string | null;
     }>;
     updateKurikulum(tenantId: string, id: string, dto: UpdateKurikulumDto): Promise<{
@@ -43,8 +43,8 @@ export declare class KurikulumController {
         tenantId: string;
         nama: string;
         createdAt: Date;
-        tahunAjaranId: string | null;
         aktif: boolean;
+        tahunAjaranId: string | null;
         deskripsi: string | null;
     }>;
     removeKurikulum(tenantId: string, id: string): Promise<{
@@ -52,11 +52,20 @@ export declare class KurikulumController {
         tenantId: string;
         nama: string;
         createdAt: Date;
-        tahunAjaranId: string | null;
         aktif: boolean;
+        tahunAjaranId: string | null;
         deskripsi: string | null;
     }>;
     findAllSilabus(tenantId: string): Promise<({
+        kurikulum: {
+            id: string;
+            tenantId: string;
+            nama: string;
+            createdAt: Date;
+            aktif: boolean;
+            tahunAjaranId: string | null;
+            deskripsi: string | null;
+        };
         mapel: {
             id: string;
             tenantId: string;
@@ -64,20 +73,11 @@ export declare class KurikulumController {
             namaMapel: string;
             kode: string | null;
         };
-        kurikulum: {
-            id: string;
-            tenantId: string;
-            nama: string;
-            createdAt: Date;
-            tahunAjaranId: string | null;
-            aktif: boolean;
-            deskripsi: string | null;
-        };
     } & {
         id: string;
         tenantId: string;
-        mapelId: string | null;
         createdAt: Date;
+        mapelId: string | null;
         judul: string;
         kurikulumId: string | null;
         kompetensiDasar: string | null;
@@ -88,8 +88,8 @@ export declare class KurikulumController {
     createSilabus(tenantId: string, dto: CreateSilabusDto): Promise<{
         id: string;
         tenantId: string;
-        mapelId: string | null;
         createdAt: Date;
+        mapelId: string | null;
         judul: string;
         kurikulumId: string | null;
         kompetensiDasar: string | null;
@@ -100,8 +100,8 @@ export declare class KurikulumController {
     updateSilabus(tenantId: string, id: string, dto: UpdateSilabusDto): Promise<{
         id: string;
         tenantId: string;
-        mapelId: string | null;
         createdAt: Date;
+        mapelId: string | null;
         judul: string;
         kurikulumId: string | null;
         kompetensiDasar: string | null;
@@ -112,8 +112,8 @@ export declare class KurikulumController {
     removeSilabus(tenantId: string, id: string): Promise<{
         id: string;
         tenantId: string;
-        mapelId: string | null;
         createdAt: Date;
+        mapelId: string | null;
         judul: string;
         kurikulumId: string | null;
         kompetensiDasar: string | null;
@@ -132,8 +132,8 @@ export declare class KurikulumController {
     } & {
         id: string;
         tenantId: string;
-        mapelId: string | null;
         createdAt: Date;
+        mapelId: string | null;
         judul: string;
         fileUrl: string | null;
         pertemuan: number;
@@ -144,8 +144,8 @@ export declare class KurikulumController {
     createRpp(tenantId: string, dto: CreateRppDto): Promise<{
         id: string;
         tenantId: string;
-        mapelId: string | null;
         createdAt: Date;
+        mapelId: string | null;
         judul: string;
         fileUrl: string | null;
         pertemuan: number;
@@ -156,8 +156,8 @@ export declare class KurikulumController {
     updateRpp(tenantId: string, id: string, dto: UpdateRppDto): Promise<{
         id: string;
         tenantId: string;
-        mapelId: string | null;
         createdAt: Date;
+        mapelId: string | null;
         judul: string;
         fileUrl: string | null;
         pertemuan: number;
@@ -168,8 +168,8 @@ export declare class KurikulumController {
     removeRpp(tenantId: string, id: string): Promise<{
         id: string;
         tenantId: string;
-        mapelId: string | null;
         createdAt: Date;
+        mapelId: string | null;
         judul: string;
         fileUrl: string | null;
         pertemuan: number;

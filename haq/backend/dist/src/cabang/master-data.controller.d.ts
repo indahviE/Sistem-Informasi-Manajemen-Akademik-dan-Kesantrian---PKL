@@ -34,11 +34,11 @@ export declare class MasterDataController {
         _count: {
             santris: number;
         };
-        waliKelas: {
+        tahunAjaran: {
             id: string;
             nama: string;
         };
-        tahunAjaran: {
+        waliKelas: {
             id: string;
             nama: string;
         };

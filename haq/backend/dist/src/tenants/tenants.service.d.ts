@@ -16,9 +16,9 @@ export declare class TenantsService {
         jumlahSantri: number;
         jumlahKelas: number;
         _count: {
-            kelas: number;
-            santris: number;
             users: number;
+            santris: number;
+            kelas: number;
         };
         id: string;
         status: import(".prisma/client").$Enums.TenantStatus;
@@ -26,6 +26,8 @@ export declare class TenantsService {
         namaPondok: string;
         logoUrl: string | null;
         warnaTema: string | null;
+        kuotaSantriPpdb: number | null;
+        statusGelombangPpdb: import(".prisma/client").$Enums.StatusGelombangPpdb;
         adminAwalId: string | null;
         tanggalDaftar: Date;
     }[]>;
@@ -38,10 +40,10 @@ export declare class TenantsService {
     }>;
     getByTenantId(tenantId: string): Promise<{
         _count: {
-            kelas: number;
-            santris: number;
             users: number;
+            santris: number;
             ustadzs: number;
+            kelas: number;
         };
     } & {
         id: string;
@@ -50,6 +52,8 @@ export declare class TenantsService {
         namaPondok: string;
         logoUrl: string | null;
         warnaTema: string | null;
+        kuotaSantriPpdb: number | null;
+        statusGelombangPpdb: import(".prisma/client").$Enums.StatusGelombangPpdb;
         adminAwalId: string | null;
         tanggalDaftar: Date;
     }>;

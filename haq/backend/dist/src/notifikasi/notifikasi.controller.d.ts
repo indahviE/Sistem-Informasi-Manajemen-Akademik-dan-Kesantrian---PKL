@@ -7,10 +7,10 @@ export declare class NotifikasiController {
         id: string;
         tenantId: string;
         jenis: import(".prisma/client").$Enums.JenisNotifikasi;
-        tanggal: Date;
         userId: string | null;
         pesan: string;
         statusBaca: boolean;
+        tanggal: Date;
     }[]>;
     unreadCount(user: RequestUser, tenantId: string | undefined): Promise<number>;
     markRead(user: RequestUser, id: string): Promise<import(".prisma/client").Prisma.BatchPayload>;

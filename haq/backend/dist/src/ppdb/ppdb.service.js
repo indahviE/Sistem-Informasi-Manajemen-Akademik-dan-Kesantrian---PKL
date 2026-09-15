@@ -55,6 +55,42 @@ let PpdbService = class PpdbService {
             message: 'Pendaftaran berhasil dikirim. Panitia pondok akan meninjau dan menghubungi Anda.',
         };
     }
+    async lookup(kodeTenant) {
+        const tenant = await this.prisma.tenant.findUnique({
+            where: { kodeTenant },
+            select: {
+                id: true,
+                namaPondok: true,
+                kodeTenant: true,
+                logoUrl: true,
+                status: true,
+                kuotaSantriPpdb: true,
+                statusGelombangPpdb: true,
+            },
+        });
+        if (!tenant) {
+            throw new common_1.NotFoundException('Pondok dengan kode tersebut tidak ditemukan. Periksa kembali kode PPDB.');
+        }
+        if (tenant.status !== 'AKTIF') {
+            throw new common_1.BadRequestException('Pondok ini belum membuka PPDB online.');
+        }
+        const jumlahDiterima = await this.prisma.pendaftaran.count({
+            where: { tenantId: tenant.id, status: client_1.StatusPendaftaran.DITERIMA },
+        });
+        const sisaKuota = tenant.kuotaSantriPpdb != null
+            ? Math.max(tenant.kuotaSantriPpdb - jumlahDiterima, 0)
+            : null;
+        return {
+            namaPondok: tenant.namaPondok,
+            kodeTenant: tenant.kodeTenant,
+            logoUrl: tenant.logoUrl,
+            gelombang: {
+                status: tenant.statusGelombangPpdb,
+                kuota: tenant.kuotaSantriPpdb,
+                sisaKuota,
+            },
+        };
+    }
     async findAll(tenantId, q) {
         const where = { tenantId };
         if (q.status)

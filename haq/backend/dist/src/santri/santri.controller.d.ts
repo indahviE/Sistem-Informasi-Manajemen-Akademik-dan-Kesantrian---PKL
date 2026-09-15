@@ -17,14 +17,14 @@ export declare class SantriController {
         } & {
             id: string;
             tenantId: string;
-            nis: string;
             nama: string;
+            status: import(".prisma/client").$Enums.SantriStatus;
+            nis: string;
             jenisKelamin: string;
             tanggalLahir: Date | null;
             kelasId: string | null;
             asrama: string | null;
             waliId: string | null;
-            status: import(".prisma/client").$Enums.SantriStatus;
             tahunMasuk: number;
         })[];
         total: number;
@@ -44,29 +44,29 @@ export declare class SantriController {
             id: string;
             tenantId: string;
             nama: string;
-            noHp: string | null;
             email: string | null;
-            hubungan: string;
+            noHp: string | null;
             userId: string | null;
+            hubungan: string;
         };
         capaianTahfidzs: {
             id: string;
             tenantId: string;
+            createdAt: Date;
             tanggalSetor: Date;
             santriId: string;
             juz: number;
             halaman: number;
             catatanUstadz: string | null;
             inputOleh: string;
-            createdAt: Date;
         }[];
         pelanggarans: {
             id: string;
             tenantId: string;
             status: string;
-            santriId: string;
             createdAt: Date;
             tanggal: Date;
+            santriId: string;
             jenisPelanggaran: string;
             poin: number;
             pelaporId: string | null;
@@ -75,40 +75,40 @@ export declare class SantriController {
     } & {
         id: string;
         tenantId: string;
-        nis: string;
         nama: string;
+        status: import(".prisma/client").$Enums.SantriStatus;
+        nis: string;
         jenisKelamin: string;
         tanggalLahir: Date | null;
         kelasId: string | null;
         asrama: string | null;
         waliId: string | null;
-        status: import(".prisma/client").$Enums.SantriStatus;
         tahunMasuk: number;
     }>;
     create(tenantId: string, dto: CreateSantriDto): import(".prisma/client").Prisma.Prisma__SantriClient<{
         id: string;
         tenantId: string;
-        nis: string;
         nama: string;
+        status: import(".prisma/client").$Enums.SantriStatus;
+        nis: string;
         jenisKelamin: string;
         tanggalLahir: Date | null;
         kelasId: string | null;
         asrama: string | null;
         waliId: string | null;
-        status: import(".prisma/client").$Enums.SantriStatus;
         tahunMasuk: number;
     }, never, import("@prisma/client/runtime/library").DefaultArgs>;
     update(tenantId: string, id: string, dto: UpdateSantriDto): Promise<{
         id: string;
         tenantId: string;
-        nis: string;
         nama: string;
+        status: import(".prisma/client").$Enums.SantriStatus;
+        nis: string;
         jenisKelamin: string;
         tanggalLahir: Date | null;
         kelasId: string | null;
         asrama: string | null;
         waliId: string | null;
-        status: import(".prisma/client").$Enums.SantriStatus;
         tahunMasuk: number;
     }>;
     remove(tenantId: string, id: string): Promise<{

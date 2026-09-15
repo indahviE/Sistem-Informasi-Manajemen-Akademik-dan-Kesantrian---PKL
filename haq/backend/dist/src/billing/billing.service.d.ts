@@ -58,24 +58,24 @@ export declare class BillingService {
         tenantId: string;
         status: import(".prisma/client").$Enums.StatusSubscription;
         paketId: string;
-        tanggalMulai: Date;
         tanggalAkhir: Date | null;
+        tanggalMulai: Date;
     })[]>;
     assignSubscription(dto: AssignSubscriptionDto): Promise<{
         id: string;
         tenantId: string;
         status: import(".prisma/client").$Enums.StatusSubscription;
         paketId: string;
-        tanggalMulai: Date;
         tanggalAkhir: Date | null;
+        tanggalMulai: Date;
     }>;
     updateSubscription(id: string, dto: UpdateSubscriptionDto): Promise<{
         id: string;
         tenantId: string;
         status: import(".prisma/client").$Enums.StatusSubscription;
         paketId: string;
-        tanggalMulai: Date;
         tanggalAkhir: Date | null;
+        tanggalMulai: Date;
     }>;
     findAllInvoice(isSuperAdmin: boolean, tenantId?: string): Promise<({
         tenant: {
@@ -85,34 +85,34 @@ export declare class BillingService {
     } & {
         id: string;
         tenantId: string;
-        createdAt: Date;
         status: import(".prisma/client").$Enums.StatusInvoice;
-        noInvoice: string;
+        createdAt: Date;
         jumlah: number;
+        metodeBayar: string | null;
+        noInvoice: string;
         tanggalJatuhTempo: Date | null;
         tanggalBayar: Date | null;
-        metodeBayar: string | null;
     })[]>;
     createInvoice(dto: CreateInvoiceDto): Promise<{
         id: string;
         tenantId: string;
-        createdAt: Date;
         status: import(".prisma/client").$Enums.StatusInvoice;
-        noInvoice: string;
+        createdAt: Date;
         jumlah: number;
+        metodeBayar: string | null;
+        noInvoice: string;
         tanggalJatuhTempo: Date | null;
         tanggalBayar: Date | null;
-        metodeBayar: string | null;
     }>;
     updateInvoice(id: string, dto: UpdateInvoiceDto): Promise<{
         id: string;
         tenantId: string;
-        createdAt: Date;
         status: import(".prisma/client").$Enums.StatusInvoice;
-        noInvoice: string;
+        createdAt: Date;
         jumlah: number;
+        metodeBayar: string | null;
+        noInvoice: string;
         tanggalJatuhTempo: Date | null;
         tanggalBayar: Date | null;
-        metodeBayar: string | null;
     }>;
 }

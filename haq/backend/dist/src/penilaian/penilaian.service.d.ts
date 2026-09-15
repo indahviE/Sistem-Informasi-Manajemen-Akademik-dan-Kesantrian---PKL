@@ -7,34 +7,30 @@ export declare class PenilaianService {
     constructor(prisma: PrismaService);
     private assertSantri;
     findAllUjian(tenantId: string, kelasId?: string): Promise<({
-        mapel: {
-            id: string;
-            namaMapel: string;
+        _count: {
+            nilais: number;
         };
         kelas: {
             id: string;
             namaKelas: string;
         };
-        _count: {
-            nilais: number;
+        mapel: {
+            id: string;
+            namaMapel: string;
         };
     } & {
         id: string;
         tenantId: string;
         nama: string;
+        createdAt: Date;
         jenis: string;
-        mapelId: string | null;
         kelasId: string | null;
         tanggal: Date | null;
-        durasiMenit: number | null;
-        createdAt: Date;
+        mapelId: string | null;
         updatedAt: Date;
+        durasiMenit: number | null;
     })[]>;
     getUjian(tenantId: string, id: string): Promise<{
-        mapel: {
-            id: string;
-            namaMapel: string;
-        };
         kelas: {
             id: string;
             namaKelas: string;
@@ -49,68 +45,72 @@ export declare class PenilaianService {
             id: string;
             tenantId: string;
             createdAt: Date;
+            nilai: number;
+            santriId: string;
+            catatan: string | null;
             updatedAt: Date;
             ujianId: string;
-            santriId: string;
-            nilai: number;
-            catatan: string | null;
         })[];
-    } & {
-        id: string;
-        tenantId: string;
-        nama: string;
-        jenis: string;
-        mapelId: string | null;
-        kelasId: string | null;
-        tanggal: Date | null;
-        durasiMenit: number | null;
-        createdAt: Date;
-        updatedAt: Date;
-    }>;
-    createUjian(tenantId: string, dto: CreateUjianDto): Promise<{
         mapel: {
             id: string;
             namaMapel: string;
         };
+    } & {
+        id: string;
+        tenantId: string;
+        nama: string;
+        createdAt: Date;
+        jenis: string;
+        kelasId: string | null;
+        tanggal: Date | null;
+        mapelId: string | null;
+        updatedAt: Date;
+        durasiMenit: number | null;
+    }>;
+    createUjian(tenantId: string, dto: CreateUjianDto): Promise<{
         kelas: {
             id: string;
             namaKelas: string;
+        };
+        mapel: {
+            id: string;
+            namaMapel: string;
         };
     } & {
         id: string;
         tenantId: string;
         nama: string;
+        createdAt: Date;
         jenis: string;
-        mapelId: string | null;
         kelasId: string | null;
         tanggal: Date | null;
-        durasiMenit: number | null;
-        createdAt: Date;
+        mapelId: string | null;
         updatedAt: Date;
+        durasiMenit: number | null;
     }>;
     updateUjian(tenantId: string, id: string, dto: UpdateUjianDto): Promise<{
         id: string;
         tenantId: string;
         nama: string;
+        createdAt: Date;
         jenis: string;
-        mapelId: string | null;
         kelasId: string | null;
         tanggal: Date | null;
-        durasiMenit: number | null;
-        createdAt: Date;
+        mapelId: string | null;
         updatedAt: Date;
+        durasiMenit: number | null;
     }>;
     removeUjian(tenantId: string, id: string): Promise<{
         id: string;
         tenantId: string;
         nama: string;
+        createdAt: Date;
         jenis: string;
-        mapelId: string | null;
         kelasId: string | null;
         tanggal: Date | null;
-        durasiMenit: number | null;
-        createdAt: Date;
+        mapelId: string | null;
         updatedAt: Date;
+        durasiMenit: number | null;
     }>;
     listNilaiUjian(tenantId: string, ujianId: string): Promise<({
         santri: {
@@ -125,11 +125,11 @@ export declare class PenilaianService {
         id: string;
         tenantId: string;
         createdAt: Date;
+        nilai: number;
+        santriId: string;
+        catatan: string | null;
         updatedAt: Date;
         ujianId: string;
-        santriId: string;
-        nilai: number;
-        catatan: string | null;
     })[]>;
     inputNilaiUjian(tenantId: string, ujianId: string, dto: InputNilaiUjianDto): Promise<{
         santri: {
@@ -141,32 +141,24 @@ export declare class PenilaianService {
         id: string;
         tenantId: string;
         createdAt: Date;
+        nilai: number;
+        santriId: string;
+        catatan: string | null;
         updatedAt: Date;
         ujianId: string;
-        santriId: string;
-        nilai: number;
-        catatan: string | null;
     }>;
     inputNilaiUjianBulk(tenantId: string, ujianId: string, items: InputNilaiUjianDto[], user: RequestUser): Promise<any[]>;
     removeNilaiUjian(tenantId: string, ujianId: string, nilaiId: string): Promise<{
         id: string;
         tenantId: string;
         createdAt: Date;
+        nilai: number;
+        santriId: string;
+        catatan: string | null;
         updatedAt: Date;
         ujianId: string;
-        santriId: string;
-        nilai: number;
-        catatan: string | null;
     }>;
     findAllRemedial(tenantId: string, santriId?: string): Promise<({
-        ujian: {
-            id: string;
-            nama: string;
-        };
-        mapel: {
-            id: string;
-            namaMapel: string;
-        };
         santri: {
             id: string;
             nama: string;
@@ -175,63 +167,71 @@ export declare class PenilaianService {
             };
             nis: string;
         };
-    } & {
-        id: string;
-        tenantId: string;
-        mapelId: string | null;
-        tanggal: Date;
-        createdAt: Date;
-        updatedAt: Date;
-        ujianId: string | null;
-        santriId: string;
-        keterangan: string;
-        hasil: string | null;
-    })[]>;
-    createRemedial(tenantId: string, dto: CreateRemedialDto): Promise<{
         ujian: {
             id: string;
             nama: string;
         };
+        mapel: {
+            id: string;
+            namaMapel: string;
+        };
+    } & {
+        id: string;
+        tenantId: string;
+        createdAt: Date;
+        tanggal: Date;
+        santriId: string;
+        mapelId: string | null;
+        keterangan: string;
+        updatedAt: Date;
+        hasil: string | null;
+        ujianId: string | null;
+    })[]>;
+    createRemedial(tenantId: string, dto: CreateRemedialDto): Promise<{
         santri: {
             id: string;
             nama: string;
             nis: string;
         };
+        ujian: {
+            id: string;
+            nama: string;
+        };
     } & {
         id: string;
         tenantId: string;
-        mapelId: string | null;
-        tanggal: Date;
         createdAt: Date;
-        updatedAt: Date;
-        ujianId: string | null;
+        tanggal: Date;
         santriId: string;
+        mapelId: string | null;
         keterangan: string;
+        updatedAt: Date;
         hasil: string | null;
+        ujianId: string | null;
     }>;
     updateRemedial(tenantId: string, id: string, dto: UpdateRemedialDto): Promise<{
         id: string;
         tenantId: string;
-        mapelId: string | null;
-        tanggal: Date;
         createdAt: Date;
-        updatedAt: Date;
-        ujianId: string | null;
+        tanggal: Date;
         santriId: string;
+        mapelId: string | null;
         keterangan: string;
+        updatedAt: Date;
         hasil: string | null;
+        ujianId: string | null;
     }>;
     removeRemedial(tenantId: string, id: string): Promise<{
         id: string;
         tenantId: string;
-        mapelId: string | null;
-        tanggal: Date;
         createdAt: Date;
-        updatedAt: Date;
-        ujianId: string | null;
+        tanggal: Date;
         santriId: string;
+        mapelId: string | null;
         keterangan: string;
+        updatedAt: Date;
         hasil: string | null;
+        ujianId: string | null;
     }>;
     findAllRapor(tenantId: string, santriId?: string, periode?: string): Promise<({
         santri: {
@@ -245,10 +245,10 @@ export declare class PenilaianService {
     } & {
         id: string;
         tenantId: string;
-        createdAt: Date;
-        updatedAt: Date;
         status: import(".prisma/client").$Enums.StatusRapor;
+        createdAt: Date;
         santriId: string;
+        updatedAt: Date;
         periode: string;
         ringkasan: Prisma.JsonValue | null;
         rataRata: number | null;
@@ -265,10 +265,10 @@ export declare class PenilaianService {
     } & {
         id: string;
         tenantId: string;
-        createdAt: Date;
-        updatedAt: Date;
         status: import(".prisma/client").$Enums.StatusRapor;
+        createdAt: Date;
         santriId: string;
+        updatedAt: Date;
         periode: string;
         ringkasan: Prisma.JsonValue | null;
         rataRata: number | null;
@@ -285,10 +285,10 @@ export declare class PenilaianService {
     } & {
         id: string;
         tenantId: string;
-        createdAt: Date;
-        updatedAt: Date;
         status: import(".prisma/client").$Enums.StatusRapor;
+        createdAt: Date;
         santriId: string;
+        updatedAt: Date;
         periode: string;
         ringkasan: Prisma.JsonValue | null;
         rataRata: number | null;
@@ -296,10 +296,10 @@ export declare class PenilaianService {
     terbitRapor(tenantId: string, id: string): Promise<{
         id: string;
         tenantId: string;
-        createdAt: Date;
-        updatedAt: Date;
         status: import(".prisma/client").$Enums.StatusRapor;
+        createdAt: Date;
         santriId: string;
+        updatedAt: Date;
         periode: string;
         ringkasan: Prisma.JsonValue | null;
         rataRata: number | null;
@@ -307,10 +307,10 @@ export declare class PenilaianService {
     removeRapor(tenantId: string, id: string): Promise<{
         id: string;
         tenantId: string;
-        createdAt: Date;
-        updatedAt: Date;
         status: import(".prisma/client").$Enums.StatusRapor;
+        createdAt: Date;
         santriId: string;
+        updatedAt: Date;
         periode: string;
         ringkasan: Prisma.JsonValue | null;
         rataRata: number | null;
@@ -327,11 +327,11 @@ export declare class PenilaianService {
     } & {
         id: string;
         tenantId: string;
-        createdAt: Date;
-        updatedAt: Date;
         status: string;
+        createdAt: Date;
         santriId: string;
         catatan: string | null;
+        updatedAt: Date;
         tanggalKelulusan: Date;
         predikat: import(".prisma/client").$Enums.PredikatKelulusan | null;
         juzYangDiHafal: number | null;
@@ -345,11 +345,11 @@ export declare class PenilaianService {
     } & {
         id: string;
         tenantId: string;
-        createdAt: Date;
-        updatedAt: Date;
         status: string;
+        createdAt: Date;
         santriId: string;
         catatan: string | null;
+        updatedAt: Date;
         tanggalKelulusan: Date;
         predikat: import(".prisma/client").$Enums.PredikatKelulusan | null;
         juzYangDiHafal: number | null;
@@ -357,11 +357,11 @@ export declare class PenilaianService {
     updateKelulusan(tenantId: string, id: string, dto: UpdateKelulusanDto): Promise<{
         id: string;
         tenantId: string;
-        createdAt: Date;
-        updatedAt: Date;
         status: string;
+        createdAt: Date;
         santriId: string;
         catatan: string | null;
+        updatedAt: Date;
         tanggalKelulusan: Date;
         predikat: import(".prisma/client").$Enums.PredikatKelulusan | null;
         juzYangDiHafal: number | null;
@@ -369,11 +369,11 @@ export declare class PenilaianService {
     removeKelulusan(tenantId: string, id: string): Promise<{
         id: string;
         tenantId: string;
-        createdAt: Date;
-        updatedAt: Date;
         status: string;
+        createdAt: Date;
         santriId: string;
         catatan: string | null;
+        updatedAt: Date;
         tanggalKelulusan: Date;
         predikat: import(".prisma/client").$Enums.PredikatKelulusan | null;
         juzYangDiHafal: number | null;

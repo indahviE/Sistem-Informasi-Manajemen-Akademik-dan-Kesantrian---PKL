@@ -7,10 +7,10 @@ export declare class UsersController {
     findAll(tenantId: string, role?: Role): Promise<{
         id: string;
         nama: string;
-        createdAt: Date;
-        status: import(".prisma/client").$Enums.UserStatus;
         email: string;
         role: import(".prisma/client").$Enums.Role;
+        status: import(".prisma/client").$Enums.UserStatus;
+        createdAt: Date;
     }[]>;
     create(tenantId: string, dto: CreateUserDto): Promise<{
         id: string;

@@ -16,38 +16,38 @@ export declare class KesantrianController {
     } & {
         id: string;
         tenantId: string;
-        tanggal: Date;
-        createdAt: Date;
         status: string;
+        createdAt: Date;
+        tanggal: Date;
         santriId: string;
-        tindakLanjut: string | null;
         jenisPelanggaran: string;
         poin: number;
         pelaporId: string | null;
+        tindakLanjut: string | null;
     })[]>;
     createPelanggaran(tenantId: string, dto: CreatePelanggaranDto, user: RequestUser): Promise<{
         id: string;
         tenantId: string;
-        tanggal: Date;
-        createdAt: Date;
         status: string;
+        createdAt: Date;
+        tanggal: Date;
         santriId: string;
-        tindakLanjut: string | null;
         jenisPelanggaran: string;
         poin: number;
         pelaporId: string | null;
+        tindakLanjut: string | null;
     }>;
     updatePelanggaran(tenantId: string, id: string, dto: UpdatePelanggaranDto): Promise<{
         id: string;
         tenantId: string;
-        tanggal: Date;
-        createdAt: Date;
         status: string;
+        createdAt: Date;
+        tanggal: Date;
         santriId: string;
-        tindakLanjut: string | null;
         jenisPelanggaran: string;
         poin: number;
         pelaporId: string | null;
+        tindakLanjut: string | null;
     }>;
     findAllPerizinan(tenantId: string, q: QueryKesantrianDto): Promise<({
         santri: {
@@ -61,8 +61,8 @@ export declare class KesantrianController {
     } & {
         id: string;
         tenantId: string;
-        jenis: import(".prisma/client").$Enums.JenisPerizinan;
         createdAt: Date;
+        jenis: import(".prisma/client").$Enums.JenisPerizinan;
         santriId: string;
         catatan: string | null;
         tanggalKeluar: Date;
@@ -74,8 +74,8 @@ export declare class KesantrianController {
     createPerizinan(tenantId: string, dto: CreatePerizinanDto, user: RequestUser): Promise<{
         id: string;
         tenantId: string;
-        jenis: import(".prisma/client").$Enums.JenisPerizinan;
         createdAt: Date;
+        jenis: import(".prisma/client").$Enums.JenisPerizinan;
         santriId: string;
         catatan: string | null;
         tanggalKeluar: Date;
@@ -87,8 +87,8 @@ export declare class KesantrianController {
     updatePerizinan(tenantId: string, id: string, dto: UpdatePerizinanDto, user: RequestUser): Promise<{
         id: string;
         tenantId: string;
-        jenis: import(".prisma/client").$Enums.JenisPerizinan;
         createdAt: Date;
+        jenis: import(".prisma/client").$Enums.JenisPerizinan;
         santriId: string;
         catatan: string | null;
         tanggalKeluar: Date;
@@ -109,9 +109,9 @@ export declare class KesantrianController {
     } & {
         id: string;
         tenantId: string;
-        tanggal: Date;
-        createdAt: Date;
         status: import(".prisma/client").$Enums.StatusKesehatan;
+        createdAt: Date;
+        tanggal: Date;
         santriId: string;
         inputOleh: string;
         keluhan: string;
@@ -123,9 +123,9 @@ export declare class KesantrianController {
     createKesehatan(tenantId: string, dto: CreateKesehatanDto, user: RequestUser): Promise<{
         id: string;
         tenantId: string;
-        tanggal: Date;
-        createdAt: Date;
         status: import(".prisma/client").$Enums.StatusKesehatan;
+        createdAt: Date;
+        tanggal: Date;
         santriId: string;
         inputOleh: string;
         keluhan: string;
@@ -137,7 +137,6 @@ export declare class KesantrianController {
     getRekamMedis(tenantId: string, santriId: string): Promise<{
         id: string;
         tenantId: string;
-        updatedAt: Date;
         santriId: string;
         golonganDarah: string | null;
         alergi: string | null;
@@ -145,6 +144,7 @@ export declare class KesantrianController {
         tinggiBadan: number | null;
         beratBadan: number | null;
         catatanKhusus: string | null;
+        updatedAt: Date;
     } | {
         santriId: string;
         golonganDarah: any;
@@ -158,7 +158,6 @@ export declare class KesantrianController {
     upsertRekamMedis(tenantId: string, santriId: string, dto: any): Promise<{
         id: string;
         tenantId: string;
-        updatedAt: Date;
         santriId: string;
         golonganDarah: string | null;
         alergi: string | null;
@@ -166,33 +165,34 @@ export declare class KesantrianController {
         tinggiBadan: number | null;
         beratBadan: number | null;
         catatanKhusus: string | null;
+        updatedAt: Date;
     }>;
     findAllKunjungan(tenantId: string, q: QueryKesantrianDto): Promise<({
-        santri: {
-            id: string;
-            nama: string;
-            nis: string;
-        };
         wali: {
             id: string;
             nama: string;
             hubungan: string;
         };
+        santri: {
+            id: string;
+            nama: string;
+            nis: string;
+        };
     } & {
         id: string;
         tenantId: string;
-        tanggal: Date;
         createdAt: Date;
         waliId: string | null;
+        tanggal: Date;
         santriId: string;
         catatan: string | null;
     })[]>;
     createKunjungan(tenantId: string, dto: CreateKunjunganDto): Promise<{
         id: string;
         tenantId: string;
-        tanggal: Date;
         createdAt: Date;
         waliId: string | null;
+        tanggal: Date;
         santriId: string;
         catatan: string | null;
     }>;

@@ -20,14 +20,14 @@ export declare class KonselingController {
     } & {
         id: string;
         tenantId: string;
-        tanggal: Date;
         createdAt: Date;
-        updatedAt: Date;
+        tanggal: Date;
         santriId: string;
+        tindakLanjut: string | null;
         catatan: string;
+        updatedAt: Date;
         konselorId: string | null;
         topik: string;
-        tindakLanjut: string | null;
         privat: boolean;
     })[]>;
     create(tenantId: string, dto: CreateKonselingDto, user: RequestUser): Promise<{
@@ -43,40 +43,40 @@ export declare class KonselingController {
     } & {
         id: string;
         tenantId: string;
-        tanggal: Date;
         createdAt: Date;
-        updatedAt: Date;
+        tanggal: Date;
         santriId: string;
+        tindakLanjut: string | null;
         catatan: string;
+        updatedAt: Date;
         konselorId: string | null;
         topik: string;
-        tindakLanjut: string | null;
         privat: boolean;
     }>;
     update(tenantId: string, id: string, dto: UpdateKonselingDto): Promise<{
         id: string;
         tenantId: string;
-        tanggal: Date;
         createdAt: Date;
-        updatedAt: Date;
+        tanggal: Date;
         santriId: string;
+        tindakLanjut: string | null;
         catatan: string;
+        updatedAt: Date;
         konselorId: string | null;
         topik: string;
-        tindakLanjut: string | null;
         privat: boolean;
     }>;
     remove(tenantId: string, id: string): Promise<{
         id: string;
         tenantId: string;
-        tanggal: Date;
         createdAt: Date;
-        updatedAt: Date;
+        tanggal: Date;
         santriId: string;
+        tindakLanjut: string | null;
         catatan: string;
+        updatedAt: Date;
         konselorId: string | null;
         topik: string;
-        tindakLanjut: string | null;
         privat: boolean;
     }>;
 }

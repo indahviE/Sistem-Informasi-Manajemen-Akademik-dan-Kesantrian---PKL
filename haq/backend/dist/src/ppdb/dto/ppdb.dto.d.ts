@@ -10,6 +10,9 @@ export declare class DaftarPpdbDto {
     alamat?: string;
     jalur?: string;
 }
+export declare class LookupPpdbDto {
+    kode: string;
+}
 export declare class UpdatePendaftaranDto {
     status?: StatusPendaftaran;
     catatan?: string;

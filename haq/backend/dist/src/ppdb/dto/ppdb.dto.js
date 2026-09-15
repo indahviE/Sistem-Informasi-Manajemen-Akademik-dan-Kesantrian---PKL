@@ -9,7 +9,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.CreatePlacementTestDto = exports.QueryPpdbDto = exports.UpdatePendaftaranDto = exports.DaftarPpdbDto = void 0;
+exports.CreatePlacementTestDto = exports.QueryPpdbDto = exports.UpdatePendaftaranDto = exports.LookupPpdbDto = exports.DaftarPpdbDto = void 0;
 const class_transformer_1 = require("class-transformer");
 const class_validator_1 = require("class-validator");
 const client_1 = require("@prisma/client");
@@ -61,6 +61,14 @@ __decorate([
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
 ], DaftarPpdbDto.prototype, "jalur", void 0);
+class LookupPpdbDto {
+}
+exports.LookupPpdbDto = LookupPpdbDto;
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsNotEmpty)({ message: 'Kode pondok wajib diisi' }),
+    __metadata("design:type", String)
+], LookupPpdbDto.prototype, "kode", void 0);
 class UpdatePendaftaranDto {
 }
 exports.UpdatePendaftaranDto = UpdatePendaftaranDto;

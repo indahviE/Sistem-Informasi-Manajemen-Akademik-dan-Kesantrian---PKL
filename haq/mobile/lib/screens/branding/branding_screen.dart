@@ -73,7 +73,7 @@ class _BrandingScreenState extends State<BrandingScreen> {
   }
 
   Future<void> _pilihLogo() async {
-    final result = await FilePicker.pickFiles(
+    final result = await FilePicker.platform.pickFiles(
       type: FileType.image,
       allowMultiple: false,
       withData: true,

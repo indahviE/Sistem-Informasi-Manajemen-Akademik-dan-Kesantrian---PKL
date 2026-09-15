@@ -28,6 +28,9 @@ let PpdbController = class PpdbController {
     daftar(dto) {
         return this.ppdbService.daftar(dto);
     }
+    lookup(kode) {
+        return this.ppdbService.lookup(kode);
+    }
     findAll(tenantId, q) {
         return this.ppdbService.findAll(tenantId, q);
     }
@@ -56,6 +59,14 @@ __decorate([
     __metadata("design:paramtypes", [ppdb_dto_1.DaftarPpdbDto]),
     __metadata("design:returntype", void 0)
 ], PpdbController.prototype, "daftar", null);
+__decorate([
+    (0, roles_decorator_1.Public)(),
+    (0, common_1.Get)('lookup'),
+    __param(0, (0, common_1.Query)('kode')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], PpdbController.prototype, "lookup", null);
 __decorate([
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),
     (0, roles_decorator_1.Roles)(client_1.Role.ADMIN, client_1.Role.PIMPINAN),
