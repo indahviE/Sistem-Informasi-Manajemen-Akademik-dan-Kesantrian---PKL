@@ -4,48 +4,48 @@ export declare class WaliService {
     private prisma;
     constructor(prisma: PrismaService);
     findAll(tenantId: string): Promise<({
-        _count: {
-            santris: number;
-        };
         user: {
             id: string;
             email: string;
+        };
+        _count: {
+            santris: number;
         };
     } & {
         id: string;
         tenantId: string;
         nama: string;
-        userId: string | null;
-        email: string | null;
         noHp: string | null;
+        email: string | null;
         hubungan: string;
+        userId: string | null;
     })[]>;
     create(tenantId: string, dto: CreateWaliDto): Promise<{
         id: string;
         tenantId: string;
         nama: string;
-        userId: string | null;
-        email: string | null;
         noHp: string | null;
+        email: string | null;
         hubungan: string;
+        userId: string | null;
     }>;
     update(tenantId: string, id: string, dto: Partial<CreateWaliDto>): Promise<{
         id: string;
         tenantId: string;
         nama: string;
-        userId: string | null;
-        email: string | null;
         noHp: string | null;
+        email: string | null;
         hubungan: string;
+        userId: string | null;
     }>;
     linkUser(tenantId: string, dto: LinkWaliUserDto): Promise<{
         id: string;
         tenantId: string;
         nama: string;
-        userId: string | null;
-        email: string | null;
         noHp: string | null;
+        email: string | null;
         hubungan: string;
+        userId: string | null;
     }>;
     myProfile(userId: string): Promise<{
         santris: ({
@@ -56,22 +56,23 @@ export declare class WaliService {
             id: string;
             tenantId: string;
             nama: string;
-            kelasId: string | null;
+            status: import(".prisma/client").$Enums.SantriStatus;
             nis: string;
             jenisKelamin: string;
             tanggalLahir: Date | null;
+            kelasId: string | null;
             asrama: string | null;
             waliId: string | null;
-            status: import(".prisma/client").$Enums.SantriStatus;
             tahunMasuk: number;
         })[];
     } & {
         id: string;
         tenantId: string;
         nama: string;
-        userId: string | null;
-        email: string | null;
         noHp: string | null;
+        email: string | null;
         hubungan: string;
+        userId: string | null;
     }>;
+    getSantriIds(userId: string): Promise<string[]>;
 }

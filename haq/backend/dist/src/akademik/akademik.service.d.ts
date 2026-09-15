@@ -7,106 +7,106 @@ export declare class AkademikService {
     constructor(prisma: PrismaService);
     private assertSantri;
     findAllAbsensi(tenantId: string, query: QueryAbsensiDto): Promise<({
-        mapel: {
-            id: string;
-            namaMapel: string;
-        };
         santri: {
             id: string;
+            nis: string;
             nama: string;
             kelas: {
                 namaKelas: string;
             };
-            nis: string;
+        };
+        mapel: {
+            id: string;
+            namaMapel: string;
         };
     } & {
         id: string;
         tenantId: string;
-        mapelId: string | null;
-        kelasId: string | null;
-        tanggal: Date;
-        createdAt: Date;
-        status: import(".prisma/client").$Enums.AbsensiStatus;
         santriId: string;
+        kelasId: string | null;
+        mapelId: string | null;
+        tanggal: Date;
+        status: import(".prisma/client").$Enums.AbsensiStatus;
         catatan: string | null;
         inputOleh: string;
+        createdAt: Date;
     })[]>;
     createAbsensi(tenantId: string, dto: CreateAbsensiDto, user: RequestUser): Promise<{
         id: string;
         tenantId: string;
-        mapelId: string | null;
-        kelasId: string | null;
-        tanggal: Date;
-        createdAt: Date;
-        status: import(".prisma/client").$Enums.AbsensiStatus;
         santriId: string;
+        kelasId: string | null;
+        mapelId: string | null;
+        tanggal: Date;
+        status: import(".prisma/client").$Enums.AbsensiStatus;
         catatan: string | null;
         inputOleh: string;
+        createdAt: Date;
     }>;
     bulkAbsensi(tenantId: string, dto: BulkAbsensiDto, user: RequestUser): Promise<{
         count: number;
         message: string;
     }>;
-    findAllNilai(tenantId: string, santriId?: string, mapelId?: string, jenis?: JenisNilai): Promise<({
+    findAllNilai(tenantId: string, santriId?: string, mapelId?: string, jenis?: JenisNilai, allowedSantriIds?: string[]): Promise<({
+        santri: {
+            id: string;
+            nis: string;
+            nama: string;
+        };
         mapel: {
             id: string;
             namaMapel: string;
         };
-        santri: {
-            id: string;
-            nama: string;
-            nis: string;
-        };
     } & {
         id: string;
         tenantId: string;
-        jenis: import(".prisma/client").$Enums.JenisNilai;
+        santriId: string;
         mapelId: string;
         tanggal: Date;
+        inputOleh: string;
         createdAt: Date;
-        santriId: string;
+        jenis: import(".prisma/client").$Enums.JenisNilai;
         nilai: number;
         keterangan: string | null;
-        inputOleh: string;
     })[]>;
     createNilai(tenantId: string, dto: CreateNilaiDto, user: RequestUser): Promise<{
         id: string;
         tenantId: string;
-        jenis: import(".prisma/client").$Enums.JenisNilai;
+        santriId: string;
         mapelId: string;
         tanggal: Date;
+        inputOleh: string;
         createdAt: Date;
-        santriId: string;
+        jenis: import(".prisma/client").$Enums.JenisNilai;
         nilai: number;
         keterangan: string | null;
-        inputOleh: string;
     }>;
-    findAllTahfidz(tenantId: string, santriId?: string): Promise<({
+    findAllTahfidz(tenantId: string, santriId?: string, allowedSantriIds?: string[]): Promise<({
         santri: {
             id: string;
-            nama: string;
             nis: string;
+            nama: string;
         };
     } & {
         id: string;
         tenantId: string;
-        createdAt: Date;
         santriId: string;
         inputOleh: string;
-        tanggalSetor: Date;
+        createdAt: Date;
         juz: number;
         halaman: number;
+        tanggalSetor: Date;
         catatanUstadz: string | null;
     })[]>;
     createTahfidz(tenantId: string, dto: CreateTahfidzDto, user: RequestUser): Promise<{
         id: string;
         tenantId: string;
-        createdAt: Date;
         santriId: string;
         inputOleh: string;
-        tanggalSetor: Date;
+        createdAt: Date;
         juz: number;
         halaman: number;
+        tanggalSetor: Date;
         catatanUstadz: string | null;
     }>;
     private assertSantriInTenant;

@@ -93,11 +93,18 @@ let AkademikService = class AkademikService {
         }
         return { count: results.length, message: 'Absensi massal disimpan.' };
     }
-    async findAllNilai(tenantId, santriId, mapelId, jenis) {
+    async findAllNilai(tenantId, santriId, mapelId, jenis, allowedSantriIds) {
+        const santriFilter = allowedSantriIds
+            ? santriId
+                ? { santriId }
+                : { santriId: { in: allowedSantriIds } }
+            : santriId
+                ? { santriId }
+                : {};
         return this.prisma.nilai.findMany({
             where: {
                 tenantId,
-                ...(santriId ? { santriId } : {}),
+                ...santriFilter,
                 ...(mapelId ? { mapelId } : {}),
                 ...(jenis ? { jenis } : {}),
             },
@@ -123,9 +130,16 @@ let AkademikService = class AkademikService {
             },
         });
     }
-    async findAllTahfidz(tenantId, santriId) {
+    async findAllTahfidz(tenantId, santriId, allowedSantriIds) {
+        const santriFilter = allowedSantriIds
+            ? santriId
+                ? { santriId }
+                : { santriId: { in: allowedSantriIds } }
+            : santriId
+                ? { santriId }
+                : {};
         return this.prisma.capaianTahfidz.findMany({
-            where: { tenantId, ...(santriId ? { santriId } : {}) },
+            where: { tenantId, ...santriFilter },
             include: { santri: { select: { id: true, nama: true, nis: true } } },
             orderBy: { tanggalSetor: 'desc' },
         });

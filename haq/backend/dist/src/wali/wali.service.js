@@ -64,6 +64,15 @@ let WaliService = class WaliService {
             throw new common_1.NotFoundException('Akun wali belum terhubung ke data santri.');
         return wali;
     }
+    async getSantriIds(userId) {
+        const wali = await this.prisma.waliSantri.findFirst({
+            where: { userId },
+            select: { santris: { select: { id: true } } },
+        });
+        if (!wali)
+            return [];
+        return wali.santris.map((s) => s.id);
+    }
 };
 exports.WaliService = WaliService;
 exports.WaliService = WaliService = __decorate([

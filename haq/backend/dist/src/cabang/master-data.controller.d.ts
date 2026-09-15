@@ -5,24 +5,24 @@ export declare class MasterDataController {
     constructor(masterService: MasterDataService);
     findAllUstadz(tenantId: string, jenis?: string): import(".prisma/client").Prisma.PrismaPromise<{
         id: string;
-        tenantId: string;
         nama: string;
+        tenantId: string;
         jenis: import(".prisma/client").$Enums.JenisUstadz;
         noHp: string | null;
         userId: string | null;
     }[]>;
     createUstadz(tenantId: string, dto: CreateUstadzDto): import(".prisma/client").Prisma.Prisma__UstadzClient<{
         id: string;
-        tenantId: string;
         nama: string;
+        tenantId: string;
         jenis: import(".prisma/client").$Enums.JenisUstadz;
         noHp: string | null;
         userId: string | null;
     }, never, import("@prisma/client/runtime/library").DefaultArgs>;
     updateUstadz(tenantId: string, id: string, dto: UpdateUstadzDto): Promise<{
         id: string;
-        tenantId: string;
         nama: string;
+        tenantId: string;
         jenis: import(".prisma/client").$Enums.JenisUstadz;
         noHp: string | null;
         userId: string | null;
@@ -34,11 +34,11 @@ export declare class MasterDataController {
         _count: {
             santris: number;
         };
-        waliKelas: {
+        tahunAjaran: {
             id: string;
             nama: string;
         };
-        tahunAjaran: {
+        waliKelas: {
             id: string;
             nama: string;
         };
@@ -95,15 +95,15 @@ export declare class MasterDataController {
     }>;
     findAllTahunAjaran(tenantId: string): import(".prisma/client").Prisma.PrismaPromise<{
         id: string;
-        tenantId: string;
         nama: string;
         aktif: boolean;
+        tenantId: string;
     }[]>;
     createTahunAjaran(tenantId: string, dto: CreateTahunAjaranDto): import(".prisma/client").Prisma.Prisma__TahunAjaranClient<{
         id: string;
-        tenantId: string;
         nama: string;
         aktif: boolean;
+        tenantId: string;
     }, never, import("@prisma/client/runtime/library").DefaultArgs>;
     setAktif(tenantId: string, id: string): Promise<{
         message: string;

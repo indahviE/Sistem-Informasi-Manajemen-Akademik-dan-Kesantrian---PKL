@@ -9,51 +9,51 @@ export declare class KurikulumService {
         };
         tahunAjaran: {
             id: string;
-            tenantId: string;
             nama: string;
             aktif: boolean;
+            tenantId: string;
         };
     } & {
         id: string;
-        tenantId: string;
         nama: string;
-        createdAt: Date;
-        tahunAjaranId: string | null;
         aktif: boolean;
+        createdAt: Date;
+        tenantId: string;
+        tahunAjaranId: string | null;
         deskripsi: string | null;
     })[]>;
     createKurikulum(tenantId: string, dto: CreateKurikulumDto): Promise<{
         tahunAjaran: {
             id: string;
-            tenantId: string;
             nama: string;
             aktif: boolean;
+            tenantId: string;
         };
     } & {
         id: string;
-        tenantId: string;
         nama: string;
-        createdAt: Date;
-        tahunAjaranId: string | null;
         aktif: boolean;
+        createdAt: Date;
+        tenantId: string;
+        tahunAjaranId: string | null;
         deskripsi: string | null;
     }>;
     updateKurikulum(tenantId: string, id: string, dto: UpdateKurikulumDto): Promise<{
         id: string;
-        tenantId: string;
         nama: string;
-        createdAt: Date;
-        tahunAjaranId: string | null;
         aktif: boolean;
+        createdAt: Date;
+        tenantId: string;
+        tahunAjaranId: string | null;
         deskripsi: string | null;
     }>;
     removeKurikulum(tenantId: string, id: string): Promise<{
         id: string;
-        tenantId: string;
         nama: string;
-        createdAt: Date;
-        tahunAjaranId: string | null;
         aktif: boolean;
+        createdAt: Date;
+        tenantId: string;
+        tahunAjaranId: string | null;
         deskripsi: string | null;
     }>;
     findAllSilabus(tenantId: string): Promise<({
@@ -66,20 +66,20 @@ export declare class KurikulumService {
         };
         kurikulum: {
             id: string;
-            tenantId: string;
             nama: string;
-            createdAt: Date;
-            tahunAjaranId: string | null;
             aktif: boolean;
+            createdAt: Date;
+            tenantId: string;
+            tahunAjaranId: string | null;
             deskripsi: string | null;
         };
     } & {
         id: string;
+        createdAt: Date;
         tenantId: string;
         mapelId: string | null;
-        createdAt: Date;
-        judul: string;
         kurikulumId: string | null;
+        judul: string;
         kompetensiDasar: string | null;
         materiPokok: string | null;
         alokasiWaktu: string | null;
@@ -87,11 +87,11 @@ export declare class KurikulumService {
     })[]>;
     createSilabus(tenantId: string, dto: CreateSilabusDto): Promise<{
         id: string;
+        createdAt: Date;
         tenantId: string;
         mapelId: string | null;
-        createdAt: Date;
-        judul: string;
         kurikulumId: string | null;
+        judul: string;
         kompetensiDasar: string | null;
         materiPokok: string | null;
         alokasiWaktu: string | null;
@@ -99,11 +99,11 @@ export declare class KurikulumService {
     }>;
     updateSilabus(tenantId: string, id: string, dto: UpdateSilabusDto): Promise<{
         id: string;
+        createdAt: Date;
         tenantId: string;
         mapelId: string | null;
-        createdAt: Date;
-        judul: string;
         kurikulumId: string | null;
+        judul: string;
         kompetensiDasar: string | null;
         materiPokok: string | null;
         alokasiWaktu: string | null;
@@ -111,11 +111,11 @@ export declare class KurikulumService {
     }>;
     removeSilabus(tenantId: string, id: string): Promise<{
         id: string;
+        createdAt: Date;
         tenantId: string;
         mapelId: string | null;
-        createdAt: Date;
-        judul: string;
         kurikulumId: string | null;
+        judul: string;
         kompetensiDasar: string | null;
         materiPokok: string | null;
         alokasiWaktu: string | null;
@@ -131,9 +131,9 @@ export declare class KurikulumService {
         };
     } & {
         id: string;
+        createdAt: Date;
         tenantId: string;
         mapelId: string | null;
-        createdAt: Date;
         judul: string;
         fileUrl: string | null;
         pertemuan: number;
@@ -143,9 +143,9 @@ export declare class KurikulumService {
     })[]>;
     createRpp(tenantId: string, dto: CreateRppDto): Promise<{
         id: string;
+        createdAt: Date;
         tenantId: string;
         mapelId: string | null;
-        createdAt: Date;
         judul: string;
         fileUrl: string | null;
         pertemuan: number;
@@ -155,9 +155,9 @@ export declare class KurikulumService {
     }>;
     updateRpp(tenantId: string, id: string, dto: UpdateRppDto): Promise<{
         id: string;
+        createdAt: Date;
         tenantId: string;
         mapelId: string | null;
-        createdAt: Date;
         judul: string;
         fileUrl: string | null;
         pertemuan: number;
@@ -167,9 +167,9 @@ export declare class KurikulumService {
     }>;
     removeRpp(tenantId: string, id: string): Promise<{
         id: string;
+        createdAt: Date;
         tenantId: string;
         mapelId: string | null;
-        createdAt: Date;
         judul: string;
         fileUrl: string | null;
         pertemuan: number;

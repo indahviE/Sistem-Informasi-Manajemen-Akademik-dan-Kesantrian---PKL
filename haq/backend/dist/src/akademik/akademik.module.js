@@ -10,11 +10,13 @@ exports.AkademikModule = void 0;
 const common_1 = require("@nestjs/common");
 const akademik_service_1 = require("./akademik.service");
 const akademik_controller_1 = require("./akademik.controller");
+const wali_module_1 = require("../wali/wali.module");
 let AkademikModule = class AkademikModule {
 };
 exports.AkademikModule = AkademikModule;
 exports.AkademikModule = AkademikModule = __decorate([
     (0, common_1.Module)({
+        imports: [wali_module_1.WaliModule],
         controllers: [akademik_controller_1.AkademikController],
         providers: [akademik_service_1.AkademikService],
         exports: [akademik_service_1.AkademikService],
