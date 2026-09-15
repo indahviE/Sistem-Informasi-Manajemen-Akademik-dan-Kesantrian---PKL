@@ -14,7 +14,11 @@
 //         - asset: assets/fonts/Nunito-Bold.ttf
 //           weight: 700
 
+import 'dart:convert';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+
 import '../services/api_client.dart';
 import '../services/app_scope.dart';
 
@@ -886,56 +890,51 @@ class _KarakteristikGrid extends StatelessWidget {
   }
 }
 
-class _LogoUploadBox extends StatelessWidget {
+class _LogoUploadBox extends StatefulWidget {
   const _LogoUploadBox({required this.controller});
 
   final TextEditingController controller;
 
-  Future<void> _pickLogo(BuildContext context) async {
-    final result = await showDialog<String>(
-      context: context,
-      builder: (ctx) {
-        final tempController = TextEditingController(text: controller.text);
-        return AlertDialog(
-          backgroundColor: PColors.surface,
-          surfaceTintColor: Colors.transparent,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: Text('URL Logo Pondok', style: PText.headlineSm),
-          content: _PInput(
-            controller: tempController,
-            hint: 'https://...',
-            icon: Icons.image_outlined,
-          ),
-          actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              style: TextButton.styleFrom(foregroundColor: PColors.inkSecondary),
-              child: const Text('Batal'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(ctx, tempController.text),
-              style: FilledButton.styleFrom(
-                backgroundColor: PColors.primary,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9999)),
-              ),
-              child: const Text('Simpan'),
-            ),
-          ],
-        );
-      },
+  @override
+  State<_LogoUploadBox> createState() => _LogoUploadBoxState();
+}
+
+class _LogoUploadBoxState extends State<_LogoUploadBox> {
+  bool _uploading = false;
+  String? _error;
+
+  Future<void> _pickLogo() async {
+    setState(() => _error = null);
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.image,
+      allowMultiple: false,
+      withData: true,
     );
-    if (result != null) controller.text = result;
+    if (result == null || result.files.isEmpty) return;
+    final file = result.files.single;
+    if (file.bytes == null) return;
+
+    final sizeBytes = file.bytes!.length;
+    if (sizeBytes > 2 * 1024 * 1024) {
+      setState(() => _error = 'Ukuran logo maksimal 2MB.');
+      return;
+    }
+
+    setState(() => _uploading = true);
+    final ext = (file.extension ?? 'png').toLowerCase();
+    final mime = ext == 'jpg' || ext == 'jpeg' ? 'image/jpeg' : 'image/$ext';
+    widget.controller.text = 'data:$mime;base64,${base64Encode(file.bytes!)}';
+    setState(() => _uploading = false);
   }
 
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<TextEditingValue>(
-      valueListenable: controller,
+      valueListenable: widget.controller,
       builder: (context, value, _) {
         final hasLogo = value.text.trim().isNotEmpty;
         return GestureDetector(
-          onTap: () => _pickLogo(context),
+          onTap: _uploading ? null : _pickLogo,
           child: Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
@@ -943,28 +942,53 @@ class _LogoUploadBox extends StatelessWidget {
               color: PColors.surfaceDim,
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: PColors.border,
+                color: _error != null ? PColors.errorBorder : PColors.border,
                 width: 1.2,
                 style: BorderStyle.solid,
               ),
             ),
             child: Column(
               children: [
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: const BoxDecoration(
-                    color: PColors.sage,
-                    shape: BoxShape.circle,
+                if (hasLogo)
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Image.memory(
+                      base64Decode(value.text.split(',').last),
+                      width: 64,
+                      height: 64,
+                      fit: BoxFit.cover,
+                    ),
+                  )
+                else
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: const BoxDecoration(
+                      color: PColors.sage,
+                      shape: BoxShape.circle,
+                    ),
+                    child: _uploading
+                        ? const Padding(
+                            padding: EdgeInsets.all(12),
+                            child: CircularProgressIndicator(strokeWidth: 2, color: PColors.primary),
+                          )
+                        : const Icon(Icons.cloud_upload_outlined, color: PColors.primary),
                   ),
-                  child: const Icon(Icons.cloud_upload_outlined, color: PColors.primary),
-                ),
                 const SizedBox(height: 12),
-                Text('Klik untuk unggah logo pondok', style: PText.labelLg.copyWith(color: PColors.primary)),
+                Text(
+                  _uploading
+                      ? 'Mengunggah logo...'
+                      : hasLogo
+                          ? 'Ketuk untuk ganti logo'
+                          : 'Klik untuk unggah logo pondok',
+                  style: PText.labelLg.copyWith(color: PColors.primary),
+                ),
                 const SizedBox(height: 4),
                 Text('PNG atau JPG transparan (maks. 2MB)', style: PText.bodySm, textAlign: TextAlign.center),
                 const SizedBox(height: 10),
-                if (hasLogo)
+                if (_error != null)
+                  _Pill(icon: Icons.error_outline, label: _error!, bg: PColors.errorBg, fg: PColors.errorText)
+                else if (hasLogo)
                   _Pill(
                     icon: Icons.check_circle,
                     label: 'Logo Kustom Siap',

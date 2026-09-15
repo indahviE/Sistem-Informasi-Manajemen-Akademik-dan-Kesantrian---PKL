@@ -22,6 +22,12 @@ export class PpdbController {
     return this.ppdbService.daftar(dto);
   }
 
+  @Public()
+  @Get('lookup')
+  lookup(@Query('kode') kode: string) {
+    return this.ppdbService.lookup(kode);
+  }
+
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN, Role.PIMPINAN)
   @Get()

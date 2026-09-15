@@ -49,6 +49,12 @@ export class DaftarPpdbDto {
   jalur?: string;
 }
 
+export class LookupPpdbDto {
+  @IsString()
+  @IsNotEmpty({ message: 'Kode pondok wajib diisi' })
+  kode: string;
+}
+
 export class UpdatePendaftaranDto {
   @IsOptional()
   @IsEnum(StatusPendaftaran, { message: 'Status tidak valid' })
