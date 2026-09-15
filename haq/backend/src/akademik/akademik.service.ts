@@ -101,11 +101,25 @@ export class AkademikService {
   }
 
   // ===== Nilai =====
-  async findAllNilai(tenantId: string, santriId?: string, mapelId?: string, jenis?: JenisNilai) {
+    // ===== Nilai =====
+  async findAllNilai(
+    tenantId: string,
+    santriId?: string,
+    mapelId?: string,
+    jenis?: JenisNilai,
+    allowedSantriIds?: string[],
+  ) {
+    const santriFilter = allowedSantriIds
+      ? santriId
+        ? { santriId }
+        : { santriId: { in: allowedSantriIds } }
+      : santriId
+        ? { santriId }
+        : {};
     return this.prisma.nilai.findMany({
       where: {
         tenantId,
-        ...(santriId ? { santriId } : {}),
+        ...santriFilter,
         ...(mapelId ? { mapelId } : {}),
         ...(jenis ? { jenis } : {}),
       },
@@ -134,9 +148,17 @@ export class AkademikService {
   }
 
   // ===== Tahfidz =====
-  async findAllTahfidz(tenantId: string, santriId?: string) {
+    // ===== Tahfidz =====
+  async findAllTahfidz(tenantId: string, santriId?: string, allowedSantriIds?: string[]) {
+    const santriFilter = allowedSantriIds
+      ? santriId
+        ? { santriId }
+        : { santriId: { in: allowedSantriIds } }
+      : santriId
+        ? { santriId }
+        : {};
     return this.prisma.capaianTahfidz.findMany({
-      where: { tenantId, ...(santriId ? { santriId } : {}) },
+      where: { tenantId, ...santriFilter },
       include: { santri: { select: { id: true, nama: true, nis: true } } },
       orderBy: { tanggalSetor: 'desc' },
     });

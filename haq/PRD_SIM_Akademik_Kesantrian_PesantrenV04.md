@@ -3,7 +3,7 @@
 
 **Versi:** 0.4 (Draft)
 **Fokus Fase 1:** Modul Akademik + Modul Kesantrian, sebagai **platform SaaS multi-tenant**
-**Platform:** Flutter (APK + Web, satu codebase) + REST API Backend (Node.js/NestJS) + Database (MySQL, shared dengan `tenant_id`)
+**Platform:** Flutter (APK + Web, satu codebase) + REST API Backend (Node.js/NestJS) + Database (MySQL, shared dengan ``)
 
 ---
 
@@ -17,7 +17,7 @@ Ma'had Al-Qur'an Wal Lughah tengah mengimplementasikan ISO 21001:2018 (Education
 - Sulit menghasilkan bukti kepatuhan (records) untuk audit sertifikasi
 
 **Tujuan sistem ini:**
-1. Mendigitalisasi proses inti akademik dan kesantrian sesuai SOP yang sudah ada
+1. Mendigitalisasi prosetenant_ids inti akademik dan kesantrian sesuai SOP yang sudah ada
 2. Menyediakan data terpusat yang bisa diakses sesuai peran (role-based)
 3. Mempermudah pelaporan ke wali santri dan pimpinan
 4. Menjadi bukti dokumentasi (records) yang mendukung kepatuhan ISO 21001:2018

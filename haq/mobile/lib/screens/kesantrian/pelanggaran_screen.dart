@@ -19,7 +19,7 @@ class _PelanggaranScreenState extends State<PelanggaranScreen> {
   @override
   void initState() {
     super.initState();
-    _load();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _load());
   }
 
   Future<void> _load() async {
