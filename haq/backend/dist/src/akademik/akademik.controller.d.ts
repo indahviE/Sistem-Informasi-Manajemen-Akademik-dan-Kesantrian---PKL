@@ -6,10 +6,6 @@ export declare class AkademikController {
     private akademikService;
     constructor(akademikService: AkademikService);
     findAllAbsensi(tenantId: string, q: QueryAbsensiDto): Promise<({
-        mapel: {
-            id: string;
-            namaMapel: string;
-        };
         santri: {
             id: string;
             nama: string;
@@ -18,28 +14,32 @@ export declare class AkademikController {
             };
             nis: string;
         };
+        mapel: {
+            id: string;
+            namaMapel: string;
+        };
     } & {
         id: string;
-        tenantId: string;
-        mapelId: string | null;
-        kelasId: string | null;
-        tanggal: Date;
         createdAt: Date;
+        tenantId: string;
         status: import(".prisma/client").$Enums.AbsensiStatus;
         santriId: string;
+        tanggal: Date;
         catatan: string | null;
+        kelasId: string | null;
+        mapelId: string | null;
         inputOleh: string;
     })[]>;
     createAbsensi(tenantId: string, dto: CreateAbsensiDto, user: RequestUser): Promise<{
         id: string;
-        tenantId: string;
-        mapelId: string | null;
-        kelasId: string | null;
-        tanggal: Date;
         createdAt: Date;
+        tenantId: string;
         status: import(".prisma/client").$Enums.AbsensiStatus;
         santriId: string;
+        tanggal: Date;
         catatan: string | null;
+        kelasId: string | null;
+        mapelId: string | null;
         inputOleh: string;
     }>;
     bulkAbsensi(tenantId: string, dto: BulkAbsensiDto, user: RequestUser): Promise<{
@@ -47,35 +47,35 @@ export declare class AkademikController {
         message: string;
     }>;
     findAllNilai(tenantId: string, santriId?: string, mapelId?: string, jenis?: JenisNilai): Promise<({
-        mapel: {
-            id: string;
-            namaMapel: string;
-        };
         santri: {
             id: string;
             nama: string;
             nis: string;
         };
+        mapel: {
+            id: string;
+            namaMapel: string;
+        };
     } & {
         id: string;
+        createdAt: Date;
         tenantId: string;
+        santriId: string;
+        tanggal: Date;
         jenis: import(".prisma/client").$Enums.JenisNilai;
         mapelId: string;
-        tanggal: Date;
-        createdAt: Date;
-        santriId: string;
         nilai: number;
         keterangan: string | null;
         inputOleh: string;
     })[]>;
     createNilai(tenantId: string, dto: CreateNilaiDto, user: RequestUser): Promise<{
         id: string;
+        createdAt: Date;
         tenantId: string;
+        santriId: string;
+        tanggal: Date;
         jenis: import(".prisma/client").$Enums.JenisNilai;
         mapelId: string;
-        tanggal: Date;
-        createdAt: Date;
-        santriId: string;
         nilai: number;
         keterangan: string | null;
         inputOleh: string;
@@ -88,24 +88,24 @@ export declare class AkademikController {
         };
     } & {
         id: string;
-        tenantId: string;
         createdAt: Date;
+        tenantId: string;
         santriId: string;
         inputOleh: string;
-        tanggalSetor: Date;
         juz: number;
         halaman: number;
+        tanggalSetor: Date;
         catatanUstadz: string | null;
     })[]>;
     createTahfidz(tenantId: string, dto: CreateTahfidzDto, user: RequestUser): Promise<{
         id: string;
-        tenantId: string;
         createdAt: Date;
+        tenantId: string;
         santriId: string;
         inputOleh: string;
-        tanggalSetor: Date;
         juz: number;
         halaman: number;
+        tanggalSetor: Date;
         catatanUstadz: string | null;
     }>;
 }

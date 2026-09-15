@@ -16,9 +16,9 @@ export declare class TenantsController {
         jumlahSantri: number;
         jumlahKelas: number;
         _count: {
-            kelas: number;
-            santris: number;
             users: number;
+            santris: number;
+            kelas: number;
         };
         id: string;
         status: import(".prisma/client").$Enums.TenantStatus;
@@ -38,10 +38,10 @@ export declare class TenantsController {
     }>;
     getMyTenant(tenantId: string | undefined): Promise<{
         _count: {
-            kelas: number;
-            santris: number;
             users: number;
+            santris: number;
             ustadzs: number;
+            kelas: number;
         };
     } & {
         id: string;

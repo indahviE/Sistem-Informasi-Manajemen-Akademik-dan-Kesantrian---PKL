@@ -6,76 +6,76 @@ export declare class BillingService {
     findAllPaket(): Promise<{
         id: string;
         nama: string;
-        createdAt: Date;
-        aktif: boolean;
         harga: number;
         limitSantri: number;
         fitur: import("@prisma/client/runtime/library").JsonValue | null;
+        aktif: boolean;
+        createdAt: Date;
     }[]>;
     createPaket(dto: CreatePaketDto): Promise<{
         id: string;
         nama: string;
-        createdAt: Date;
-        aktif: boolean;
         harga: number;
         limitSantri: number;
         fitur: import("@prisma/client/runtime/library").JsonValue | null;
+        aktif: boolean;
+        createdAt: Date;
     }>;
     updatePaket(id: string, dto: UpdatePaketDto): Promise<{
         id: string;
         nama: string;
-        createdAt: Date;
-        aktif: boolean;
         harga: number;
         limitSantri: number;
         fitur: import("@prisma/client/runtime/library").JsonValue | null;
+        aktif: boolean;
+        createdAt: Date;
     }>;
     removePaket(id: string): Promise<{
         id: string;
         nama: string;
-        createdAt: Date;
-        aktif: boolean;
         harga: number;
         limitSantri: number;
         fitur: import("@prisma/client/runtime/library").JsonValue | null;
+        aktif: boolean;
+        createdAt: Date;
     }>;
     findAllSubscription(isSuperAdmin: boolean, tenantId?: string): Promise<({
+        paket: {
+            id: string;
+            nama: string;
+            harga: number;
+            limitSantri: number;
+            fitur: import("@prisma/client/runtime/library").JsonValue | null;
+            aktif: boolean;
+            createdAt: Date;
+        };
         tenant: {
             kodeTenant: string;
             namaPondok: string;
         };
-        paket: {
-            id: string;
-            nama: string;
-            createdAt: Date;
-            aktif: boolean;
-            harga: number;
-            limitSantri: number;
-            fitur: import("@prisma/client/runtime/library").JsonValue | null;
-        };
     } & {
         id: string;
         tenantId: string;
-        status: import(".prisma/client").$Enums.StatusSubscription;
         paketId: string;
         tanggalMulai: Date;
         tanggalAkhir: Date | null;
+        status: import(".prisma/client").$Enums.StatusSubscription;
     })[]>;
     assignSubscription(dto: AssignSubscriptionDto): Promise<{
         id: string;
         tenantId: string;
-        status: import(".prisma/client").$Enums.StatusSubscription;
         paketId: string;
         tanggalMulai: Date;
         tanggalAkhir: Date | null;
+        status: import(".prisma/client").$Enums.StatusSubscription;
     }>;
     updateSubscription(id: string, dto: UpdateSubscriptionDto): Promise<{
         id: string;
         tenantId: string;
-        status: import(".prisma/client").$Enums.StatusSubscription;
         paketId: string;
         tanggalMulai: Date;
         tanggalAkhir: Date | null;
+        status: import(".prisma/client").$Enums.StatusSubscription;
     }>;
     findAllInvoice(isSuperAdmin: boolean, tenantId?: string): Promise<({
         tenant: {
@@ -84,8 +84,8 @@ export declare class BillingService {
         };
     } & {
         id: string;
-        tenantId: string;
         createdAt: Date;
+        tenantId: string;
         status: import(".prisma/client").$Enums.StatusInvoice;
         noInvoice: string;
         jumlah: number;
@@ -95,8 +95,8 @@ export declare class BillingService {
     })[]>;
     createInvoice(dto: CreateInvoiceDto): Promise<{
         id: string;
-        tenantId: string;
         createdAt: Date;
+        tenantId: string;
         status: import(".prisma/client").$Enums.StatusInvoice;
         noInvoice: string;
         jumlah: number;
@@ -106,8 +106,8 @@ export declare class BillingService {
     }>;
     updateInvoice(id: string, dto: UpdateInvoiceDto): Promise<{
         id: string;
-        tenantId: string;
         createdAt: Date;
+        tenantId: string;
         status: import(".prisma/client").$Enums.StatusInvoice;
         noInvoice: string;
         jumlah: number;

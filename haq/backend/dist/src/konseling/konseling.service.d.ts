@@ -20,16 +20,16 @@ export declare class KonselingService {
         };
     } & {
         id: string;
-        tenantId: string;
-        tanggal: Date;
         createdAt: Date;
-        updatedAt: Date;
+        tenantId: string;
         santriId: string;
-        catatan: string;
+        tanggal: Date;
         konselorId: string | null;
         topik: string;
+        catatan: string;
         tindakLanjut: string | null;
         privat: boolean;
+        updatedAt: Date;
     })[]>;
     createKonseling(tenantId: string, dto: CreateKonselingDto, user: RequestUser): Promise<{
         santri: {
@@ -43,41 +43,41 @@ export declare class KonselingService {
         };
     } & {
         id: string;
-        tenantId: string;
-        tanggal: Date;
         createdAt: Date;
-        updatedAt: Date;
+        tenantId: string;
         santriId: string;
-        catatan: string;
+        tanggal: Date;
         konselorId: string | null;
         topik: string;
+        catatan: string;
         tindakLanjut: string | null;
         privat: boolean;
+        updatedAt: Date;
     }>;
     updateKonseling(tenantId: string, id: string, dto: UpdateKonselingDto): Promise<{
         id: string;
-        tenantId: string;
-        tanggal: Date;
         createdAt: Date;
-        updatedAt: Date;
+        tenantId: string;
         santriId: string;
-        catatan: string;
+        tanggal: Date;
         konselorId: string | null;
         topik: string;
+        catatan: string;
         tindakLanjut: string | null;
         privat: boolean;
+        updatedAt: Date;
     }>;
     removeKonseling(tenantId: string, id: string): Promise<{
         id: string;
-        tenantId: string;
-        tanggal: Date;
         createdAt: Date;
-        updatedAt: Date;
+        tenantId: string;
         santriId: string;
-        catatan: string;
+        tanggal: Date;
         konselorId: string | null;
         topik: string;
+        catatan: string;
         tindakLanjut: string | null;
         privat: boolean;
+        updatedAt: Date;
     }>;
 }

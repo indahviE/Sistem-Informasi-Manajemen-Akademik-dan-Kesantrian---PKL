@@ -6,8 +6,8 @@ export declare class NotifikasiController {
     myNotifikasis(user: RequestUser, tenantId: string | undefined): Promise<{
         id: string;
         tenantId: string;
-        jenis: import(".prisma/client").$Enums.JenisNotifikasi;
         tanggal: Date;
+        jenis: import(".prisma/client").$Enums.JenisNotifikasi;
         userId: string | null;
         pesan: string;
         statusBaca: boolean;

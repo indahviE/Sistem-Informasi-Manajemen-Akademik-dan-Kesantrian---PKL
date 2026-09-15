@@ -19,16 +19,16 @@ export declare class KonselingController {
         };
     } & {
         id: string;
-        tenantId: string;
-        tanggal: Date;
         createdAt: Date;
-        updatedAt: Date;
+        tenantId: string;
         santriId: string;
-        catatan: string;
+        tanggal: Date;
         konselorId: string | null;
         topik: string;
+        catatan: string;
         tindakLanjut: string | null;
         privat: boolean;
+        updatedAt: Date;
     })[]>;
     create(tenantId: string, dto: CreateKonselingDto, user: RequestUser): Promise<{
         santri: {
@@ -42,41 +42,41 @@ export declare class KonselingController {
         };
     } & {
         id: string;
-        tenantId: string;
-        tanggal: Date;
         createdAt: Date;
-        updatedAt: Date;
+        tenantId: string;
         santriId: string;
-        catatan: string;
+        tanggal: Date;
         konselorId: string | null;
         topik: string;
+        catatan: string;
         tindakLanjut: string | null;
         privat: boolean;
+        updatedAt: Date;
     }>;
     update(tenantId: string, id: string, dto: UpdateKonselingDto): Promise<{
         id: string;
-        tenantId: string;
-        tanggal: Date;
         createdAt: Date;
-        updatedAt: Date;
+        tenantId: string;
         santriId: string;
-        catatan: string;
+        tanggal: Date;
         konselorId: string | null;
         topik: string;
+        catatan: string;
         tindakLanjut: string | null;
         privat: boolean;
+        updatedAt: Date;
     }>;
     remove(tenantId: string, id: string): Promise<{
         id: string;
-        tenantId: string;
-        tanggal: Date;
         createdAt: Date;
-        updatedAt: Date;
+        tenantId: string;
         santriId: string;
-        catatan: string;
+        tanggal: Date;
         konselorId: string | null;
         topik: string;
+        catatan: string;
         tindakLanjut: string | null;
         privat: boolean;
+        updatedAt: Date;
     }>;
 }

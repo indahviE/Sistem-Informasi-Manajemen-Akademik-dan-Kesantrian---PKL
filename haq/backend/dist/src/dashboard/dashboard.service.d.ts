@@ -14,8 +14,8 @@ export declare class DashboardService {
         };
         tenantTerbaru: ({
             _count: {
-                santris: number;
                 users: number;
+                santris: number;
             };
         } & {
             id: string;
@@ -52,15 +52,15 @@ export declare class DashboardService {
             };
         } & {
             id: string;
-            tenantId: string;
             nama: string;
-            kelasId: string | null;
+            tenantId: string;
+            status: import(".prisma/client").$Enums.SantriStatus;
             nis: string;
             jenisKelamin: string;
             tanggalLahir: Date | null;
+            kelasId: string | null;
             asrama: string | null;
             waliId: string | null;
-            status: import(".prisma/client").$Enums.SantriStatus;
             tahunMasuk: number;
         })[];
         statistik: {

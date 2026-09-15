@@ -14,38 +14,38 @@ export declare class WaliController {
         };
     } & {
         id: string;
-        tenantId: string;
         nama: string;
+        tenantId: string;
+        noHp: string | null;
         userId: string | null;
         email: string | null;
-        noHp: string | null;
         hubungan: string;
     })[]>;
     create(tenantId: string, dto: CreateWaliDto): Promise<{
         id: string;
-        tenantId: string;
         nama: string;
+        tenantId: string;
+        noHp: string | null;
         userId: string | null;
         email: string | null;
-        noHp: string | null;
         hubungan: string;
     }>;
     update(tenantId: string, id: string, dto: CreateWaliDto): Promise<{
         id: string;
-        tenantId: string;
         nama: string;
+        tenantId: string;
+        noHp: string | null;
         userId: string | null;
         email: string | null;
-        noHp: string | null;
         hubungan: string;
     }>;
     linkUser(tenantId: string, dto: LinkWaliUserDto): Promise<{
         id: string;
-        tenantId: string;
         nama: string;
+        tenantId: string;
+        noHp: string | null;
         userId: string | null;
         email: string | null;
-        noHp: string | null;
         hubungan: string;
     }>;
     myProfile(user: RequestUser): Promise<{
@@ -55,24 +55,24 @@ export declare class WaliController {
             };
         } & {
             id: string;
-            tenantId: string;
             nama: string;
-            kelasId: string | null;
+            tenantId: string;
+            status: import(".prisma/client").$Enums.SantriStatus;
             nis: string;
             jenisKelamin: string;
             tanggalLahir: Date | null;
+            kelasId: string | null;
             asrama: string | null;
             waliId: string | null;
-            status: import(".prisma/client").$Enums.SantriStatus;
             tahunMasuk: number;
         })[];
     } & {
         id: string;
-        tenantId: string;
         nama: string;
+        tenantId: string;
+        noHp: string | null;
         userId: string | null;
         email: string | null;
-        noHp: string | null;
         hubungan: string;
     }>;
 }
