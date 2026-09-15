@@ -82,7 +82,9 @@ class _ShellScreenState extends State<ShellScreen> {
       return m;
     }
 
-    m.add(_MenuItem('Santri', Icons.groups, (_) => const SantriListScreen()));
+    if (!user.isWali) {
+      m.add(_MenuItem('Santri', Icons.groups, (_) => const SantriListScreen()));
+    }
 
     if (user.isAdmin || user.isPimpinan) {
       m.add(_MenuItem('PPDB Online', Icons.app_registration, (_) => const PpdbListScreen()));

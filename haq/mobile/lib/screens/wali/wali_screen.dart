@@ -20,7 +20,7 @@ class _WaliScreenState extends State<WaliScreen> {
   @override
   void initState() {
     super.initState();
-    _load();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _load());
   }
 
   Future<void> _load() async {
@@ -44,9 +44,9 @@ class _WaliScreenState extends State<WaliScreen> {
         _selectedSantriId = anak.isNotEmpty ? (anak.first as Map)['id'] as String : null;
         _loading = false;
       });
-    } on ApiException catch (e) {
+      } catch (e) {
       if (mounted) setState(() {
-        _error = e.message;
+        _error = e is ApiException ? e.message : 'Terjadi kesalahan tak terduga: $e';
         _loading = false;
       });
     }
