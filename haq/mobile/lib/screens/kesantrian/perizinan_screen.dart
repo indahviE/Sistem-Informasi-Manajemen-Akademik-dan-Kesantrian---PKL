@@ -29,6 +29,9 @@ class _PerizinanScreenState extends State<PerizinanScreen> {
     });
     try {
       final api = AppScope.of(context).api;
+      // Catatan: filter "hanya anak sendiri" untuk Wali sudah ditangani
+      // di backend (KesantrianService.findAllPerizinan), jadi di sini
+      // tidak perlu filter tambahan di sisi klien.
       final res = await api.get(ApiUrl.perizinan);
       if (!mounted) return;
       setState(() {
@@ -161,7 +164,8 @@ class _PerizinanScreenState extends State<PerizinanScreen> {
                                   Text(p['alasan'] as String),
                                   Text('${(p['tanggalKeluar'] as String).substring(0, 10)}',
                                       style: Theme.of(context).textTheme.bodySmall),
-                                  if (status == 'DIAJUKAN') ...[
+                                  // Wali is read-only: approve/reject/return actions are hidden for that role.
+                                  if (!isWali && status == 'DIAJUKAN') ...[
                                     const SizedBox(height: 8),
                                     Row(children: [
                                       OutlinedButton(
@@ -175,7 +179,7 @@ class _PerizinanScreenState extends State<PerizinanScreen> {
                                       ),
                                     ]),
                                   ],
-                                  if (status == 'DISETUJUI') ...[
+                                  if (!isWali && status == 'DISETUJUI') ...[
                                     const SizedBox(height: 8),
                                     OutlinedButton(
                                       onPressed: () => _action(p, 'KEMBALI'),

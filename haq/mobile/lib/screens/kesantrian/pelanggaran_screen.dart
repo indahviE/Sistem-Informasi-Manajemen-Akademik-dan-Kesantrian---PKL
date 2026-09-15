@@ -29,6 +29,9 @@ class _PelanggaranScreenState extends State<PelanggaranScreen> {
     });
     try {
       final api = AppScope.of(context).api;
+      // Catatan: filter "hanya anak sendiri" untuk Wali sudah ditangani
+      // di backend (KesantrianService.findAllPelanggaran), jadi di sini
+      // tidak perlu filter tambahan di sisi klien.
       final res = await api.get(ApiUrl.pelanggaran);
       if (!mounted) return;
       setState(() {
