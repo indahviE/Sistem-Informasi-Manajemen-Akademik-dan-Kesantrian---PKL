@@ -16,10 +16,6 @@ class _NotifikasiScreenState extends State<NotifikasiScreen> {
   String? _error;
 
   @override
-  void initState() {
-    super.initState();
-    _load();
-  }
 
   Future<void> _load() async {
     setState(() {

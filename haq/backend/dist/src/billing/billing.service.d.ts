@@ -55,24 +55,24 @@ export declare class BillingService {
         };
     } & {
         id: string;
-        tenantId: string;
         status: import(".prisma/client").$Enums.StatusSubscription;
+        tenantId: string;
         paketId: string;
         tanggalAkhir: Date | null;
         tanggalMulai: Date;
     })[]>;
     assignSubscription(dto: AssignSubscriptionDto): Promise<{
         id: string;
-        tenantId: string;
         status: import(".prisma/client").$Enums.StatusSubscription;
+        tenantId: string;
         paketId: string;
         tanggalAkhir: Date | null;
         tanggalMulai: Date;
     }>;
     updateSubscription(id: string, dto: UpdateSubscriptionDto): Promise<{
         id: string;
-        tenantId: string;
         status: import(".prisma/client").$Enums.StatusSubscription;
+        tenantId: string;
         paketId: string;
         tanggalAkhir: Date | null;
         tanggalMulai: Date;
@@ -84,8 +84,8 @@ export declare class BillingService {
         };
     } & {
         id: string;
-        tenantId: string;
         status: import(".prisma/client").$Enums.StatusInvoice;
+        tenantId: string;
         createdAt: Date;
         jumlah: number;
         metodeBayar: string | null;
@@ -95,8 +95,8 @@ export declare class BillingService {
     })[]>;
     createInvoice(dto: CreateInvoiceDto): Promise<{
         id: string;
-        tenantId: string;
         status: import(".prisma/client").$Enums.StatusInvoice;
+        tenantId: string;
         createdAt: Date;
         jumlah: number;
         metodeBayar: string | null;
@@ -106,8 +106,8 @@ export declare class BillingService {
     }>;
     updateInvoice(id: string, dto: UpdateInvoiceDto): Promise<{
         id: string;
-        tenantId: string;
         status: import(".prisma/client").$Enums.StatusInvoice;
+        tenantId: string;
         createdAt: Date;
         jumlah: number;
         metodeBayar: string | null;

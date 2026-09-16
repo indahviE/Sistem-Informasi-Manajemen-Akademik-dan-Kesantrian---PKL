@@ -22,6 +22,7 @@ export declare class TenantsController {
         };
         id: string;
         status: import(".prisma/client").$Enums.TenantStatus;
+        tanggalDaftar: Date;
         kodeTenant: string;
         namaPondok: string;
         logoUrl: string | null;
@@ -29,7 +30,6 @@ export declare class TenantsController {
         kuotaSantriPpdb: number | null;
         statusGelombangPpdb: import(".prisma/client").$Enums.StatusGelombangPpdb;
         adminAwalId: string | null;
-        tanggalDaftar: Date;
     }[]>;
     approve(dto: ApproveTenantDto): Promise<{
         message: string;
@@ -48,6 +48,7 @@ export declare class TenantsController {
     } & {
         id: string;
         status: import(".prisma/client").$Enums.TenantStatus;
+        tanggalDaftar: Date;
         kodeTenant: string;
         namaPondok: string;
         logoUrl: string | null;
@@ -55,7 +56,6 @@ export declare class TenantsController {
         kuotaSantriPpdb: number | null;
         statusGelombangPpdb: import(".prisma/client").$Enums.StatusGelombangPpdb;
         adminAwalId: string | null;
-        tanggalDaftar: Date;
     }> | {
         note: string;
     };
@@ -69,11 +69,11 @@ export declare class TenantsController {
     getMyBranding(tenantId: string): Promise<{
         id: string;
         status: import(".prisma/client").$Enums.TenantStatus;
+        tanggalDaftar: Date;
         kodeTenant: string;
         namaPondok: string;
         logoUrl: string;
         warnaTema: string;
-        tanggalDaftar: Date;
     }>;
     updateBranding(tenantId: string, dto: UpdateBrandingDto): Promise<{
         id: string;

@@ -6,11 +6,11 @@ export declare class NotifikasiController {
     myNotifikasis(user: RequestUser, tenantId: string | undefined): Promise<{
         id: string;
         tenantId: string;
+        tanggal: Date;
         jenis: import(".prisma/client").$Enums.JenisNotifikasi;
-        userId: string | null;
         pesan: string;
         statusBaca: boolean;
-        tanggal: Date;
+        userId: string | null;
     }[]>;
     unreadCount(user: RequestUser, tenantId: string | undefined): Promise<number>;
     markRead(user: RequestUser, id: string): Promise<import(".prisma/client").Prisma.BatchPayload>;

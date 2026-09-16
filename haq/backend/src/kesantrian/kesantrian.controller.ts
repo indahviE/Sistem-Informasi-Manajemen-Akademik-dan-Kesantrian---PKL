@@ -24,8 +24,8 @@ export class KesantrianController {
   // ===== Pelanggaran =====
   @Roles(Role.ADMIN, Role.PIMPINAN, Role.MUSYRIF, Role.WALI_SANTRI)
   @Get('pelanggaran')
-  findAllPelanggaran(@TenantId() tenantId: string, @Query() q: QueryKesantrianDto) {
-    return this.kesantrianService.findAllPelanggaran(tenantId, q);
+    findAllPelanggaran(@TenantId() tenantId: string, @Query() q: QueryKesantrianDto, @CurrentUser() user: RequestUser) {
+    return this.kesantrianService.findAllPelanggaran(tenantId, q, user);
   }
 
   @Roles(Role.ADMIN, Role.MUSYRIF)
@@ -43,8 +43,8 @@ export class KesantrianController {
   // ===== Perizinan =====
   @Roles(Role.ADMIN, Role.PIMPINAN, Role.MUSYRIF, Role.WALI_SANTRI)
   @Get('perizinan')
-  findAllPerizinan(@TenantId() tenantId: string, @Query() q: QueryKesantrianDto) {
-    return this.kesantrianService.findAllPerizinan(tenantId, q);
+    findAllPerizinan(@TenantId() tenantId: string, @Query() q: QueryKesantrianDto, @CurrentUser() user: RequestUser) {
+    return this.kesantrianService.findAllPerizinan(tenantId, q, user);
   }
 
   @Roles(Role.ADMIN, Role.MUSYRIF)

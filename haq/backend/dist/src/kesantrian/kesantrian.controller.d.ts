@@ -4,135 +4,135 @@ import { CreateKesehatanDto, CreateKunjunganDto, CreatePelanggaranDto, CreatePer
 export declare class KesantrianController {
     private kesantrianService;
     constructor(kesantrianService: KesantrianService);
-    findAllPelanggaran(tenantId: string, q: QueryKesantrianDto): Promise<({
+    findAllPelanggaran(tenantId: string, q: QueryKesantrianDto, user: RequestUser): Promise<({
         santri: {
             id: string;
+            nis: string;
             nama: string;
             kelas: {
                 namaKelas: string;
             };
-            nis: string;
         };
     } & {
         id: string;
         tenantId: string;
-        status: string;
-        createdAt: Date;
-        tanggal: Date;
         santriId: string;
         jenisPelanggaran: string;
         poin: number;
+        tanggal: Date;
         pelaporId: string | null;
         tindakLanjut: string | null;
+        status: string;
+        createdAt: Date;
     })[]>;
     createPelanggaran(tenantId: string, dto: CreatePelanggaranDto, user: RequestUser): Promise<{
         id: string;
         tenantId: string;
-        status: string;
-        createdAt: Date;
-        tanggal: Date;
         santriId: string;
         jenisPelanggaran: string;
         poin: number;
+        tanggal: Date;
         pelaporId: string | null;
         tindakLanjut: string | null;
+        status: string;
+        createdAt: Date;
     }>;
     updatePelanggaran(tenantId: string, id: string, dto: UpdatePelanggaranDto): Promise<{
         id: string;
         tenantId: string;
-        status: string;
-        createdAt: Date;
-        tanggal: Date;
         santriId: string;
         jenisPelanggaran: string;
         poin: number;
+        tanggal: Date;
         pelaporId: string | null;
         tindakLanjut: string | null;
+        status: string;
+        createdAt: Date;
     }>;
-    findAllPerizinan(tenantId: string, q: QueryKesantrianDto): Promise<({
+    findAllPerizinan(tenantId: string, q: QueryKesantrianDto, user: RequestUser): Promise<({
         santri: {
             id: string;
+            nis: string;
             nama: string;
             kelas: {
                 namaKelas: string;
             };
-            nis: string;
         };
     } & {
         id: string;
         tenantId: string;
+        santriId: string;
         createdAt: Date;
         jenis: import(".prisma/client").$Enums.JenisPerizinan;
-        santriId: string;
-        catatan: string | null;
         tanggalKeluar: Date;
         tanggalKembali: Date | null;
         alasan: string;
         statusApproval: import(".prisma/client").$Enums.StatusApproval;
         disetujuiOleh: string | null;
+        catatan: string | null;
     })[]>;
     createPerizinan(tenantId: string, dto: CreatePerizinanDto, user: RequestUser): Promise<{
         id: string;
         tenantId: string;
+        santriId: string;
         createdAt: Date;
         jenis: import(".prisma/client").$Enums.JenisPerizinan;
-        santriId: string;
-        catatan: string | null;
         tanggalKeluar: Date;
         tanggalKembali: Date | null;
         alasan: string;
         statusApproval: import(".prisma/client").$Enums.StatusApproval;
         disetujuiOleh: string | null;
+        catatan: string | null;
     }>;
     updatePerizinan(tenantId: string, id: string, dto: UpdatePerizinanDto, user: RequestUser): Promise<{
         id: string;
         tenantId: string;
+        santriId: string;
         createdAt: Date;
         jenis: import(".prisma/client").$Enums.JenisPerizinan;
-        santriId: string;
-        catatan: string | null;
         tanggalKeluar: Date;
         tanggalKembali: Date | null;
         alasan: string;
         statusApproval: import(".prisma/client").$Enums.StatusApproval;
         disetujuiOleh: string | null;
+        catatan: string | null;
     }>;
     findAllKesehatan(tenantId: string, q: QueryKesantrianDto): Promise<({
         santri: {
             id: string;
+            nis: string;
             nama: string;
             kelas: {
                 namaKelas: string;
             };
-            nis: string;
         };
     } & {
         id: string;
         tenantId: string;
+        santriId: string;
+        tanggal: Date;
         status: import(".prisma/client").$Enums.StatusKesehatan;
         createdAt: Date;
-        tanggal: Date;
-        santriId: string;
-        inputOleh: string;
         keluhan: string;
         diagnosa: string | null;
         tindakan: string | null;
         obat: string | null;
         tempat: string;
+        inputOleh: string;
     })[]>;
     createKesehatan(tenantId: string, dto: CreateKesehatanDto, user: RequestUser): Promise<{
         id: string;
         tenantId: string;
+        santriId: string;
+        tanggal: Date;
         status: import(".prisma/client").$Enums.StatusKesehatan;
         createdAt: Date;
-        tanggal: Date;
-        santriId: string;
-        inputOleh: string;
         keluhan: string;
         diagnosa: string | null;
         tindakan: string | null;
         obat: string | null;
         tempat: string;
+        inputOleh: string;
     }>;
     getRekamMedis(tenantId: string, santriId: string): Promise<{
         id: string;
@@ -168,48 +168,48 @@ export declare class KesantrianController {
         updatedAt: Date;
     }>;
     findAllKunjungan(tenantId: string, q: QueryKesantrianDto): Promise<({
+        santri: {
+            id: string;
+            nis: string;
+            nama: string;
+        };
         wali: {
             id: string;
             nama: string;
             hubungan: string;
         };
-        santri: {
-            id: string;
-            nama: string;
-            nis: string;
-        };
     } & {
         id: string;
         tenantId: string;
+        santriId: string;
+        tanggal: Date;
         createdAt: Date;
         waliId: string | null;
-        tanggal: Date;
-        santriId: string;
         catatan: string | null;
     })[]>;
     createKunjungan(tenantId: string, dto: CreateKunjunganDto): Promise<{
         id: string;
         tenantId: string;
+        santriId: string;
+        tanggal: Date;
         createdAt: Date;
         waliId: string | null;
-        tanggal: Date;
-        santriId: string;
         catatan: string | null;
     }>;
     findAllTataTertib(tenantId: string): Promise<{
         id: string;
         tenantId: string;
         createdAt: Date;
-        aktif: boolean;
         judul: string;
         isi: string;
+        aktif: boolean;
     }[]>;
     createTataTertib(tenantId: string, dto: CreateTataTertibDto): Promise<{
         id: string;
         tenantId: string;
         createdAt: Date;
-        aktif: boolean;
         judul: string;
         isi: string;
+        aktif: boolean;
     }>;
 }

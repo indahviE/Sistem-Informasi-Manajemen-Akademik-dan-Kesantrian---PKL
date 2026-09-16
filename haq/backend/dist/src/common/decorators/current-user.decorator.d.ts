@@ -7,5 +7,5 @@ export interface RequestUser {
     tenantKode?: string;
     tenantStatus?: string;
 }
-export declare const CurrentUser: (...dataOrPipes: (keyof RequestUser | import("@nestjs/common").PipeTransform<any, any> | import("@nestjs/common").Type<import("@nestjs/common").PipeTransform<any, any>>)[]) => ParameterDecorator;
+export declare const CurrentUser: (...dataOrPipes: (import("@nestjs/common").PipeTransform<any, any> | import("@nestjs/common").Type<import("@nestjs/common").PipeTransform<any, any>> | keyof RequestUser)[]) => ParameterDecorator;
 export declare const TenantId: (...dataOrPipes: unknown[]) => ParameterDecorator;
