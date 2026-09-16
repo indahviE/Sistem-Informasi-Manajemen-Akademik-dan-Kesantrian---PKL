@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../services/api_client.dart';
 import '../../services/app_scope.dart';
 import '../ui_utils.dart';
+import '../signup_screen.dart' show PColors, PText;
 
 class PerizinanScreen extends StatefulWidget {
   const PerizinanScreen({super.key});
@@ -39,10 +40,12 @@ class _PerizinanScreenState extends State<PerizinanScreen> {
         _loading = false;
       });
     } on ApiException catch (e) {
-      if (mounted) setState(() {
-        _error = e.message;
-        _loading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _error = e.message;
+          _loading = false;
+        });
+      }
     }
   }
 
@@ -80,11 +83,23 @@ class _PerizinanScreenState extends State<PerizinanScreen> {
               ],
               onChanged: (v) => setLocal(() => jenis = v!),
             ),
-            TextField(controller: alasan, decoration: const InputDecoration(labelText: 'Alasan')),
+            _PDialogField(controller: alasan, label: 'Alasan'),
           ],
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Batal')),
-            FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Ajukan')),
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              style: TextButton.styleFrom(foregroundColor: PColors.inkSecondary),
+              child: const Text('Batal'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              style: FilledButton.styleFrom(
+                backgroundColor: PColors.primary,
+                foregroundColor: PColors.gold,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9999)),
+              ),
+              child: const Text('Ajukan'),
+            ),
           ],
         ),
       ),
@@ -100,9 +115,13 @@ class _PerizinanScreenState extends State<PerizinanScreen> {
         'tanggalKeluar': '${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}',
       });
       _load();
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Perizinan diajukan.')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(backgroundColor: PColors.primary, content: const Text('Perizinan diajukan.')),
+      );
     } on ApiException catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(backgroundColor: PColors.errorText, content: Text(e.message)),
+      );
     }
   }
 
@@ -117,7 +136,9 @@ class _PerizinanScreenState extends State<PerizinanScreen> {
       });
       _load();
     } on ApiException catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(backgroundColor: PColors.errorText, content: Text(e.message)),
+      );
     }
   }
 
@@ -125,87 +146,282 @@ class _PerizinanScreenState extends State<PerizinanScreen> {
   Widget build(BuildContext context) {
     final isWali = AppScope.of(context).user?.isWali == true;
     return Scaffold(
+      backgroundColor: PColors.background,
       floatingActionButton: isWali
           ? null
           : FloatingActionButton(
               onPressed: _add,
               tooltip: 'Ajukan Izin',
+              backgroundColor: PColors.primary,
+              foregroundColor: PColors.gold,
+              shape: const CircleBorder(),
               child: const Icon(Icons.add),
             ),
-      body: _loading
-          ? loadingView()
-          : _error != null
-              ? errorView(_error!, _load)
-              : _items.isEmpty
-                  ? emptyView('Belum ada perizinan.')
-                  : RefreshIndicator(
-                      onRefresh: _load,
-                      child: ListView.builder(
-                        padding: const EdgeInsets.only(bottom: 88),
-                        itemCount: _items.length,
-                        itemBuilder: (ctx, i) {
-                          final p = _items[i] as Map<String, dynamic>;
-                          final santri = (p['santri'] as Map?) ?? {};
-                          final status = p['statusApproval'] as String;
-                          return Card(
-                            child: Padding(
-                              padding: const EdgeInsets.all(12),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(children: [
-                                    Expanded(
-                                      child: Text('${santri['nama'] ?? ''} • ${p['jenis']}',
-                                          style: const TextStyle(fontWeight: FontWeight.bold)),
-                                    ),
-                                    _statusChip(status),
-                                  ]),
-                                  const SizedBox(height: 4),
-                                  Text(p['alasan'] as String),
-                                  Text('${(p['tanggalKeluar'] as String).substring(0, 10)}',
-                                      style: Theme.of(context).textTheme.bodySmall),
-                                  // Wali is read-only: approve/reject/return actions are hidden for that role.
-                                  if (!isWali && status == 'DIAJUKAN') ...[
-                                    const SizedBox(height: 8),
-                                    Row(children: [
-                                      OutlinedButton(
-                                        onPressed: () => _action(p, 'DISETUJUI'),
-                                        child: const Text('Setujui'),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      OutlinedButton(
-                                        onPressed: () => _action(p, 'DITOLAK'),
-                                        child: const Text('Tolak'),
-                                      ),
-                                    ]),
-                                  ],
-                                  if (!isWali && status == 'DISETUJUI') ...[
-                                    const SizedBox(height: 8),
-                                    OutlinedButton(
-                                      onPressed: () => _action(p, 'KEMBALI'),
-                                      child: const Text('Tandai Kembali'),
-                                    ),
-                                  ],
-                                ],
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 480),
+          child: SafeArea(
+            child: Column(
+              children: [
+                Expanded(
+                  child: _loading
+                      ? loadingView()
+                      : _error != null
+                          ? errorView(_error!, _load)
+                          : _items.isEmpty
+                              ? emptyView('Belum ada perizinan.')
+                              : RefreshIndicator(
+                                  color: PColors.primary,
+                                  onRefresh: _load,
+                                  child: ListView.builder(
+                                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
+                                    itemCount: _items.length,
+                                    itemBuilder: (ctx, i) {
+                                      final p = _items[i] as Map<String, dynamic>;
+                                      final santri = (p['santri'] as Map?) ?? {};
+                                      final status = p['statusApproval'] as String;
+                                      return _PerizinanTile(
+                                        nama: santri['nama']?.toString() ?? '',
+                                        jenis: p['jenis']?.toString() ?? '',
+                                        alasan: p['alasan'] as String,
+                                        tanggal: (p['tanggalKeluar'] as String).substring(0, 10),
+                                        status: status,
+                                        showActions: !isWali,
+                                        onApprove: status == 'DIAJUKAN' ? () => _action(p, 'DISETUJUI') : null,
+                                        onReject: status == 'DIAJUKAN' ? () => _action(p, 'DITOLAK') : null,
+                                        onReturn: status == 'DISETUJUI' ? () => _action(p, 'KEMBALI') : null,
+                                      );
+                                    },
+                                  ),
+                                ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
+}
 
-  Widget _statusChip(String status) {
-    Color c = Colors.blueGrey;
-    if (status == 'DIAJUKAN') c = Colors.orange;
-    if (status == 'DISETUJUI') c = Colors.green;
-    if (status == 'DITOLAK') c = Colors.red;
-    if (status == 'TELAT') c = Colors.red.shade700;
+// ===========================================================================
+// Themed building blocks (matches SignupScreen's design system)
+// ===========================================================================
+
+class _StatusStyle {
+  const _StatusStyle(this.bg, this.fg, this.border);
+  final Color bg;
+  final Color fg;
+  final Color border;
+}
+
+_StatusStyle _statusStyleFor(String status) {
+  switch (status) {
+    case 'DIAJUKAN':
+      return const _StatusStyle(PColors.pendingBg, PColors.pendingText, PColors.pendingBorder);
+    case 'DISETUJUI':
+      return const _StatusStyle(PColors.successBg, PColors.successText, PColors.successBorder);
+    case 'DITOLAK':
+      return const _StatusStyle(PColors.errorBg, PColors.errorText, PColors.errorBorder);
+    case 'TELAT':
+      return const _StatusStyle(PColors.errorBg, PColors.errorText, PColors.errorBorder);
+    default:
+      return const _StatusStyle(PColors.infoBg, PColors.infoText, PColors.infoBorder);
+  }
+}
+
+class _StatusChip extends StatelessWidget {
+  const _StatusChip({required this.status});
+
+  final String status;
+
+  @override
+  Widget build(BuildContext context) {
+    final s = _statusStyleFor(status);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(color: c.withOpacity(.15), borderRadius: BorderRadius.circular(8)),
-      child: Text(status, style: TextStyle(color: c, fontSize: 12, fontWeight: FontWeight.bold)),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: s.bg,
+        borderRadius: BorderRadius.circular(9999),
+        border: Border.all(color: s.border),
+      ),
+      child: Text(
+        status,
+        style: TextStyle(
+          fontFamily: 'Nunito',
+          fontSize: 10,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.02,
+          color: s.fg,
+        ),
+      ),
+    );
+  }
+}
+
+class _PerizinanTile extends StatelessWidget {
+  const _PerizinanTile({
+    required this.nama,
+    required this.jenis,
+    required this.alasan,
+    required this.tanggal,
+    required this.status,
+    required this.showActions,
+    this.onApprove,
+    this.onReject,
+    this.onReturn,
+  });
+
+  final String nama;
+  final String jenis;
+  final String alasan;
+  final String tanggal;
+  final String status;
+  final bool showActions;
+  final VoidCallback? onApprove;
+  final VoidCallback? onReject;
+  final VoidCallback? onReturn;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: PColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: PColors.border),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x0A0F3A2E),
+            blurRadius: 6,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Text('$nama • $jenis', style: PText.labelLg.copyWith(fontSize: 14)),
+              ),
+              const SizedBox(width: 8),
+              _StatusChip(status: status),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(alasan, style: PText.bodyMd.copyWith(color: PColors.ink)),
+          const SizedBox(height: 4),
+          Text(tanggal, style: PText.bodySm),
+          if (showActions && (onApprove != null || onReject != null || onReturn != null)) ...[
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                if (onApprove != null)
+                  Expanded(
+                    child: _POutlinedButton(
+                      label: 'Setujui',
+                      color: PColors.successText,
+                      onPressed: onApprove!,
+                    ),
+                  ),
+                if (onApprove != null && onReject != null) const SizedBox(width: 8),
+                if (onReject != null)
+                  Expanded(
+                    child: _POutlinedButton(
+                      label: 'Tolak',
+                      color: PColors.errorText,
+                      onPressed: onReject!,
+                    ),
+                  ),
+                if (onReturn != null)
+                  Expanded(
+                    child: _POutlinedButton(
+                      label: 'Tandai Kembali',
+                      color: PColors.primary,
+                      onPressed: onReturn!,
+                    ),
+                  ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _POutlinedButton extends StatelessWidget {
+  const _POutlinedButton({
+    required this.label,
+    required this.color,
+    required this.onPressed,
+  });
+
+  final String label;
+  final Color color;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return OutlinedButton(
+      onPressed: onPressed,
+      style: OutlinedButton.styleFrom(
+        foregroundColor: color,
+        side: BorderSide(color: color.withOpacity(0.5)),
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9999)),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(fontFamily: 'Nunito', fontSize: 12, fontWeight: FontWeight.w700),
+      ),
+    );
+  }
+}
+
+class _PDialogField extends StatelessWidget {
+  const _PDialogField({
+    required this.controller,
+    required this.label,
+    this.keyboardType,
+  });
+
+  final TextEditingController controller;
+  final String label;
+  final TextInputType? keyboardType;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: TextField(
+        controller: controller,
+        keyboardType: keyboardType,
+        style: PText.bodyMd.copyWith(color: PColors.ink),
+        decoration: InputDecoration(
+          labelText: label,
+          labelStyle: PText.bodyMd,
+          filled: true,
+          fillColor: PColors.background,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: PColors.inputBorder),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: PColors.inputBorder),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: PColors.primary, width: 2),
+          ),
+        ),
+      ),
     );
   }
 }

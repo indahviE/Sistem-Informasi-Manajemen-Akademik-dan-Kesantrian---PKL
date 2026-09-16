@@ -5,46 +5,46 @@ export declare class WaliController {
     private waliService;
     constructor(waliService: WaliService);
     findAll(tenantId: string): Promise<({
+        _count: {
+            santris: number;
+        };
         user: {
             id: string;
             email: string;
         };
-        _count: {
-            santris: number;
-        };
     } & {
         id: string;
-        tenantId: string;
         nama: string;
-        email: string | null;
         noHp: string | null;
+        email: string | null;
+        tenantId: string;
         userId: string | null;
         hubungan: string;
     })[]>;
     create(tenantId: string, dto: CreateWaliDto): Promise<{
         id: string;
-        tenantId: string;
         nama: string;
-        email: string | null;
         noHp: string | null;
+        email: string | null;
+        tenantId: string;
         userId: string | null;
         hubungan: string;
     }>;
     update(tenantId: string, id: string, dto: CreateWaliDto): Promise<{
         id: string;
-        tenantId: string;
         nama: string;
-        email: string | null;
         noHp: string | null;
+        email: string | null;
+        tenantId: string;
         userId: string | null;
         hubungan: string;
     }>;
     linkUser(tenantId: string, dto: LinkWaliUserDto): Promise<{
         id: string;
-        tenantId: string;
         nama: string;
-        email: string | null;
         noHp: string | null;
+        email: string | null;
+        tenantId: string;
         userId: string | null;
         hubungan: string;
     }>;
@@ -55,23 +55,23 @@ export declare class WaliController {
             };
         } & {
             id: string;
-            tenantId: string;
             nama: string;
-            status: import(".prisma/client").$Enums.SantriStatus;
-            nis: string;
             jenisKelamin: string;
             tanggalLahir: Date | null;
-            kelasId: string | null;
+            status: import(".prisma/client").$Enums.SantriStatus;
+            tenantId: string;
+            nis: string;
             asrama: string | null;
-            waliId: string | null;
             tahunMasuk: number;
+            kelasId: string | null;
+            waliId: string | null;
         })[];
     } & {
         id: string;
-        tenantId: string;
         nama: string;
-        email: string | null;
         noHp: string | null;
+        email: string | null;
+        tenantId: string;
         userId: string | null;
         hubungan: string;
     }>;

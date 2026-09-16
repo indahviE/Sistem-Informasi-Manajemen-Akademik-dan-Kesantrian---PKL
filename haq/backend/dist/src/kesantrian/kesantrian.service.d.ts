@@ -5,8 +5,10 @@ export declare class KesantrianService {
     private prisma;
     constructor(prisma: PrismaService);
     private assertSantri;
+    private getAllowedSantriIdsForWali;
+    private buildSantriScope;
     private notifyWali;
-    findAllPelanggaran(tenantId: string, query: QueryKesantrianDto): Promise<({
+    findAllPelanggaran(tenantId: string, query: QueryKesantrianDto, user: RequestUser): Promise<({
         santri: {
             id: string;
             nama: string;
@@ -17,10 +19,10 @@ export declare class KesantrianService {
         };
     } & {
         id: string;
-        tenantId: string;
         status: string;
-        createdAt: Date;
+        tenantId: string;
         tanggal: Date;
+        createdAt: Date;
         santriId: string;
         jenisPelanggaran: string;
         poin: number;
@@ -29,10 +31,10 @@ export declare class KesantrianService {
     })[]>;
     createPelanggaran(tenantId: string, dto: CreatePelanggaranDto, user: RequestUser): Promise<{
         id: string;
-        tenantId: string;
         status: string;
-        createdAt: Date;
+        tenantId: string;
         tanggal: Date;
+        createdAt: Date;
         santriId: string;
         jenisPelanggaran: string;
         poin: number;
@@ -41,17 +43,17 @@ export declare class KesantrianService {
     }>;
     updatePelanggaran(tenantId: string, id: string, dto: UpdatePelanggaranDto): Promise<{
         id: string;
-        tenantId: string;
         status: string;
-        createdAt: Date;
+        tenantId: string;
         tanggal: Date;
+        createdAt: Date;
         santriId: string;
         jenisPelanggaran: string;
         poin: number;
         pelaporId: string | null;
         tindakLanjut: string | null;
     }>;
-    findAllPerizinan(tenantId: string, query: QueryKesantrianDto): Promise<({
+    findAllPerizinan(tenantId: string, query: QueryKesantrianDto, user: RequestUser): Promise<({
         santri: {
             id: string;
             nama: string;
@@ -62,11 +64,11 @@ export declare class KesantrianService {
         };
     } & {
         id: string;
-        tenantId: string;
-        createdAt: Date;
-        jenis: import(".prisma/client").$Enums.JenisPerizinan;
-        santriId: string;
         catatan: string | null;
+        tenantId: string;
+        jenis: import(".prisma/client").$Enums.JenisPerizinan;
+        createdAt: Date;
+        santriId: string;
         tanggalKeluar: Date;
         tanggalKembali: Date | null;
         alasan: string;
@@ -75,11 +77,11 @@ export declare class KesantrianService {
     })[]>;
     createPerizinan(tenantId: string, dto: CreatePerizinanDto, user: RequestUser): Promise<{
         id: string;
-        tenantId: string;
-        createdAt: Date;
-        jenis: import(".prisma/client").$Enums.JenisPerizinan;
-        santriId: string;
         catatan: string | null;
+        tenantId: string;
+        jenis: import(".prisma/client").$Enums.JenisPerizinan;
+        createdAt: Date;
+        santriId: string;
         tanggalKeluar: Date;
         tanggalKembali: Date | null;
         alasan: string;
@@ -88,11 +90,11 @@ export declare class KesantrianService {
     }>;
     updatePerizinan(tenantId: string, id: string, dto: UpdatePerizinanDto, user: RequestUser): Promise<{
         id: string;
-        tenantId: string;
-        createdAt: Date;
-        jenis: import(".prisma/client").$Enums.JenisPerizinan;
-        santriId: string;
         catatan: string | null;
+        tenantId: string;
+        jenis: import(".prisma/client").$Enums.JenisPerizinan;
+        createdAt: Date;
+        santriId: string;
         tanggalKeluar: Date;
         tanggalKembali: Date | null;
         alasan: string;
@@ -110,10 +112,10 @@ export declare class KesantrianService {
         };
     } & {
         id: string;
-        tenantId: string;
         status: import(".prisma/client").$Enums.StatusKesehatan;
-        createdAt: Date;
+        tenantId: string;
         tanggal: Date;
+        createdAt: Date;
         santriId: string;
         inputOleh: string;
         keluhan: string;
@@ -124,10 +126,10 @@ export declare class KesantrianService {
     })[]>;
     createKesehatan(tenantId: string, dto: CreateKesehatanDto, user: RequestUser): Promise<{
         id: string;
-        tenantId: string;
         status: import(".prisma/client").$Enums.StatusKesehatan;
-        createdAt: Date;
+        tenantId: string;
         tanggal: Date;
+        createdAt: Date;
         santriId: string;
         inputOleh: string;
         keluhan: string;
@@ -149,21 +151,21 @@ export declare class KesantrianService {
         };
     } & {
         id: string;
-        tenantId: string;
-        createdAt: Date;
-        waliId: string | null;
-        tanggal: Date;
-        santriId: string;
         catatan: string | null;
+        tenantId: string;
+        tanggal: Date;
+        waliId: string | null;
+        createdAt: Date;
+        santriId: string;
     })[]>;
     createKunjungan(tenantId: string, dto: CreateKunjunganDto): Promise<{
         id: string;
-        tenantId: string;
-        createdAt: Date;
-        waliId: string | null;
-        tanggal: Date;
-        santriId: string;
         catatan: string | null;
+        tenantId: string;
+        tanggal: Date;
+        waliId: string | null;
+        createdAt: Date;
+        santriId: string;
     }>;
     findAllTataTertib(tenantId: string): Promise<{
         id: string;

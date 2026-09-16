@@ -11,8 +11,7 @@ import {
   UpdatePelanggaranDto,
   UpdatePerizinanDto,
 } from './dto/kesantrian.dto';
-import { JenisNotifikasi } from '@prisma/client';
-
+import { JenisNotifikasi, Prisma, Role } from '@prisma/client';
 @Injectable()
 export class KesantrianService {
   constructor(private prisma: PrismaService) {}
@@ -22,6 +21,26 @@ export class KesantrianService {
     if (!found) throw new NotFoundException('Santri tidak ditemukan di pondok ini.');
     return found;
   }
+
+  private async getAllowedSantriIdsForWali(tenantId: string, userId: string): Promise<string[]> {
+  const walis = await this.prisma.waliSantri.findMany({
+    where: { tenantId, userId },
+    select: { santris: { select: { id: true } } },
+  });
+  return walis.flatMap((w) => w.santris.map((s) => s.id));
+}
+
+private async buildSantriScope(
+  tenantId: string,
+  user: RequestUser,
+  querySantriId?: string,
+): Promise<Prisma.StringFilter | string | undefined> {
+  if (user.role === Role.WALI_SANTRI) {
+    const allowedIds = await this.getAllowedSantriIdsForWali(tenantId, user.userId);
+    return { in: allowedIds };
+  }
+  return querySantriId;
+}
 
   private async notifyWali(
     tenantId: string,
@@ -41,12 +60,13 @@ export class KesantrianService {
   }
 
   // ===== Pelanggaran =====
-  async findAllPelanggaran(tenantId: string, query: QueryKesantrianDto) {
-    return this.prisma.pelanggaran.findMany({
-      where: {
-        tenantId,
-        ...(query.santriId ? { santriId: query.santriId } : {}),
-        ...(query.kelasId ? { santri: { kelasId: query.kelasId } } : {}),
+  async findAllPelanggaran(tenantId: string, query: QueryKesantrianDto, user: RequestUser) {
+  const santriId = await this.buildSantriScope(tenantId, user, query.santriId);
+  return this.prisma.pelanggaran.findMany({
+    where: {
+      tenantId,
+      ...(santriId ? { santriId } : {}),
+      ...(query.kelasId ? { santri: { kelasId: query.kelasId } } : {}),
       },
       include: {
         santri: { select: { id: true, nama: true, nis: true, kelas: { select: { namaKelas: true } } } },
@@ -84,11 +104,12 @@ export class KesantrianService {
   }
 
   // ===== Perizinan =====
-  async findAllPerizinan(tenantId: string, query: QueryKesantrianDto) {
+    async findAllPerizinan(tenantId: string, query: QueryKesantrianDto, user: RequestUser) {
+    const santriId = await this.buildSantriScope(tenantId, user, query.santriId);
     return this.prisma.perizinan.findMany({
       where: {
         tenantId,
-        ...(query.santriId ? { santriId: query.santriId } : {}),
+        ...(santriId ? { santriId } : {}),
       },
       include: {
         santri: { select: { id: true, nama: true, nis: true, kelas: { select: { namaKelas: true } } } },

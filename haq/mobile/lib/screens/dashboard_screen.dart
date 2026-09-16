@@ -101,14 +101,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
   bool _syncing = false;
   Timer? _tickTimer;
 
+  bool _didLoadOnce = false;
+
   @override
   void initState() {
     super.initState();
-    _load();
     // Keep "X menit lalu" fresh without needing another data fetch.
     _tickTimer = Timer.periodic(const Duration(seconds: 30), (_) {
       if (mounted) setState(() {});
     });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_didLoadOnce) {
+      _didLoadOnce = true;
+      _load();
+    }
   }
 
   @override
@@ -131,9 +141,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
         _lastLoaded = DateTime.now();
       });
     } on ApiException catch (e) {
-      if (mounted) setState(() => _error = e.message);
-    } catch (_) {
-      if (mounted) setState(() => _error = 'Gagal memuat dashboard.');
+      if (mounted) setState(() => _error = 'ApiException: ${e.message}');
+    } catch (e) {
+      if (mounted) setState(() => _error = 'Gagal memuat dashboard: $e');
     } finally {
       if (mounted) setState(() => _syncing = false);
     }

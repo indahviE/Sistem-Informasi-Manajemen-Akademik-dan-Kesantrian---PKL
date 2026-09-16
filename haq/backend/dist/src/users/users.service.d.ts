@@ -8,8 +8,8 @@ export declare class UsersService {
         id: string;
         nama: string;
         email: string;
-        role: import(".prisma/client").$Enums.Role;
         status: import(".prisma/client").$Enums.UserStatus;
+        role: import(".prisma/client").$Enums.Role;
         createdAt: Date;
     }[]>;
     create(tenantId: string, dto: CreateUserDto): Promise<{

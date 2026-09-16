@@ -5,11 +5,11 @@ export declare class NotifikasiService {
     myNotifikasis(userId: string, tenantId: string | undefined): Promise<{
         id: string;
         tenantId: string;
+        tanggal: Date;
         jenis: import(".prisma/client").$Enums.JenisNotifikasi;
-        userId: string | null;
         pesan: string;
         statusBaca: boolean;
-        tanggal: Date;
+        userId: string | null;
     }[]>;
     unreadCount(userId: string, tenantId: string | undefined): Promise<number>;
     markRead(userId: string, id: string): Promise<import(".prisma/client").Prisma.BatchPayload>;
