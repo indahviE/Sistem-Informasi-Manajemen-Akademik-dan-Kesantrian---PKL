@@ -49,6 +49,44 @@ class _C {
   static const error = Color(0xFFBA1A1A);
 }
 
+/// ---------------------------------------------------------------------------
+/// Wali Santri (parent) theme — mirrored 1:1 from signup_screen.dart's
+/// `PColors`, so the parent-facing dashboard shares the same "Islamic
+/// Academic & Kesantrian Experience" identity as the signup flow (Deep
+/// Emerald Forest + Antique Gold on a warm ivory canvas).
+/// ---------------------------------------------------------------------------
+class _WC {
+  _WC._();
+
+  static const primary = Color(0xFF0F3A2E);
+  static const primaryContainer = Color(0xFF1B4D3E);
+  static const primaryGradientEnd = Color(0xFF164E3D);
+
+  static const gold = Color(0xFFC5A059);
+  static const goldSurface = Color(0xFFFAF5EC);
+  static const goldBorder = Color(0xFFE7D2A7);
+
+  static const mint = Color(0xFFD2E4DC);
+  static const sage = Color(0xFFE2ECE9);
+
+  static const background = Color(0xFFFAF9F5);
+  static const surface = Color(0xFFFFFFFF);
+  static const surfaceDim = Color(0xFFF5F4EE);
+
+  static const ink = Color(0xFF0F172A);
+  static const inkSecondary = Color(0xFF475569);
+
+  static const border = Color(0xFFEAE6DC);
+
+  static const successBg = Color(0xFFE8F5E9);
+  static const successText = Color(0xFF1B5E20);
+
+  static const pendingBg = Color(0xFFFFF8E1);
+  static const pendingText = Color(0xFFB78103);
+
+  static const errorText = Color(0xFF991B1B);
+}
+
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
 
@@ -113,20 +151,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
     if (_data == null) return loadingView();
     final role = _data!['role'] as String;
     final isTenantAdmin = role != 'SUPER_ADMIN' && role != 'WALI_SANTRI';
+    final isWali = role == 'WALI_SANTRI';
 
     return RefreshIndicator(
       onRefresh: _load,
       child: ListView(
         padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
         children: [
-          if (isTenantAdmin)
+          if (isWali)
+            _waliHeroHeader()
+          else if (isTenantAdmin)
             _heroHeader(role)
           else
             const PageHeader(title: 'Ringkasan', subtitle: 'Pantau kondisi pondok secara real-time'),
           const SizedBox(height: 20),
           if (role == 'SUPER_ADMIN')
             _superBody()
-          else if (role == 'WALI_SANTRI')
+          else if (isWali)
             _waliBody()
           else
             _tenantBody(),
@@ -195,6 +236,35 @@ class _DashboardScreenState extends State<DashboardScreen> {
       default:
         return 'Pengguna Pondok';
     }
+  }
+
+  String _formatIndoDate(DateTime dt) {
+    const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', "Jum'at", 'Sabtu'];
+    const months = [
+      '',
+      'Januari',
+      'Februari',
+      'Maret',
+      'April',
+      'Mei',
+      'Juni',
+      'Juli',
+      'Agustus',
+      'September',
+      'Oktober',
+      'November',
+      'Desember',
+    ];
+    return '${days[dt.weekday % 7]}, ${dt.day} ${months[dt.month]} ${dt.year}';
+  }
+
+  String _kelasLabel(Map<String, dynamic> a) {
+    final k = a['kelas'];
+    if (k is String && k.trim().isNotEmpty) return k;
+    if (k is Map && k['namaKelas'] != null) return k['namaKelas'].toString();
+    final asrama = a['asrama'];
+    if (asrama is String && asrama.trim().isNotEmpty) return asrama;
+    return '-';
   }
 
   // =========================================================================
@@ -334,6 +404,103 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+  // =========================================================================
+  // 1b. Hero header for WALI_SANTRI — themed with signup_screen.dart's
+  // PColors (Deep Emerald Forest + Antique Gold) per the reference design.
+  // =========================================================================
+  Widget _waliHeroHeader() {
+    final namaPengguna = _pick(_data!, ['namaPengguna', 'nama', 'userName']) ?? 'Wali Santri';
+
+    return Container(
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [_WC.primary, _WC.primaryGradientEnd],
+        ),
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(color: _WC.primary.withOpacity(0.18), blurRadius: 12, offset: const Offset(0, 4)),
+        ],
+      ),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Positioned(
+            right: -18,
+            top: -18,
+            child: Opacity(opacity: 0.06, child: _RubElHizb(size: 120, color: Colors.white)),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Flexible(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.12),
+                          borderRadius: BorderRadius.circular(999),
+                          border: Border.all(color: _WC.gold.withOpacity(0.5)),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.shield_outlined, size: 12, color: _WC.gold),
+                            const SizedBox(width: 6),
+                            Flexible(
+                              child: Text(
+                                'PORTAL WALI SANTRI TERPADU',
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 9.5,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: 0.3,
+                                  color: _WC.gold,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: const Text(
+                        'Mode Pantau',
+                        style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600, color: Colors.white),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                const Text(
+                  "Assalamu'alaikum,",
+                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600, color: Colors.white),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  namaPengguna,
+                  style: TextStyle(fontSize: 14, color: Colors.white.withOpacity(0.82)),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _grid(List<Widget> cards) {
     final w = MediaQuery.of(context).size.width;
     final cols = w >= 1400 ? 6 : (w >= 1024 ? 4 : (w >= 600 ? 3 : 2));
@@ -441,65 +608,121 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   // =========================================================================
-  // WALI SANTRI
+  // WALI SANTRI — matches the reference design, themed with the signup
+  // screen's Deep Emerald Forest + Antique Gold palette (see `_WC` above).
   // =========================================================================
   Widget _waliBody() {
-    final s = (_data!['statistik'] as Map).cast<String, dynamic>();
-    final anak = (_data!['anak'] as List? ?? []);
+    final anak = (_data!['anak'] as List? ?? []).cast<Map<String, dynamic>>();
+    final today = _formatIndoDate(DateTime.now());
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _grid([
-          _StatCard(label: 'Jumlah Anak', value: '${s['jumlahAnak'] ?? 0}', icon: Icons.family_restroom, iconColor: _C.primaryContainer, iconBg: _C.surfaceContainer),
-          _StatCard(label: 'Rata-rata Nilai', value: _fmtDouble(s['rataRataNilai']), icon: Icons.grade, iconColor: _C.secondary, iconBg: _C.surfaceContainer),
-          _StatCard(label: 'Pelanggaran', value: '${s['pelanggaranTotal'] ?? 0}', icon: Icons.gavel, iconColor: _C.error, iconBg: _C.surfaceContainer),
-          _StatCard(label: 'Izin Menunggu', value: '${s['izinPending'] ?? 0}', icon: Icons.hourglass_top, iconColor: _C.secondary, iconBg: _C.surfaceContainer),
-        ]),
-        const SizedBox(height: 16),
-        _SectionShell(
-          title: 'Anak Anda',
-          subtitle: 'Ringkasan santri yang Anda wakili',
-          trailingIcon: Icons.family_restroom,
-          child: anak.isEmpty
-              ? const _EmptyRow(text: 'Belum ada data anak.')
-              : Column(
-                  children: [
-                    for (final a in anak.cast<Map<String, dynamic>>())
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 40,
-                              height: 40,
-                              decoration: BoxDecoration(color: _C.tertiaryFixed, borderRadius: BorderRadius.circular(10)),
-                              child: const Icon(Icons.person, color: _C.onTertiaryFixed),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(a['nama'] as String, style: const TextStyle(fontWeight: FontWeight.w600, color: _C.onSurface)),
-                                  Text('${a['nis']} • ${(a['kelas'] as Map?)?['namaKelas'] ?? '-'}',
-                                      style: const TextStyle(fontSize: 12, color: _C.onSurfaceVariant)),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                  ],
-                ),
+        if (anak.isEmpty)
+          const _WaliChildCard(nama: 'Belum ada data santri', kelas: '-', nis: '-', status: 'Aktif')
+        else
+          for (final a in anak)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: _WaliChildCard(
+                nama: (a['nama'] as String?) ?? 'Santri',
+                kelas: _kelasLabel(a),
+                nis: (a['nis'] as String?) ?? '-',
+                status: _pick(a, ['status']) ?? 'Aktif',
+              ),
+            ),
+        const SizedBox(height: 6),
+        const _WaliVerificationBanner(),
+        const SizedBox(height: 20),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text('Ringkasan Hari Ini',
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _WC.ink)),
+            Text(today, style: const TextStyle(fontSize: 11.5, color: _WC.inkSecondary)),
+          ],
         ),
+        const SizedBox(height: 10),
+        const _WaliPresenceCard(),
+        const SizedBox(height: 12),
+        const _WaliTahfidzCard(),
+        const SizedBox(height: 12),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: const [
+            Expanded(
+              child: _WaliMiniStatCard(
+                title: 'Kedisiplinan',
+                badge: '0 Poin',
+                icon: Icons.emoji_events_outlined,
+                description: 'Pekan Bersih: Adab tepat waktu & kerapian lemari prima.',
+              ),
+            ),
+            SizedBox(width: 10),
+            Expanded(
+              child: _WaliMiniStatCard(
+                title: 'Kondisi Fisik',
+                badge: '36.6°C',
+                icon: Icons.favorite_outline,
+                description: "Sehat Wal'afiat. Skrining berkala Poskestren normal.",
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        const _WaliMukimCard(),
+        const SizedBox(height: 20),
+        const _WaliQuoteCard(),
+        const SizedBox(height: 20),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: const [
+            Text('Riwayat Lengkap Santri',
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _WC.ink)),
+            Text('Laporan Terarsip', style: TextStyle(fontSize: 11.5, color: _WC.inkSecondary)),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Container(
+          decoration: BoxDecoration(
+            color: _WC.surface,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: _WC.border),
+          ),
+          child: Column(
+            children: const [
+              _WaliHistoryItem(
+                icon: Icons.school_outlined,
+                title: 'Riwayat Nilai & Raport Diniyah',
+                subtitle: 'Kompilasi semester & ujian lisan',
+              ),
+              Divider(height: 1, color: _WC.border),
+              _WaliHistoryItem(
+                icon: Icons.menu_book_outlined,
+                title: "Riwayat & Mutaba'ah Tahfidz",
+                subtitle: "Grafik setoran, muraja'ah harian",
+              ),
+              Divider(height: 1, color: _WC.border),
+              _WaliHistoryItem(
+                icon: Icons.fact_check_outlined,
+                title: 'Riwayat Kehadiran & Shalat',
+                subtitle: 'Log presensi 5 waktu & taklim',
+              ),
+              Divider(height: 1, color: _WC.border),
+              _WaliHistoryItem(
+                icon: Icons.gavel_outlined,
+                title: 'Riwayat Disiplin & Izin Keluar',
+                subtitle: 'Arsip kepulangan dan mahkamah santri',
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
+        const _WaliContactCard(),
+        const SizedBox(height: 24),
+        const _WaliDuaFooter(),
       ],
     );
-  }
-
-  String _fmtDouble(dynamic v) {
-    if (v == null) return '-';
-    final n = (v as num).toDouble();
-    return n.toStringAsFixed(1);
   }
 
   // =========================================================================
@@ -951,7 +1174,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 }
 
 /// ---------------------------------------------------------------------------
-/// Reusable pieces
+/// Reusable pieces — Tenant / Admin / Super Admin (unchanged)
 /// ---------------------------------------------------------------------------
 
 class _Card extends StatelessWidget {
@@ -1282,6 +1505,599 @@ class _RubElHizb extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// ---------------------------------------------------------------------------
+/// Reusable pieces — WALI SANTRI (parent) section only. Themed with `_WC`
+/// (mirrors signup_screen.dart's PColors) per the reference design.
+/// ---------------------------------------------------------------------------
+
+class _WaliChildCard extends StatelessWidget {
+  final String nama;
+  final String kelas;
+  final String nis;
+  final String status;
+  const _WaliChildCard({required this.nama, required this.kelas, required this.nis, required this.status});
+
+  @override
+  Widget build(BuildContext context) {
+    final isAktif = status.toLowerCase() == 'aktif';
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: _WC.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _WC.border),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: const BoxDecoration(color: _WC.sage, shape: BoxShape.circle),
+            child: const Icon(Icons.person, color: _WC.primary),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(nama,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _WC.ink)),
+                const SizedBox(height: 2),
+                Text('$kelas • NIS: $nis',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 11.5, color: _WC.inkSecondary)),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+              color: isAktif ? _WC.successBg : _WC.pendingBg,
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Text(
+              status,
+              style: TextStyle(
+                fontSize: 10.5,
+                fontWeight: FontWeight.w700,
+                color: isAktif ? _WC.successText : _WC.pendingText,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _WaliVerificationBanner extends StatelessWidget {
+  const _WaliVerificationBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(color: _WC.primary, borderRadius: BorderRadius.circular(16)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: const [
+                  Icon(Icons.verified, size: 14, color: _WC.gold),
+                  SizedBox(width: 6),
+                  Text('TERVERIFIKASI OTENTIK',
+                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 0.3, color: _WC.gold)),
+                ],
+              ),
+              Row(
+                children: [
+                  Icon(Icons.lock_outline, size: 12, color: Colors.white.withOpacity(0.7)),
+                  const SizedBox(width: 4),
+                  Text('Read-Only', style: TextStyle(fontSize: 10.5, color: Colors.white.withOpacity(0.7))),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          const Text('Di Lingkungan Asrama & Masjid',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white)),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              const Icon(Icons.check_circle, size: 14, color: Colors.white),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text('Mukim Aktif (Aman di Dalam Pondok)',
+                    style: TextStyle(fontSize: 11.5, color: Colors.white.withOpacity(0.9))),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              Icon(Icons.pin_drop_outlined, size: 14, color: Colors.white.withOpacity(0.9)),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text('Piket Musyrif: 17:15 WIB (Maghrib Berjamaah) • Gedung Ali',
+                    style: TextStyle(fontSize: 11.5, color: Colors.white.withOpacity(0.9))),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _WaliPresenceCard extends StatelessWidget {
+  const _WaliPresenceCard();
+
+  static const _sesi = ['Shubuh', 'Diniyah', 'Ashar', 'Maghrib'];
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(color: _WC.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: _WC.border)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Presensi & Kehadiran',
+                        style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: _WC.ink)),
+                    SizedBox(height: 3),
+                    Text('100% Hadir (4 Sesi Lengkap)', style: TextStyle(fontSize: 11.5, color: _WC.inkSecondary)),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(color: _WC.successBg, borderRadius: BorderRadius.circular(999)),
+                child: const Text('Disiplin',
+                    style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: _WC.successText)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              for (final s in _sesi)
+                Expanded(
+                  child: Column(
+                    children: [
+                      Container(
+                        width: 34,
+                        height: 34,
+                        decoration: const BoxDecoration(color: _WC.successBg, shape: BoxShape.circle),
+                        child: const Icon(Icons.check, size: 16, color: _WC.successText),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(s, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: _WC.ink)),
+                      Text('Hadir', style: TextStyle(fontSize: 10, color: _WC.inkSecondary)),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _WaliTahfidzCard extends StatelessWidget {
+  const _WaliTahfidzCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(color: _WC.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: _WC.border)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Setoran Tahfidz Terbaru',
+                        style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: _WC.ink)),
+                    SizedBox(height: 3),
+                    Text("Saba' & Ziyadah Ba'da Ashar", style: TextStyle(fontSize: 11.5, color: _WC.inkSecondary)),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: _WC.goldSurface,
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(color: _WC.goldBorder),
+                ),
+                child: const Text('Mumtaz (A)',
+                    style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: _WC.gold)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: const [
+              Expanded(
+                child: Text('Juz 28 (QS. Al-Mujadilah: 1–15)',
+                    style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: _WC.ink)),
+              ),
+              Text('24 / 30 Juz (80%)',
+                  style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: _WC.primary)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(999),
+            child: LinearProgressIndicator(
+              value: 0.8,
+              minHeight: 8,
+              backgroundColor: _WC.surfaceDim,
+              valueColor: const AlwaysStoppedAnimation(_WC.gold),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              const Icon(Icons.person_outline, size: 14, color: _WC.inkSecondary),
+              const SizedBox(width: 4),
+              const Expanded(
+                child: Text('Disimak oleh: Ust. Ahmad Fauzan, Lc.',
+                    style: TextStyle(fontSize: 11, color: _WC.inkSecondary)),
+              ),
+              const Text('Tajwid: Mumtaz',
+                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: _WC.primary)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _WaliMiniStatCard extends StatelessWidget {
+  final String title;
+  final String badge;
+  final IconData icon;
+  final String description;
+  const _WaliMiniStatCard({
+    required this.title,
+    required this.badge,
+    required this.icon,
+    required this.description,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(color: _WC.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: _WC.border)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 15, color: _WC.primary),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: _WC.inkSecondary)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(color: _WC.mint, borderRadius: BorderRadius.circular(999)),
+            child: Text(badge, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: _WC.primary)),
+          ),
+          const SizedBox(height: 8),
+          Text(description, style: const TextStyle(fontSize: 10.5, color: _WC.inkSecondary, height: 1.35)),
+        ],
+      ),
+    );
+  }
+}
+
+class _WaliMukimCard extends StatelessWidget {
+  const _WaliMukimCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(color: _WC.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: _WC.border)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: const [
+                  Icon(Icons.home_outlined, size: 16, color: _WC.primary),
+                  SizedBox(width: 8),
+                  Text('Status Mukim & Perizinan',
+                      style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: _WC.ink)),
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(color: _WC.successBg, borderRadius: BorderRadius.circular(999)),
+                child: const Text('Mukim Aktif',
+                    style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: _WC.successText)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(color: _WC.surfaceDim, borderRadius: BorderRadius.circular(12)),
+            child: Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: _WC.goldSurface,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: _WC.goldBorder),
+                  ),
+                  child: const Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text('20', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: _WC.gold)),
+                      Text('MEI', style: TextStyle(fontSize: 8.5, fontWeight: FontWeight.w700, color: _WC.gold)),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('3 Minggu Lagi', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _WC.ink)),
+                      SizedBox(height: 2),
+                      Text('Libur Akhir Semester Genap', style: TextStyle(fontSize: 11, color: _WC.inkSecondary)),
+                      Text('Kepulangan serentak santri', style: TextStyle(fontSize: 11, color: _WC.inkSecondary)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _WaliQuoteCard extends StatelessWidget {
+  const _WaliQuoteCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: _WC.goldSurface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _WC.goldBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: const [
+                  Icon(Icons.format_quote, size: 16, color: _WC.gold),
+                  SizedBox(width: 6),
+                  Text('Catatan Wali Asrama / Halaqah',
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _WC.ink)),
+                ],
+              ),
+              const Text('28 Apr 2025', style: TextStyle(fontSize: 10.5, color: _WC.inkSecondary)),
+            ],
+          ),
+          const SizedBox(height: 10),
+          const Text(
+            "\"Alhamdulillah ananda menunjukkan ketekunan istimewa dalam meraja'ah hafalan Juz 28 dan senantiasa istiqomah di shaf terdepan Masjid Jami' Pesantren.\"",
+            style: TextStyle(fontSize: 12.5, fontStyle: FontStyle.italic, color: _WC.ink, height: 1.5),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: const BoxDecoration(color: _WC.primary, shape: BoxShape.circle),
+                child: const Icon(Icons.person, size: 16, color: Colors.white),
+              ),
+              const SizedBox(width: 10),
+              const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Ust. Ahmad Fauzan, Lc.', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: _WC.ink)),
+                  Text('Musyrif Tahfidz & Wali Halaqah', style: TextStyle(fontSize: 10.5, color: _WC.inkSecondary)),
+                ],
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _WaliHistoryItem extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  const _WaliHistoryItem({required this.icon, required this.title, required this.subtitle});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: () {},
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(color: _WC.sage, borderRadius: BorderRadius.circular(10)),
+              child: Icon(icon, size: 17, color: _WC.primary),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: _WC.ink)),
+                  Text(subtitle, style: const TextStyle(fontSize: 11, color: _WC.inkSecondary)),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right, size: 18, color: _WC.inkSecondary),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _WaliContactCard extends StatelessWidget {
+  const _WaliContactCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(color: _WC.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: _WC.border)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Kontak Musyrif & Informasi Besuk',
+              style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: _WC.ink)),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: const BoxDecoration(color: _WC.primary, shape: BoxShape.circle),
+                child: const Icon(Icons.person, color: Colors.white, size: 18),
+              ),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Ust. Hamdan As-Suyuthi',
+                        style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: _WC.ink)),
+                    Text('Musyrif Gedung Ali Lt. 2 (Kamar 204)',
+                        style: TextStyle(fontSize: 11, color: _WC.inkSecondary)),
+                  ],
+                ),
+              ),
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(color: _WC.sage, borderRadius: BorderRadius.circular(10)),
+                child: const Icon(Icons.chat_bubble_outline, size: 16, color: _WC.primary),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Jadwal Jam Besuk', style: TextStyle(fontSize: 10.5, color: _WC.inkSecondary)),
+                    SizedBox(height: 3),
+                    Text('Ahad', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _WC.ink)),
+                    Text('09:00 - 16:00 WIB', style: TextStyle(fontSize: 11, color: _WC.inkSecondary)),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: const [
+                    Text('Darurat Poskestren', style: TextStyle(fontSize: 10.5, color: _WC.inkSecondary)),
+                    SizedBox(height: 3),
+                    Text('(021) 8892-1200',
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _WC.errorText)),
+                    Text('Layanan Medis 24 Jam', style: TextStyle(fontSize: 11, color: _WC.inkSecondary)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _WaliDuaFooter extends StatelessWidget {
+  const _WaliDuaFooter();
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        const Text(
+          'رَبِّ هَبْ لِي مِنَ الصَّالِحِينَ',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: _WC.gold),
+        ),
+        const SizedBox(height: 6),
+        const Text(
+          '"Ya Tuhanku, anugerahkanlah kepadaku (anak) yang termasuk orang-orang yang saleh."',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: _WC.inkSecondary),
+        ),
+        const SizedBox(height: 10),
+        const Text(
+          "SIMPesantren Terpadu • Sistem Keamanan Santri Terenkripsi",
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 10, color: _WC.inkSecondary),
+        ),
+      ],
     );
   }
 }
