@@ -48,7 +48,11 @@ export declare class AkademikController {
         count: number;
         message: string;
     }>;
-    findAllNilai(tenantId: string, santriId?: string, mapelId?: string, jenis?: JenisNilai): Promise<({
+    findAllNilai(tenantId: string, user: RequestUser, santriId?: string, mapelId?: string, jenis?: JenisNilai): Promise<({
+        mapel: {
+            id: string;
+            namaMapel: string;
+        };
         santri: {
             id: string;
             nama: string;

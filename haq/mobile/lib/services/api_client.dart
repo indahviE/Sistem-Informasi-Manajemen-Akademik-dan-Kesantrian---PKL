@@ -176,4 +176,8 @@ class ApiUrl {
   static const raporGenerate = '/rapor/generate';
   static const kelulusan = '/kelulusan';
   static const konseling = '/konseling';
+
+  static const pembinaanKarakter = '/pembinaan-karakter';
+  static const pembinaanIbadah = '/pembinaan-ibadah';
+  static const keadaanDarurat = '/keadaan-darurat';
 }

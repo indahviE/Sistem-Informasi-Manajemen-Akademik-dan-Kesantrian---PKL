@@ -20,6 +20,9 @@ import 'kesantrian/perizinan_screen.dart';
 import 'kesantrian/kesehatan_screen.dart';
 import 'kesantrian/kunjungan_screen.dart';
 import 'kesantrian/konseling_screen.dart';
+import 'kesantrian/pembinaan_karakter_screen.dart';
+import 'kesantrian/pembinaan_ibadah_screen.dart';
+import 'kesantrian/keadaan_darurat_screen.dart';
 import 'users/users_screen.dart';
 import 'super_admin/tenants_screen.dart';
 import 'wali/wali_screen.dart';
@@ -111,6 +114,18 @@ class _ShellScreenState extends State<ShellScreen> {
       m.add(_MenuItem('Konseling', Icons.support_agent, (_) => const KonselingScreen()));
     }
 
+    if (user.isAdmin || user.isMusyrif || user.isUstadz || user.isPimpinan) {
+      m.add(_MenuItem('Pembinaan Karakter', Icons.emoji_events, (_) => const PembinaanKarakterScreen()));
+    }
+
+    if (user.isAdmin || user.isMusyrif || user.isPimpinan) {
+      m.add(_MenuItem('Pembinaan Ibadah', Icons.mosque, (_) => const PembinaanIbadahScreen()));
+    }
+
+    if (user.isAdmin || user.isMusyrif || user.isUstadz || user.isPimpinan) {
+      m.add(_MenuItem('Keadaan Darurat', Icons.emergency, (_) => const KeadaanDaruratScreen()));
+    }
+
     if (user.isAdmin || user.isMusyrif) {
       m.add(_MenuItem('Pelanggaran', Icons.gavel, (_) => const PelanggaranScreen()));
       m.add(_MenuItem('Perizinan', Icons.exit_to_app, (_) => const PerizinanScreen()));
@@ -127,6 +142,9 @@ class _ShellScreenState extends State<ShellScreen> {
       m.add(_MenuItem('Anak Saya', Icons.family_restroom, (_) => const WaliScreen()));
       m.add(_MenuItem('Pelanggaran', Icons.gavel, (_) => const PelanggaranScreen()));
       m.add(_MenuItem('Perizinan', Icons.exit_to_app, (_) => const PerizinanScreen()));
+      m.add(_MenuItem('Pembinaan Karakter', Icons.emoji_events, (_) => const PembinaanKarakterScreen()));
+      m.add(_MenuItem('Pembinaan Ibadah', Icons.mosque, (_) => const PembinaanIbadahScreen()));
+
     }
 
     return m;
