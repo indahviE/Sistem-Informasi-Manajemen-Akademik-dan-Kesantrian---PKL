@@ -9,6 +9,9 @@ export declare class DaftarPpdbDto {
     email?: string;
     alamat?: string;
     jalur?: string;
+    fotoUrl?: string;
+    kartuKeluargaUrl?: string;
+    aktaLahirUrl?: string;
 }
 export declare class LookupPpdbDto {
     kode: string;

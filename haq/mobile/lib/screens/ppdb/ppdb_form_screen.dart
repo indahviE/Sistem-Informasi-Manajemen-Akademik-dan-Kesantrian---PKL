@@ -4,11 +4,11 @@
 // PPDB, step indicator 4 langkah). Menggunakan PColors & PText yang sama
 // dengan signup_screen.dart supaya konsisten secara visual.
 
-import 'dart:io';
+import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 
 import '../../services/api_client.dart';
@@ -274,6 +274,10 @@ class _PpdbFormScreenState extends State<PpdbFormScreen> {
         'noHp': _noHpWali.text.trim(),
         'email': _emailWali.text.trim().isEmpty ? null : _emailWali.text.trim(),
         'alamat': _alamatWali.text.trim().isEmpty ? null : _alamatWali.text.trim(),
+        'fotoUrl': _fotoAnak.text.trim().isEmpty ? null : _fotoAnak.text.trim(),
+        'kartuKeluargaUrl':
+            _kartuKeluarga.text.trim().isEmpty ? null : _kartuKeluarga.text.trim(),
+        'aktaLahirUrl': _aktaLahir.text.trim().isEmpty ? null : _aktaLahir.text.trim(),
       });
       if (!mounted) return;
       final m = res as Map<String, dynamic>;
@@ -699,6 +703,68 @@ class _PpdbHeader extends StatelessWidget {
 // Hero banner
 // ============================================================================
 
+/// Motif geometris tipis di background hero banner, terinspirasi pola
+/// arabesque/bintang delapan yang umum dipakai di ornamen pesantren.
+/// Digambar manual pakai CustomPainter (bukan asset gambar) biar ringan
+/// dan gampang diubah opacity/warnanya, tanpa nambah dependency baru.
+class _ArabesquePattern extends StatelessWidget {
+  const _ArabesquePattern();
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: CustomPaint(
+        painter: _ArabesquePatternPainter(),
+        size: Size.infinite,
+      ),
+    );
+  }
+}
+
+class _ArabesquePatternPainter extends CustomPainter {
+  static const double _tile = 48;
+  static const double _starRadius = _tile * 0.34;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.white.withOpacity(0.07)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.1;
+
+    for (double y = -_tile; y < size.height + _tile; y += _tile) {
+      for (double x = -_tile; x < size.width + _tile; x += _tile) {
+        _drawEightPointStar(canvas, Offset(x, y), _starRadius, paint);
+      }
+    }
+  }
+
+  void _drawEightPointStar(Canvas canvas, Offset center, double r, Paint paint) {
+    final square1 = Path();
+    final square2 = Path();
+    for (int i = 0; i < 4; i++) {
+      final a1 = (math.pi / 2) * i;
+      final a2 = a1 + math.pi / 4;
+      final p1 = center + Offset(math.cos(a1), math.sin(a1)) * r;
+      final p2 = center + Offset(math.cos(a2), math.sin(a2)) * r;
+      if (i == 0) {
+        square1.moveTo(p1.dx, p1.dy);
+        square2.moveTo(p2.dx, p2.dy);
+      } else {
+        square1.lineTo(p1.dx, p1.dy);
+        square2.lineTo(p2.dx, p2.dy);
+      }
+    }
+    square1.close();
+    square2.close();
+    canvas.drawPath(square1, paint);
+    canvas.drawPath(square2, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _ArabesquePatternPainter oldDelegate) => false;
+}
+
 class _HeroBanner extends StatelessWidget {
   const _HeroBanner({required this.activeTab, required this.onTabChanged});
 
@@ -717,7 +783,10 @@ class _HeroBanner extends StatelessWidget {
           colors: [PColors.primary, PColors.primaryGradientEnd],
         ),
       ),
-      child: Column(
+      child: Stack(
+        children: [
+          const Positioned.fill(child: _ArabesquePattern()),
+          Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
@@ -787,6 +856,8 @@ class _HeroBanner extends StatelessWidget {
               ),
             ],
           ),
+        ],
+      ),
         ],
       ),
     );
@@ -1305,12 +1376,9 @@ class _UploadTile extends StatefulWidget {
 class _UploadTileState extends State<_UploadTile> {
   bool _uploading = false;
   String? _fileNameLocal;
+  String? _error;
 
-  // TODO: sesuaikan dengan endpoint upload backend yang sebenarnya.
-  // Belum ada endpoint upload publik untuk PPDB di backend saat ini —
-  // perlu ditambahkan di NestJS, mis. @Public() POST /api/ppdb/upload,
-  // menerima multipart/form-data field "file", membalas { "url": "..." }.
-  static const String _uploadEndpoint = 'http://localhost:3000/api/ppdb/upload';
+  static const int _maxBytes = 2 * 1024 * 1024;
 
   Future<void> _showSourceSheet() async {
     if (widget.kind == _BerkasKind.photoOnly) {
@@ -1341,25 +1409,27 @@ class _UploadTileState extends State<_UploadTile> {
       if (source == null) return;
       final xfile = await ImagePicker().pickImage(source: source, imageQuality: 85);
       if (xfile == null) return;
-      await _uploadFile(File(xfile.path), xfile.name);
+      final bytes = await xfile.readAsBytes();
+      final ext = xfile.name.contains('.') ? xfile.name.split('.').last.toLowerCase() : 'jpg';
+      await _encodeAndStore(bytes, xfile.name, ext);
     } else {
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'],
+        withData: true,
       );
-      if (result == null || result.files.single.path == null) return;
-      await _uploadFile(File(result.files.single.path!), result.files.single.name);
+      if (result == null || result.files.single.bytes == null) return;
+      final file = result.files.single;
+      final ext = (file.extension ?? '').toLowerCase();
+      await _encodeAndStore(file.bytes!, file.name, ext);
     }
   }
 
-  Future<void> _uploadFile(File file, String fileName) async {
-    final sizeBytes = await file.length();
-    if (sizeBytes > 2 * 1024 * 1024) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Ukuran berkas maksimal 2MB.')),
-        );
-      }
+  Future<void> _encodeAndStore(List<int> bytes, String fileName, String ext) async {
+    setState(() => _error = null);
+
+    if (bytes.length > _maxBytes) {
+      setState(() => _error = 'Ukuran berkas maksimal 2MB.');
       return;
     }
 
@@ -1368,33 +1438,17 @@ class _UploadTileState extends State<_UploadTile> {
       _fileNameLocal = fileName;
     });
 
-    try {
-      final request = http.MultipartRequest('POST', Uri.parse(_uploadEndpoint));
-      request.files.add(await http.MultipartFile.fromPath('file', file.path));
-      final streamed = await request.send();
-      final res = await http.Response.fromStream(streamed);
+    final mime = switch (ext) {
+      'jpg' || 'jpeg' => 'image/jpeg',
+      'png' => 'image/png',
+      'pdf' => 'application/pdf',
+      _ => 'application/octet-stream',
+    };
 
-      if (res.statusCode == 200 || res.statusCode == 201) {
-        final match = RegExp(r'"url"\s*:\s*"([^"]+)"').firstMatch(res.body);
-        final url = match?.group(1) ?? '';
-        if (!mounted) return;
-        setState(() {
-          widget.controller.text = url;
-          _uploading = false;
-        });
-      } else {
-        throw Exception('Upload gagal (${res.statusCode})');
-      }
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _uploading = false;
-        _fileNameLocal = null;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Gagal mengunggah berkas: $e')),
-      );
-    }
+    widget.controller.text = 'data:$mime;base64,${base64Encode(bytes)}';
+
+    if (!mounted) return;
+    setState(() => _uploading = false);
   }
 
   @override
@@ -1407,7 +1461,7 @@ class _UploadTileState extends State<_UploadTile> {
         decoration: BoxDecoration(
           color: PColors.surfaceDim,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: PColors.border),
+          border: Border.all(color: _error != null ? PColors.errorBorder : PColors.border),
         ),
         child: Row(
           children: [
@@ -1430,13 +1484,18 @@ class _UploadTileState extends State<_UploadTile> {
                   Text(widget.title, style: PText.labelLg),
                   const SizedBox(height: 2),
                   Text(
-                    _uploading
-                        ? 'Mengunggah...'
-                        : hasFile
-                            ? (_fileNameLocal ?? 'Berkas siap')
-                            : 'Klik untuk unggah',
+                    _error ??
+                        (_uploading
+                            ? 'Memproses berkas...'
+                            : hasFile
+                                ? (_fileNameLocal ?? 'Berkas siap')
+                                : 'Klik untuk unggah'),
                     style: PText.bodySm.copyWith(
-                      color: hasFile ? PColors.successText : PColors.inkSecondary,
+                      color: _error != null
+                          ? PColors.errorText
+                          : hasFile
+                              ? PColors.successText
+                              : PColors.inkSecondary,
                     ),
                   ),
                 ],
@@ -1444,8 +1503,16 @@ class _UploadTileState extends State<_UploadTile> {
             ),
             if (!_uploading)
               Icon(
-                hasFile ? Icons.check_circle : Icons.chevron_right,
-                color: hasFile ? PColors.successText : PColors.inkSecondary,
+                _error != null
+                    ? Icons.error_outline
+                    : hasFile
+                        ? Icons.check_circle
+                        : Icons.chevron_right,
+                color: _error != null
+                    ? PColors.errorText
+                    : hasFile
+                        ? PColors.successText
+                        : PColors.inkSecondary,
               ),
           ],
         ),

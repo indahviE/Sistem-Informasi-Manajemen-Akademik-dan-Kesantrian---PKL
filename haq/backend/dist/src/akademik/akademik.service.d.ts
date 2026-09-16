@@ -47,7 +47,7 @@ export declare class AkademikService {
         count: number;
         message: string;
     }>;
-    findAllNilai(tenantId: string, santriId?: string, mapelId?: string, jenis?: JenisNilai): Promise<({
+    findAllNilai(tenantId: string, santriId?: string, mapelId?: string, jenis?: JenisNilai, allowedSantriIds?: string[]): Promise<({
         santri: {
             id: string;
             nama: string;
@@ -81,7 +81,7 @@ export declare class AkademikService {
         mapelId: string;
         keterangan: string | null;
     }>;
-    findAllTahfidz(tenantId: string, santriId?: string): Promise<({
+    findAllTahfidz(tenantId: string, santriId?: string, allowedSantriIds?: string[]): Promise<({
         santri: {
             id: string;
             nama: string;

@@ -41,6 +41,9 @@ export declare class PpdbController {
         email: string | null;
         alamat: string | null;
         jalur: string | null;
+        fotoUrl: string | null;
+        kartuKeluargaUrl: string | null;
+        aktaLahirUrl: string | null;
         status: import(".prisma/client").$Enums.StatusPendaftaran;
         catatan: string | null;
         tanggalDaftar: Date;
@@ -67,6 +70,9 @@ export declare class PpdbController {
         email: string | null;
         alamat: string | null;
         jalur: string | null;
+        fotoUrl: string | null;
+        kartuKeluargaUrl: string | null;
+        aktaLahirUrl: string | null;
         status: import(".prisma/client").$Enums.StatusPendaftaran;
         catatan: string | null;
         tanggalDaftar: Date;
@@ -83,6 +89,9 @@ export declare class PpdbController {
         email: string | null;
         alamat: string | null;
         jalur: string | null;
+        fotoUrl: string | null;
+        kartuKeluargaUrl: string | null;
+        aktaLahirUrl: string | null;
         status: import(".prisma/client").$Enums.StatusPendaftaran;
         catatan: string | null;
         tanggalDaftar: Date;

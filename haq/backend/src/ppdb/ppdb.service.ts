@@ -41,6 +41,9 @@ export class PpdbService {
         email: dto.email,
         alamat: dto.alamat,
         jalur: dto.jalur,
+        fotoUrl: dto.fotoUrl,
+        kartuKeluargaUrl: dto.kartuKeluargaUrl,
+        aktaLahirUrl: dto.aktaLahirUrl,
       },
     });
 

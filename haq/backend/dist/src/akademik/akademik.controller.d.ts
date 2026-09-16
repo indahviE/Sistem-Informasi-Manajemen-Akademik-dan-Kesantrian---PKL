@@ -2,9 +2,11 @@ import { AkademikService } from './akademik.service';
 import { RequestUser } from '../common/decorators/current-user.decorator';
 import { BulkAbsensiDto, CreateAbsensiDto, CreateNilaiDto, CreateTahfidzDto, QueryAbsensiDto } from './dto/akademik.dto';
 import { JenisNilai } from '@prisma/client';
+import { WaliService } from '../wali/wali.service';
 export declare class AkademikController {
     private akademikService;
-    constructor(akademikService: AkademikService);
+    private waliService;
+    constructor(akademikService: AkademikService, waliService: WaliService);
     findAllAbsensi(tenantId: string, q: QueryAbsensiDto): Promise<({
         santri: {
             id: string;
@@ -46,7 +48,7 @@ export declare class AkademikController {
         count: number;
         message: string;
     }>;
-    findAllNilai(tenantId: string, santriId?: string, mapelId?: string, jenis?: JenisNilai): Promise<({
+    findAllNilai(tenantId: string, user: RequestUser, santriId?: string, mapelId?: string, jenis?: JenisNilai): Promise<({
         santri: {
             id: string;
             nama: string;
@@ -80,7 +82,7 @@ export declare class AkademikController {
         mapelId: string;
         keterangan: string | null;
     }>;
-    findAllTahfidz(tenantId: string, santriId?: string): Promise<({
+    findAllTahfidz(tenantId: string, user: RequestUser, santriId?: string): Promise<({
         santri: {
             id: string;
             nama: string;

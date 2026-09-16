@@ -13,6 +13,7 @@ exports.CreatePlacementTestDto = exports.QueryPpdbDto = exports.UpdatePendaftara
 const class_transformer_1 = require("class-transformer");
 const class_validator_1 = require("class-validator");
 const client_1 = require("@prisma/client");
+const is_url_or_data_uri_validator_1 = require("../../common/validators/is-url-or-data-uri.validator");
 class DaftarPpdbDto {
 }
 exports.DaftarPpdbDto = DaftarPpdbDto;
@@ -61,6 +62,21 @@ __decorate([
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
 ], DaftarPpdbDto.prototype, "jalur", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, is_url_or_data_uri_validator_1.IsUrlOrDataUri)(),
+    __metadata("design:type", String)
+], DaftarPpdbDto.prototype, "fotoUrl", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, is_url_or_data_uri_validator_1.IsUrlOrDataUri)(),
+    __metadata("design:type", String)
+], DaftarPpdbDto.prototype, "kartuKeluargaUrl", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, is_url_or_data_uri_validator_1.IsUrlOrDataUri)(),
+    __metadata("design:type", String)
+], DaftarPpdbDto.prototype, "aktaLahirUrl", void 0);
 class LookupPpdbDto {
 }
 exports.LookupPpdbDto = LookupPpdbDto;

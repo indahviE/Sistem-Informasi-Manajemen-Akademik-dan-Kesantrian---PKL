@@ -74,4 +74,5 @@ export declare class WaliService {
         userId: string | null;
         hubungan: string;
     }>;
+    getSantriIds(userId: string): Promise<string[]>;
 }
