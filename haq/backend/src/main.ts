@@ -6,8 +6,10 @@ import { AppModule } from './app.module';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  app.use(json({ limit: '5mb' }));
-  app.use(urlencoded({ extended: true, limit: '5mb' }));
+  // Dinaikkan dari 5mb -> 15mb: body PPDB sekarang bisa bawa sampai
+  // 3 berkas base64 sekaligus (foto, KK, akta).
+  app.use(json({ limit: '15mb' }));
+  app.use(urlencoded({ extended: true, limit: '15mb' }));
   app.enableCors();
   app.setGlobalPrefix('api');
   app.useGlobalPipes(

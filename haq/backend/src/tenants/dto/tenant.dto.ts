@@ -1,31 +1,5 @@
 import { IsEmail, IsNotEmpty, IsOptional, IsString, Matches, MinLength } from 'class-validator';
-import { registerDecorator, ValidationOptions } from 'class-validator';
-
-function IsUrlOrDataUri(validationOptions?: ValidationOptions) {
-  return function (object: object, propertyName: string) {
-    registerDecorator({
-      name: 'IsUrlOrDataUri',
-      target: object.constructor,
-      propertyName,
-      options: {
-        message: 'Logo harus berupa URL atau data URI base64',
-        ...validationOptions,
-      },
-      validator: {
-        validate(value: unknown) {
-          if (typeof value !== 'string' || value.length === 0) return true;
-          if (value.startsWith('data:')) return value.length < 2_000_000;
-          try {
-            new URL(value);
-            return true;
-          } catch {
-            return false;
-          }
-        },
-      },
-    });
-  };
-}
+import { IsUrlOrDataUri } from '../../common/validators/is-url-or-data-uri.validator';
 
 export class SignupTenantDto {
   @IsString()

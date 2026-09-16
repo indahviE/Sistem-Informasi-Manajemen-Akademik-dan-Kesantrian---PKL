@@ -10,6 +10,7 @@ import {
   Min,
 } from 'class-validator';
 import { StatusPendaftaran } from '@prisma/client';
+import { IsUrlOrDataUri } from '../../common/validators/is-url-or-data-uri.validator';
 
 export class DaftarPpdbDto {
   @IsString()
@@ -47,6 +48,18 @@ export class DaftarPpdbDto {
   @IsOptional()
   @IsString()
   jalur?: string;
+
+  @IsOptional()
+  @IsUrlOrDataUri()
+  fotoUrl?: string;
+
+  @IsOptional()
+  @IsUrlOrDataUri()
+  kartuKeluargaUrl?: string;
+
+  @IsOptional()
+  @IsUrlOrDataUri()
+  aktaLahirUrl?: string;
 }
 
 export class LookupPpdbDto {
