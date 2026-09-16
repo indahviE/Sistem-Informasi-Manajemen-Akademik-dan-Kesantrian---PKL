@@ -49,7 +49,8 @@ export declare class KesantrianController {
         status: string;
         createdAt: Date;
     }>;
-    findAllPerizinan(tenantId: string, q: QueryKesantrianDto, user: RequestUser): Promise<({
+    findAllPerizinan(tenantId: string, q: QueryKesantrianDto, user: RequestUser): Promise<{
+        disetujuiOlehNama: string;
         santri: {
             id: string;
             nis: string;
@@ -58,7 +59,6 @@ export declare class KesantrianController {
                 namaKelas: string;
             };
         };
-    } & {
         id: string;
         tenantId: string;
         santriId: string;
@@ -70,7 +70,7 @@ export declare class KesantrianController {
         statusApproval: import(".prisma/client").$Enums.StatusApproval;
         disetujuiOleh: string | null;
         catatan: string | null;
-    })[]>;
+    }[]>;
     createPerizinan(tenantId: string, dto: CreatePerizinanDto, user: RequestUser): Promise<{
         id: string;
         tenantId: string;
