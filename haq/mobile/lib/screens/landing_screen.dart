@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import '../services/api_client.dart';
 import '../services/app_scope.dart';
 import 'signup_screen.dart'; // reuse PColors, PText, dan navigasi ke SignupScreen
@@ -65,6 +66,40 @@ class _LandingScreenState extends State<LandingScreen> {
   bool _rememberMe = true;
   bool _loading = false;
   String? _error;
+  String? _detectedKode;
+
+  @override
+  void initState() {
+    super.initState();
+    _detectedKode = _subdomainKodeTenant();
+    if (_detectedKode != null) _kodeTenant.text = _detectedKode!;
+  }
+
+  /// Deteksi kode tenant dari subdomain (Flutter Web saja).
+  /// mahad-alquran.simpesantren.id -> 'mahad-alquran'
+  /// mahad-alquran.localhost:8080  -> 'mahad-alquran'  (dev)
+  /// simpesantren.id / localhost   -> null
+  String? _subdomainKodeTenant() {
+    if (!kIsWeb) return null;
+    final hostname = Uri.base.host.toLowerCase();
+    if (hostname.isEmpty || hostname == 'localhost') return null;
+    if (RegExp(r'^\d{1,3}(\.\d{1,3}){3}$').hasMatch(hostname)) return null;
+
+    final parts = hostname.split('.');
+    String sub;
+    if (parts.last == 'localhost') {
+      if (parts.length < 2) return null;
+      sub = parts.first;
+    } else {
+      if (parts.length < 3) return null; // apex domain, bukan subdomain
+      sub = parts.first;
+    }
+
+    const reserved = {'www', 'api', 'app', 'admin'};
+    if (reserved.contains(sub)) return null;
+    if (!RegExp(r'^[a-z0-9][a-z0-9-]{1,62}$').hasMatch(sub)) return null;
+    return sub;
+  }
 
   @override
   void dispose() {
@@ -116,7 +151,7 @@ class _LandingScreenState extends State<LandingScreen> {
                 children: [
                   _TenantHeaderCard(tenant: _tenant),
                   const SizedBox(height: 16),
-                  _LoginFormCard(
+                    _LoginFormCard(
                     kodeTenantController: _kodeTenant,
                     emailController: _email,
                     passwordController: _password,
@@ -128,6 +163,7 @@ class _LandingScreenState extends State<LandingScreen> {
                     loading: _loading,
                     error: _error,
                     onSubmit: _submit,
+                    showKodeTenantField: _detectedKode == null,
                   ),
                   const SizedBox(height: 16),
                   _FooterLink(
@@ -277,6 +313,7 @@ class _LoginFormCard extends StatelessWidget {
     required this.loading,
     required this.error,
     required this.onSubmit,
+    this.showKodeTenantField = true,
   });
 
   final TextEditingController kodeTenantController;
@@ -289,6 +326,7 @@ class _LoginFormCard extends StatelessWidget {
   final bool loading;
   final String? error;
   final VoidCallback onSubmit;
+  final bool showKodeTenantField;
 
   @override
   Widget build(BuildContext context) {
@@ -318,25 +356,22 @@ class _LoginFormCard extends StatelessWidget {
             ),
           ],
         ),
-        const SizedBox(height: 4),
-        Text(
-          'Peran akun kamu ditentukan otomatis setelah berhasil masuk.',
-          style: PText.bodyMd,
-        ),
-        const SizedBox(height: 18),
-        Text('Kode Tenant', style: PText.labelLg),
-        const SizedBox(height: 8),
-        _LInput(
-          controller: kodeTenantController,
-          hint: 'mahad-alquran',
-          icon: Icons.apartment_outlined,
-        ),
-        const SizedBox(height: 6),
-        Text(
-          'Untuk Super Admin, biarkan Kode Tenant kosong.',
-          style: PText.bodySm,
-        ),
-        const SizedBox(height: 16),
+                const SizedBox(height: 18),
+        if (showKodeTenantField) ...[
+          Text('Kode Tenant', style: PText.labelLg),
+          const SizedBox(height: 8),
+          _LInput(
+            controller: kodeTenantController,
+            hint: 'mahad-alquran',
+            icon: Icons.apartment_outlined,
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Untuk Super Admin, biarkan Kode Tenant kosong.',
+            style: PText.bodySm,
+          ),
+          const SizedBox(height: 16),
+        ],
         Text('Alamat Email Terdaftar', style: PText.labelLg),
         const SizedBox(height: 8),
         _LInput(
