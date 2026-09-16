@@ -11,72 +11,33 @@ import 'ppdb/ppdb_form_screen.dart';
 /// Preview info tenant yang tampil di header login.
 /// TODO: ganti dengan hasil lookup API berdasarkan subdomain/kode tenant
 /// (mis. GET /api/tenants/lookup?slug=...) sebelum form ini ditampilkan.
+/// `tahunAjaran` idealnya juga datang dari API (entitas Tahun Ajaran aktif
+/// di backend), bukan dihitung/hardcode di client.
 class _TenantPreview {
   const _TenantPreview({
     required this.namaPondok,
-    required this.subdomain,
+    required this.tagline,
     required this.tahunAjaran,
-    required this.semester,
   });
 
   final String namaPondok;
-  final String subdomain;
+
+  /// Kepanjangan/slogan tenant (mis. "Halaqoh, Akademik dan Quran").
+  /// Catatan: ini BUKAN subdomain teknis (`{kode_tenant}.sistempesantren.com`)
+  /// — jangan dipakai untuk logic identifikasi tenant, murni teks tampilan.
+  final String tagline;
+
   final String tahunAjaran;
-  final String semester;
 }
 
-class _RoleOption {
-  const _RoleOption({
-    required this.id,
-    required this.label,
-    required this.subtitle,
-    required this.icon,
-  });
-
-  final String id;
-  final String label;
-  final String subtitle;
-  final IconData icon;
+/// Semester Ganjil (Jul-Des) / Genap (Jan-Jun) dihitung dari bulan berjalan.
+/// Ini fallback sementara sampai data semester aktif tersedia dari API
+/// tenant lookup — tahun ajaran (`_TenantPreview.tahunAjaran`) tetap TODO
+/// karena format Hijriah-nya perlu sumber data resmi dari backend.
+String _computeSemesterFallback([DateTime? now]) {
+  final month = (now ?? DateTime.now()).month;
+  return (month >= 7 && month <= 12) ? 'Semester Ganjil' : 'Semester Genap';
 }
-
-const List<_RoleOption> _kRoleOptions = [
-  _RoleOption(
-    id: 'admin',
-    label: 'Admin Pondok',
-    subtitle: 'Sekretariat & TU',
-    icon: Icons.manage_accounts_outlined,
-  ),
-  _RoleOption(
-    id: 'ustadz',
-    label: 'Ustadz / Guru',
-    subtitle: 'Akademik & Halaqah',
-    icon: Icons.auto_stories_outlined,
-  ),
-  _RoleOption(
-    id: 'musyrif',
-    label: 'Musyrif Asrama',
-    subtitle: 'Disiplin & Asrama',
-    icon: Icons.hotel_outlined,
-  ),
-  _RoleOption(
-    id: 'mudir',
-    label: 'Pimpinan / Mudir',
-    subtitle: 'Kebijakan & Monev',
-    icon: Icons.account_balance_outlined,
-  ),
-  _RoleOption(
-    id: 'wali',
-    label: 'Wali Santri',
-    subtitle: 'Pantau Nilai & Syahriah',
-    icon: Icons.family_restroom_outlined,
-  ),
-  _RoleOption(
-    id: 'santri',
-    label: 'Santri',
-    subtitle: "Jadwal & Mutaba'ah",
-    icon: Icons.school_outlined,
-  ),
-];
 
 // ============================================================================
 // LandingScreen
@@ -93,12 +54,9 @@ class _LandingScreenState extends State<LandingScreen> {
   // TODO: isi dari hasil deteksi subdomain / lookup API tenant
   final _tenant = const _TenantPreview(
     namaPondok: 'HAQ',
-    subdomain: 'Halaqoh, Akademik dan Quran',
+    tagline: 'Halaqoh, Akademik dan Quran',
     tahunAjaran: '1445-1446 H',
-    semester: 'Semester Genap',
   );
-
-  String _selectedRole = 'ustadz';
 
   final _kodeTenant = TextEditingController();
   final _email = TextEditingController();
@@ -127,6 +85,9 @@ class _LandingScreenState extends State<LandingScreen> {
     });
     try {
       final auth = AppScope.of(context);
+      // Role akun ditentukan backend dari JWT setelah login berhasil —
+      // tidak ada input role di form ini secara sengaja (lihat catatan
+      // di _LoginFormCard soal Super Admin vs tenant role).
       await auth.login(
           _kodeTenant.text.trim(), _email.text.trim(), _password.text);
     } on ApiException catch (e) {
@@ -140,7 +101,6 @@ class _LandingScreenState extends State<LandingScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final selectedRole = _kRoleOptions.firstWhere((r) => r.id == _selectedRole);
     return Scaffold(
       backgroundColor: PColors.background,
       body: SafeArea(
@@ -156,14 +116,7 @@ class _LandingScreenState extends State<LandingScreen> {
                 children: [
                   _TenantHeaderCard(tenant: _tenant),
                   const SizedBox(height: 16),
-                  _RoleSelectorCard(
-                    selectedId: _selectedRole,
-                    onSelect: (id) => setState(() => _selectedRole = id),
-                  ),
-                  const SizedBox(height: 16),
                   _LoginFormCard(
-                    tenant: _tenant,
-                    roleLabel: selectedRole.label,
                     kodeTenantController: _kodeTenant,
                     emailController: _email,
                     passwordController: _password,
@@ -269,7 +222,7 @@ class _TenantHeaderCard extends StatelessWidget {
                     style: PText.headlineSm,
                   ),
                   const SizedBox(height: 2),
-                  Text(tenant.subdomain, style: PText.bodySm),
+                  Text(tenant.tagline, style: PText.bodySm),
                 ],
               ),
             ),
@@ -289,7 +242,7 @@ class _TenantHeaderCard extends StatelessWidget {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  '${tenant.tahunAjaran} • ${tenant.semester}',
+                  '${tenant.tahunAjaran} • ${_computeSemesterFallback()}',
                   style: PText.bodySm,
                 ),
               ),
@@ -309,157 +262,11 @@ class _TenantHeaderCard extends StatelessWidget {
 }
 
 // ============================================================================
-// 2. Pilihan peran / hak akses
-// ============================================================================
-
-class _RoleSelectorCard extends StatelessWidget {
-  const _RoleSelectorCard({required this.selectedId, required this.onSelect});
-
-  final String selectedId;
-  final ValueChanged<String> onSelect;
-
-  @override
-  Widget build(BuildContext context) {
-    return _LCard(
-      children: [
-        Row(
-          children: [
-            Text('Pilih Hak Akses Akun', style: PText.labelLg),
-            const Spacer(),
-            Text('${_kRoleOptions.length} Peran Pondok', style: PText.bodySm),
-          ],
-        ),
-        const SizedBox(height: 12),
-        // LayoutBuilder dipakai supaya lebar kartu dihitung dari lebar
-        // KOLOM yang tersedia (constraints.maxWidth), bukan lebar layar
-        // penuh (MediaQuery.size.width) — ini yang bikin kartu "kebesaran"
-        // dan meluber saat dijalankan di web/desktop.
-        LayoutBuilder(
-          builder: (context, constraints) {
-            const gap = 10.0;
-            final itemWidth = (constraints.maxWidth - gap) / 2;
-            return Wrap(
-              spacing: gap,
-              runSpacing: gap,
-              children: _kRoleOptions.map((role) {
-                final selected = role.id == selectedId;
-                return SizedBox(
-                  width: itemWidth,
-                  child: _RoleTile(
-                    role: role,
-                    selected: selected,
-                    onTap: () => onSelect(role.id),
-                  ),
-                );
-              }).toList(),
-            );
-          },
-        ),
-      ],
-    );
-  }
-}
-
-class _RoleTile extends StatelessWidget {
-  const _RoleTile({
-    required this.role,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final _RoleOption role;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: selected ? PColors.primary : PColors.surface,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: selected ? PColors.primary : PColors.border,
-          ),
-        ),
-        child: Stack(
-          children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 38,
-                  height: 38,
-                  decoration: BoxDecoration(
-                    color: selected
-                        ? Colors.white.withOpacity(0.16)
-                        : PColors.sage,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Icon(
-                    role.icon,
-                    size: 19,
-                    color: selected ? Colors.white : PColors.primary,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  role.label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontFamily: 'Nunito',
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: selected ? Colors.white : PColors.ink,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  role.subtitle,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontFamily: 'Nunito',
-                    fontSize: 11,
-                    color: selected
-                        ? Colors.white.withOpacity(0.8)
-                        : PColors.inkSecondary,
-                  ),
-                ),
-              ],
-            ),
-            if (selected)
-              Positioned(
-                top: 0,
-                right: 0,
-                child: Container(
-                  width: 16,
-                  height: 16,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: PColors.primary, width: 2),
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ============================================================================
-// 3. Form login
+// 2. Form login
 // ============================================================================
 
 class _LoginFormCard extends StatelessWidget {
   const _LoginFormCard({
-    required this.tenant,
-    required this.roleLabel,
     required this.kodeTenantController,
     required this.emailController,
     required this.passwordController,
@@ -472,8 +279,6 @@ class _LoginFormCard extends StatelessWidget {
     required this.onSubmit,
   });
 
-  final _TenantPreview tenant;
-  final String roleLabel;
   final TextEditingController kodeTenantController;
   final TextEditingController emailController;
   final TextEditingController passwordController;
@@ -514,68 +319,9 @@ class _LoginFormCard extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 4),
-        RichText(
-          text: TextSpan(
-            style: PText.bodyMd,
-            children: [
-              const TextSpan(text: 'Masuk sebagai '),
-              TextSpan(
-                text: roleLabel,
-                style: const TextStyle(
-                    fontWeight: FontWeight.w700, color: PColors.ink),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 16),
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: PColors.successBg,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: PColors.successBorder),
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Icon(Icons.check_circle, size: 18, color: PColors.successText),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Text(
-                          'Subdomain Terdeteksi Otomatis',
-                          style: TextStyle(
-                            fontFamily: 'Nunito',
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: PColors.successText,
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        Container(
-                          width: 5,
-                          height: 5,
-                          decoration: const BoxDecoration(
-                            color: PColors.successText,
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      '${tenant.subdomain} • Basis data pondok telah terhubung langsung.',
-                      style: PText.bodySm,
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
+        Text(
+          'Peran akun kamu ditentukan otomatis setelah berhasil masuk.',
+          style: PText.bodyMd,
         ),
         const SizedBox(height: 18),
         Text('Kode Tenant', style: PText.labelLg),
@@ -716,7 +462,7 @@ class _LoginFormCard extends StatelessWidget {
 }
 
 // ============================================================================
-// 4. Footer links & brand
+// 3. Footer links & brand
 // ============================================================================
 
 class _FooterLink extends StatelessWidget {

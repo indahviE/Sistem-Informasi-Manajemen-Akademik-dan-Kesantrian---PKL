@@ -23,6 +23,11 @@ enum TenantStatus {
   SUSPENDED
 }
 
+enum StatusGelombangPpdb {
+  DIBUKA
+  DITUTUP
+}
+
 enum UserStatus {
   AKTIF
   NONAKTIF
@@ -87,8 +92,10 @@ model Tenant {
   namaPondok     String
   logoUrl        String?       @db.MediumText
   warnaTema      String?
-  status         TenantStatus @default(PENDING)
-  adminAwalId    String?
+  status              TenantStatus         @default(PENDING)
+  kuotaSantriPpdb     Int?
+  statusGelombangPpdb StatusGelombangPpdb  @default(DITUTUP)
+  adminAwalId         String?
   tanggalDaftar  DateTime     @default(now())
 
   users          User[]

@@ -160,6 +160,7 @@ class ApiUrl {
   static const ppdb = '/ppdb';
   static const ppdbDaftar = '/ppdb/daftar';
   static const branding = '/tenants/branding';
+  static const ppdbLookup = '/ppdb/lookup';
   static const brandingMe = '/tenants/branding/me';
   static const kurikulum = '/kurikulum';
   static const silabus = '/silabus';
