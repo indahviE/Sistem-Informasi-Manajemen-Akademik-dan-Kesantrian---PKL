@@ -66,31 +66,42 @@ class _PaketTabState extends State<_PaketTab> {
   bool _loading = true;
   String? _error;
 
-  @override
-  void initState() {
-    super.initState();
+  bool _initialized = false;
+
+@override
+void didChangeDependencies() {
+  super.didChangeDependencies();
+  if (!_initialized) {
+    _initialized = true;
     _load();
   }
+}
 
   Future<void> _load() async {
+  setState(() {
+    _loading = true;
+    _error = null;
+  });
+  try {
+    final res = await AppScope.of(context).api.get(ApiUrl.paket);
+    if (!mounted) return;
     setState(() {
-      _loading = true;
-      _error = null;
+      _items = (res as List);
+      _loading = false;
     });
-    try {
-      final res = await AppScope.of(context).api.get(ApiUrl.paket);
-      if (!mounted) return;
-      setState(() {
-        _items = (res as List);
-        _loading = false;
-      });
-    } on ApiException catch (e) {
-      if (mounted) setState(() {
-        _error = e.message;
-        _loading = false;
-      });
-    }
+  } on ApiException catch (e) {
+    if (mounted) setState(() {
+      _error = e.message;
+      _loading = false;
+    });
+  } catch (e, st) {
+    debugPrint('Load paket error: $e\n$st');
+    if (mounted) setState(() {
+      _error = 'Terjadi kesalahan: $e';
+      _loading = false;
+    });
   }
+}
 
   String _rupiah(num v) =>
       'Rp ${v.toStringAsFixed(0).replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (m) => '.')}';
@@ -414,36 +425,47 @@ class _SubscriptionTabState extends State<_SubscriptionTab> {
   bool _loading = true;
   String? _error;
 
-  @override
-  void initState() {
-    super.initState();
+  bool _initialized = false;
+
+@override
+void didChangeDependencies() {
+  super.didChangeDependencies();
+  if (!_initialized) {
+    _initialized = true;
     _load();
   }
+}
 
   Future<void> _load() async {
+  setState(() {
+    _loading = true;
+    _error = null;
+  });
+  try {
+    final api = AppScope.of(context).api;
+    final subs = await api.get(ApiUrl.subscriptions);
+    final pakets = await api.get(ApiUrl.paket);
+    final tenants = await api.get(ApiUrl.tenants);
+    if (!mounted) return;
     setState(() {
-      _loading = true;
-      _error = null;
+      _items = (subs as List);
+      _pakets = (pakets as List);
+      _tenants = (tenants as List);
+      _loading = false;
     });
-    try {
-      final api = AppScope.of(context).api;
-      final subs = await api.get(ApiUrl.subscriptions);
-      final pakets = await api.get(ApiUrl.paket);
-      final tenants = await api.get(ApiUrl.tenants);
-      if (!mounted) return;
-      setState(() {
-        _items = (subs as List);
-        _pakets = (pakets as List);
-        _tenants = (tenants as List);
-        _loading = false;
-      });
-    } on ApiException catch (e) {
-      if (mounted) setState(() {
-        _error = e.message;
-        _loading = false;
-      });
-    }
+  } on ApiException catch (e) {
+    if (mounted) setState(() {
+      _error = e.message;
+      _loading = false;
+    });
+  } catch (e, st) {
+    debugPrint('Load subscription error: $e\n$st');
+    if (mounted) setState(() {
+      _error = 'Terjadi kesalahan: $e';
+      _loading = false;
+    });
   }
+}
 
   Future<void> _assign() async {
     String? tenantId;
@@ -620,32 +642,43 @@ class _InvoiceTabState extends State<_InvoiceTab> {
   bool _loading = true;
   String? _error;
 
-  @override
-  void initState() {
-    super.initState();
+  bool _initialized = false;
+
+@override
+void didChangeDependencies() {
+  super.didChangeDependencies();
+  if (!_initialized) {
+    _initialized = true;
     _load();
   }
+}
 
   Future<void> _load() async {
+  setState(() {
+    _loading = true;
+    _error = null;
+  });
+  try {
+    final api = AppScope.of(context).api;
+    final invoices = await api.get(ApiUrl.invoices);
+    if (!mounted) return;
     setState(() {
-      _loading = true;
-      _error = null;
+      _items = (invoices as List);
+      _loading = false;
     });
-    try {
-      final api = AppScope.of(context).api;
-      final invoices = await api.get(ApiUrl.invoices);
-      if (!mounted) return;
-      setState(() {
-        _items = (invoices as List);
-        _loading = false;
-      });
-    } on ApiException catch (e) {
-      if (mounted) setState(() {
-        _error = e.message;
-        _loading = false;
-      });
-    }
+  } on ApiException catch (e) {
+    if (mounted) setState(() {
+      _error = e.message;
+      _loading = false;
+    });
+  } catch (e, st) {
+    debugPrint('Load invoice error: $e\n$st');
+    if (mounted) setState(() {
+      _error = 'Terjadi kesalahan: $e';
+      _loading = false;
+    });
   }
+}
 
   String _rupiah(num v) =>
       'Rp ${v.toStringAsFixed(0).replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (m) => '.')}';
