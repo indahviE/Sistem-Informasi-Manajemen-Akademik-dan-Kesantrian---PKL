@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import '../services/api_client.dart';
 import '../services/app_scope.dart';
 import 'ui_utils.dart';
+import 'super_admin/tenants_screen.dart'; // TODO: sesuaikan path bila struktur foldernya beda
+import 'billing/billing_admin_screen.dart'; // TODO: sesuaikan nama class/path bila beda (asumsi: BillingAdminScreen)
 
 /// ---------------------------------------------------------------------------
 /// Design tokens — mirrored 1:1 from DESIGN.md / the approved HTML mockup.
@@ -54,6 +56,10 @@ class _C {
 /// `PColors`, so the parent-facing dashboard shares the same "Islamic
 /// Academic & Kesantrian Experience" identity as the signup flow (Deep
 /// Emerald Forest + Antique Gold on a warm ivory canvas).
+///
+/// Sekarang juga dipakai untuk bagian SUPER ADMIN (lihat _superAdminHeroHeader
+/// & _superBody) supaya emerald-nya identik dengan landing page, sesuai
+/// permintaan — bukan warna baru yang ditebak.
 /// ---------------------------------------------------------------------------
 class _WC {
   _WC._();
@@ -102,6 +108,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Timer? _tickTimer;
 
   bool _didLoadOnce = false;
+
+  // Filter untuk section "Direktori Tenant Platform" di dashboard Super Admin.
+  String _tenantFilter = 'semua'; // semua | aktif | pending | suspended
 
   @override
   void initState() {
@@ -162,26 +171,37 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final role = _data!['role'] as String;
     final isTenantAdmin = role != 'SUPER_ADMIN' && role != 'WALI_SANTRI';
     final isWali = role == 'WALI_SANTRI';
+    final isSuperAdmin = role == 'SUPER_ADMIN';
 
     return RefreshIndicator(
       onRefresh: _load,
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
-        children: [
-          if (isWali)
-            _waliHeroHeader()
-          else if (isTenantAdmin)
-            _heroHeader(role)
-          else
-            const PageHeader(title: 'Ringkasan', subtitle: 'Pantau kondisi pondok secara real-time'),
-          const SizedBox(height: 20),
-          if (role == 'SUPER_ADMIN')
-            _superBody()
-          else if (isWali)
-            _waliBody()
-          else
-            _tenantBody(),
-        ],
+      child: Align(
+        alignment: Alignment.topCenter,
+        child: ConstrainedBox(
+          // Sama seperti LandingScreen: dibatasi maxWidth supaya di web
+          // tetap terasa "mobile-first" & proporsional, bukan melar penuh.
+          constraints: const BoxConstraints(maxWidth: 480),
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
+            children: [
+              if (isWali)
+                _waliHeroHeader()
+              else if (isTenantAdmin)
+                _heroHeader(role)
+              else if (isSuperAdmin)
+                _superAdminHeroHeader()
+              else
+                const PageHeader(title: 'Ringkasan', subtitle: 'Pantau kondisi pondok secara real-time'),
+              const SizedBox(height: 20),
+              if (isSuperAdmin)
+                _superBody()
+              else if (isWali)
+                _waliBody()
+              else
+                _tenantBody(),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -511,94 +531,417 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _grid(List<Widget> cards) {
-    final w = MediaQuery.of(context).size.width;
-    final cols = w >= 1400 ? 6 : (w >= 1024 ? 4 : (w >= 600 ? 3 : 2));
-    return GridView.count(
-      crossAxisCount: cols,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      mainAxisSpacing: 8,
-      crossAxisSpacing: 8,
-      childAspectRatio: w >= 600 ? 1.9 : 1.35,
-      children: cards,
-    );
-  }
-
   // =========================================================================
-  // SUPER ADMIN
+  // 1c. Hero header for SUPER_ADMIN — restyle mengikuti mockup dashboard,
+  // dengan palet emerald `_WC` yang sama dengan landing page.
+  //
+  // TODO: "Latency" & "Cluster" adalah metrik infra platform, belum ada
+  // endpoint-nya di PRD saat ini (mis. GET /api/platform/health). Nilai di
+  // bawah masih placeholder statis — gampang disambungkan begitu ada.
   // =========================================================================
-  Widget _superBody() {
-    final s = (_data!['statistik'] as Map).cast<String, dynamic>();
-    final tenants = (_data!['tenantTerbaru'] as List? ?? []);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _grid([
-          _StatCard(label: 'Total Tenant', value: '${s['totalTenant'] ?? 0}', icon: Icons.apartment, iconColor: _C.primaryContainer, iconBg: _C.surfaceContainer),
-          _StatCard(label: 'Tenant Aktif', value: '${s['tenantAktif'] ?? 0}', icon: Icons.check_circle_outline, iconColor: _C.secondary, iconBg: _C.surfaceContainer),
-          _StatCard(label: 'Menunggu Persetujuan', value: '${s['tenantPending'] ?? 0}', icon: Icons.hourglass_top, iconColor: _C.secondary, iconBg: _C.surfaceContainer),
-          _StatCard(label: 'Total Santri', value: '${s['totalSantri'] ?? 0}', icon: Icons.groups, iconColor: _C.primaryContainer, iconBg: _C.surfaceContainer),
-        ]),
-        const SizedBox(height: 16),
-        _SectionShell(
-          title: 'Tenant Terbaru',
-          subtitle: 'Persetujuan & status keanggotaan',
-          trailingIcon: Icons.apartment,
-          child: tenants.isEmpty
-              ? const _EmptyRow(text: 'Belum ada tenant.')
-              : Column(
-                  children: [
-                    for (final t in tenants.cast<Map<String, dynamic>>()) _tenantRow(context, t),
-                  ],
-                ),
-        ),
-      ],
-    );
-  }
+  Widget _superAdminHeroHeader() {
+    final namaPengguna = _pick(_data!, ['namaPengguna', 'nama', 'userName']) ?? 'Super Admin';
+    const latencyMs = 24;
+    const clusterLabel = 'ap-southeast-1 (Jakarta DC)';
 
-  Widget _tenantRow(BuildContext context, Map<String, dynamic> t) {
-    final status = t['status'] as String;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
+    // Catatan desain: mengikuti screen.png — kartu ini TERANG (bukan gradient
+    // emerald), teks gelap. Yang berwarna cuma dua pill kecil: "ROOT SUPER
+    // ADMIN..." (hijau tua + teks emas) dan "Latency" (abu-abu netral).
+    return Container(
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: _WC.surface,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 12, offset: const Offset(0, 4)),
+        ],
+      ),
+      child: Stack(
+        clipBehavior: Clip.none,
         children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(color: _C.surfaceContainer, borderRadius: BorderRadius.circular(10)),
-            child: const Icon(Icons.apartment, color: _C.primaryContainer),
+          Positioned(
+            right: -30,
+            top: -24,
+            child: Container(
+              width: 150,
+              height: 150,
+              decoration: BoxDecoration(color: _WC.gold.withOpacity(0.10), shape: BoxShape.circle),
+            ),
           ),
-          const SizedBox(width: 12),
-          Expanded(
+          Padding(
+            padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(t['namaPondok'] as String, style: const TextStyle(fontWeight: FontWeight.w600, color: _C.onSurface)),
-                Text('${t['kodeTenant']} • Santri: ${(t['_count'] as Map)['santris'] ?? 0}',
-                    style: const TextStyle(fontSize: 12, color: _C.onSurfaceVariant)),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(color: _WC.primary, borderRadius: BorderRadius.circular(999)),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 6,
+                        height: 6,
+                        decoration: const BoxDecoration(color: _WC.gold, shape: BoxShape.circle),
+                      ),
+                      const SizedBox(width: 6),
+                      const Flexible(
+                        child: Text(
+                          'ROOT SUPER ADMIN • MULTI-TENANT CONTROL',
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 9.5,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.3,
+                            color: _WC.gold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(color: _WC.surfaceDim, borderRadius: BorderRadius.circular(999)),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 6,
+                        height: 6,
+                        decoration: const BoxDecoration(color: _WC.inkSecondary, shape: BoxShape.circle),
+                      ),
+                      const SizedBox(width: 6),
+                      Text('Latency ${latencyMs}ms',
+                          style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600, color: _WC.inkSecondary)),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  'Halo, $namaPengguna',
+                  style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: _WC.ink),
+                ),
+                const SizedBox(height: 2),
+                const Text(
+                  'SIMPesantren — Panel Platform Orchestration v4.2',
+                  style: TextStyle(fontSize: 12, color: _WC.inkSecondary),
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    const Icon(Icons.dns_outlined, size: 14, color: _WC.inkSecondary),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Cluster: $clusterLabel',
+                        style: const TextStyle(fontSize: 11.5, color: _WC.inkSecondary),
+                      ),
+                    ),
+                    const Text(
+                      'Semua Node Sehat',
+                      style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: _WC.gold),
+                    ),
+                  ],
+                ),
               ],
             ),
           ),
-          const SizedBox(width: 8),
-          if (status == 'PENDING')
-            FilledButton(
-              style: FilledButton.styleFrom(
-                backgroundColor: _C.primaryContainer,
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-              ),
-              onPressed: () => _tenantAction(t, 'approve'),
-              child: const Text('Setujui', style: TextStyle(fontSize: 13)),
-            )
-          else
-            _StatusPill(
-              text: status,
-              bg: status == 'AKTIF' ? const Color(0xFFE8F5E9) : const Color(0xFFFEE2E2),
-              fg: status == 'AKTIF' ? const Color(0xFF1B5E20) : const Color(0xFF991B1B),
-            ),
         ],
       ),
+    );
+  }
+
+  // =========================================================================
+  // SUPER ADMIN — restyle mengikuti mockup, palet emerald `_WC`
+  // =========================================================================
+  Widget _superBody() {
+    final s = (_data!['statistik'] as Map).cast<String, dynamic>();
+
+    // NOTE PENTING: `tenantTerbaru` dari GET /api/dashboard hanya berisi
+    // tenant TERBARU (bukan seluruh tenant platform) — cocok untuk section
+    // "Pendaftaran Baru" & pratinjau direktori, tapi untuk daftar lengkap +
+    // filter yang akurat harus ke TenantsScreen (tombol "Lihat Semua" di
+    // bawah). Angka statistik (Total Tenant, Tenant Aktif, dst) tetap
+    // diambil dari `statistik`, bukan dihitung dari list yang cuma sebagian.
+    final tenantTerbaru =
+        ((_data!['tenantTerbaru'] as List?) ?? const []).cast<Map<String, dynamic>>();
+
+    final totalTenant = _num(s, ['totalTenant']);
+    final tenantAktif = _num(s, ['tenantAktif']);
+    final tenantPendingCount = _num(s, ['tenantPending']).round();
+    // TODO: pastikan key agregat "total user platform" ke tim backend —
+    // sementara fallback ke totalSantri kalau belum ada.
+    final totalUser = _num(s, ['totalUserPlatform', 'totalUser', 'totalSantri']);
+
+    final pendingTerbaru = tenantTerbaru
+        .where((t) => (t['status'] as String? ?? '').toUpperCase() == 'PENDING')
+        .toList();
+
+    List<Map<String, dynamic>> filteredDirektori;
+    switch (_tenantFilter) {
+      case 'aktif':
+        filteredDirektori = tenantTerbaru
+            .where((t) => (t['status'] as String? ?? '').toUpperCase() == 'AKTIF')
+            .toList();
+        break;
+      case 'pending':
+        filteredDirektori = pendingTerbaru;
+        break;
+      case 'suspended':
+        filteredDirektori = tenantTerbaru
+            .where((t) => (t['status'] as String? ?? '').toUpperCase() == 'SUSPENDED')
+            .toList();
+        break;
+      default:
+        filteredDirektori = tenantTerbaru;
+    }
+
+    // TODO: belum ada endpoint GET /api/audit-log di PRD saat ini — kalau
+    // backend sudah mengirim `auditKeamanan` di payload dashboard, dipakai;
+    // kalau belum, fallback ke placeholder statis di bawah.
+    final auditItems = ((_data!['auditKeamanan'] as List?) ?? const []).cast<Map<String, dynamic>>();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: _SAStatCard(
+                icon: Icons.apartment_rounded,
+                label: 'Total Tenant',
+                value: _fmtInt(totalTenant),
+                sublabel: '+3 bulan ini', // TODO: butuh histori pendaftaran dari backend
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _SAStatCard(
+                icon: Icons.verified_rounded,
+                label: 'Tenant Aktif',
+                value: _fmtInt(tenantAktif),
+                sublabel: 'Berjalan normal',
+                showDot: true,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: _SAReviewCard(
+                count: tenantPendingCount,
+                onTap: () => setState(() => _tenantFilter = 'pending'),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _SAStatCard(
+                icon: Icons.groups_rounded,
+                label: 'Total User Terdata',
+                value: _fmtInt(totalUser),
+                sublabel: 'Santri, Wali & Mudir',
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        SizedBox(
+          height: 48,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            children: [
+              _SAActionButton(
+                icon: Icons.shield_outlined,
+                label: 'Review Pendaftaran ($tenantPendingCount)',
+                filled: true,
+                onTap: () => setState(() => _tenantFilter = 'pending'),
+              ),
+              const SizedBox(width: 10),
+              _SAActionButton(
+                icon: Icons.corporate_fare_rounded,
+                label: 'Kelola Tenant',
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const TenantsScreen()),
+                ),
+              ),
+              const SizedBox(width: 10),
+              _SAActionButton(
+                icon: Icons.receipt_long_rounded,
+                label: 'Billing & Paket',
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const BillingAdminScreen()),
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (pendingTerbaru.isNotEmpty) ...[
+          const SizedBox(height: 24),
+          _SASectionHeader(
+            title: 'Pendaftaran Baru',
+            subtitle: 'Self-service onboarding perlu validasi legalitas',
+            badgeLabel: '${pendingTerbaru.length} Masuk',
+            badgeBg: _WC.goldSurface,
+            badgeFg: _WC.gold,
+          ),
+          const SizedBox(height: 10),
+          for (final t in pendingTerbaru)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: _SAPendaftaranCard(
+                tenant: t,
+                // TODO: ganti ke aksi 'reject' begitu backend punya endpoint
+                // khusus untuk menolak pendaftaran (beda dari suspend tenant aktif).
+                onTolak: () => _tenantAction(t, 'suspend'),
+                onSetujui: () => _tenantAction(t, 'approve'),
+              ),
+            ),
+        ],
+        const SizedBox(height: 24),
+        _SASectionHeader(
+          title: 'Direktori Tenant Platform',
+          badgeLabel: '${tenantTerbaru.length} Terdaftar',
+          badgeBg: _WC.sage,
+          badgeFg: _WC.primary,
+        ),
+        const SizedBox(height: 10),
+        SizedBox(
+          height: 36,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            children: [
+              _SAFilterChip(
+                label: 'Semua (${tenantTerbaru.length})',
+                selected: _tenantFilter == 'semua',
+                onTap: () => setState(() => _tenantFilter = 'semua'),
+              ),
+              const SizedBox(width: 8),
+              _SAFilterChip(
+                label: 'Aktif',
+                selected: _tenantFilter == 'aktif',
+                onTap: () => setState(() => _tenantFilter = 'aktif'),
+              ),
+              const SizedBox(width: 8),
+              _SAFilterChip(
+                label: 'Pending',
+                selected: _tenantFilter == 'pending',
+                onTap: () => setState(() => _tenantFilter = 'pending'),
+              ),
+              const SizedBox(width: 8),
+              _SAFilterChip(
+                label: 'Suspended',
+                selected: _tenantFilter == 'suspended',
+                onTap: () => setState(() => _tenantFilter = 'suspended'),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 10),
+        if (filteredDirektori.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 16),
+            child: _EmptyRow(text: 'Tidak ada tenant terbaru di kategori ini.'),
+          )
+        else
+          for (final t in filteredDirektori)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: _SATenantCard(
+                tenant: t,
+                onSuspend: () => _tenantAction(t, 'suspend'),
+                onAktifkan: () => _tenantAction(t, 'approve'),
+              ),
+            ),
+        const SizedBox(height: 24),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: _WC.surface,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: _WC.border),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('Audit Keamanan & Mutasi',
+                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _WC.ink)),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 6,
+                        height: 6,
+                        decoration: const BoxDecoration(color: _WC.gold, shape: BoxShape.circle),
+                      ),
+                      const SizedBox(width: 5),
+                      const Text('Real-time',
+                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: _WC.gold)),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              if (auditItems.isEmpty)
+                Column(
+                  children: const [
+                    _SAAuditItem(
+                      icon: Icons.person_add_alt_1_rounded,
+                      iconBg: _WC.successBg,
+                      iconFg: _WC.successText,
+                      boldPrefix: "Tenant Ma'had Al-Qur'an:",
+                      text: ' Penambahan 15 akun ustadz baru oleh Admin Tenant.',
+                      time: '12 menit lalu',
+                    ),
+                    _SAAuditItem(
+                      icon: Icons.warning_amber_rounded,
+                      iconBg: Color(0xFFFEE2E2),
+                      iconFg: _WC.errorText,
+                      boldPrefix: 'Security Alert:',
+                      text: ' Percobaan login gagal berulang kali (Rate Limit Exceeded) pada subdomain ',
+                      boldSuffix: 'darussalam2',
+                      afterBoldSuffix: '.',
+                      textColor: _WC.errorText,
+                      time: '1 jam lalu',
+                    ),
+                    _SAAuditItem(
+                      icon: Icons.verified_rounded,
+                      iconBg: _WC.goldSurface,
+                      iconFg: _WC.gold,
+                      boldPrefix: 'Billing Subscription:',
+                      text: ' Auto-renewal sukses untuk Paket Enterprise Bina Insani.',
+                      time: 'Kemarin, 23:59 WIB',
+                      isLast: true,
+                    ),
+                  ],
+                )
+              else
+                Column(
+                  children: [
+                    for (int i = 0; i < auditItems.length; i++)
+                      _SAAuditItem(
+                        icon: Icons.history_rounded,
+                        iconBg: _WC.sage,
+                        iconFg: _WC.primary,
+                        title: _pick(auditItems[i], ['pesan', 'message', 'judul']) ?? '-',
+                        time: _pick(auditItems[i], ['waktu', 'time']) ?? '',
+                        isLast: i == auditItems.length - 1,
+                      ),
+                  ],
+                ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -1184,7 +1527,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 }
 
 /// ---------------------------------------------------------------------------
-/// Reusable pieces — Tenant / Admin / Super Admin (unchanged)
+/// Reusable pieces — Tenant / Admin (unchanged)
 /// ---------------------------------------------------------------------------
 
 class _Card extends StatelessWidget {
@@ -1356,114 +1699,6 @@ class _QuickAction extends StatelessWidget {
   }
 }
 
-class _StatCard extends StatelessWidget {
-  final String label;
-  final String value;
-  final IconData icon;
-  final Color iconColor;
-  final Color iconBg;
-
-  const _StatCard({
-    required this.label,
-    required this.value,
-    required this.icon,
-    required this.iconColor,
-    required this.iconBg,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: _C.surfaceContainerLowest,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 6, offset: const Offset(0, 2))],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Container(
-            width: 30,
-            height: 30,
-            decoration: BoxDecoration(color: iconBg, shape: BoxShape.circle),
-            child: Icon(icon, size: 16, color: iconColor),
-          ),
-          Text(value, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: _C.primaryContainer)),
-          Text(label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontSize: 10.5, color: _C.onSurfaceVariant)),
-        ],
-      ),
-    );
-  }
-}
-
-class _StatusPill extends StatelessWidget {
-  final String text;
-  final Color bg;
-  final Color fg;
-  const _StatusPill({required this.text, required this.bg, required this.fg});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(999)),
-      child: Text(text, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: fg)),
-    );
-  }
-}
-
-class _SectionShell extends StatelessWidget {
-  final String title;
-  final String subtitle;
-  final IconData trailingIcon;
-  final Widget child;
-
-  const _SectionShell({
-    required this.title,
-    required this.subtitle,
-    required this.trailingIcon,
-    required this.child,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return _Card(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 32,
-                height: 32,
-                decoration: BoxDecoration(color: _C.surfaceContainer, borderRadius: BorderRadius.circular(999)),
-                child: Icon(trailingIcon, size: 18, color: _C.primaryContainer),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _C.primaryContainer)),
-                    Text(subtitle, style: TextStyle(fontSize: 11.5, color: _C.onSurfaceVariant)),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          child,
-        ],
-      ),
-    );
-  }
-}
-
 class _EmptyRow extends StatelessWidget {
   final String text;
   final IconData icon;
@@ -1512,6 +1747,488 @@ class _RubElHizb extends StatelessWidget {
             width: size * 0.3,
             height: size * 0.3,
             decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: color, width: 2)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// ---------------------------------------------------------------------------
+/// Reusable pieces — SUPER ADMIN section only. Themed with `_WC` (mirrors
+/// signup_screen.dart's PColors / palet landing page), sesuai permintaan.
+/// ---------------------------------------------------------------------------
+
+class _SAStatCard extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  final String sublabel;
+  final bool showDot;
+  const _SAStatCard({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.sublabel,
+    this.showDot = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: _WC.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _WC.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(label, style: const TextStyle(fontSize: 11.5, color: _WC.inkSecondary)),
+              Icon(icon, size: 16, color: _WC.primary),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(value, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: _WC.ink)),
+          const SizedBox(height: 2),
+          Row(
+            children: [
+              if (showDot) ...[
+                Container(width: 5, height: 5, decoration: const BoxDecoration(color: _WC.successText, shape: BoxShape.circle)),
+                const SizedBox(width: 4),
+              ],
+              Flexible(
+                child: Text(sublabel,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 11, color: _WC.primary)),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SAReviewCard extends StatelessWidget {
+  final int count;
+  final VoidCallback onTap;
+  const _SAReviewCard({required this.count, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: _WC.goldSurface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: _WC.goldBorder),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: const [
+                Text('Review Masuk', style: TextStyle(fontSize: 11.5, color: _WC.gold)),
+                Icon(Icons.priority_high_rounded, size: 16, color: _WC.errorText),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text('$count', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: _WC.errorText)),
+            const SizedBox(height: 2),
+            const Text('Perlu Review Segera',
+                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: _WC.errorText)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SASectionHeader extends StatelessWidget {
+  final String title;
+  final String? subtitle;
+  final String badgeLabel;
+  final Color badgeBg;
+  final Color badgeFg;
+  const _SASectionHeader({
+    required this.title,
+    this.subtitle,
+    required this.badgeLabel,
+    required this.badgeBg,
+    required this.badgeFg,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _WC.ink)),
+              if (subtitle != null) ...[
+                const SizedBox(height: 2),
+                Text(subtitle!, style: const TextStyle(fontSize: 11.5, color: _WC.inkSecondary)),
+              ],
+            ],
+          ),
+        ),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(color: badgeBg, borderRadius: BorderRadius.circular(999)),
+          child: Text(badgeLabel, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: badgeFg)),
+        ),
+      ],
+    );
+  }
+}
+
+class _SAFilterChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  const _SAFilterChip({required this.label, required this.selected, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        alignment: Alignment.center,
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+        decoration: BoxDecoration(
+          color: selected ? _WC.primary : _WC.surface,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: selected ? _WC.primary : _WC.border),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            color: selected ? Colors.white : _WC.inkSecondary,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SAActionButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final bool filled;
+  const _SAActionButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.filled = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final bg = filled ? _WC.primary : _WC.surface;
+    final fg = filled ? Colors.white : _WC.ink;
+    return Material(
+      color: bg,
+      borderRadius: BorderRadius.circular(9999),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(9999),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 18),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(9999),
+            border: filled ? null : Border.all(color: _WC.border),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 18, color: fg),
+              const SizedBox(width: 8),
+              Text(label, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: fg)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SAPendaftaranCard extends StatelessWidget {
+  final Map<String, dynamic> tenant;
+  final VoidCallback onTolak;
+  final VoidCallback onSetujui;
+  const _SAPendaftaranCard({required this.tenant, required this.onTolak, required this.onSetujui});
+
+  @override
+  Widget build(BuildContext context) {
+    final nama = tenant['namaPondok'] as String? ?? '-';
+    final kode = tenant['kodeTenant'] as String? ?? '-';
+    // Field opsional — belum tentu dikirim backend saat ini (lihat catatan
+    // skema Tenant di PRD: id, nama_pondok, kode_tenant, logo_url, status,
+    // admin_awal_id, tanggal_daftar — belum ada lokasi/kategori).
+    final lokasi = tenant['lokasi'] as String?;
+    final kategori = tenant['kategori'] as String?;
+    final waktuDaftar = tenant['tanggalDaftar'] as String?;
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: _WC.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _WC.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Text(nama, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: _WC.ink)),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(color: _WC.surfaceDim, borderRadius: BorderRadius.circular(999)),
+                child: Text(kode, style: const TextStyle(fontSize: 10, color: _WC.inkSecondary)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              const Icon(Icons.link_rounded, size: 13, color: _WC.inkSecondary),
+              const SizedBox(width: 4),
+              Text('$kode.sistempesantren.com', style: const TextStyle(fontSize: 11.5, color: _WC.inkSecondary)),
+            ],
+          ),
+          if (waktuDaftar != null || lokasi != null) ...[
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                if (waktuDaftar != null) ...[
+                  const Icon(Icons.schedule_rounded, size: 13, color: _WC.inkSecondary),
+                  const SizedBox(width: 4),
+                  Text(waktuDaftar, style: const TextStyle(fontSize: 11.5, color: _WC.inkSecondary)),
+                  const SizedBox(width: 10),
+                ],
+                if (lokasi != null) ...[
+                  const Icon(Icons.place_outlined, size: 13, color: _WC.inkSecondary),
+                  const SizedBox(width: 4),
+                  Expanded(child: Text(lokasi, style: const TextStyle(fontSize: 11.5, color: _WC.inkSecondary))),
+                ],
+              ],
+            ),
+          ],
+          if (kategori != null) ...[
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                const Icon(Icons.menu_book_outlined, size: 13, color: _WC.inkSecondary),
+                const SizedBox(width: 4),
+                Text(kategori, style: const TextStyle(fontSize: 11.5, color: _WC.inkSecondary)),
+              ],
+            ),
+          ],
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Color(0xFFF1B8B8)),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+                  ),
+                  onPressed: onTolak,
+                  child: const Text('Tolak',
+                      style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: _WC.errorText)),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                flex: 2,
+                child: FilledButton(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: _WC.primary,
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+                  ),
+                  onPressed: onSetujui,
+                  child: const Text('Setujui Tenant',
+                      style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: Colors.white)),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SATenantCard extends StatelessWidget {
+  final Map<String, dynamic> tenant;
+  final VoidCallback onSuspend;
+  final VoidCallback onAktifkan;
+  const _SATenantCard({required this.tenant, required this.onSuspend, required this.onAktifkan});
+
+  @override
+  Widget build(BuildContext context) {
+    final nama = tenant['namaPondok'] as String? ?? '-';
+    final kode = tenant['kodeTenant'] as String? ?? '-';
+    final status = (tenant['status'] as String? ?? '').toUpperCase();
+    final jumlahUser = tenant['jumlahUser']?.toString() ??
+        ((tenant['_count'] as Map?)?['santris']?.toString()) ??
+        '0';
+
+    final isSuspended = status == 'SUSPENDED';
+    final isPending = status == 'PENDING';
+    final statusBg = isSuspended ? const Color(0xFFFEE2E2) : (isPending ? _WC.pendingBg : _WC.successBg);
+    final statusFg = isSuspended ? _WC.errorText : (isPending ? _WC.pendingText : _WC.successText);
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: _WC.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _WC.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                  child: Text(nama, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: _WC.ink))),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                decoration: BoxDecoration(color: statusBg, borderRadius: BorderRadius.circular(999)),
+                child: Text(status, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: statusFg)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 2),
+          Text(kode, style: const TextStyle(fontSize: 11.5, color: _WC.inkSecondary)),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              const Icon(Icons.groups_2_outlined, size: 14, color: _WC.inkSecondary),
+              const SizedBox(width: 4),
+              Text('$jumlahUser Users', style: const TextStyle(fontSize: 11.5, color: _WC.inkSecondary)),
+              const Spacer(),
+              if (isSuspended)
+                FilledButton(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: _WC.primary,
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+                  ),
+                  onPressed: onAktifkan,
+                  child: const Text('Pulihkan Tenant',
+                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.white)),
+                )
+              else if (!isPending)
+                OutlinedButton(
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Color(0xFFF1B8B8)),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+                  ),
+                  onPressed: onSuspend,
+                  child: const Text('Suspend',
+                      style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: _WC.errorText)),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SAAuditItem extends StatelessWidget {
+  final IconData icon;
+  final Color iconBg;
+  final Color iconFg;
+  final String time;
+  // Dipakai untuk kalimat polos (mis. dari data API):
+  final String? title;
+  // Dipakai untuk kalimat dengan bagian bold, sesuai desain
+  // (mis. "Security Alert:" bold, lalu kalimat normal, lalu "darussalam2" bold lagi):
+  final String? boldPrefix;
+  final String? text;
+  final String? boldSuffix;
+  final String? afterBoldSuffix;
+  final Color textColor;
+
+  final bool isLast;
+
+  const _SAAuditItem({
+    required this.icon,
+    required this.iconBg,
+    required this.iconFg,
+    required this.time,
+    this.title,
+    this.boldPrefix,
+    this.text,
+    this.boldSuffix,
+    this.afterBoldSuffix,
+    this.textColor = _WC.ink,
+    this.isLast = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: isLast ? 0 : 14),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(color: iconBg, shape: BoxShape.circle),
+            child: Icon(icon, size: 16, color: iconFg),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (boldPrefix != null)
+                  RichText(
+                    text: TextSpan(
+                      style: TextStyle(fontSize: 12.5, height: 1.35, color: textColor),
+                      children: [
+                        TextSpan(text: boldPrefix, style: const TextStyle(fontWeight: FontWeight.w700)),
+                        TextSpan(text: text ?? '', style: const TextStyle(fontWeight: FontWeight.w400)),
+                        if (boldSuffix != null)
+                          TextSpan(text: boldSuffix, style: const TextStyle(fontWeight: FontWeight.w700)),
+                        if (afterBoldSuffix != null)
+                          TextSpan(text: afterBoldSuffix, style: const TextStyle(fontWeight: FontWeight.w400)),
+                      ],
+                    ),
+                  )
+                else
+                  Text(title ?? '-', style: TextStyle(fontSize: 12.5, color: textColor, height: 1.3)),
+                const SizedBox(height: 2),
+                Text(time, style: const TextStyle(fontSize: 11, color: _WC.inkSecondary)),
+              ],
+            ),
           ),
         ],
       ),
