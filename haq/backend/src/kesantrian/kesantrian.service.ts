@@ -106,7 +106,7 @@ private async buildSantriScope(
   // ===== Perizinan =====
     async findAllPerizinan(tenantId: string, query: QueryKesantrianDto, user: RequestUser) {
     const santriId = await this.buildSantriScope(tenantId, user, query.santriId);
-    return this.prisma.perizinan.findMany({
+    const items = await this.prisma.perizinan.findMany({
       where: {
         tenantId,
         ...(santriId ? { santriId } : {}),
@@ -116,6 +116,19 @@ private async buildSantriScope(
       },
       orderBy: { tanggalKeluar: 'desc' },
     });
+
+    // disetujuiOleh hanya string userId (bukan relasi Prisma), jadi lookup nama secara manual
+    // supaya UI tidak perlu tampilkan ID mentah.
+    const userIds = [...new Set(items.map((p) => p.disetujuiOleh).filter((id): id is string => !!id))];
+    const users = userIds.length
+      ? await this.prisma.user.findMany({ where: { id: { in: userIds } }, select: { id: true, nama: true } })
+      : [];
+    const namaById = new Map(users.map((u) => [u.id, u.nama]));
+
+    return items.map((p) => ({
+      ...p,
+      disetujuiOlehNama: p.disetujuiOleh ? namaById.get(p.disetujuiOleh) ?? null : null,
+    }));
   }
 
   async createPerizinan(tenantId: string, dto: CreatePerizinanDto, user: RequestUser) {
@@ -150,12 +163,10 @@ private async buildSantriScope(
     let tanggalKembali = dto.tanggalKembali ? new Date(dto.tanggalKembali) : found.tanggalKembali;
     let statusApproval = dto.statusApproval;
 
-    if (statusApproval === 'KEMBALI' && tanggalKembali && found.tanggalKeluar) {
-      const telat = tanggalKembali > found.tanggalKeluar && found.jenis === 'PULANG';
-      if (telat) {
-        statusApproval = 'TELAT';
-      }
-    }
+    // CATATAN: deteksi telat otomatis sebelumnya membandingkan tanggalKembali > tanggalKeluar,
+    // yang SELALU true untuk kepulangan normal (kembali memang selalu setelah keluar).
+    // Sampai kolom rencanaKembali/tenggat ditambahkan ke schema, status TELAT dipilih
+    // manual oleh musyrif/admin (klien kirim statusApproval: 'TELAT' langsung).
 
     const updated = await this.prisma.perizinan.update({
       where: { id },
