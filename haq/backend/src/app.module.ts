@@ -21,6 +21,7 @@ import { JwtPublicGlobalGuard } from './auth/guards/jwt-public.global.guard';
 import { RolesGuard } from './auth/guards/roles.guard';
 import { TenantIsolationGuard } from './auth/guards/tenant-isolation.guard';
 import { AuditLogInterceptor } from './common/interceptors/audit-log.interceptor';
+import { PembinaanModule } from './pembinaan/pembinaan.module';
 
 @Module({
   imports: [
@@ -41,6 +42,7 @@ import { AuditLogInterceptor } from './common/interceptors/audit-log.interceptor
     PenilaianModule,
     KonselingModule,
     BillingModule,
+    PembinaanModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtPublicGlobalGuard },
