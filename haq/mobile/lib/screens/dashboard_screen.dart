@@ -763,99 +763,113 @@ class _DashboardScreenState extends State<DashboardScreen> {
         // ---- 2. Ringkasan angka pondok ----
         _SectionLabel(title: 'Master Data Terdata', trailing: 'Cakupan Lembaga Sendiri'),
         const SizedBox(height: 10),
-        GridView.count(
-          crossAxisCount: 2,
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          mainAxisSpacing: 8,
-          crossAxisSpacing: 8,
-          childAspectRatio: 1.5,
-          children: [
-            _MetricCard(
-              label: 'Santri Aktif',
-              value: _fmtInt(santriAktif),
-              icon: Icons.school,
-              iconColor: _C.primaryContainer,
-              caption: (santriPutra > 0 || santriPutri > 0)
-                  ? '${_fmtInt(santriPutra)} Putra • ${_fmtInt(santriPutri)} Putri'
-                  : 'Data santri aktif pondok',
-            ),
-            _MetricCard(
-              label: 'Ustadz / Pembina',
-              value: _fmtInt(totalUstadz),
-              icon: Icons.badge,
-              iconColor: _C.secondary,
-              caption: (ustadzMukim > 0 || ustadzEksternal > 0)
-                  ? '${_fmtInt(ustadzMukim)} Mukim • ${_fmtInt(ustadzEksternal)} Eksternal'
-                  : 'Tenaga pendidik aktif',
-            ),
-            _MetricCard(
-              label: 'Kelas & Halaqah',
-              value: '${_fmtInt(totalKelas)} Rombel',
-              icon: Icons.menu_book,
-              iconColor: _C.primaryContainer,
-              caption: (kelasTahfidz > 0 || kelasDiniyah > 0)
-                  ? '${_fmtInt(kelasTahfidz)} Tahfidz • ${_fmtInt(kelasDiniyah)} Diniyah'
-                  : 'Rombongan belajar aktif',
-            ),
-            _MetricCard(
-              label: 'Akun Terdaftar',
-              value: _fmtInt(totalAkun),
-              icon: Icons.manage_accounts,
-              iconColor: _C.secondary,
-              caption: (akunWali > 0 || akunGuru > 0)
-                  ? '${_fmtInt(santriAktif)} Santri • ${_fmtInt(akunWali)} Wali • ${_fmtInt(akunGuru)} Guru'
-                  : 'Akun aktif portal mobile & web',
-            ),
-          ],
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final w = constraints.maxWidth;
+            final cols = w >= 1024 ? 4 : (w >= 600 ? 3 : 2);
+            final aspectRatio = w >= 600 ? 1.8 : 1.5;
+            return GridView.count(
+              crossAxisCount: cols,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              mainAxisSpacing: 8,
+              crossAxisSpacing: 8,
+              childAspectRatio: aspectRatio,
+              children: [
+                _MetricCard(
+                  label: 'Santri Aktif',
+                  value: _fmtInt(santriAktif),
+                  icon: Icons.school,
+                  iconColor: _C.primaryContainer,
+                  caption: (santriPutra > 0 || santriPutri > 0)
+                      ? '${_fmtInt(santriPutra)} Putra • ${_fmtInt(santriPutri)} Putri'
+                      : 'Data santri aktif pondok',
+                ),
+                _MetricCard(
+                  label: 'Ustadz / Pembina',
+                  value: _fmtInt(totalUstadz),
+                  icon: Icons.badge,
+                  iconColor: _C.secondary,
+                  caption: (ustadzMukim > 0 || ustadzEksternal > 0)
+                      ? '${_fmtInt(ustadzMukim)} Mukim • ${_fmtInt(ustadzEksternal)} Eksternal'
+                      : 'Tenaga pendidik aktif',
+                ),
+                _MetricCard(
+                  label: 'Kelas & Halaqah',
+                  value: '${_fmtInt(totalKelas)} Rombel',
+                  icon: Icons.menu_book,
+                  iconColor: _C.primaryContainer,
+                  caption: (kelasTahfidz > 0 || kelasDiniyah > 0)
+                      ? '${_fmtInt(kelasTahfidz)} Tahfidz • ${_fmtInt(kelasDiniyah)} Diniyah'
+                      : 'Rombongan belajar aktif',
+                ),
+                _MetricCard(
+                  label: 'Akun Terdaftar',
+                  value: _fmtInt(totalAkun),
+                  icon: Icons.manage_accounts,
+                  iconColor: _C.secondary,
+                  caption: (akunWali > 0 || akunGuru > 0)
+                      ? '${_fmtInt(santriAktif)} Santri • ${_fmtInt(akunWali)} Wali • ${_fmtInt(akunGuru)} Guru'
+                      : 'Akun aktif portal mobile & web',
+                ),
+              ],
+            );
+          },
         ),
         const SizedBox(height: 20),
 
         // ---- 3. Tindakan cepat ----
         _SectionLabel(title: 'Tindakan Data Master', trailing: 'Input Langsung'),
         const SizedBox(height: 10),
-        GridView.count(
-          crossAxisCount: 2,
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          mainAxisSpacing: 8,
-          crossAxisSpacing: 8,
-          childAspectRatio: 1.55,
-          children: [
-            _QuickAction(
-              title: 'Santri Baru',
-              subtitle: 'Entri biodata & berkas santri',
-              icon: Icons.person_add,
-              iconBg: _C.primaryFixed,
-              iconColor: _C.primaryContainer,
-              tag: 'Auto-NIS',
-              onTap: _notAvailable,
-            ),
-            _QuickAction(
-              title: 'Ustadz / Guru',
-              subtitle: 'Registrasi asatidz & musyrif',
-              icon: Icons.assignment_ind,
-              iconBg: _C.secondaryFixed,
-              iconColor: _C.onSecondaryFixed,
-              onTap: _notAvailable,
-            ),
-            _QuickAction(
-              title: 'Rombel & Halaqah',
-              subtitle: 'Plotting santri & wali kelas',
-              icon: Icons.meeting_room,
-              iconBg: _C.tertiaryFixed,
-              iconColor: _C.onTertiaryFixed,
-              onTap: _notAvailable,
-            ),
-            _QuickAction(
-              title: 'Akun Pengguna',
-              subtitle: 'Generate kredensial wali & santri',
-              icon: Icons.lock_person,
-              iconBg: _C.surfaceContainerHigh,
-              iconColor: _C.primaryContainer,
-              onTap: _notAvailable,
-            ),
-          ],
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final w = constraints.maxWidth;
+            final cols = w >= 1024 ? 4 : (w >= 600 ? 3 : 2);
+            final aspectRatio = w >= 600 ? 1.75 : 1.55;
+            return GridView.count(
+              crossAxisCount: cols,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              mainAxisSpacing: 8,
+              crossAxisSpacing: 8,
+              childAspectRatio: aspectRatio,
+              children: [
+                _QuickAction(
+                  title: 'Santri Baru',
+                  subtitle: 'Entri biodata & berkas santri',
+                  icon: Icons.person_add,
+                  iconBg: _C.primaryFixed,
+                  iconColor: _C.primaryContainer,
+                  tag: 'Auto-NIS',
+                  onTap: _notAvailable,
+                ),
+                _QuickAction(
+                  title: 'Ustadz / Guru',
+                  subtitle: 'Registrasi asatidz & musyrif',
+                  icon: Icons.assignment_ind,
+                  iconBg: _C.secondaryFixed,
+                  iconColor: _C.onSecondaryFixed,
+                  onTap: _notAvailable,
+                ),
+                _QuickAction(
+                  title: 'Rombel & Halaqah',
+                  subtitle: 'Plotting santri & wali kelas',
+                  icon: Icons.meeting_room,
+                  iconBg: _C.tertiaryFixed,
+                  iconColor: _C.onTertiaryFixed,
+                  onTap: _notAvailable,
+                ),
+                _QuickAction(
+                  title: 'Akun Pengguna',
+                  subtitle: 'Generate kredensial wali & santri',
+                  icon: Icons.lock_person,
+                  iconBg: _C.surfaceContainerHigh,
+                  iconColor: _C.primaryContainer,
+                  onTap: _notAvailable,
+                ),
+              ],
+            );
+          },
         ),
         const SizedBox(height: 20),
 
