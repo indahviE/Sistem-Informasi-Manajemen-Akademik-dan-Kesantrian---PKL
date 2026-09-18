@@ -452,26 +452,6 @@ class _PageTitleRow extends StatelessWidget {
             ],
           ),
         ),
-        FilledButton.icon(
-          onPressed: () {},
-          style: FilledButton.styleFrom(
-            backgroundColor: PColors.primary,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(9999),
-            ),
-          ),
-          icon: const Icon(Icons.add, size: 17),
-          label: const Text(
-            'Tambah Tenant',
-            style: TextStyle(
-              fontFamily: 'Nunito',
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ),
       ],
     );
   }

@@ -180,4 +180,10 @@ class ApiUrl {
   static const pembinaanKarakter = '/pembinaan-karakter';
   static const pembinaanIbadah = '/pembinaan-ibadah';
   static const keadaanDarurat = '/keadaan-darurat';
+
+  static const pengaturan = '/pengaturan';
+  static const pengaturanKebijakanOnboarding = '/pengaturan/kebijakan-onboarding';
+  static const pengaturanNotifikasi = '/pengaturan/notifikasi';
+  static const pengaturanSubAdmin = '/pengaturan/sub-admin';
+  static String pengaturanSubAdminDelete(String id) => '/pengaturan/sub-admin/$id';
 }

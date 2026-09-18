@@ -173,33 +173,38 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final isWali = role == 'WALI_SANTRI';
     final isSuperAdmin = role == 'SUPER_ADMIN';
 
-    return RefreshIndicator(
-      onRefresh: _load,
-      child: Align(
-        alignment: Alignment.topCenter,
-        child: ConstrainedBox(
-          // Sama seperti LandingScreen: dibatasi maxWidth supaya di web
-          // tetap terasa "mobile-first" & proporsional, bukan melar penuh.
-          constraints: const BoxConstraints(maxWidth: 480),
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
-            children: [
-              if (isWali)
-                _waliHeroHeader()
-              else if (isTenantAdmin)
-                _heroHeader(role)
-              else if (isSuperAdmin)
-                _superAdminHeroHeader()
-              else
-                const PageHeader(title: 'Ringkasan', subtitle: 'Pantau kondisi pondok secara real-time'),
-              const SizedBox(height: 20),
-              if (isSuperAdmin)
-                _superBody()
-              else if (isWali)
-                _waliBody()
-              else
-                _tenantBody(),
-            ],
+    return Container(
+      // Menyamakan background dashboard Super Admin dengan TenantsScreen
+      // (PColors.background == _WC.background == 0xFFFAF9F5).
+      color: isSuperAdmin ? _WC.background : null,
+      child: RefreshIndicator(
+        onRefresh: _load,
+        child: Align(
+          alignment: Alignment.topCenter,
+          child: ConstrainedBox(
+            // Sama seperti LandingScreen: dibatasi maxWidth supaya di web
+            // tetap terasa "mobile-first" & proporsional, bukan melar penuh.
+            constraints: const BoxConstraints(maxWidth: 480),
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
+              children: [
+                if (isWali)
+                  _waliHeroHeader()
+                else if (isTenantAdmin)
+                  _heroHeader(role)
+                else if (isSuperAdmin)
+                  _superAdminHeroHeader()
+                else
+                  const PageHeader(title: 'Ringkasan', subtitle: 'Pantau kondisi pondok secara real-time'),
+                const SizedBox(height: 20),
+                if (isSuperAdmin)
+                  _superBody()
+                else if (isWali)
+                  _waliBody()
+                else
+                  _tenantBody(),
+              ],
+            ),
           ),
         ),
       ),

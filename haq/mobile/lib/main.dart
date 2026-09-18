@@ -9,6 +9,27 @@ import 'theme/app_theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // PERBAIKAN: default-nya, kalau ada widget yang lempar exception saat
+  // build, Flutter Web (terutama build release/profile) kadang cuma
+  // menampilkan area kosong tanpa keterangan apa pun — persis gejala
+  // "halaman detail tenant blank, cuma bottom bar yang tampil". Override
+  // ErrorWidget.builder supaya area yang gagal build itu selalu menampilkan
+  // kotak merah kecil berisi pesan errornya, di semua mode build.
+  ErrorWidget.builder = (FlutterErrorDetails details) {
+    FlutterError.dumpErrorToConsole(details);
+    return Container(
+      color: const Color(0xFFFEE2E2),
+      padding: const EdgeInsets.all(12),
+      alignment: Alignment.center,
+      child: Text(
+        'Terjadi error saat menampilkan bagian ini:\n${details.exceptionAsString()}',
+        style: const TextStyle(color: Color(0xFFB91C1C), fontSize: 11),
+        textAlign: TextAlign.center,
+      ),
+    );
+  };
+
   final isWeb = kIsWeb;
 
   late final ApiClient api;
