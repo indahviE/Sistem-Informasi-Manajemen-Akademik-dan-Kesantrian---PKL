@@ -4,6 +4,7 @@ import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
 import { TenantsModule } from './tenants/tenants.module';
+import { PengaturanModule } from './pengaturan/pengaturan.module';
 import { UsersModule } from './users/users.module';
 import { SantriModule } from './santri/santri.module';
 import { MasterDataModule } from './cabang/master-data.module';
@@ -29,6 +30,7 @@ import { PembinaanModule } from './pembinaan/pembinaan.module';
     PrismaModule,
     AuthModule,
     TenantsModule,
+    PengaturanModule,
     UsersModule,
     SantriModule,
     MasterDataModule,
