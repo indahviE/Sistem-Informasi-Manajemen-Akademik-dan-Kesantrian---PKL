@@ -84,6 +84,19 @@ enum JenisNotifikasi {
   NILAI
   ABSENSI
   SISTEM
+  DARURAT
+}
+
+enum StatusIbadah {
+  HADIR
+  IZIN
+  ALPA
+}
+
+enum StatusDarurat {
+  BARU
+  DITANGANI
+  SELESAI
 }
 
 model Tenant {
@@ -119,6 +132,9 @@ model Tenant {
   rapors         Rapor[]
   kelulusans     Kelulusan[]
   konselings     Konseling[]
+  pembinaanKarakters PembinaanKarakter[]
+  pembinaanIbadahs   PembinaanIbadah[]
+  keadaanDarurats    KeadaanDarurat[]
 
   @@map("tenants")
 }
@@ -171,6 +187,9 @@ model Santri {
   rapors        Rapor[]
   kelulusans    Kelulusan[]
   konselings    Konseling[]
+  pembinaanKarakters PembinaanKarakter[]
+  pembinaanIbadahs   PembinaanIbadah[]
+  keadaanDarurats    KeadaanDarurat[]
 
   @@unique([tenantId, nis])
   @@index([tenantId, kelasId])
@@ -761,4 +780,63 @@ model Konseling {
 
   @@index([tenantId])
   @@map("konselings")
+}
+
+model PembinaanKarakter {
+  id        String   @id @default(cuid())
+  tenantId  String
+  santriId  String
+  tanggal   DateTime
+  kategori  String
+  catatan   String
+  pelaporId String?
+  createdAt DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  santri Santri @relation(fields: [santriId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, santriId])
+  @@index([tenantId, tanggal])
+  @@map("pembinaan_karakters")
+}
+
+model PembinaanIbadah {
+  id          String       @id @default(cuid())
+  tenantId    String
+  santriId    String
+  tanggal     DateTime
+  jenisIbadah String
+  status      StatusIbadah @default(HADIR)
+  catatan     String?
+  pelaporId   String?
+  createdAt   DateTime     @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  santri Santri @relation(fields: [santriId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, santriId])
+  @@index([tenantId, tanggal])
+  @@map("pembinaan_ibadahs")
+}
+
+model KeadaanDarurat {
+  id           String        @id @default(cuid())
+  tenantId     String
+  santriId     String?
+  jenis        String
+  lokasi       String?
+  deskripsi    String
+  status       StatusDarurat @default(BARU)
+  tindakLanjut String?
+  pelaporId    String?
+  tanggal      DateTime      @default(now())
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  tenant Tenant  @relation(fields: [tenantId], references: [id])
+  santri Santri? @relation(fields: [santriId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, status])
+  @@index([tenantId, tanggal])
+  @@map("keadaan_darurats")
 }
