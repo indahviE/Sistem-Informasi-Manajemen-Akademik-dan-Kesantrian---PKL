@@ -96,7 +96,7 @@ class _ShellScreenState extends State<ShellScreen> {
       m.add(_MenuItem('Mata Pelajaran', Icons.menu_book, (_) => const MapelListScreen()));
       m.add(_MenuItem('Kurikulum', Icons.folder_copy, (_) => const KurikulumScreen()));
       m.add(_MenuItem('Identitas Pondok', Icons.palette, (_) => const BrandingScreen()));
-      m.add(_MenuItem('Langganan & Tagihan', Icons.receipt_long, (_) => const BillingTenantScreen()));
+      m.add(_MenuItem('& Tagihan', Icons.receipt_long, (_) => const BillingTenantScreen()));
     }
 
     if (user.isAdmin || user.isUstadz || user.isMusyrif) {
