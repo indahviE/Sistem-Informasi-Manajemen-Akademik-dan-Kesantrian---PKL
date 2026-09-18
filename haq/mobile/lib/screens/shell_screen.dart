@@ -25,6 +25,8 @@ import 'kesantrian/pembinaan_ibadah_screen.dart';
 import 'kesantrian/keadaan_darurat_screen.dart';
 import 'users/users_screen.dart';
 import 'super_admin/tenants_screen.dart';
+import 'super_admin/audit_log_screen.dart';
+import 'super_admin/pengaturan_screen.dart';
 import 'wali/wali_screen.dart';
 import 'ppdb/ppdb_list_screen.dart';
 import 'kurikulum/kurikulum_screen.dart';
@@ -48,7 +50,13 @@ class _MenuItem {
 }
 
 class _ShellScreenState extends State<ShellScreen> {
+  // Fallback pin order used only when a role has more than 5 menu items
+  // (super admin's 5-item menu is shown in full, without this cap).
   static const _pinned = ['Dashboard', 'Santri', 'Absensi', 'Kurikulum'];
+
+  // Keeps the bottom nav pinned to a mobile-sized width and centered,
+  // instead of stretching full-width on tablet/web/desktop screens.
+  static const double _maxMobileWidth = 480;
 
   int _navIndex = 0;
   late List<_MenuItem> _navItems;
@@ -60,15 +68,24 @@ class _ShellScreenState extends State<ShellScreen> {
     super.didChangeDependencies();
     final user = AppScope.of(context).user!;
     final all = _buildMenu(user);
-    final chosen = <_MenuItem>[];
-    for (final label in _pinned) {
-      final i = all.indexWhere((e) => e.label == label);
-      if (i >= 0) chosen.add(all[i]);
+
+    List<_MenuItem> chosen;
+    if (all.length <= 5) {
+      // Fits directly in the bottom bar (e.g. Super Admin: Beranda, Tenant,
+      // Audit Log, Billing, Pengaturan) — no "Lainnya" overflow needed.
+      chosen = List.of(all);
+    } else {
+      chosen = <_MenuItem>[];
+      for (final label in _pinned) {
+        final i = all.indexWhere((e) => e.label == label);
+        if (i >= 0) chosen.add(all[i]);
+      }
+      for (final e in all) {
+        if (chosen.length >= 4) break;
+        if (!chosen.contains(e)) chosen.add(e);
+      }
     }
-    for (final e in all) {
-      if (chosen.length >= 4) break;
-      if (!chosen.contains(e)) chosen.add(e);
-    }
+
     _navItems = chosen;
     _moreItems = all.where((e) => !chosen.contains(e)).toList();
     if (_navIndex >= _navItems.length) _navIndex = 0;
@@ -77,13 +94,19 @@ class _ShellScreenState extends State<ShellScreen> {
 
   List<_MenuItem> _buildMenu(UserData user) {
     final m = <_MenuItem>[];
-    m.add(_MenuItem('Dashboard', Icons.dashboard, (_) => const DashboardScreen()));
 
     if (user.isSuperAdmin) {
-      m.add(_MenuItem('Kelola Tenant', Icons.apartment, (_) => const TenantsScreen()));
-      m.add(_MenuItem('Billing & Paket', Icons.payments, (_) => const BillingAdminScreen()));
+      // Matches the Super Admin platform-control navigation:
+      // Beranda, Tenant, Audit Log, Billing, Pengaturan.
+      m.add(_MenuItem('Beranda', Icons.space_dashboard, (_) => const DashboardScreen()));
+      m.add(_MenuItem('Tenant', Icons.domain, (_) => const TenantsScreen()));
+      m.add(_MenuItem('Audit Log', Icons.security, (_) => const AuditLogScreen()));
+      m.add(_MenuItem('Billing', Icons.card_membership, (_) => const BillingAdminScreen()));
+      m.add(_MenuItem('Pengaturan', Icons.tune, (_) => const PengaturanScreen()));
       return m;
     }
+
+    m.add(_MenuItem('Dashboard', Icons.dashboard, (_) => const DashboardScreen()));
 
     if (!user.isWali) {
       m.add(_MenuItem('Santri', Icons.groups, (_) => const SantriListScreen()));
@@ -144,7 +167,6 @@ class _ShellScreenState extends State<ShellScreen> {
       m.add(_MenuItem('Perizinan', Icons.exit_to_app, (_) => const PerizinanScreen()));
       m.add(_MenuItem('Pembinaan Karakter', Icons.emoji_events, (_) => const PembinaanKarakterScreen()));
       m.add(_MenuItem('Pembinaan Ibadah', Icons.mosque, (_) => const PembinaanIbadahScreen()));
-
     }
 
     return m;
@@ -199,32 +221,67 @@ class _ShellScreenState extends State<ShellScreen> {
         ],
       ),
       body: active.builder(context),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: selectedIndex,
-        onDestinationSelected: (i) {
-          if (i < _navItems.length) {
-            setState(() {
-              _navIndex = i;
-              _activeExtra = null;
-            });
-          } else {
-            _showMoreSheet();
-          }
-        },
-        destinations: [
-          for (final m in _navItems)
-            NavigationDestination(
-              icon: Icon(m.icon),
-              selectedIcon: Icon(m.icon, color: _seed),
-              label: m.label,
+      bottomNavigationBar: Container(
+        // Full-width fill supaya nggak ada strip abu-abu bawaan Scaffold yang
+        // keliatan di kiri-kanan kotak nav 480px — warnanya disamain persis
+        // dengan background NavigationBar (PColors.surface).
+        color: PColors.surface,
+        child: Center(
+          heightFactor: 1,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: _maxMobileWidth),
+            child: Theme(
+              // Samakan palet nav bar dengan TenantsScreen/DashboardScreen
+              // (emerald PColors.primary + PColors.mint), bukan warna Tw default.
+              data: Theme.of(context).copyWith(
+                navigationBarTheme: NavigationBarThemeData(
+                  backgroundColor: PColors.surface,
+                  indicatorColor: PColors.mint,
+                  surfaceTintColor: Colors.transparent,
+                  labelTextStyle: MaterialStateProperty.resolveWith((states) {
+                    final selected = states.contains(MaterialState.selected);
+                    return TextStyle(
+                      fontSize: 11,
+                      fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+                      color: selected ? PColors.primary : PColors.inkSecondary,
+                    );
+                  }),
+                  iconTheme: MaterialStateProperty.resolveWith((states) {
+                    final selected = states.contains(MaterialState.selected);
+                    return IconThemeData(color: selected ? PColors.primary : PColors.inkSecondary);
+                  }),
+                ),
+              ),
+              child: NavigationBar(
+                selectedIndex: selectedIndex,
+                onDestinationSelected: (i) {
+                  if (i < _navItems.length) {
+                    setState(() {
+                      _navIndex = i;
+                      _activeExtra = null;
+                    });
+                  } else {
+                    _showMoreSheet();
+                  }
+                },
+                destinations: [
+                  for (final m in _navItems)
+                    NavigationDestination(
+                      icon: Icon(m.icon),
+                      selectedIcon: Icon(m.icon),
+                      label: m.label,
+                    ),
+                  if (hasMore)
+                    const NavigationDestination(
+                      icon: Icon(Icons.more_horiz),
+                      selectedIcon: Icon(Icons.apps),
+                      label: 'Lainnya',
+                    ),
+                ],
+              ),
             ),
-          if (hasMore)
-            const NavigationDestination(
-              icon: Icon(Icons.more_horiz),
-              selectedIcon: Icon(Icons.apps),
-              label: 'Lainnya',
-            ),
-        ],
+          ),
+        ),
       ),
     );
   }
@@ -232,7 +289,7 @@ class _ShellScreenState extends State<ShellScreen> {
   void _showMoreSheet() {
     showModalBottomSheet(
       context: context,
-      backgroundColor: Tw.white,
+      backgroundColor: PColors.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -246,7 +303,7 @@ class _ShellScreenState extends State<ShellScreen> {
                 padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
                 child: Text(
                   'Menu Lainnya',
-                  style: const TextStyle(color: Tw.gray900, fontSize: 16, fontWeight: FontWeight.w700),
+                  style: const TextStyle(color: PColors.ink, fontSize: 16, fontWeight: FontWeight.w700),
                 ),
               ),
               Flexible(
@@ -282,17 +339,17 @@ class _ShellScreenState extends State<ShellScreen> {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
             decoration: BoxDecoration(
-              color: _activeExtra == m ? Tw.primarySoft : Colors.transparent,
+              color: _activeExtra == m ? PColors.mint : Colors.transparent,
               borderRadius: BorderRadius.circular(10),
             ),
             child: Row(
               children: [
-                Icon(m.icon, size: 20, color: _activeExtra == m ? _seed : Tw.gray600),
+                Icon(m.icon, size: 20, color: _activeExtra == m ? PColors.primary : PColors.inkSecondary),
                 const SizedBox(width: 12),
                 Text(
                   m.label,
                   style: TextStyle(
-                    color: _activeExtra == m ? _seed : Tw.gray800,
+                    color: _activeExtra == m ? PColors.primary : PColors.ink,
                     fontWeight: _activeExtra == m ? FontWeight.w700 : FontWeight.w500,
                     fontSize: 14,
                   ),
@@ -305,7 +362,7 @@ class _ShellScreenState extends State<ShellScreen> {
     );
   }
 
-  Color get _seed => AppScope.of(context).brandingColor ?? Tw.primary;
+  Color get _seed => AppScope.of(context).brandingColor ?? PColors.primary;
 
   Widget _appBarTitle(UserData user, String title) {
     final logo = AppScope.of(context).brandingLogo;
@@ -316,7 +373,7 @@ class _ShellScreenState extends State<ShellScreen> {
           width: 30,
           height: 30,
           decoration: BoxDecoration(
-            color: Tw.primarySoft,
+            color: PColors.mint,
             borderRadius: BorderRadius.circular(8),
           ),
           clipBehavior: Clip.antiAlias,
