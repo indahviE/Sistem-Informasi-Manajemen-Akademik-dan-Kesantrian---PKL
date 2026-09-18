@@ -523,7 +523,7 @@ void didChangeDependencies() {
           .post(ApiUrl.subscriptions, {'tenantId': tenantId, 'paketId': paketId});
       if (!mounted) return;
       ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('dibuat (1 tahun).')));
+          .showSnackBar(const SnackBar(content: Text('Langganan dibuat (1 tahun).')));
       _load();
     } on ApiException catch (e) {
       if (!mounted) return;
