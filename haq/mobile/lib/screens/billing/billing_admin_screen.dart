@@ -5,6 +5,8 @@ import '../../services/api_client.dart';
 import '../../services/app_scope.dart';
 import '../ui_utils.dart';
 import 'billing_invoice_screen.dart';
+import 'paket_screen.dart';
+import 'langganan_screen.dart';
 
 /// ---------------------------------------------------------------------------
 /// Design tokens — mirrored 1:1 from DESIGN.md, the same source signup_screen
@@ -74,6 +76,9 @@ class _BT {
   );
 }
 
+/// Sub-halaman yang ditampilkan in-place di dalam body screen ini.
+enum _BillingView { overview, paket, langganan }
+
 class BillingAdminScreen extends StatefulWidget {
   const BillingAdminScreen({super.key});
 
@@ -89,6 +94,11 @@ class _BillingAdminScreenState extends State<BillingAdminScreen> {
   bool _loading = true;
   String? _error;
   DateTime? _lastLoaded;
+
+  /// Halaman yang sedang tampil. Paket/Langganan TIDAK dibuka lewat
+  /// Navigator.push (yang akan menutupi seluruh ShellScreen, termasuk top bar
+  /// & bottom nav), melainkan menggantikan konten body ini secara in-place.
+  _BillingView _view = _BillingView.overview;
 
   final GlobalKey _overdueKey = GlobalKey();
 
@@ -145,6 +155,14 @@ class _BillingAdminScreenState extends State<BillingAdminScreen> {
   void _notAvailable() {
     ScaffoldMessenger.of(context)
         .showSnackBar(const SnackBar(content: Text('Fitur ini akan segera tersedia.')));
+  }
+
+  /// Kembali dari sub-halaman Paket/Langganan ke overview billing, sekaligus
+  /// refresh data di latar belakang (tanpa spinner) supaya metrik & katalog
+  /// mencerminkan perubahan yang baru dilakukan di sub-halaman.
+  void _backToOverview() {
+    setState(() => _view = _BillingView.overview);
+    _load(showSpinner: false);
   }
 
   // ===========================================================================
@@ -447,6 +465,28 @@ class _BillingAdminScreenState extends State<BillingAdminScreen> {
   // ===========================================================================
   @override
   Widget build(BuildContext context) {
+    // Sub-halaman Paket / Langganan dirender in-place (tanpa route baru),
+    // sehingga top bar & bottom nav milik shell tetap terlihat. Tombol back
+    // sistem/browser juga diarahkan kembali ke overview, bukan keluar dari tab.
+    if (_view == _BillingView.paket) {
+      return WillPopScope(
+        onWillPop: () async {
+          _backToOverview();
+          return false;
+        },
+        child: PaketScreen(onBack: _backToOverview),
+      );
+    }
+    if (_view == _BillingView.langganan) {
+      return WillPopScope(
+        onWillPop: () async {
+          _backToOverview();
+          return false;
+        },
+        child: LanggananScreen(onBack: _backToOverview),
+      );
+    }
+
     return Scaffold(
       backgroundColor: _BC.background,
       appBar: AppBar(
@@ -918,13 +958,13 @@ class _BillingAdminScreenState extends State<BillingAdminScreen> {
               icon: Icons.category,
               label: 'Paket',
               color: _BC.primaryContainer,
-              onTap: () {},
+              onTap: () => setState(() => _view = _BillingView.paket),
             ),
             _QuickActionBullet(
               icon: Icons.workspace_premium,
               label: 'Langganan',
               color: const Color(0xFFC5A059),
-              onTap: () {},
+              onTap: () => setState(() => _view = _BillingView.langganan),
             ),
             _QuickActionBullet(
               icon: Icons.receipt,

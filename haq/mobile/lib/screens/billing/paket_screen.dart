@@ -69,7 +69,13 @@ class _PT {
 enum _StatusFilter { semua, aktif, nonaktif }
 
 class PaketScreen extends StatefulWidget {
-  const PaketScreen({super.key});
+  /// Dipanggil saat tombol back di header ditekan. Screen ini ditampilkan
+  /// langsung di dalam body BillingAdminScreen (bukan lewat Navigator.push),
+  /// jadi tidak ada tombol back bawaan — parent yang menentukan cara kembali.
+  /// Kalau null, tombol back tidak ditampilkan.
+  final VoidCallback? onBack;
+
+  const PaketScreen({super.key, this.onBack});
 
   @override
   State<PaketScreen> createState() => _PaketScreenState();
@@ -304,16 +310,17 @@ class _PaketScreenState extends State<PaketScreen> {
   // ===========================================================================
   @override
   Widget build(BuildContext context) {
-    // Tanpa Scaffold.appBar sendiri (disamakan dengan tenants_screen.dart):
-    // judul halaman cukup ditampilkan lewat _buildHeader() di dalam body,
-    // supaya top bar & bottom nav bar milik shell platform (di luar screen
-    // ini) tetap terlihat saat berpindah ke halaman Paket.
+    // Tanpa Scaffold.appBar sendiri: screen ini dirender di dalam body
+    // BillingAdminScreen (tanpa Navigator.push), jadi top bar & bottom nav
+    // milik shell platform tetap terlihat. Judul halaman + tombol back +
+    // tombol Tambah ditampilkan lewat _buildHeader() di dalam body.
     // Center + ConstrainedBox(maxWidth: 480) tetap dipakai agar konten fix
     // di tengah dan tidak melebar penuh saat dibuka di web.
     return Scaffold(
       backgroundColor: _PK.background,
       body: SafeArea(
-        child: Center(
+        child: Align(
+          alignment: Alignment.topCenter,
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 480),
             child: _loading
@@ -364,6 +371,16 @@ class _PaketScreenState extends State<PaketScreen> {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        if (widget.onBack != null) ...[
+          IconButton(
+            onPressed: widget.onBack,
+            tooltip: 'Kembali ke Billing',
+            icon: const Icon(Icons.arrow_back, color: _PK.primary),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 36, minHeight: 40),
+          ),
+          const SizedBox(width: 4),
+        ],
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
