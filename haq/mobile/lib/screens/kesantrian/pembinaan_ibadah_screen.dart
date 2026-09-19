@@ -26,7 +26,9 @@ class _PembinaanIbadahScreenState extends State<PembinaanIbadahScreen> {
   @override
   void initState() {
     super.initState();
-    _load();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _load();
+    });
   }
 
   Future<void> _load() async {

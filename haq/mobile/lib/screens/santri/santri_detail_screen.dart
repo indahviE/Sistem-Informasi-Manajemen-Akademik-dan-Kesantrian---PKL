@@ -18,7 +18,9 @@ class _SantriDetailScreenState extends State<SantriDetailScreen> {
   @override
   void initState() {
     super.initState();
-    _load();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _load();
+    });
   }
 
   Future<void> _load() async {

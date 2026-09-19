@@ -43,7 +43,9 @@ class _SantriListScreenState extends State<SantriListScreen> {
   @override
   void initState() {
     super.initState();
-    _load();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _load();
+    });
   }
 
   Future<void> _hapus(Map<String, dynamic> s) async {
