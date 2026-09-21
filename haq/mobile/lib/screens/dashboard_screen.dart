@@ -94,7 +94,8 @@ class _WC {
 }
 
 class DashboardScreen extends StatefulWidget {
-  const DashboardScreen({super.key});
+  final void Function(String label)? onNavigate;
+  const DashboardScreen({super.key, this.onNavigate});
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
@@ -706,7 +707,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
     // TODO: belum ada endpoint GET /api/audit-log di PRD saat ini — kalau
     // backend sudah mengirim `auditKeamanan` di payload dashboard, dipakai;
     // kalau belum, fallback ke placeholder statis di bawah.
-    final auditItems = ((_data!['auditKeamanan'] as List?) ?? const []).cast<Map<String, dynamic>>();
+    final auditItems = ((_data!['auditKeamanan'] as List?) ?? const [])
+        .cast<Map<String, dynamic>>()
+        .map((e) => <String, dynamic>{
+              'pesan': '${e['judul']} — ${e['tenantNama']}',
+              'waktu': _elapsed(DateTime.tryParse('${e['waktu']}')?.toLocal()),
+            })
+        .toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -769,19 +776,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
               _SAActionButton(
                 icon: Icons.corporate_fare_rounded,
                 label: 'Kelola Tenant',
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const TenantsScreen()),
-                ),
+                onTap: () => widget.onNavigate?.call('Tenant'),
               ),
               const SizedBox(width: 10),
               _SAActionButton(
                 icon: Icons.receipt_long_rounded,
                 label: 'Billing & Paket',
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const BillingAdminScreen()),
-                ),
+                onTap: () => widget.onNavigate?.call('Billing'),
               ),
             ],
           ),
@@ -1826,30 +1827,42 @@ class _SAReviewCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ada = count > 0;
+    final bg = ada ? _WC.goldSurface : _WC.surface;
+    final border = ada ? _WC.goldBorder : _WC.border;
+    final accent = ada ? _WC.errorText : _WC.inkSecondary;
+    final labelColor = ada ? _WC.gold : _WC.inkSecondary;
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: _WC.goldSurface,
+          color: bg,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: _WC.goldBorder),
+          border: Border.all(color: border),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: const [
-                Text('Review Masuk', style: TextStyle(fontSize: 11.5, color: _WC.gold)),
-                Icon(Icons.priority_high_rounded, size: 16, color: _WC.errorText),
+              children: [
+                Text('Review Masuk', style: TextStyle(fontSize: 11.5, color: labelColor)),
+                Icon(
+                  ada ? Icons.priority_high_rounded : Icons.check_circle_outline,
+                  size: 16,
+                  color: accent,
+                ),
               ],
             ),
             const SizedBox(height: 8),
-            Text('$count', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: _WC.errorText)),
+            Text('$count', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: accent)),
             const SizedBox(height: 2),
-            const Text('Perlu Review Segera',
-                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: _WC.errorText)),
+            Text(
+              ada ? 'Perlu Review Segera' : 'Tidak Ada Antrean',
+              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: accent),
+            ),
           ],
         ),
       ),
