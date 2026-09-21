@@ -841,6 +841,7 @@ class _BillingAdminScreenState extends State<BillingAdminScreen> {
         .toSet();
     final totalTertunda =
         overdueInvoices.fold<num>(0, (sum, i) => sum + _num((i as Map).cast<String, dynamic>(), ['jumlah']));
+        final adaTertunda = overdueInvoices.isNotEmpty;
 
     final totalFaktur = _invoices.length;
     final lunas = _invoices.where((i) => (i as Map)['status'] == 'LUNAS').length;
@@ -871,16 +872,16 @@ class _BillingAdminScreenState extends State<BillingAdminScreen> {
           caption: '$berbayar Berbayar • $trial Trial',
           progress: progress,
         ),
-        _MetricCard(
+          _MetricCard(
           label: 'Tagihan Tertunda',
-          icon: Icons.pending_actions,
-          iconColor: _BC.error,
-          iconBg: _BC.errorContainer,
+          icon: adaTertunda ? Icons.pending_actions : Icons.check_circle_outline,
+          iconColor: adaTertunda ? _BC.error : _BC.primary,
+          iconBg: adaTertunda ? _BC.errorContainer : _BC.surfaceContainerHigh,
           value: '${overdueTenantIds.length} Tenant',
-          caption: _rupiah(totalTertunda),
-          warning: true,
-          onTapCaption: overdueTenantIds.isEmpty ? null : _scrollToOverdue,
-          captionActionLabel: overdueTenantIds.isEmpty ? null : 'Tindak Sekarang',
+          caption: adaTertunda ? _rupiah(totalTertunda) : 'Tidak ada tunggakan',
+          warning: adaTertunda,
+          onTapCaption: adaTertunda ? _scrollToOverdue : null,
+          captionActionLabel: adaTertunda ? 'Tindak Sekarang' : null,
         ),
         _MetricCard(
           label: 'Faktur Bulan Ini',
