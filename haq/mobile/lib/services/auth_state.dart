@@ -119,6 +119,21 @@ class AuthState extends ChangeNotifier {
     };
   }
 
+  Future<void> updateProfil({required String nama, required String email}) async {
+    final current = _user;
+    if (current == null) return;
+    _user = current.copyWith(nama: nama, email: email);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('user', jsonEncode({
+          'id': _user!.id,
+          'nama': _user!.nama,
+          'email': _user!.email,
+          'role': _user!.role,
+          'tenant': _user!.tenant,
+        }));
+    notifyListeners();
+  }
+
   Future<void> saveTokens(String at, String rt) async {
     _accessToken = at;
     _refreshToken = rt;
