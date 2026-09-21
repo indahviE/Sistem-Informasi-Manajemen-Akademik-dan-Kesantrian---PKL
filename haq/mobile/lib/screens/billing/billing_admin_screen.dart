@@ -77,7 +77,7 @@ class _BT {
 }
 
 /// Sub-halaman yang ditampilkan in-place di dalam body screen ini.
-enum _BillingView { overview, paket, langganan }
+enum _BillingView { overview, paket, langganan, invoice }
 
 class BillingAdminScreen extends StatefulWidget {
   const BillingAdminScreen({super.key});
@@ -484,6 +484,15 @@ class _BillingAdminScreenState extends State<BillingAdminScreen> {
           return false;
         },
         child: LanggananScreen(onBack: _backToOverview),
+      );
+    }
+    if (_view == _BillingView.invoice) {
+      return WillPopScope(
+        onWillPop: () async {
+          _backToOverview();
+          return false;
+        },
+        child: BillingInvoiceScreen(onBack: _backToOverview),
       );
     }
 
@@ -970,14 +979,7 @@ class _BillingAdminScreenState extends State<BillingAdminScreen> {
               icon: Icons.receipt,
               label: 'Tagihan',
               color: const Color(0xFFD4693F),
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const BillingInvoiceScreen(),
-                  ),
-                );
-              },
+              onTap: () => setState(() => _view = _BillingView.invoice),
             ),
           ],
         ),
