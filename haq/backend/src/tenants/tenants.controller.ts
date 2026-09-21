@@ -1,11 +1,11 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { TenantsService } from './tenants.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Public, Roles } from '../common/decorators/roles.decorator';
 import { Role, TenantStatus } from '@prisma/client';
 import { ApproveTenantDto, SignupTenantDto, UpdateBrandingDto } from './dto/tenant.dto';
-import { TenantId } from '../common/decorators/current-user.decorator';
+import { CurrentUser, RequestUser, TenantId } from '../common/decorators/current-user.decorator';
 
 @Controller('tenants')
 export class TenantsController {
@@ -13,8 +13,8 @@ export class TenantsController {
 
   @Public()
   @Post('signup')
-  signup(@Body() dto: SignupTenantDto) {
-    return this.tenantsService.signup(dto);
+  signup(@Body() dto: SignupTenantDto, @Req() req: { ip?: string }) {
+    return this.tenantsService.signup(dto, req.ip);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -27,15 +27,15 @@ export class TenantsController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.SUPER_ADMIN)
   @Post('approve')
-  approve(@Body() dto: ApproveTenantDto) {
-    return this.tenantsService.approve(dto.tenantId);
+  approve(@Body() dto: ApproveTenantDto, @CurrentUser() user: RequestUser, @Req() req: { ip?: string }) {
+    return this.tenantsService.approve(dto.tenantId, user, req.ip);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.SUPER_ADMIN)
   @Post('suspend')
-  suspend(@Body() dto: ApproveTenantDto) {
-    return this.tenantsService.suspend(dto.tenantId);
+  suspend(@Body() dto: ApproveTenantDto, @CurrentUser() user: RequestUser, @Req() req: { ip?: string }) {
+    return this.tenantsService.suspend(dto.tenantId, user, req.ip);
   }
 
   @UseGuards(JwtAuthGuard)

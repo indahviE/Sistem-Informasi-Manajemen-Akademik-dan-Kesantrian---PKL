@@ -456,18 +456,43 @@ model TataTertib {
   @@map("tata_tertibs")
 }
 
+enum AuditKategori {
+  KEAMANAN
+  DATA
+  BILLING
+  SISTEM
+}
+
+enum AuditTingkat {
+  INFO
+  WARNING
+  CRITICAL
+}
+
 model AuditLog {
-  id        String   @id @default(cuid())
+  id        String        @id @default(cuid())
   tenantId  String?
   userId    String?
   userNama  String?
+  userRole  String?
   action    String
   entity    String
   entityId  String?
+  kategori  AuditKategori @default(DATA)
+  tingkat   AuditTingkat  @default(INFO)
+  judul     String?
+  deskripsi String?       @db.Text
+  meta      String?
+  ip        String?
   data      Json?
-  createdAt DateTime @default(now())
+  createdAt DateTime      @default(now())
 
   @@index([tenantId, entity, createdAt])
+  @@index([tenantId, createdAt])
+  @@index([kategori, createdAt])
+  @@index([tingkat, createdAt])
+  @@index([action, ip, createdAt])
+  @@index([createdAt])
   @@map("audit_logs")
 }
 

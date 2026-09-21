@@ -8,12 +8,24 @@ import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.service';
 import { Role, TenantStatus } from '@prisma/client';
 import { SignupTenantDto, UpdateBrandingDto } from './dto/tenant.dto';
+import { AuditKategori, AuditTingkat } from '@prisma/client';
+import { AuditService } from '../audit/audit.service';
+import { RequestUser } from '../common/decorators/current-user.decorator';
+
+const STATUS_LABEL: Record<string, string> = {
+  PENDING: 'Pending',
+  AKTIF: 'Aktif',
+  SUSPENDED: 'Suspended',
+};
 
 @Injectable()
 export class TenantsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private audit: AuditService,
+  ) {}
 
-  async signup(dto: SignupTenantDto) {
+  async signup(dto: SignupTenantDto, ip?: string) {
     const existing = await this.prisma.tenant.findUnique({
       where: { kodeTenant: dto.kodeTenant },
     });
@@ -30,7 +42,7 @@ export class TenantsService {
 
     const passwordHash = await bcrypt.hash(dto.adminPassword, 10);
 
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       const tenant = await tx.tenant.create({
         data: {
           kodeTenant: dto.kodeTenant,
@@ -68,6 +80,23 @@ export class TenantsService {
           'Pendaftaran berhasil. Menunggu persetujuan Super Admin sebelum bisa digunakan.',
       };
     });
+
+    await this.audit.log({
+      action: 'TENANT_SIGNUP',
+      entity: 'tenants',
+      entityId: result.id,
+      tenantId: result.id,
+      kategori: AuditKategori.SISTEM,
+      tingkat: AuditTingkat.INFO,
+      judul: 'Pendaftaran Pondok Baru',
+      deskripsi: `Pondok "${result.namaPondok}" (\`${result.kodeTenant}\`) mendaftar via self-service dan menunggu validasi Super Admin.`,
+      meta: 'Menunggu Persetujuan',
+      userNama: dto.adminNama,
+      userRole: 'ADMIN',
+      ip,
+    });
+
+    return result;
   }
 
   async findAll(status?: TenantStatus) {
@@ -86,7 +115,7 @@ export class TenantsService {
     }));
   }
 
-  async approve(tenantId: string) {
+  async approve(tenantId: string, actor?: RequestUser, ip?: string) {
     const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
     if (!tenant) throw new NotFoundException('Tenant tidak ditemukan.');
 
@@ -103,10 +132,25 @@ export class TenantsService {
       },
     });
 
+    await this.audit.log({
+      action: 'TENANT_APPROVE',
+      entity: 'tenants',
+      entityId: tenantId,
+      tenantId,
+      kategori: AuditKategori.SISTEM,
+      tingkat: AuditTingkat.INFO,
+      judul: 'Pondok Disetujui & Diaktivasi',
+      deskripsi: `Status beralih dari ${STATUS_LABEL[tenant.status] ?? tenant.status} ke Aktif. Kode tenant \`${tenant.kodeTenant}\` kini dapat dipakai untuk login.`,
+      meta: 'Tenant Aktif',
+      userId: actor?.userId,
+      userRole: actor?.role ? String(actor.role) : null,
+      ip,
+    });
+
     return { message: 'Tenant berhasil diaktifkan.', id: tenantId };
   }
 
-  async suspend(tenantId: string) {
+  async suspend(tenantId: string, actor?: RequestUser, ip?: string) {
     const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
     if (!tenant) throw new NotFoundException('Tenant tidak ditemukan.');
 
@@ -114,6 +158,23 @@ export class TenantsService {
       where: { id: tenantId },
       data: { status: TenantStatus.SUSPENDED },
     });
+    // Di aplikasi, tombol "Tolak" pendaftaran juga memanggil endpoint ini.
+    const ditolak = tenant.status === TenantStatus.PENDING;
+    await this.audit.log({
+      action: ditolak ? 'TENANT_REJECT' : 'TENANT_SUSPEND',
+      entity: 'tenants',
+      entityId: tenantId,
+      tenantId,
+      kategori: AuditKategori.SISTEM,
+      tingkat: AuditTingkat.WARNING,
+      judul: ditolak ? 'Pendaftaran Pondok Ditolak' : 'Tenant Di-suspend',
+      deskripsi: `Status beralih dari ${STATUS_LABEL[tenant.status] ?? tenant.status} ke Suspended. Pengguna pondok tidak dapat login.`,
+      meta: 'Akses Login Ditutup',
+      userId: actor?.userId,
+      userRole: actor?.role ? String(actor.role) : null,
+      ip,
+    });
+
     return { message: 'Tenant di-suspend.' };
   }
 

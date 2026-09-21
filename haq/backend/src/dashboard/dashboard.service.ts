@@ -2,10 +2,14 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { RequestUser } from '../common/decorators/current-user.decorator';
 import { Role } from '@prisma/client';
+import { AuditService } from '../audit/audit.service';
 
 @Injectable()
 export class DashboardService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private audit: AuditService,
+  ) {}
 
   async getDashboard(user: RequestUser) {
     if (user.role === Role.SUPER_ADMIN) {
@@ -37,6 +41,7 @@ export class DashboardService {
       role: 'SUPER_ADMIN',
       statistik: { totalTenant, tenantAktif, tenantPending, totalUser, totalSantri },
       tenantTerbaru: recentTenants,
+      auditKeamanan: await this.audit.recent(3),
     };
   }
 

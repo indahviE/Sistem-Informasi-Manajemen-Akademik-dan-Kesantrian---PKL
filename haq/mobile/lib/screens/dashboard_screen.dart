@@ -706,7 +706,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
     // TODO: belum ada endpoint GET /api/audit-log di PRD saat ini — kalau
     // backend sudah mengirim `auditKeamanan` di payload dashboard, dipakai;
     // kalau belum, fallback ke placeholder statis di bawah.
-    final auditItems = ((_data!['auditKeamanan'] as List?) ?? const []).cast<Map<String, dynamic>>();
+    final auditItems = ((_data!['auditKeamanan'] as List?) ?? const [])
+        .cast<Map<String, dynamic>>()
+        .map((e) => <String, dynamic>{
+              'pesan': '${e['judul']} — ${e['tenantNama']}',
+              'waktu': _elapsed(DateTime.tryParse('${e['waktu']}')?.toLocal()),
+            })
+        .toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

@@ -23,6 +23,7 @@ import { RolesGuard } from './auth/guards/roles.guard';
 import { TenantIsolationGuard } from './auth/guards/tenant-isolation.guard';
 import { AuditLogInterceptor } from './common/interceptors/audit-log.interceptor';
 import { PembinaanModule } from './pembinaan/pembinaan.module';
+import { AuditModule } from './audit/audit.module';
 
 @Module({
   imports: [
@@ -45,6 +46,7 @@ import { PembinaanModule } from './pembinaan/pembinaan.module';
     KonselingModule,
     BillingModule,
     PembinaanModule,
+    AuditModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtPublicGlobalGuard },

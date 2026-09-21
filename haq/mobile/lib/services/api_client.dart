@@ -181,6 +181,7 @@ class ApiUrl {
   static const pembinaanIbadah = '/pembinaan-ibadah';
   static const keadaanDarurat = '/keadaan-darurat';
 
+  static const auditLog = '/audit-log';
   static const pengaturan = '/pengaturan';
   static const pengaturanKebijakanOnboarding = '/pengaturan/kebijakan-onboarding';
   static const pengaturanNotifikasi = '/pengaturan/notifikasi';
