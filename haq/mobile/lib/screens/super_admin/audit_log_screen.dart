@@ -247,6 +247,8 @@ class _AuditLogScreenState extends State<AuditLogScreen> {
   bool _busy = false; // reload karena filter/refresh
   bool _loadingMore = false;
   String? _error;
+  Timer? _syncTimer;
+  bool _syncOk = true;
 
   List<AuditEvent> _events = [];
   String? _nextCursor;
@@ -270,12 +272,14 @@ class _AuditLogScreenState extends State<AuditLogScreen> {
       _initialized = true;
       _loadTenants();
       _fetch();
+      _syncTimer = Timer.periodic(const Duration(seconds: 15), (_) => _fetch(silent: true));
     }
   }
 
   @override
   void dispose() {
     _debounce?.cancel();
+    _syncTimer?.cancel();
     _searchCtrl.dispose();
     super.dispose();
   }
@@ -298,15 +302,19 @@ class _AuditLogScreenState extends State<AuditLogScreen> {
     }
   }
 
-  Future<void> _fetch({bool append = false}) async {
-    setState(() {
-      if (append) {
-        _loadingMore = true;
-      } else {
-        _busy = true;
-      }
-      _error = null;
-    });
+  Future<void> _fetch({bool append = false, bool silent = false}) async {
+    if (silent) {
+      if (_busy || _loadingMore) return; // sudah ada fetch manual, lewati sync kali ini
+    } else {
+      setState(() {
+        if (append) {
+          _loadingMore = true;
+        } else {
+          _busy = true;
+        }
+        _error = null;
+      });
+    }
     try {
       final res = await _api.get(ApiUrl.auditLog, query: {
         'q': _query.trim(),
@@ -331,6 +339,7 @@ class _AuditLogScreenState extends State<AuditLogScreen> {
         _firstLoad = false;
         _busy = false;
         _loadingMore = false;
+        _syncOk = true;
       });
     } catch (e) {
       if (!mounted) return;
@@ -339,9 +348,10 @@ class _AuditLogScreenState extends State<AuditLogScreen> {
         _firstLoad = false;
         _busy = false;
         _loadingMore = false;
-        if (_events.isEmpty) _error = msg;
+        _syncOk = false;
+        if (!silent && _events.isEmpty) _error = msg;
       });
-      if (_events.isNotEmpty) {
+      if (!silent && _events.isNotEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
       }
     }
@@ -469,7 +479,7 @@ class _AuditLogScreenState extends State<AuditLogScreen> {
           const SizedBox(height: 14),
           _TitleRow(onExport: _soon),
           const SizedBox(height: 14),
-          _StreamStatusCard(total: _totalSemua),
+          _StreamStatusCard(total: _totalSemua, syncOk: _syncOk),
           const SizedBox(height: 12),
           _SearchField(
             controller: _searchCtrl,
@@ -790,10 +800,30 @@ class _TitleRow extends StatelessWidget {
 // Stream status
 // ============================================================================
 
-class _StreamStatusCard extends StatelessWidget {
-  const _StreamStatusCard({required this.total});
+class _StreamStatusCard extends StatefulWidget {
+  const _StreamStatusCard({required this.total, required this.syncOk});
 
   final int total;
+  final bool syncOk;
+
+  @override
+  State<_StreamStatusCard> createState() => _StreamStatusCardState();
+}
+
+class _StreamStatusCardState extends State<_StreamStatusCard> with SingleTickerProviderStateMixin {
+  late final AnimationController _spinCtrl = AnimationController(
+    vsync: this,
+    duration: const Duration(seconds: 2),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _spinCtrl.dispose();
+    super.dispose();
+  }
+
+  int get total => widget.total;
+  bool get syncOk => widget.syncOk;
 
   @override
   Widget build(BuildContext context) {
@@ -847,15 +877,23 @@ class _StreamStatusCard extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
             decoration: BoxDecoration(
-              color: PColors.surfaceDim,
+              color: syncOk ? PColors.surfaceDim : _warnBg,
               borderRadius: BorderRadius.circular(9999),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.sync, size: 14, color: PColors.primary),
+                syncOk
+                    ? RotationTransition(
+                        turns: _spinCtrl,
+                        child: const Icon(Icons.sync, size: 14, color: PColors.primary),
+                      )
+                    : Icon(Icons.sync_problem, size: 14, color: _warnFg),
                 const SizedBox(width: 5),
-                Text('Sync Aktif', style: PText.labelMd.copyWith(color: PColors.primary)),
+                Text(
+                  syncOk ? 'Sync Aktif' : 'Sync Terputus',
+                  style: PText.labelMd.copyWith(color: syncOk ? PColors.primary : _warnFg),
+                ),
               ],
             ),
           ),
