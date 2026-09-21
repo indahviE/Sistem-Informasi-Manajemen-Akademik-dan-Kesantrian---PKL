@@ -70,6 +70,9 @@ class _PT {
   static const button = TextStyle(fontFamily: _font, fontWeight: FontWeight.w700, fontSize: 13);
 }
 
+/// Border krem tipis — sama dengan `_border` di audit_log_screen.dart.
+const Color _searchBorder = Color(0xFFEAE6DC);
+
 /// Periode tagihan — nilai harus sama dengan yang diterima backend.
 const _periodeLabel = {
   'HARIAN': 'Per Hari',
@@ -427,29 +430,44 @@ class _PaketScreenState extends State<PaketScreen> {
     );
   }
 
+  /// Search field — gaya sama dengan `_SearchField` di audit_log_screen.dart:
+  /// pill penuh, tinggi 46, border krem tipis, ikon search di kiri, dan tombol
+  /// clear bulat di kanan.
   Widget _buildSearch() {
-    return TextField(
-      controller: _search,
-      style: _PT.input,
-      decoration: InputDecoration(
-        hintText: 'Cari nama paket...',
-        hintStyle: _PT.bodyMd,
-        prefixIcon: const Icon(Icons.search, color: _PK.onSurfaceVariant, size: 20),
-        suffixIcon: _search.text.isEmpty
-            ? null
-            : IconButton(
-                icon: const Icon(Icons.close, size: 18, color: _PK.onSurfaceVariant),
-                onPressed: () => setState(() => _search.clear()),
+    return Container(
+      height: 46,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: _PK.surfaceContainerLowest,
+        borderRadius: BorderRadius.circular(9999),
+        border: Border.all(color: _searchBorder),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.search, size: 20, color: _PK.onSurfaceVariant),
+          const SizedBox(width: 8),
+          Expanded(
+            child: TextField(
+              controller: _search,
+              style: _PT.bodyMd,
+              decoration: InputDecoration(
+                isDense: true,
+                border: InputBorder.none,
+                hintText: 'Cari nama paket...',
+                hintStyle: _PT.bodySm,
               ),
-        filled: true,
-        fillColor: _PK.surfaceContainerLowest,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
-        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: _PK.primary, width: 1.5),
-        ),
+            ),
+          ),
+          if (_search.text.isNotEmpty)
+            InkWell(
+              onTap: () => setState(() => _search.clear()),
+              borderRadius: BorderRadius.circular(9999),
+              child: const Padding(
+                padding: EdgeInsets.all(2),
+                child: Icon(Icons.cancel, size: 18, color: _PK.onSurfaceVariant),
+              ),
+            ),
+        ],
       ),
     );
   }

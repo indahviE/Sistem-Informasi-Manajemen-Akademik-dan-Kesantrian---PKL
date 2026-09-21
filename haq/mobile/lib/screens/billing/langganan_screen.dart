@@ -66,6 +66,9 @@ class _LT {
   static const button = TextStyle(fontFamily: _font, fontWeight: FontWeight.w700, fontSize: 13);
 }
 
+/// Border krem tipis — sama dengan `_border` di audit_log_screen.dart.
+const Color _searchBorder = Color(0xFFEAE6DC);
+
 /// Dekorasi field filled bertema: tanpa border kotak, radius 14, fokus hijau.
 InputDecoration _themedDecoration(String label) {
   OutlineInputBorder border([Color? color]) => OutlineInputBorder(
@@ -259,6 +262,8 @@ class _LanggananScreenState extends State<LanggananScreen> {
                     // Kalau dibuka dari kartu tenant ("Ubah Paket"), pondok
                     // sudah pasti dan tidak bisa diganti.
                     enabled: tenantId == null,
+                    // Jumlah tenant terus bertambah — beri kolom cari.
+                    searchable: true,
                     options: [
                       for (final t in _tenants)
                         MapEntry(t['id'] as String, '${t['namaPondok']} (${t['kodeTenant']})'),
@@ -517,29 +522,44 @@ class _LanggananScreenState extends State<LanggananScreen> {
     );
   }
 
+  /// Search field — gaya sama dengan `_SearchField` di audit_log_screen.dart:
+  /// pill penuh, tinggi 46, border krem tipis, ikon search di kiri, dan tombol
+  /// clear bulat di kanan.
   Widget _buildSearch() {
-    return TextField(
-      controller: _search,
-      style: _LT.input,
-      decoration: InputDecoration(
-        hintText: 'Cari nama pondok atau kode tenant...',
-        hintStyle: _LT.bodyMd,
-        prefixIcon: const Icon(Icons.search, color: _LG.onSurfaceVariant, size: 20),
-        suffixIcon: _search.text.isEmpty
-            ? null
-            : IconButton(
-                icon: const Icon(Icons.close, size: 18, color: _LG.onSurfaceVariant),
-                onPressed: () => setState(() => _search.clear()),
+    return Container(
+      height: 46,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: _LG.surfaceContainerLowest,
+        borderRadius: BorderRadius.circular(9999),
+        border: Border.all(color: _searchBorder),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.search, size: 20, color: _LG.onSurfaceVariant),
+          const SizedBox(width: 8),
+          Expanded(
+            child: TextField(
+              controller: _search,
+              style: _LT.bodyMd,
+              decoration: InputDecoration(
+                isDense: true,
+                border: InputBorder.none,
+                hintText: 'Cari nama pondok atau kode tenant...',
+                hintStyle: _LT.bodySm,
               ),
-        filled: true,
-        fillColor: _LG.surfaceContainerLowest,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
-        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: _LG.primary, width: 1.5),
-        ),
+            ),
+          ),
+          if (_search.text.isNotEmpty)
+            InkWell(
+              onTap: () => setState(() => _search.clear()),
+              borderRadius: BorderRadius.circular(9999),
+              child: const Padding(
+                padding: EdgeInsets.all(2),
+                child: Icon(Icons.cancel, size: 18, color: _LG.onSurfaceVariant),
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -582,12 +602,15 @@ class _LanggananScreenState extends State<LanggananScreen> {
 /// Field pilihan bertema hijau (pengganti TwSelect): tampil seperti field
 /// filled lainnya, dan saat ditekan membuka bottom sheet "Pilih" dengan opsi
 /// bertanda hijau. Kalau [enabled] false, field hanya menampilkan nilai.
+/// Kalau [searchable] true, bottom sheet punya kolom cari (filter lokal
+/// berdasarkan teks label opsi) dan tingginya dibuat tetap.
 class _ThemedSelect<V> extends StatelessWidget {
   final String label;
   final V? value;
   final List<MapEntry<V, String>> options;
   final ValueChanged<V> onChanged;
   final bool enabled;
+  final bool searchable;
 
   const _ThemedSelect({
     required this.label,
@@ -595,6 +618,7 @@ class _ThemedSelect<V> extends StatelessWidget {
     required this.options,
     required this.onChanged,
     this.enabled = true,
+    this.searchable = false,
   });
 
   Future<void> _open(BuildContext context) async {
@@ -606,50 +630,123 @@ class _ThemedSelect<V> extends StatelessWidget {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      builder: (sheetCtx) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: _LG.outlineVariant,
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 14),
-              const Padding(
-                padding: EdgeInsets.only(left: 8),
-                child: Text('Pilih', style: _LT.headlineSm),
-              ),
-              const SizedBox(height: 8),
-              Flexible(
-                child: ListView(
-                  shrinkWrap: true,
-                  children: [
-                    for (final o in options) _row(sheetCtx, o, selected: o.key == value),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
+      builder: (_) => _SelectSheet<V>(
+        options: options,
+        value: value,
+        searchable: searchable,
       ),
     );
     if (picked != null) onChanged(picked);
   }
 
-  Widget _row(BuildContext sheetCtx, MapEntry<V, String> o, {required bool selected}) {
+  @override
+  Widget build(BuildContext context) {
+    String? current;
+    for (final o in options) {
+      if (o.key == value) current = o.value;
+    }
+    return InkWell(
+      onTap: enabled ? () => _open(context) : null,
+      borderRadius: BorderRadius.circular(14),
+      splashColor: _LG.primaryContainer.withOpacity(0.06),
+      highlightColor: Colors.transparent,
+      child: InputDecorator(
+        isEmpty: current == null,
+        decoration: _themedDecoration(label).copyWith(
+          suffixIcon: enabled
+              ? const Icon(Icons.keyboard_arrow_down_rounded, color: _LG.onSurfaceVariant)
+              : const Icon(Icons.lock_outline_rounded, size: 18, color: _LG.onSurfaceVariant),
+        ),
+        child: Text(
+          current ?? '',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: enabled ? _LT.input : _LT.input.copyWith(color: _LG.onSurfaceVariant),
+        ),
+      ),
+    );
+  }
+}
+
+/// Isi bottom sheet untuk [_ThemedSelect]. Kalau [searchable], ada kolom cari
+/// bergaya pill (sama seperti search di halaman) di bawah judul, tinggi sheet
+/// dibuat tetap (maks 70% layar) supaya tidak loncat saat hasil filter
+/// berubah, dan sheet ikut naik saat keyboard muncul.
+class _SelectSheet<V> extends StatefulWidget {
+  final List<MapEntry<V, String>> options;
+  final V? value;
+  final bool searchable;
+
+  const _SelectSheet({
+    required this.options,
+    required this.value,
+    required this.searchable,
+  });
+
+  @override
+  State<_SelectSheet<V>> createState() => _SelectSheetState<V>();
+}
+
+class _SelectSheetState<V> extends State<_SelectSheet<V>> {
+  final _query = TextEditingController();
+
+  @override
+  void dispose() {
+    _query.dispose();
+    super.dispose();
+  }
+
+  List<MapEntry<V, String>> get _visible {
+    final q = _query.text.trim().toLowerCase();
+    if (q.isEmpty) return widget.options;
+    return widget.options.where((o) => o.value.toLowerCase().contains(q)).toList();
+  }
+
+  Widget _searchField() {
+    return Container(
+      height: 46,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: _LG.surfaceContainerLowest,
+        borderRadius: BorderRadius.circular(9999),
+        border: Border.all(color: _searchBorder),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.search, size: 20, color: _LG.onSurfaceVariant),
+          const SizedBox(width: 8),
+          Expanded(
+            child: TextField(
+              controller: _query,
+              onChanged: (_) => setState(() {}),
+              style: _LT.bodyMd,
+              decoration: InputDecoration(
+                isDense: true,
+                border: InputBorder.none,
+                hintText: 'Cari nama pondok atau kode...',
+                hintStyle: _LT.bodySm,
+              ),
+            ),
+          ),
+          if (_query.text.isNotEmpty)
+            InkWell(
+              onTap: () => setState(() => _query.clear()),
+              borderRadius: BorderRadius.circular(9999),
+              child: const Padding(
+                padding: EdgeInsets.all(2),
+                child: Icon(Icons.cancel, size: 18, color: _LG.onSurfaceVariant),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _row(MapEntry<V, String> o, {required bool selected}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),
       child: InkWell(
-        onTap: () => Navigator.pop<V>(sheetCtx, o.key),
+        onTap: () => Navigator.pop<V>(context, o.key),
         borderRadius: BorderRadius.circular(12),
         splashColor: _LG.primaryContainer.withOpacity(0.08),
         highlightColor: _LG.primaryContainer.withOpacity(0.06),
@@ -693,27 +790,91 @@ class _ThemedSelect<V> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    String? current;
-    for (final o in options) {
-      if (o.key == value) current = o.value;
-    }
-    return InkWell(
-      onTap: enabled ? () => _open(context) : null,
-      borderRadius: BorderRadius.circular(14),
-      splashColor: _LG.primaryContainer.withOpacity(0.06),
-      highlightColor: Colors.transparent,
-      child: InputDecorator(
-        isEmpty: current == null,
-        decoration: _themedDecoration(label).copyWith(
-          suffixIcon: enabled
-              ? const Icon(Icons.keyboard_arrow_down_rounded, color: _LG.onSurfaceVariant)
-              : const Icon(Icons.lock_outline_rounded, size: 18, color: _LG.onSurfaceVariant),
+    final mq = MediaQuery.of(context);
+    final keyboard = mq.viewInsets.bottom;
+    final visible = _visible;
+
+    final header = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Center(
+          child: Container(
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: _LG.outlineVariant,
+              borderRadius: BorderRadius.circular(999),
+            ),
+          ),
         ),
-        child: Text(
-          current ?? '',
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: enabled ? _LT.input : _LT.input.copyWith(color: _LG.onSurfaceVariant),
+        const SizedBox(height: 14),
+        const Padding(
+          padding: EdgeInsets.only(left: 8),
+          child: Text('Pilih', style: _LT.headlineSm),
+        ),
+        const SizedBox(height: 8),
+        if (widget.searchable) ...[
+          _searchField(),
+          const SizedBox(height: 8),
+        ],
+      ],
+    );
+
+    final list = visible.isEmpty
+        ? SizedBox(
+            width: double.infinity,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 28),
+              child: Text(
+                'Tidak ada hasil yang cocok.',
+                textAlign: TextAlign.center,
+                style: _LT.bodySm,
+              ),
+            ),
+          )
+        : ListView(
+            shrinkWrap: !widget.searchable,
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            children: [
+              for (final o in visible) _row(o, selected: o.key == widget.value),
+            ],
+          );
+
+    Widget body;
+    if (widget.searchable) {
+      // Tinggi tetap: 70% layar, tapi tidak lebih dari ruang yang tersisa
+      // di atas keyboard.
+      final preferred = mq.size.height * 0.7;
+      final available = mq.size.height - keyboard - mq.padding.top - 24;
+      final h = preferred < available ? preferred : available;
+      body = SizedBox(
+        height: h,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            header,
+            Expanded(child: list),
+          ],
+        ),
+      );
+    } else {
+      body = Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          header,
+          Flexible(child: list),
+        ],
+      );
+    }
+
+    return Padding(
+      padding: EdgeInsets.only(bottom: keyboard),
+      child: SafeArea(
+        bottom: keyboard == 0,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
+          child: body,
         ),
       ),
     );

@@ -269,7 +269,7 @@ class _ThemedSelect<V> extends StatelessWidget {
 }
 
 /// Sub-halaman yang ditampilkan in-place di dalam body screen ini.
-enum _BillingView { overview, paket, langganan }
+enum _BillingView { overview, paket, langganan, invoice }
 
 class BillingAdminScreen extends StatefulWidget {
   const BillingAdminScreen({super.key});
@@ -698,6 +698,15 @@ class _BillingAdminScreenState extends State<BillingAdminScreen> {
         child: LanggananScreen(onBack: _backToOverview),
       );
     }
+    if (_view == _BillingView.invoice) {
+      return WillPopScope(
+        onWillPop: () async {
+          _backToOverview();
+          return false;
+        },
+        child: BillingInvoiceScreen(onBack: _backToOverview),
+      );
+    }
 
     return Scaffold(
       backgroundColor: _BC.background,
@@ -832,6 +841,7 @@ class _BillingAdminScreenState extends State<BillingAdminScreen> {
         .toSet();
     final totalTertunda =
         overdueInvoices.fold<num>(0, (sum, i) => sum + _num((i as Map).cast<String, dynamic>(), ['jumlah']));
+        final adaTertunda = overdueInvoices.isNotEmpty;
 
     final totalFaktur = _invoices.length;
     final lunas = _invoices.where((i) => (i as Map)['status'] == 'LUNAS').length;
@@ -862,16 +872,16 @@ class _BillingAdminScreenState extends State<BillingAdminScreen> {
           caption: '$berbayar Berbayar • $trial Trial',
           progress: progress,
         ),
-        _MetricCard(
+          _MetricCard(
           label: 'Tagihan Tertunda',
-          icon: Icons.pending_actions,
-          iconColor: _BC.error,
-          iconBg: _BC.errorContainer,
+          icon: adaTertunda ? Icons.pending_actions : Icons.check_circle_outline,
+          iconColor: adaTertunda ? _BC.error : _BC.primary,
+          iconBg: adaTertunda ? _BC.errorContainer : _BC.surfaceContainerHigh,
           value: '${overdueTenantIds.length} Tenant',
-          caption: _rupiah(totalTertunda),
-          warning: true,
-          onTapCaption: overdueTenantIds.isEmpty ? null : _scrollToOverdue,
-          captionActionLabel: overdueTenantIds.isEmpty ? null : 'Tindak Sekarang',
+          caption: adaTertunda ? _rupiah(totalTertunda) : 'Tidak ada tunggakan',
+          warning: adaTertunda,
+          onTapCaption: adaTertunda ? _scrollToOverdue : null,
+          captionActionLabel: adaTertunda ? 'Tindak Sekarang' : null,
         ),
         _MetricCard(
           label: 'Faktur Bulan Ini',
@@ -1176,14 +1186,7 @@ class _BillingAdminScreenState extends State<BillingAdminScreen> {
               icon: Icons.receipt,
               label: 'Tagihan',
               color: const Color(0xFFD4693F),
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const BillingInvoiceScreen(),
-                  ),
-                );
-              },
+              onTap: () => setState(() => _view = _BillingView.invoice),
             ),
           ],
         ),
