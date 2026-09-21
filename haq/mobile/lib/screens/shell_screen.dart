@@ -98,7 +98,7 @@ class _ShellScreenState extends State<ShellScreen> {
     if (user.isSuperAdmin) {
       // Matches the Super Admin platform-control navigation:
       // Beranda, Tenant, Audit Log, Billing, Pengaturan.
-      m.add(_MenuItem('Beranda', Icons.space_dashboard, (_) => const DashboardScreen()));
+      m.add(_MenuItem('Beranda', Icons.space_dashboard, (_) =>  DashboardScreen(onNavigate: _goToMenu)));
       m.add(_MenuItem('Tenant', Icons.domain, (_) => const TenantsScreen()));
       m.add(_MenuItem('Audit Log', Icons.security, (_) => const AuditLogScreen()));
       m.add(_MenuItem('Billing', Icons.card_membership, (_) => const BillingAdminScreen()));
@@ -170,6 +170,16 @@ class _ShellScreenState extends State<ShellScreen> {
     }
 
     return m;
+  }
+
+  void _goToMenu(String label) {
+    final i = _navItems.indexWhere((e) => e.label == label);
+    if (i >= 0) {
+      setState(() {
+        _navIndex = i;
+        _activeExtra = null;
+      });
+    }
   }
 
   void _logout() async {

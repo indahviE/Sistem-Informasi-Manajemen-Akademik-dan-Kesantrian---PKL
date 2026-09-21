@@ -60,6 +60,29 @@ class _LT {
   static const labelSm = TextStyle(
     fontFamily: _font, fontSize: 10.5, fontWeight: FontWeight.w700, height: 14 / 10.5, color: _LG.onSurfaceVariant,
   );
+  static const input = TextStyle(
+    fontFamily: _font, fontSize: 14, fontWeight: FontWeight.w600, color: _LG.onSurface,
+  );
+  static const button = TextStyle(fontFamily: _font, fontWeight: FontWeight.w700, fontSize: 13);
+}
+
+/// Dekorasi field filled bertema: tanpa border kotak, radius 14, fokus hijau.
+InputDecoration _themedDecoration(String label) {
+  OutlineInputBorder border([Color? color]) => OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: color == null ? BorderSide.none : BorderSide(color: color, width: 1.5),
+      );
+  return InputDecoration(
+    labelText: label,
+    labelStyle: _LT.bodySm,
+    floatingLabelStyle: _LT.bodySm.copyWith(color: _LG.primary, fontWeight: FontWeight.w700),
+    filled: true,
+    fillColor: _LG.surfaceContainerLow,
+    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+    border: border(),
+    enabledBorder: border(),
+    focusedBorder: border(_LG.primary),
+  );
 }
 
 enum _LangFilter { semua, aktif, akanBerakhir, trial }
@@ -199,50 +222,98 @@ class _LanggananScreenState extends State<LanggananScreen> {
   // ---------------------------------------------------------------------
   // Actions
   // ---------------------------------------------------------------------
+  /// UI-nya custom (bukan AlertDialog bawaan Material) supaya konsisten
+  /// dengan tema "Islamic Academic & Kesantrian Experience" di layar ini:
+  /// radius besar, pilihan lewat bottom sheet hijau, tombol pill.
   Future<void> _assignDialog({String? tenantId}) async {
     String? selectedTenant = tenantId;
     String? selectedPaket;
     final ok = await showDialog<bool>(
       context: context,
+      barrierColor: Colors.black.withOpacity(0.45),
       builder: (_) => StatefulBuilder(
-        builder: (ctx, setSt) => AlertDialog(
-          title: const Text('Assign Paket ke Pondok'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TwSelect(
-                value: selectedTenant,
-                label: 'Pilih Pondok',
-                options: [
-                  for (final t in _tenants)
-                    DropdownOption(t['id'] as String, '${t['namaPondok']} (${t['kodeTenant']})'),
+        builder: (ctx, setSt) => Dialog(
+          backgroundColor: _LG.surfaceContainerLowest,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 420),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 18),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Assign Paket ke Pondok', style: _LT.headlineSm),
+                  const SizedBox(height: 4),
+                  Text(
+                    tenantId != null
+                        ? 'Pilih paket baru untuk pondok ini.'
+                        : 'Pilih pondok dan paket yang ingin diassign.',
+                    style: _LT.bodySm,
+                  ),
+                  const SizedBox(height: 18),
+                  _ThemedSelect<String>(
+                    label: 'Pilih Pondok',
+                    value: selectedTenant,
+                    // Kalau dibuka dari kartu tenant ("Ubah Paket"), pondok
+                    // sudah pasti dan tidak bisa diganti.
+                    enabled: tenantId == null,
+                    options: [
+                      for (final t in _tenants)
+                        MapEntry(t['id'] as String, '${t['namaPondok']} (${t['kodeTenant']})'),
+                    ],
+                    onChanged: (v) => setSt(() => selectedTenant = v),
+                  ),
+                  const SizedBox(height: 12),
+                  _ThemedSelect<String>(
+                    label: 'Pilih Paket',
+                    value: selectedPaket,
+                    options: [
+                      for (final p in _pakets) MapEntry(p['id'] as String, p['nama'] as String),
+                    ],
+                    onChanged: (v) => setSt(() => selectedPaket = v),
+                  ),
+                  const SizedBox(height: 22),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.pop(ctx, false),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: _LG.onSurfaceVariant,
+                            side: const BorderSide(color: _LG.outlineVariant),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                          child: const Text('Batal', style: _LT.button),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: FilledButton(
+                          onPressed: selectedTenant == null || selectedPaket == null
+                              ? null
+                              : () => Navigator.pop(ctx, true),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: _LG.primaryContainer,
+                            disabledBackgroundColor: _LG.outlineVariant,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                          child: const Text('Assign', style: _LT.button),
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
-                onChanged: tenantId != null
-                    ? (String? v) {}
-                    : (String? v) => setSt(() => selectedTenant = v),
               ),
-              const SizedBox(height: 10),
-              TwSelect(
-                value: selectedPaket,
-                label: 'Pilih Paket',
-                options: [for (final p in _pakets) DropdownOption(p['id'] as String, p['nama'] as String)],
-                onChanged: (v) => setSt(() => selectedPaket = v),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Batal')),
-            FilledButton(
-              onPressed: selectedTenant == null || selectedPaket == null
-                  ? null
-                  : () => Navigator.pop(context, true),
-              child: const Text('Assign'),
             ),
-          ],
+          ),
         ),
       ),
     );
-    if (ok != true) return;
+    if (ok != true || !mounted) return;
     try {
       // Backend's assignSubscription otomatis meng-expire-kan langganan AKTIF
       // lama milik tenant ini (jika ada) lalu membuat subscription baru
@@ -264,20 +335,68 @@ class _LanggananScreenState extends State<LanggananScreen> {
   Future<void> _batalkan(Map<String, dynamic> sub) async {
     final ok = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Batalkan Langganan'),
-        content: const Text('Langganan ini akan dihentikan dan tenant kembali ke status Trial. Lanjutkan?'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Batal')),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: _LG.error),
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Batalkan'),
+      barrierColor: Colors.black.withOpacity(0.45),
+      builder: (dialogCtx) => Dialog(
+        backgroundColor: _LG.surfaceContainerLowest,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 380),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 18),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(color: _LG.errorContainer, borderRadius: BorderRadius.circular(12)),
+                  child: const Icon(Icons.warning_amber_rounded, color: _LG.error),
+                ),
+                const SizedBox(height: 14),
+                const Text('Batalkan Langganan', style: _LT.headlineSm),
+                const SizedBox(height: 6),
+                const Text(
+                  'Langganan ini akan dihentikan dan tenant kembali ke status Trial. Lanjutkan?',
+                  style: _LT.bodyMd,
+                ),
+                const SizedBox(height: 22),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.pop(dialogCtx, false),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: _LG.onSurfaceVariant,
+                          side: const BorderSide(color: _LG.outlineVariant),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                        child: const Text('Batal', style: _LT.button),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: FilledButton(
+                        onPressed: () => Navigator.pop(dialogCtx, true),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: _LG.error,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                        child: const Text('Batalkan', style: _LT.button),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
-        ],
+        ),
       ),
     );
-    if (ok != true) return;
+    if (ok != true || !mounted) return;
     try {
       // StatusSubscription: AKTIF | EXPIRED | CANCELED
       await AppScope.of(context)
@@ -304,7 +423,7 @@ class _LanggananScreenState extends State<LanggananScreen> {
     return Scaffold(
       backgroundColor: _LG.background,
       body: SafeArea(
-         child: Align(
+        child: Align(
           alignment: Alignment.topCenter,
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 480),
@@ -375,7 +494,7 @@ class _LanggananScreenState extends State<LanggananScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Kelola Langganan', style: _LT.headlineLgMobile),
+              const Text('Kelola Langganan', style: _LT.headlineLgMobile),
               const SizedBox(height: 2),
               Text('$aktifCount langganan aktif dari ${_tenants.length} tenant', style: _LT.bodyMd),
             ],
@@ -401,6 +520,7 @@ class _LanggananScreenState extends State<LanggananScreen> {
   Widget _buildSearch() {
     return TextField(
       controller: _search,
+      style: _LT.input,
       decoration: InputDecoration(
         hintText: 'Cari nama pondok atau kode tenant...',
         hintStyle: _LT.bodyMd,
@@ -414,7 +534,12 @@ class _LanggananScreenState extends State<LanggananScreen> {
         filled: true,
         fillColor: _LG.surfaceContainerLowest,
         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: _LG.primary, width: 1.5),
+        ),
       ),
     );
   }
@@ -453,6 +578,147 @@ class _LanggananScreenState extends State<LanggananScreen> {
 // =============================================================================
 // Reusable pieces
 // =============================================================================
+
+/// Field pilihan bertema hijau (pengganti TwSelect): tampil seperti field
+/// filled lainnya, dan saat ditekan membuka bottom sheet "Pilih" dengan opsi
+/// bertanda hijau. Kalau [enabled] false, field hanya menampilkan nilai.
+class _ThemedSelect<V> extends StatelessWidget {
+  final String label;
+  final V? value;
+  final List<MapEntry<V, String>> options;
+  final ValueChanged<V> onChanged;
+  final bool enabled;
+
+  const _ThemedSelect({
+    required this.label,
+    required this.value,
+    required this.options,
+    required this.onChanged,
+    this.enabled = true,
+  });
+
+  Future<void> _open(BuildContext context) async {
+    final picked = await showModalBottomSheet<V>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: _LG.surfaceContainerLowest,
+      constraints: const BoxConstraints(maxWidth: 480),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetCtx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: _LG.outlineVariant,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+              const Padding(
+                padding: EdgeInsets.only(left: 8),
+                child: Text('Pilih', style: _LT.headlineSm),
+              ),
+              const SizedBox(height: 8),
+              Flexible(
+                child: ListView(
+                  shrinkWrap: true,
+                  children: [
+                    for (final o in options) _row(sheetCtx, o, selected: o.key == value),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (picked != null) onChanged(picked);
+  }
+
+  Widget _row(BuildContext sheetCtx, MapEntry<V, String> o, {required bool selected}) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: InkWell(
+        onTap: () => Navigator.pop<V>(sheetCtx, o.key),
+        borderRadius: BorderRadius.circular(12),
+        splashColor: _LG.primaryContainer.withOpacity(0.08),
+        highlightColor: _LG.primaryContainer.withOpacity(0.06),
+        child: Ink(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+          decoration: BoxDecoration(
+            color: selected ? _LG.successContainer.withOpacity(0.5) : Colors.transparent,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  color: selected ? _LG.primaryContainer : _LG.outlineVariant,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  o.value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontFamily: 'Nunito',
+                    fontSize: 15,
+                    fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                    color: selected ? _LG.primary : _LG.onSurface,
+                  ),
+                ),
+              ),
+              if (selected) const Icon(Icons.check_rounded, size: 20, color: _LG.primaryContainer),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    String? current;
+    for (final o in options) {
+      if (o.key == value) current = o.value;
+    }
+    return InkWell(
+      onTap: enabled ? () => _open(context) : null,
+      borderRadius: BorderRadius.circular(14),
+      splashColor: _LG.primaryContainer.withOpacity(0.06),
+      highlightColor: Colors.transparent,
+      child: InputDecorator(
+        isEmpty: current == null,
+        decoration: _themedDecoration(label).copyWith(
+          suffixIcon: enabled
+              ? const Icon(Icons.keyboard_arrow_down_rounded, color: _LG.onSurfaceVariant)
+              : const Icon(Icons.lock_outline_rounded, size: 18, color: _LG.onSurfaceVariant),
+        ),
+        child: Text(
+          current ?? '',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: enabled ? _LT.input : _LT.input.copyWith(color: _LG.onSurfaceVariant),
+        ),
+      ),
+    );
+  }
+}
 
 class _EmptyState extends StatelessWidget {
   final bool hasQuery;

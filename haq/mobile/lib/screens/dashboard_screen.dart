@@ -94,7 +94,8 @@ class _WC {
 }
 
 class DashboardScreen extends StatefulWidget {
-  const DashboardScreen({super.key});
+  final void Function(String label)? onNavigate;
+  const DashboardScreen({super.key, this.onNavigate});
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
@@ -769,19 +770,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
               _SAActionButton(
                 icon: Icons.corporate_fare_rounded,
                 label: 'Kelola Tenant',
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const TenantsScreen()),
-                ),
+                onTap: () => widget.onNavigate?.call('Tenant'),
               ),
               const SizedBox(width: 10),
               _SAActionButton(
                 icon: Icons.receipt_long_rounded,
                 label: 'Billing & Paket',
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const BillingAdminScreen()),
-                ),
+                onTap: () => widget.onNavigate?.call('Billing'),
               ),
             ],
           ),
