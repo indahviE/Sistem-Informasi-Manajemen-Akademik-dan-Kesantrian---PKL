@@ -17,6 +17,14 @@ class UserData {
 
   String get tenantNama => (tenant?['namaPondok'] as String?) ?? '';
 
+  UserData copyWith({String? nama, String? email}) => UserData(
+        id: id,
+        nama: nama ?? this.nama,
+        email: email ?? this.email,
+        role: role,
+        tenant: tenant,
+      );
+
   bool get isSuperAdmin => role == 'SUPER_ADMIN';
   bool get isAdmin => role == 'ADMIN';
   bool get isPimpinan => role == 'PIMPINAN';

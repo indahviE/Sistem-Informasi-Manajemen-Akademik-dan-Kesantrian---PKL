@@ -23,3 +23,21 @@ export class CreateSubAdminDto {
 
   @IsEnum(PlatformSubRole) subRole: PlatformSubRole;
 }
+export class UpdateProfilDto {
+  @IsOptional()
+  @IsString()
+  nama?: string;
+
+  @IsOptional()
+  @IsEmail()
+  email?: string;
+}
+
+export class UbahPasswordDto {
+  @IsString()
+  passwordLama: string;
+
+  @IsString()
+  @MinLength(6)
+  passwordBaru: string;
+}
