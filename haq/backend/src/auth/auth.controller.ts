@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Patch, Post, HttpCode, HttpStatus, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Patch, Post, HttpCode, HttpStatus, Req, UseGuards } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { RefreshJwtGuard } from './guards/refresh-jwt.guard';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
@@ -12,8 +12,8 @@ export class AuthController {
 
   @Public()
   @Post('login')
-  login(@Body() dto: LoginDto) {
-    return this.authService.login(dto.kodeTenant, dto.email, dto.password);
+  login(@Body() dto: LoginDto, @Req() req: { ip?: string }) {
+    return this.authService.login(dto.kodeTenant, dto.email, dto.password, req.ip);
   }
 
   @Public()
