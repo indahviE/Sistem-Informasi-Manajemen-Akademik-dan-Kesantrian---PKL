@@ -43,6 +43,8 @@ class _BC {
   static const error = Color(0xFFBA1A1A);
   static const onErrorContainer = Color(0xFF93000A);
   static const errorContainer = Color(0xFFFFDAD6);
+
+  static const successContainer = Color(0xFFC0ECDA);
 }
 
 class _BT {
@@ -74,6 +76,440 @@ class _BT {
   static const labelSm = TextStyle(
     fontFamily: _font, fontSize: 10.5, fontWeight: FontWeight.w700, height: 14 / 10.5, color: _BC.onSurfaceVariant,
   );
+  static const input = TextStyle(
+    fontFamily: _font, fontSize: 14, fontWeight: FontWeight.w600, color: _BC.onSurface,
+  );
+}
+
+/// Dekorasi field filled bertema hijau — dipakai oleh `_BcSelect` di bawah
+/// supaya dropdown-nya tidak jatuh ke style default Material (biru).
+InputDecoration _bcDecoration(String label) {
+  OutlineInputBorder border([Color? color]) => OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: color == null ? BorderSide.none : BorderSide(color: color, width: 1.5),
+      );
+  return InputDecoration(
+    labelText: label,
+    labelStyle: _BT.bodySm,
+    floatingLabelStyle: _BT.bodySm.copyWith(color: _BC.primary, fontWeight: FontWeight.w700),
+    filled: true,
+    fillColor: _BC.surfaceContainerLow,
+    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+    border: border(),
+    enabledBorder: border(),
+    focusedBorder: border(_BC.primary),
+  );
+}
+
+/// -----------------------------------------------------------------------
+/// Field pilihan bertema hijau — pengganti `TwSelect`. Sama persis gaya &
+/// perilakunya dengan `_ThemedSelect` di paket_screen.dart (bottom sheet
+/// "Pilih" dengan titik & checkmark hijau di opsi terpilih), supaya dropdown
+/// Periode Tagihan / Pilih Pondok / Pilih Paket di halaman ini konsisten
+/// dengan halaman Paket — bukan lagi biru default Material.
+/// -----------------------------------------------------------------------
+class _BcSelect<V> extends StatelessWidget {
+  final String label;
+  final V? value;
+  final List<MapEntry<V, String>> options;
+  final ValueChanged<V> onChanged;
+
+  const _BcSelect({
+    required this.label,
+    required this.value,
+    required this.options,
+    required this.onChanged,
+  });
+
+  Future<void> _open(BuildContext context) async {
+    final picked = await showModalBottomSheet<V>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: _BC.surfaceContainerLowest,
+      constraints: const BoxConstraints(maxWidth: 480),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetCtx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: _BC.outlineVariant,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+              const Padding(
+                padding: EdgeInsets.only(left: 8),
+                child: Text('Pilih', style: _BT.headlineSm),
+              ),
+              const SizedBox(height: 8),
+              Flexible(
+                child: ListView(
+                  shrinkWrap: true,
+                  children: [
+                    for (final o in options)
+                      _row(sheetCtx, o, selected: o.key == value),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (picked != null) onChanged(picked);
+  }
+
+  Widget _row(BuildContext sheetCtx, MapEntry<V, String> o, {required bool selected}) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: InkWell(
+        onTap: () => Navigator.pop<V>(sheetCtx, o.key),
+        borderRadius: BorderRadius.circular(12),
+        splashColor: _BC.primaryContainer.withOpacity(0.08),
+        highlightColor: _BC.primaryContainer.withOpacity(0.06),
+        child: Ink(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+          decoration: BoxDecoration(
+            color: selected ? _BC.successContainer.withOpacity(0.5) : Colors.transparent,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  color: selected ? _BC.primaryContainer : _BC.outlineVariant,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  o.value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontFamily: 'Nunito',
+                    fontSize: 15,
+                    fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                    color: selected ? _BC.primary : _BC.onSurface,
+                  ),
+                ),
+              ),
+              if (selected)
+                Icon(Icons.check_rounded, size: 20, color: _BC.primaryContainer),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    String? current;
+    for (final o in options) {
+      if (o.key == value) current = o.value;
+    }
+    return InkWell(
+      onTap: () => _open(context),
+      borderRadius: BorderRadius.circular(14),
+      splashColor: _BC.primaryContainer.withOpacity(0.06),
+      highlightColor: Colors.transparent,
+      child: InputDecorator(
+        isEmpty: current == null,
+        decoration: _bcDecoration(label).copyWith(
+          suffixIcon: Icon(Icons.keyboard_arrow_down_rounded, color: _BC.onSurfaceVariant),
+        ),
+        child: Text(
+          current ?? '',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: _BT.input,
+        ),
+      ),
+    );
+  }
+}
+
+/// Periode tagihan untuk dialog Tambah/Edit Paket — nilainya harus sama
+/// dengan yang diterima backend.
+const _paketPeriodeLabel = {
+  'HARIAN': 'Per Hari',
+  'BULANAN': 'Per Bulan',
+  'TAHUNAN': 'Per Tahun',
+};
+
+const _paketPeriodeSuffix = {
+  'HARIAN': '/ hari',
+  'BULANAN': '/ bulan',
+  'TAHUNAN': '/ tahun',
+};
+
+String _ribuan(String digits) =>
+    digits.replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (m) => '.');
+
+/// Dialog Tambah/Edit Paket — desainnya sama persis dengan
+/// `_PaketFormDialog` di paket_screen.dart (kartu rounded, header +
+/// subjudul, field filled, dan `_BcSelect` hijau untuk Periode Tagihan),
+/// supaya "Tambah Paket" konsisten baik dibuka dari overview Billing
+/// maupun dari halaman Kelola Paket.
+class _PaketFormDialog extends StatefulWidget {
+  final Map<String, dynamic>? existing;
+  const _PaketFormDialog({this.existing});
+
+  @override
+  State<_PaketFormDialog> createState() => _PaketFormDialogState();
+}
+
+class _PaketFormDialogState extends State<_PaketFormDialog> {
+  late final TextEditingController _nama;
+  late final TextEditingController _harga;
+  late final TextEditingController _limit;
+  late final TextEditingController _fitur;
+  late String _periode;
+  late bool _aktif;
+  String? _namaError;
+
+  bool get _isEdit => widget.existing != null;
+
+  @override
+  void initState() {
+    super.initState();
+    final e = widget.existing;
+
+    _nama = TextEditingController(text: (e?['nama'] as String?) ?? '');
+
+    final hargaAwal = e == null ? null : num.tryParse('${e['harga']}');
+    _harga = TextEditingController(
+      text: hargaAwal == null ? '' : _ribuan(hargaAwal.round().toString()),
+    );
+
+    _limit = TextEditingController(text: e?['limitSantri'] != null ? '${e!['limitSantri']}' : '');
+
+    final fiturList = (e?['fitur'] as List?)?.map((x) => '$x').toList() ?? const <String>[];
+    _fitur = TextEditingController(text: fiturList.join('\n'));
+
+    final p = e?['periode'] as String?;
+    _periode = (p != null && _paketPeriodeLabel.containsKey(p)) ? p : 'TAHUNAN';
+    _aktif = (e?['aktif'] as bool?) ?? true;
+  }
+
+  @override
+  void dispose() {
+    _nama.dispose();
+    _harga.dispose();
+    _limit.dispose();
+    _fitur.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final nama = _nama.text.trim();
+    if (nama.isEmpty) {
+      setState(() => _namaError = 'Nama paket wajib diisi');
+      return;
+    }
+    final hargaDigits = _harga.text.replaceAll(RegExp(r'[^0-9]'), '');
+    Navigator.pop<Map<String, dynamic>>(context, {
+      'nama': nama,
+      'harga': int.tryParse(hargaDigits) ?? 0,
+      'limitSantri': int.tryParse(_limit.text.trim()) ?? 1,
+      'periode': _periode,
+      'aktif': _aktif,
+      'fitur': _fitur.text
+          .split('\n')
+          .map((e) => e.trim())
+          .where((e) => e.isNotEmpty)
+          .toList(),
+    });
+  }
+
+  /// Dekorasi bersama untuk semua field di dialog ini: filled, tanpa border
+  /// kotak, radius 14 — sama dengan `_bcDecoration` tapi mendukung errorText.
+  InputDecoration _decoration(
+    String label, {
+    String? prefixText,
+    bool alignHint = false,
+    String? errorText,
+  }) {
+    OutlineInputBorder border([Color? color, double width = 1.5]) => OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: color == null ? BorderSide.none : BorderSide(color: color, width: width),
+        );
+
+    return InputDecoration(
+      labelText: label,
+      labelStyle: _BT.bodySm,
+      floatingLabelStyle: _BT.bodySm.copyWith(color: _BC.primary, fontWeight: FontWeight.w700),
+      prefixText: prefixText,
+      prefixStyle: _BT.input.copyWith(fontWeight: FontWeight.w700),
+      errorText: errorText,
+      errorStyle: const TextStyle(fontFamily: 'Nunito', fontSize: 11, color: _BC.error),
+      filled: true,
+      fillColor: _BC.surfaceContainerLow,
+      alignLabelWithHint: alignHint,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+      border: border(),
+      enabledBorder: border(),
+      focusedBorder: border(_BC.primary),
+      errorBorder: border(_BC.error, 1),
+      focusedErrorBorder: border(_BC.error),
+    );
+  }
+
+  Widget _textField({
+    required TextEditingController controller,
+    required String label,
+    TextInputType? keyboardType,
+    List<TextInputFormatter>? formatters,
+    String? prefixText,
+    int maxLines = 1,
+    String? errorText,
+    ValueChanged<String>? onChanged,
+  }) {
+    return TextField(
+      controller: controller,
+      keyboardType: keyboardType,
+      inputFormatters: formatters,
+      maxLines: maxLines,
+      onChanged: onChanged,
+      style: _BT.input,
+      decoration: _decoration(
+        label,
+        prefixText: prefixText,
+        alignHint: maxLines > 1,
+        errorText: errorText,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final fields = <Widget>[
+      _textField(
+        controller: _nama,
+        label: 'Nama Paket',
+        errorText: _namaError,
+        onChanged: (_) {
+          if (_namaError != null) setState(() => _namaError = null);
+        },
+      ),
+      _BcSelect<String>(
+        label: 'Periode Tagihan',
+        value: _periode,
+        options: _paketPeriodeLabel.entries.map((e) => MapEntry(e.key, e.value)).toList(),
+        onChanged: (v) => setState(() => _periode = v),
+      ),
+      _textField(
+        controller: _harga,
+        label: 'Harga ${_paketPeriodeSuffix[_periode]}',
+        keyboardType: TextInputType.number,
+        formatters: [_ThousandsInputFormatter()],
+        prefixText: 'Rp ',
+      ),
+      _textField(
+        controller: _limit,
+        label: 'Limit Santri',
+        keyboardType: TextInputType.number,
+        formatters: [FilteringTextInputFormatter.digitsOnly],
+      ),
+      _textField(
+        controller: _fitur,
+        label: 'Daftar Fitur (satu fitur per baris)',
+        maxLines: 5,
+      ),
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: _BC.surfaceContainerLow,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text('Paket Aktif', style: _BT.labelLg),
+            Switch(
+              value: _aktif,
+              activeColor: _BC.primaryContainer,
+              activeTrackColor: _BC.primaryContainer.withOpacity(0.35),
+              onChanged: (v) => setState(() => _aktif = v),
+            ),
+          ],
+        ),
+      ),
+    ];
+
+    return Dialog(
+      backgroundColor: _BC.surfaceContainerLowest,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 420),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 18),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(_isEdit ? 'Edit Paket' : 'Tambah Paket', style: _BT.headlineSm),
+              const SizedBox(height: 4),
+              Text(
+                _isEdit ? 'Perbarui detail paket ini.' : 'Buat paket langganan baru untuk platform.',
+                style: _BT.bodySm,
+              ),
+              const SizedBox(height: 18),
+              for (int i = 0; i < fields.length; i++) ...[
+                fields[i],
+                if (i != fields.length - 1) const SizedBox(height: 12),
+              ],
+              const SizedBox(height: 22),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(context),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: _BC.onSurfaceVariant,
+                        side: const BorderSide(color: _BC.outlineVariant),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      child: const Text('Batal', style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w700, fontSize: 13)),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: _submit,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: _BC.primaryContainer,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      child: const Text('Simpan', style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w700, fontSize: 13)),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 /// Sub-halaman yang ditampilkan in-place di dalam body screen ini.
@@ -190,16 +626,6 @@ class _BillingAdminScreenState extends State<BillingAdminScreen> {
   String _rupiah(num v) =>
       'Rp ${v.round().toString().replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (m) => '.')}';
 
-  /// Parses text that may contain thousands-separator dots (e.g. the
-  /// "1.500.000" a user types into the harga field) back into a plain
-  /// number. Plain double.tryParse() chokes on those dots and silently
-  /// falls back to 0 — this strips everything but digits first.
-  num _parseRupiah(String text) {
-    final digitsOnly = text.replaceAll(RegExp(r'[^0-9]'), '');
-    if (digitsOnly.isEmpty) return 0;
-    return num.tryParse(digitsOnly) ?? 0;
-  }
-
   String _rupiahCompact(num v) {
     if (v < 1000000) return _rupiah(v);
     final juta = v / 1000000;
@@ -244,94 +670,20 @@ class _BillingAdminScreenState extends State<BillingAdminScreen> {
   }
 
   // ===========================================================================
-  // Package add/edit dialog — reused for both create and edit.
+  // Package add/edit dialog — reused for both create and edit. Uses the same
+  // rounded-card dialog design (with the green _BcSelect periode field) as
+  // PaketScreen's own _PaketFormDialog, so "Tambah Paket" looks identical
+  // whether it's opened from the Billing overview or from Kelola Paket.
   // ===========================================================================
   Future<void> _paketDialog({Map<String, dynamic>? existing}) async {
-    final nama = TextEditingController(text: existing?['nama'] as String? ?? '');
-    final harga = TextEditingController(
-        text: existing != null ? _rupiah((existing['harga'] as num)).replaceFirst('Rp ', '') : '');
-    final limit = TextEditingController(
-        text: existing != null ? '${existing['limitSantri']}' : '');
-    final fiturList = ((existing?['fitur'] as List?)?.cast<String>()) ?? const <String>[];
-    final fitur = TextEditingController(text: fiturList.join('\n'));
-    String periode = (existing?['periode'] as String?) ?? 'TAHUNAN';
-    bool aktif = (existing?['aktif'] as bool?) ?? true;
-
-    const periodeLabel = {
-      'HARIAN': 'Per Hari',
-      'BULANAN': 'Per Bulan',
-      'TAHUNAN': 'Per Tahun',
-    };
-
-    final ok = await showDialog<bool>(
+    final body = await showDialog<Map<String, dynamic>>(
       context: context,
-      builder: (_) => StatefulBuilder(
-        builder: (ctx, setSt) => AlertDialog(
-          title: Text(existing == null ? 'Tambah Paket' : 'Edit Paket'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                TextField(controller: nama, decoration: const InputDecoration(labelText: 'Nama Paket')),
-                const SizedBox(height: 8),
-                TextField(controller: harga, keyboardType: TextInputType.number,
-                    inputFormatters: [_ThousandsInputFormatter()],
-                    decoration: const InputDecoration(labelText: 'Harga (Rp)', prefixText: 'Rp ')),
-                const SizedBox(height: 8),
-                TwSelect(
-                  value: periode,
-                  label: 'Periode Tagihan',
-                  options: [
-                    for (final e in periodeLabel.entries) DropdownOption(e.key, e.value),
-                  ],
-                  onChanged: (v) => setSt(() => periode = v ?? periode),
-                ),
-                const SizedBox(height: 8),
-                TextField(controller: limit, keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(labelText: 'Limit Santri')),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: fitur,
-                  maxLines: 5,
-                  decoration: const InputDecoration(
-                    labelText: 'Daftar Fitur (satu fitur per baris)',
-                    alignLabelWithHint: true,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text('Paket Aktif'),
-                    Switch(value: aktif, onChanged: (v) => setSt(() => aktif = v)),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Batal')),
-            FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Simpan')),
-          ],
-        ),
-      ),
+      barrierColor: Colors.black.withOpacity(0.45),
+      builder: (_) => _PaketFormDialog(existing: existing),
     );
-    if (ok != true) return;
+    if (body == null || !mounted) return;
     try {
       final api = AppScope.of(context).api;
-      final body = {
-        'nama': nama.text.trim(),
-        'harga': _parseRupiah(harga.text),
-        'limitSantri': int.tryParse(limit.text.trim()) ?? 1,
-        'periode': periode,
-        'aktif': aktif,
-        'fitur': fitur.text
-            .split('\n')
-            .map((e) => e.trim())
-            .where((e) => e.isNotEmpty)
-            .toList(),
-      };
       if (existing == null) {
         await api.post(ApiUrl.paket, body);
       } else {
@@ -400,21 +752,21 @@ class _BillingAdminScreenState extends State<BillingAdminScreen> {
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              TwSelect(
+              _BcSelect<String>(
                 value: tenantId,
                 label: 'Pilih Pondok',
                 options: [
                   for (final t in _tenants)
-                    DropdownOption(t['id'] as String, '${t['namaPondok']} (${t['kodeTenant']})'),
+                    MapEntry(t['id'] as String, '${t['namaPondok']} (${t['kodeTenant']})'),
                 ],
                 onChanged: (v) => setSt(() => tenantId = v),
               ),
               const SizedBox(height: 10),
-              TwSelect(
+              _BcSelect<String>(
                 value: paketId,
                 label: 'Pilih Paket',
                 options: [
-                  for (final p in _pakets) DropdownOption(p['id'] as String, p['nama'] as String),
+                  for (final p in _pakets) MapEntry(p['id'] as String, p['nama'] as String),
                 ],
                 onChanged: (v) => setSt(() => paketId = v),
               ),
@@ -423,6 +775,7 @@ class _BillingAdminScreenState extends State<BillingAdminScreen> {
           actions: [
             TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Batal')),
             FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: _BC.primaryContainer),
               onPressed: tenantId == null || paketId == null
                   ? null
                   : () => Navigator.pop(context, true),
@@ -579,10 +932,6 @@ class _BillingAdminScreenState extends State<BillingAdminScreen> {
             ),
           ],
         ),
-        const SizedBox(height: 12),
-        Text('Billing & Paket', style: _BT.headlineLgMobile),
-        const SizedBox(height: 2),
-        Text('Kelola paket harga & tagihan seluruh tenant pondok pesantren', style: _BT.bodyMd),
       ],
     );
   }
