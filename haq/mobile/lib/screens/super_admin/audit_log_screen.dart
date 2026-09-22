@@ -12,14 +12,23 @@
 //
 // Data diambil dari GET /api/audit-log (Super Admin). Filter, pencarian, dan
 // paginasi dikerjakan di server.
+//
+// Ekspor CSV memakai saveCsv() dari services/csv_saver.dart:
+//   - Web            : file diunduh lewat browser
+//   - Android / iOS  : file dibuat lalu dibuka lewat share sheet
 
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
 import 'tenants_screen.dart' show PColors, PText;
 import '../../services/api_client.dart';
 import '../../services/app_scope.dart';
+import '../../services/csv_saver.dart';
+import '../../services/pdf_saver.dart';
 
 // ============================================================================
 // Model
@@ -189,6 +198,216 @@ String _fmtInt(int v) {
 
 DateTime _dayKey(DateTime d) => DateTime(d.year, d.month, d.day);
 
+// ---- Redaksi data sensitif -------------------------------------------------
+//
+// Audit log dari backend bisa memuat body request mentah (mis. password saat
+// login). Sebelum ditampilkan di dialog detail atau diekspor ke CSV, field yang
+// namanya mengandung pass/password/token/secret/authorization disamarkan.
+// Ini hanya lapisan tampilan; perbaikan utama tetap di backend.
+
+final RegExp _sensitiveKey = RegExp(r'pass(word)?|token|secret|authorization', caseSensitive: false);
+
+dynamic _redact(dynamic v) {
+  if (v is Map) {
+    return {
+      for (final e in v.entries)
+        e.key: _sensitiveKey.hasMatch(e.key.toString()) ? '[REDACTED]' : _redact(e.value),
+    };
+  }
+  if (v is List) return v.map(_redact).toList();
+  return v;
+}
+
+// ---- CSV -------------------------------------------------------------------
+
+String _fmtCsvTime(DateTime d) =>
+    '${d.year}-${_two(d.month)}-${_two(d.day)} ${_two(d.hour)}:${_two(d.minute)}:${_two(d.second)}';
+
+/// Escape sel CSV. Sel yang diawali = + - @ diberi apostrof di depan supaya
+/// tidak dieksekusi sebagai formula di Excel/Sheets (isi audit log bisa
+/// berasal dari input user, mis. email saat login gagal).
+String _csvCell(Object? v) {
+  var s = (v ?? '').toString();
+  if (s.isNotEmpty && '=+-@\t\r'.contains(s[0])) s = "'$s";
+  return '"${s.replaceAll('"', '""')}"';
+}
+
+String _buildCsv(List<AuditEvent> events) {
+  const header = [
+    'Waktu', 'Kode', 'Judul', 'Tingkat', 'Kategori', 'Pelaku',
+    'Detail Pelaku', 'Tenant', 'Handle Tenant', 'Deskripsi', 'IP', 'Meta', 'Data',
+  ];
+  final buf = StringBuffer()..writeln(header.map(_csvCell).join(','));
+  for (final e in events) {
+    buf.writeln([
+      _fmtCsvTime(e.time),
+      e.aksi,
+      e.title,
+      _sevLabel(e.severity),
+      e.category.name,
+      e.actor,
+      e.actorDetail,
+      e.tenantName,
+      e.tenantHandle,
+      e.description.replaceAll('`', ''),
+      e.ip,
+      e.metaLabel,
+      e.data == null ? '' : jsonEncode(_redact(e.data)),
+    ].map(_csvCell).join(','));
+  }
+  return buf.toString();
+}
+
+// ---- PDF --------------------------------------------------------------------
+//
+// Kolom dipadatkan dari versi CSV (gabung Pelaku+Detail, Tenant+Handle jadi
+// satu sel per baris) supaya tetap terbaca di kertas A4 landscape, dan kolom
+// 'Data' (dump JSON) tidak diikutkan karena tidak muat.
+
+const _pdfHeaders = ['Waktu', 'Event', 'Tingkat', 'Kategori', 'Pelaku', 'Tenant', 'Deskripsi', 'IP', 'Meta'];
+
+/// Font dasar PDF (Helvetica) cuma mendukung karakter Latin-1 dasar. Karakter
+/// tipografis umum (bullet, en/em dash, tanda kutip lengkung, ellipsis) —
+/// baik yang kita tulis manual maupun yang mungkin ada di data asli dari
+/// backend — diganti ke padanan ASCII-nya supaya tidak muncul kotak/hilang
+/// saat dirender ("Unable to find a font to draw ...").
+String _pdfSafe(String s) => s
+    .replaceAll('•', '-')
+    .replaceAll('·', '-')
+    .replaceAll('–', '-')
+    .replaceAll('—', '-')
+    .replaceAll('’', "'")
+    .replaceAll('‘', "'")
+    .replaceAll('“', '"')
+    .replaceAll('”', '"')
+    .replaceAll('…', '...');
+
+const _pdfColumnWidths = <int, pw.TableColumnWidth>{
+  0: pw.FixedColumnWidth(58), // Waktu
+  1: pw.FlexColumnWidth(2.0), // Event (judul + kode)
+  2: pw.FixedColumnWidth(48), // Tingkat
+  3: pw.FixedColumnWidth(50), // Kategori
+  4: pw.FlexColumnWidth(1.5), // Pelaku (+ detail)
+  5: pw.FlexColumnWidth(1.5), // Tenant (+ handle)
+  6: pw.FlexColumnWidth(3), // Deskripsi
+  7: pw.FixedColumnWidth(46), // IP
+  8: pw.FlexColumnWidth(1), // Meta
+};
+
+List<String> _pdfRow(AuditEvent e) => [
+      _fmtCsvTime(e.time),
+      _pdfSafe(e.aksi.isEmpty || e.aksi == e.title ? e.title : '${e.title}\n${e.aksi}'),
+      _sevLabel(e.severity),
+      e.category.name,
+      _pdfSafe(
+        e.actorDetail == null || e.actorDetail!.isEmpty ? e.actor : '${e.actor}\n${e.actorDetail}',
+      ),
+      _pdfSafe(e.tenantHandle.isEmpty ? e.tenantName : '${e.tenantName}\n${e.tenantHandle}'),
+      _pdfSafe(e.description.replaceAll('`', '')),
+      e.ip ?? '',
+      e.metaLabel == null ? '' : _pdfSafe(e.metaLabel!),
+    ];
+
+const _pdfPrimary = PdfColor.fromInt(0xFF0F3A2E);
+const _pdfZebra = PdfColor.fromInt(0xFFF3F1EA);
+const _pdfCritical = PdfColors.red700;
+const _pdfWarning = PdfColor.fromInt(0xFFB78103);
+
+Future<Uint8List> _buildPdf(List<AuditEvent> events, {required String subtitle}) async {
+  final doc = pw.Document();
+  final now = DateTime.now();
+
+  doc.addPage(
+    pw.MultiPage(
+      pageFormat: PdfPageFormat.a4.landscape,
+      margin: const pw.EdgeInsets.fromLTRB(28, 28, 28, 24),
+      header: (context) {
+        if (context.pageNumber > 1) return pw.SizedBox();
+        return pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            pw.Row(
+              crossAxisAlignment: pw.CrossAxisAlignment.end,
+              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+              children: [
+                pw.Text(
+                  'Audit Log',
+                  style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold, color: _pdfPrimary),
+                ),
+                pw.Text(
+                  '${events.length} event',
+                  style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey600),
+                ),
+              ],
+            ),
+            pw.SizedBox(height: 3),
+            pw.Text(subtitle, style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey700)),            pw.SizedBox(height: 10),
+            pw.Divider(color: _pdfPrimary, thickness: 1.2),
+            pw.SizedBox(height: 10),
+          ],
+        );
+      },
+      footer: (context) => pw.Column(
+        children: [
+          pw.Divider(color: PdfColors.grey300, thickness: 0.5),
+          pw.SizedBox(height: 4),
+          pw.Row(
+            mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+            children: [
+              pw.Text(
+                'Dibuat ${_fmtCsvTime(now)}  |  SIM Pesantren',
+                style: const pw.TextStyle(fontSize: 7.5, color: PdfColors.grey600),
+              ),
+              pw.Text(
+                'Hal. ${context.pageNumber} / ${context.pagesCount}',
+                style: const pw.TextStyle(fontSize: 7.5, color: PdfColors.grey600),
+              ),
+            ],
+          ),
+        ],
+      ),
+      build: (context) => [
+        pw.TableHelper.fromTextArray(
+          headers: _pdfHeaders,
+          data: events.map(_pdfRow).toList(),
+          columnWidths: _pdfColumnWidths,
+          headerStyle: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: PdfColors.white),
+          headerDecoration: const pw.BoxDecoration(color: _pdfPrimary),
+          headerPadding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 6),
+          headerAlignment: pw.Alignment.centerLeft,
+          headerAlignments: const {2: pw.Alignment.center, 3: pw.Alignment.center, 7: pw.Alignment.center},
+          cellStyle: const pw.TextStyle(fontSize: 7.5, color: PdfColors.grey900),
+          cellAlignment: pw.Alignment.topLeft,
+          cellAlignments: const {2: pw.Alignment.topCenter, 3: pw.Alignment.topCenter, 7: pw.Alignment.topCenter},
+          cellPadding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 5),
+          border: const pw.TableBorder(
+            horizontalInside: pw.BorderSide(color: PdfColors.grey300, width: 0.4),
+            top: pw.BorderSide(color: _pdfPrimary, width: 0.8),
+            bottom: pw.BorderSide(color: PdfColors.grey300, width: 0.4),
+          ),
+          rowDecoration: const pw.BoxDecoration(color: PdfColors.white),
+          oddRowDecoration: const pw.BoxDecoration(color: _pdfZebra),
+          textStyleBuilder: (index, data, rowNum) {
+            if (index == 2) {
+              if (data == 'Critical') {
+                return pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold, color: _pdfCritical);
+              }
+              if (data == 'Warning') {
+                return pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold, color: _pdfWarning);
+              }
+            }
+            return const pw.TextStyle(fontSize: 7.5, color: PdfColors.grey900);
+          },
+        ),
+      ],
+    ),
+  );
+
+  return doc.save();
+}
+
+// ---- Warna & label tingkat -------------------------------------------------
+
 Color _sevBg(AuditSeverity s) => switch (s) {
       AuditSeverity.critical => PColors.errorBg,
       AuditSeverity.warning => _warnBg,
@@ -238,6 +457,8 @@ class AuditLogScreen extends StatefulWidget {
 
 class _AuditLogScreenState extends State<AuditLogScreen> {
   static const int _pageSize = 20;
+  static const int _exportMax = 5000; // batas baris per ekspor
+  static const int _exportPageSize = 200;
 
   final _searchCtrl = TextEditingController();
   Timer? _debounce;
@@ -246,6 +467,7 @@ class _AuditLogScreenState extends State<AuditLogScreen> {
   bool _firstLoad = true; // loader layar penuh hanya untuk load pertama
   bool _busy = false; // reload karena filter/refresh
   bool _loadingMore = false;
+  bool _exporting = false;
   String? _error;
   Timer? _syncTimer;
   bool _syncOk = true;
@@ -302,6 +524,18 @@ class _AuditLogScreenState extends State<AuditLogScreen> {
     }
   }
 
+  /// Query yang dikirim ke server; dipakai bersama oleh _fetch dan _export
+  /// supaya filter aktif selalu sama.
+  Map<String, String> _filterQuery({required String cursor, required int limit}) => {
+        'q': _query.trim(),
+        'kategori': _category?.name.toUpperCase() ?? '',
+        'tenantId': _tenantId ?? '',
+        'tingkat': _severity?.name.toUpperCase() ?? '',
+        'hari': _rangeDays.toString(),
+        'cursor': cursor,
+        'limit': limit.toString(),
+      };
+
   Future<void> _fetch({bool append = false, bool silent = false}) async {
     if (silent) {
       if (_busy || _loadingMore) return; // sudah ada fetch manual, lewati sync kali ini
@@ -316,15 +550,10 @@ class _AuditLogScreenState extends State<AuditLogScreen> {
       });
     }
     try {
-      final res = await _api.get(ApiUrl.auditLog, query: {
-        'q': _query.trim(),
-        'kategori': _category?.name.toUpperCase() ?? '',
-        'tenantId': _tenantId ?? '',
-        'tingkat': _severity?.name.toUpperCase() ?? '',
-        'hari': _rangeDays.toString(),
-        'cursor': append ? (_nextCursor ?? '') : '',
-        'limit': _pageSize.toString(),
-      }) as Map<String, dynamic>;
+      final res = await _api.get(
+        ApiUrl.auditLog,
+        query: _filterQuery(cursor: append ? (_nextCursor ?? '') : '', limit: _pageSize),
+      ) as Map<String, dynamic>;
 
       final items = (res['items'] as List? ?? [])
           .map((e) => AuditEvent.fromJson(e as Map<String, dynamic>))
@@ -354,6 +583,130 @@ class _AuditLogScreenState extends State<AuditLogScreen> {
       if (!silent && _events.isNotEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
       }
+    }
+  }
+
+  /// Ambil semua log sesuai filter aktif dari server (dibatasi _exportMax),
+  /// dipakai bersama oleh ekspor CSV dan PDF supaya datanya selalu sama.
+  Future<(List<AuditEvent> events, bool truncated)> _fetchExportData() async {
+    final all = <AuditEvent>[];
+    String? cursor;
+    var truncated = false;
+
+    do {
+      final res = await _api.get(
+        ApiUrl.auditLog,
+        query: _filterQuery(cursor: cursor ?? '', limit: _exportPageSize),
+      ) as Map<String, dynamic>;
+
+      final items = (res['items'] as List? ?? [])
+          .map((e) => AuditEvent.fromJson(e as Map<String, dynamic>))
+          .toList();
+      all.addAll(items);
+
+      cursor = res['nextCursor']?.toString();
+      if (cursor != null && cursor.isEmpty) cursor = null;
+      if (items.isEmpty) break;
+      if (all.length >= _exportMax && cursor != null) {
+        truncated = true;
+        break;
+      }
+    } while (cursor != null);
+
+    return (all, truncated);
+  }
+
+  String _exportBaseName(DateTime now) =>
+      'audit-log_${now.year}${_two(now.month)}${_two(now.day)}_${_two(now.hour)}${_two(now.minute)}';
+
+  /// Deskripsi filter aktif untuk ditampilkan di kop PDF.
+  String _filterSummary() {
+    final tenantLabel = _tenantOpts
+        .firstWhere((o) => o.value == _tenantId, orElse: () => _tenantOpts.first)
+        .label;
+    final parts = <String>[
+      tenantLabel,
+      _category == null ? 'Semua Kategori' : _category!.name,
+      switch (_rangeDays) { 1 => 'Hari Ini', 7 => '7 Hari Terakhir', 30 => '30 Hari Terakhir', _ => 'Semua Waktu' },
+      _severity == null ? 'Semua Tingkat' : _sevLabel(_severity!),
+    ];
+    return _pdfSafe(parts.join('  |  '));
+  }
+
+  /// Ekspor semua log sesuai filter aktif ke CSV (maks. _exportMax baris).
+  Future<void> _exportCsv() async {
+    if (_exporting) return;
+    setState(() => _exporting = true);
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.showSnackBar(const SnackBar(content: Text('Menyiapkan file CSV...')));
+
+    try {
+      final (all, truncated) = await _fetchExportData();
+
+      if (all.isEmpty) {
+        messenger.hideCurrentSnackBar();
+        messenger.showSnackBar(const SnackBar(content: Text('Tidak ada log untuk diekspor.')));
+        return;
+      }
+
+      final name = '${_exportBaseName(DateTime.now())}.csv';
+
+      messenger.hideCurrentSnackBar();
+      if (truncated) {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text('Hanya $_exportMax log terbaru yang diekspor. Persempit filter untuk data lebih spesifik.'),
+          ),
+        );
+      }
+
+      // BOM (\uFEFF) supaya Excel membaca UTF-8 dengan benar.
+      await saveCsv(name, '\uFEFF${_buildCsv(all)}');
+    } catch (e) {
+      messenger.hideCurrentSnackBar();
+      final msg = e is ApiException ? e.message : 'Gagal mengekspor: $e';
+      messenger.showSnackBar(SnackBar(content: Text(msg)));
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
+  }
+
+  /// Ekspor semua log sesuai filter aktif ke PDF (maks. _exportMax baris).
+  Future<void> _exportPdf() async {
+    if (_exporting) return;
+    setState(() => _exporting = true);
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.showSnackBar(const SnackBar(content: Text('Menyiapkan file PDF...')));
+
+    try {
+      final (all, truncated) = await _fetchExportData();
+
+      if (all.isEmpty) {
+        messenger.hideCurrentSnackBar();
+        messenger.showSnackBar(const SnackBar(content: Text('Tidak ada log untuk diekspor.')));
+        return;
+      }
+
+      final now = DateTime.now();
+      final name = '${_exportBaseName(now)}.pdf';
+      final bytes = await _buildPdf(all, subtitle: _filterSummary());
+
+      messenger.hideCurrentSnackBar();
+      if (truncated) {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text('Hanya $_exportMax log terbaru yang diekspor. Persempit filter untuk data lebih spesifik.'),
+          ),
+        );
+      }
+
+      await savePdf(name, bytes);
+    } catch (e) {
+      messenger.hideCurrentSnackBar();
+      final msg = e is ApiException ? e.message : 'Gagal mengekspor: $e';
+      messenger.showSnackBar(SnackBar(content: Text(msg)));
+    } finally {
+      if (mounted) setState(() => _exporting = false);
     }
   }
 
@@ -417,7 +770,7 @@ class _AuditLogScreenState extends State<AuditLogScreen> {
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: SelectableText(
-                    const JsonEncoder.withIndent('  ').convert(e.data),
+                    const JsonEncoder.withIndent('  ').convert(_redact(e.data)),
                     style: PText.mono.copyWith(fontSize: 10.5, color: PColors.primary),
                   ),
                 ),
@@ -477,7 +830,7 @@ class _AuditLogScreenState extends State<AuditLogScreen> {
         children: [
           const _ClusterStatusBanner(),
           const SizedBox(height: 14),
-          _TitleRow(onExport: _soon),
+          _TitleRow(onExportCsv: _exportCsv, onExportPdf: _exportPdf, busy: _exporting),
           const SizedBox(height: 14),
           _StreamStatusCard(total: _totalSemua, syncOk: _syncOk),
           const SizedBox(height: 12),
@@ -746,10 +1099,14 @@ class _ClusterStatusBanner extends StatelessWidget {
 // Title row
 // ============================================================================
 
-class _TitleRow extends StatelessWidget {
-  const _TitleRow({required this.onExport});
+enum _ExportFormat { csv, pdf }
 
-  final VoidCallback onExport;
+class _TitleRow extends StatelessWidget {
+  const _TitleRow({required this.onExportCsv, required this.onExportPdf, this.busy = false});
+
+  final VoidCallback onExportCsv;
+  final VoidCallback onExportPdf;
+  final bool busy;
 
   @override
   Widget build(BuildContext context) {
@@ -767,27 +1124,56 @@ class _TitleRow extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 10),
-        Material(
+        PopupMenuButton<_ExportFormat>(
           color: PColors.surface,
-          borderRadius: BorderRadius.circular(12),
-          child: InkWell(
-            borderRadius: BorderRadius.circular(12),
-            onTap: onExport,
-            child: Container(
-              height: 40,
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: _border),
-              ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          enabled: !busy,
+          onSelected: (f) => f == _ExportFormat.csv ? onExportCsv() : onExportPdf(),
+          itemBuilder: (_) => const [
+            PopupMenuItem(
+              value: _ExportFormat.csv,
               child: Row(
-                mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.ios_share, size: 16, color: PColors.primary),
-                  const SizedBox(width: 6),
-                  Text('Ekspor', style: PText.labelMd.copyWith(color: PColors.primary)),
+                  Icon(Icons.table_chart_outlined, size: 16, color: PColors.primary),
+                  SizedBox(width: 8),
+                  Text('Ekspor CSV'),
                 ],
               ),
+            ),
+            PopupMenuItem(
+              value: _ExportFormat.pdf,
+              child: Row(
+                children: [
+                  Icon(Icons.picture_as_pdf_outlined, size: 16, color: PColors.primary),
+                  SizedBox(width: 8),
+                  Text('Ekspor PDF'),
+                ],
+              ),
+            ),
+          ],
+          child: Container(
+            height: 40,
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            decoration: BoxDecoration(
+              color: PColors.surface,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: _border),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                busy
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: PColors.primary),
+                      )
+                    : const Icon(Icons.ios_share, size: 16, color: PColors.primary),
+                const SizedBox(width: 6),
+                Text('Ekspor', style: PText.labelMd.copyWith(color: PColors.primary)),
+                const SizedBox(width: 2),
+                const Icon(Icons.keyboard_arrow_down_rounded, size: 16, color: PColors.inkSecondary),
+              ],
             ),
           ),
         ),
@@ -1534,6 +1920,7 @@ class AuditLogPreview extends StatelessWidget {
                         const SizedBox(width: 4),
                         const Icon(Icons.chevron_right, size: 18, color: PColors.primary),
                       ],
+                      
                     ),
                   ),
                 ),
