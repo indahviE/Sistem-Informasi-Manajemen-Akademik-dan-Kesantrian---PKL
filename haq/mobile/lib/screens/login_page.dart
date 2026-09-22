@@ -3,7 +3,11 @@ import '../services/app_scope.dart';
 import '../theme/app_theme.dart';
 
 class LoginPage extends StatefulWidget {
-  const LoginPage({super.key});
+  const LoginPage({super.key, this.successMessage});
+
+  /// Pesan sukses opsional yang ditampilkan sekali (mis. setelah signup
+  /// pondok berhasil) lewat SnackBar begitu halaman ini terbuka.
+  final String? successMessage;
 
   @override
   State<LoginPage> createState() => _LoginPageState();
@@ -13,6 +17,24 @@ class _LoginPageState extends State<LoginPage> {
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   bool _obscurePassword = true;
+
+  @override
+  void initState() {
+    super.initState();
+    final msg = widget.successMessage;
+    if (msg != null && msg.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(msg),
+            backgroundColor: Tw.teal,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      });
+    }
+  }
 
   @override
   void dispose() {

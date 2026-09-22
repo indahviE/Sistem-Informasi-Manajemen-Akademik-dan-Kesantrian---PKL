@@ -722,7 +722,11 @@ class _BillingAdminScreenState extends State<BillingAdminScreen> {
         title: const Text('Hapus Paket'),
         content: Text('Hapus paket "${p['nama']}"?'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Batal')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            style: TextButton.styleFrom(foregroundColor: _BC.onSurfaceVariant),
+            child: const Text('Batal'),
+          ),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: _BC.error),
             onPressed: () => Navigator.pop(context, true),
@@ -773,7 +777,11 @@ class _BillingAdminScreenState extends State<BillingAdminScreen> {
             ],
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Batal')),
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              style: TextButton.styleFrom(foregroundColor: _BC.onSurfaceVariant),
+              child: const Text('Batal'),
+            ),
             FilledButton(
               style: FilledButton.styleFrom(backgroundColor: _BC.primaryContainer),
               onPressed: tenantId == null || paketId == null
