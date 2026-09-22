@@ -27,6 +27,7 @@ import 'users/users_screen.dart';
 import 'super_admin/tenants_screen.dart';
 import 'super_admin/audit_log_screen.dart';
 import 'super_admin/pengaturan_screen.dart';
+import 'super_admin/super_admin_header.dart';
 import 'wali/wali_screen.dart';
 import 'ppdb/ppdb_list_screen.dart';
 import 'kurikulum/kurikulum_screen.dart';
@@ -194,7 +195,16 @@ class _ShellScreenState extends State<ShellScreen> {
     final hasMore = _moreItems.isNotEmpty;
     final selectedIndex = _activeExtra != null ? _navItems.length : _navIndex;
     return Scaffold(
-      appBar: AppBar(
+      appBar: user.isSuperAdmin
+          ? SuperAdminHeader(
+              nama: user.nama,
+              email: user.email,
+              onNotifikasi: () => Navigator.push(context,
+                  MaterialPageRoute(builder: (_) => const NotifikasiScreen())),
+              onPengaturan: () => _goToMenu('Pengaturan'),
+              onLogout: _logout,
+            )
+          : AppBar(
         title: _appBarTitle(user, title),
         actions: [
           IconButton(

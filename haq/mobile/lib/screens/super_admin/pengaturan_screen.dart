@@ -11,6 +11,7 @@ import 'package:flutter/material.dart';
 import 'tenants_screen.dart' show PColors, PText;
 import '../../services/api_client.dart';
 import '../../services/app_scope.dart';
+import 'pengaturan_dialogs.dart';
 
 // ============================================================================
 // Model
@@ -144,7 +145,7 @@ class _PengaturanScreenState extends State<PengaturanScreen> {
 
   void _showError(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    AppToast.error(context, message);
   }
 
   // -------------------------------------------------------------------
@@ -152,6 +153,24 @@ class _PengaturanScreenState extends State<PengaturanScreen> {
   // -------------------------------------------------------------------
 
   Future<void> _editProfil() async {
+    final scope = AppScope.of(context);
+    final api = _api;
+    final user = scope.user;
+
+    final saved = await showEditProfilSheet(
+      context,
+      nama: user?.nama ?? '',
+      email: user?.email ?? '',
+      onSubmit: (nama, email) async {
+        await api.patch(ApiUrl.pengaturanProfil, {'nama': nama, 'email': email});
+        await scope.updateProfil(nama: nama, email: email);
+      },
+    );
+
+    if (saved == true && mounted) AppToast.success(context, 'Perubahan tersimpan');
+  }
+
+  Future<void> _editProfilLama() async {
     final user = AppScope.of(context).user;
     final namaCtrl = TextEditingController(text: user?.nama ?? '');
     final emailCtrl = TextEditingController(text: user?.email ?? '');
@@ -226,6 +245,22 @@ class _PengaturanScreenState extends State<PengaturanScreen> {
   // -------------------------------------------------------------------
 
   Future<void> _ubahPassword() async {
+    final api = _api;
+
+    final saved = await showUbahPasswordSheet(
+      context,
+      onSubmit: (lama, baru) async {
+        await api.patch(ApiUrl.pengaturanUbahPassword, {
+          'passwordLama': lama,
+          'passwordBaru': baru,
+        });
+      },
+    );
+
+    if (saved == true && mounted) AppToast.success(context, 'Password berhasil diubah');
+  }
+
+  Future<void> _ubahPasswordLama() async {
     final lamaCtrl = TextEditingController();
     final baruCtrl = TextEditingController();
     final konfirmasiCtrl = TextEditingController();
@@ -394,9 +429,7 @@ class _PengaturanScreenState extends State<PengaturanScreen> {
       await _api.delete(ApiUrl.pengaturanSubAdminDelete(admin.id));
       if (!mounted) return;
       setState(() => _subAdmins.removeAt(index));
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Akses ${admin.nama} telah dicabut')),
-      );
+      AppToast.success(context, 'Akses ${admin.nama} telah dicabut');
     } on ApiException catch (e) {
       _showError(e.message);
     }
@@ -484,9 +517,7 @@ class _PengaturanScreenState extends State<PengaturanScreen> {
       }) as Map<String, dynamic>;
       if (!mounted) return;
       setState(() => _subAdmins.insert(0, SubAdminData.fromJson(res)));
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Sub-admin baru berhasil ditambahkan')),
-      );
+      AppToast.success(context, 'Sub-admin baru berhasil ditambahkan');
     } on ApiException catch (e) {
       _showError(e.message);
     }
