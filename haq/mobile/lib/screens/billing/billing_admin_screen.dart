@@ -498,40 +498,36 @@ class _BillingAdminScreenState extends State<BillingAdminScreen> {
 
     return Scaffold(
       backgroundColor: _BC.background,
-      appBar: AppBar(
-        backgroundColor: _BC.background,
-        elevation: 0,
-        foregroundColor: _BC.primary,
-        title: const Text('Billing & Paket', style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w700)),
-      ),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 480),
-          child: _loading
-              ? loadingView()
-              : _error != null
-                  ? errorView(_error!, _load)
-                  : RefreshIndicator(
-                      onRefresh: () => _load(showSpinner: false),
-                      child: SingleChildScrollView(
-                        physics: const AlwaysScrollableScrollPhysics(),
-                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            _buildPageHeader(),
-                            const SizedBox(height: 18),
-                            _buildMetricGrid(),
-                            const SizedBox(height: 22),
-                            Container(key: _overdueKey, child: _buildOverdueSection()),
-                            const SizedBox(height: 24),
-                            _buildCatalogSection(),
-                            const SizedBox(height: 24),
-                            _buildQuickActionsSection(),
-                          ],
+      body: SafeArea(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 480),
+            child: _loading
+                ? loadingView()
+                : _error != null
+                    ? errorView(_error!, _load)
+                    : RefreshIndicator(
+                        onRefresh: () => _load(showSpinner: false),
+                        child: SingleChildScrollView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              _buildPageHeader(),
+                              const SizedBox(height: 18),
+                              _buildMetricGrid(),
+                              const SizedBox(height: 22),
+                              Container(key: _overdueKey, child: _buildOverdueSection()),
+                              const SizedBox(height: 24),
+                              _buildCatalogSection(),
+                              const SizedBox(height: 24),
+                              _buildQuickActionsSection(),
+                            ],
+                          ),
                         ),
                       ),
-                    ),
+          ),
         ),
       ),
     );
@@ -1386,5 +1382,5 @@ class _ThousandsInputFormatter extends TextInputFormatter {
       text: formatted,
       selection: TextSelection.collapsed(offset: formatted.length),
     );
-  }
+   }
 }
