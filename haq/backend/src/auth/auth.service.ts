@@ -9,8 +9,9 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.service';
-import { AuditKategori, AuditTingkat, Role, TenantStatus, UserStatus } from '@prisma/client';
+import { AuditKategori, AuditTingkat, JenisNotifikasi, Role, TenantStatus, UserStatus } from '@prisma/client';
 import { AuditService } from '../audit/audit.service';
+import { NotifikasiService } from '../notifikasi/notifikasi.service';
 
 /** Batas login gagal per (email + IP) dalam satu jendela waktu. */
 const MAX_LOGIN_GAGAL = 5;
@@ -22,6 +23,7 @@ export class AuthService {
     private prisma: PrismaService,
     private jwt: JwtService,
     private audit: AuditService,
+    private notifikasi: NotifikasiService,
   ) {}
 
   async login(kodeTenant: string | undefined, email: string, password: string, ip?: string) {
@@ -200,6 +202,10 @@ export class AuthService {
     // Tepat saat mencapai batas, catat satu event peringatan.
     const jumlah = await this.hitungLoginGagal(email, ip);
     if (jumlah === MAX_LOGIN_GAGAL) {
+      await this.notifikasi.kirimKeSuperAdmin(
+        JenisNotifikasi.KEAMANAN,
+        `Login gagal ${MAX_LOGIN_GAGAL}x dalam ${JENDELA_MENIT} menit pada akun ${emailNorm}${ip ? ` dari IP ${ip}` : ''}. Login dari IP ini diblokir ${JENDELA_MENIT} menit.`,
+      );
       await this.audit.log({
         action: 'LOGIN_BRUTE_FORCE',
         entity: 'auth',

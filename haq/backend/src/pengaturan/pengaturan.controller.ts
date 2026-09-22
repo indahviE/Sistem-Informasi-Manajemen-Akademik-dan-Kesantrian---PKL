@@ -3,11 +3,14 @@ import { PengaturanService } from './pengaturan.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
+import { CurrentUser, RequestUser } from '../common/decorators/current-user.decorator';
 import { Role } from '@prisma/client';
 import {
   CreateSubAdminDto,
+  UbahPasswordDto,
   UpdateKebijakanOnboardingDto,
   UpdateNotifikasiDto,
+  UpdateProfilDto,
 } from './dto/pengaturan.dto';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -44,5 +47,15 @@ export class PengaturanController {
   @Delete('sub-admin/:id')
   removeSubAdmin(@Param('id') id: string) {
     return this.pengaturanService.removeSubAdmin(id);
+  }
+
+  @Patch('profil')
+  updateProfil(@CurrentUser() user: RequestUser, @Body() dto: UpdateProfilDto) {
+    return this.pengaturanService.updateProfil(user.userId, dto);
+  }
+
+  @Patch('ubah-password')
+  ubahPassword(@CurrentUser() user: RequestUser, @Body() dto: UbahPasswordDto) {
+    return this.pengaturanService.ubahPassword(user.userId, dto);
   }
 }

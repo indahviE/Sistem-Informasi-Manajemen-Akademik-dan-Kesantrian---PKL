@@ -19,8 +19,8 @@ export class NotifikasiController {
   }
 
   @Patch(':id/read')
-  markRead(@CurrentUser() user: RequestUser, @Param('id') id: string) {
-    return this.notifikasiService.markRead(user.userId, id);
+  markRead(@CurrentUser() user: RequestUser, @TenantId() tenantId: string | undefined, @Param('id') id: string) {
+    return this.notifikasiService.markRead(user.userId, tenantId, id);
   }
 
   @Post('read-all')

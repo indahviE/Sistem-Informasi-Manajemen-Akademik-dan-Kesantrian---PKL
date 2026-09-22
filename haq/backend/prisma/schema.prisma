@@ -83,6 +83,10 @@ enum StatusKesehatan {
 }
 
 enum JenisNotifikasi {
+  TENANT_BARU
+  TAGIHAN
+  KEAMANAN
+  LAPORAN
   PELANGGARAN
   KESEHATAN
   PERIZINAN
@@ -429,7 +433,7 @@ model KunjunganWali {
 
 model Notifikasi {
   id         String   @id @default(cuid())
-  tenantId   String
+  tenantId   String?
   userId     String?
   jenis      JenisNotifikasi
   pesan      String

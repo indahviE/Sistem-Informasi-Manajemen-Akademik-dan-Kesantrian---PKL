@@ -183,6 +183,8 @@ class ApiUrl {
 
   static const auditLog = '/audit-log';
   static const pengaturan = '/pengaturan';
+  static const pengaturanProfil = '/pengaturan/profil';
+  static const pengaturanUbahPassword = '/pengaturan/ubah-password';
   static const pengaturanKebijakanOnboarding = '/pengaturan/kebijakan-onboarding';
   static const pengaturanNotifikasi = '/pengaturan/notifikasi';
   static const pengaturanSubAdmin = '/pengaturan/sub-admin';

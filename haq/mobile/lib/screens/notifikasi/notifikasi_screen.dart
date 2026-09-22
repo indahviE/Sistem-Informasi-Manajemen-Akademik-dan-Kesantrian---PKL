@@ -84,6 +84,11 @@ class _NotifikasiScreenState extends State<NotifikasiScreen> {
       case 'PERIZINAN': return Icons.exit_to_app;
       case 'NILAI': return Icons.grade;
       case 'ABSENSI': return Icons.checklist;
+      case 'DARURAT': return Icons.emergency;
+      case 'TENANT_BARU': return Icons.domain;
+      case 'TAGIHAN': return Icons.receipt_long;
+      case 'KEAMANAN': return Icons.security;
+      case 'LAPORAN': return Icons.insights;
       default: return Icons.notifications;
     }
   }

@@ -11,6 +11,7 @@ import 'package:flutter/material.dart';
 import 'tenants_screen.dart' show PColors, PText;
 import '../../services/api_client.dart';
 import '../../services/app_scope.dart';
+import 'pengaturan_dialogs.dart';
 
 // ============================================================================
 // Model
@@ -144,7 +145,194 @@ class _PengaturanScreenState extends State<PengaturanScreen> {
 
   void _showError(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    AppToast.error(context, message);
+  }
+
+  // -------------------------------------------------------------------
+  // Edit Profil
+  // -------------------------------------------------------------------
+
+  Future<void> _editProfil() async {
+    final scope = AppScope.of(context);
+    final api = _api;
+    final user = scope.user;
+
+    final saved = await showEditProfilSheet(
+      context,
+      nama: user?.nama ?? '',
+      email: user?.email ?? '',
+      onSubmit: (nama, email) async {
+        await api.patch(ApiUrl.pengaturanProfil, {'nama': nama, 'email': email});
+        await scope.updateProfil(nama: nama, email: email);
+      },
+    );
+
+    if (saved == true && mounted) AppToast.success(context, 'Perubahan tersimpan');
+  }
+
+  Future<void> _editProfilLama() async {
+    final user = AppScope.of(context).user;
+    final namaCtrl = TextEditingController(text: user?.nama ?? '');
+    final emailCtrl = TextEditingController(text: user?.email ?? '');
+    final formKey = GlobalKey<FormState>();
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: PColors.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Edit Profil', style: PText.headlineSm),
+        content: Form(
+          key: formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextFormField(
+                controller: namaCtrl,
+                decoration: const InputDecoration(labelText: 'Nama Lengkap'),
+                validator: (v) => (v == null || v.trim().isEmpty) ? 'Wajib diisi' : null,
+              ),
+              const SizedBox(height: 10),
+              TextFormField(
+                controller: emailCtrl,
+                keyboardType: TextInputType.emailAddress,
+                decoration: const InputDecoration(labelText: 'Email'),
+                validator: (v) => (v == null || !v.contains('@')) ? 'Email tidak valid' : null,
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('Batal', style: PText.labelMd.copyWith(color: PColors.inkSecondary)),
+          ),
+          FilledButton(
+            onPressed: () {
+              if (formKey.currentState!.validate()) Navigator.pop(ctx, true);
+            },
+            style: FilledButton.styleFrom(backgroundColor: PColors.primary),
+            child: const Text('Simpan'),
+          ),
+        ],
+      ),
+    );
+
+    if (result != true) return;
+
+    try {
+      await _api.patch(ApiUrl.pengaturanProfil, {
+        'nama': namaCtrl.text.trim(),
+        'email': emailCtrl.text.trim(),
+      });
+      if (!mounted) return;
+      await AppScope.of(context).updateProfil(
+        nama: namaCtrl.text.trim(),
+        email: emailCtrl.text.trim(),
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Profil berhasil diperbarui')),
+      );
+    } on ApiException catch (e) {
+      _showError(e.message);
+    }
+  }
+
+  // -------------------------------------------------------------------
+  // Ubah Password
+  // -------------------------------------------------------------------
+
+  Future<void> _ubahPassword() async {
+    final api = _api;
+
+    final saved = await showUbahPasswordSheet(
+      context,
+      onSubmit: (lama, baru) async {
+        await api.patch(ApiUrl.pengaturanUbahPassword, {
+          'passwordLama': lama,
+          'passwordBaru': baru,
+        });
+      },
+    );
+
+    if (saved == true && mounted) AppToast.success(context, 'Password berhasil diubah');
+  }
+
+  Future<void> _ubahPasswordLama() async {
+    final lamaCtrl = TextEditingController();
+    final baruCtrl = TextEditingController();
+    final konfirmasiCtrl = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: PColors.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Ubah Password', style: PText.headlineSm),
+        content: Form(
+          key: formKey,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextFormField(
+                  controller: lamaCtrl,
+                  obscureText: true,
+                  decoration: const InputDecoration(labelText: 'Password Saat Ini'),
+                  validator: (v) => (v == null || v.isEmpty) ? 'Wajib diisi' : null,
+                ),
+                const SizedBox(height: 10),
+                TextFormField(
+                  controller: baruCtrl,
+                  obscureText: true,
+                  decoration: const InputDecoration(labelText: 'Password Baru'),
+                  validator: (v) => (v == null || v.length < 6) ? 'Minimal 6 karakter' : null,
+                ),
+                const SizedBox(height: 10),
+                TextFormField(
+                  controller: konfirmasiCtrl,
+                  obscureText: true,
+                  decoration: const InputDecoration(labelText: 'Konfirmasi Password Baru'),
+                  validator: (v) => (v != baruCtrl.text) ? 'Konfirmasi tidak cocok' : null,
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('Batal', style: PText.labelMd.copyWith(color: PColors.inkSecondary)),
+          ),
+          FilledButton(
+            onPressed: () {
+              if (formKey.currentState!.validate()) Navigator.pop(ctx, true);
+            },
+            style: FilledButton.styleFrom(backgroundColor: PColors.primary),
+            child: const Text('Ubah Password'),
+          ),
+        ],
+      ),
+    );
+
+    if (result != true) return;
+
+    try {
+      await _api.patch(ApiUrl.pengaturanUbahPassword, {
+        'passwordLama': lamaCtrl.text,
+        'passwordBaru': baruCtrl.text,
+      });
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Password berhasil diubah')),
+      );
+    } on ApiException catch (e) {
+      _showError(e.message);
+    }
   }
 
   // -------------------------------------------------------------------
@@ -241,9 +429,7 @@ class _PengaturanScreenState extends State<PengaturanScreen> {
       await _api.delete(ApiUrl.pengaturanSubAdminDelete(admin.id));
       if (!mounted) return;
       setState(() => _subAdmins.removeAt(index));
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Akses ${admin.nama} telah dicabut')),
-      );
+      AppToast.success(context, 'Akses ${admin.nama} telah dicabut');
     } on ApiException catch (e) {
       _showError(e.message);
     }
@@ -331,9 +517,7 @@ class _PengaturanScreenState extends State<PengaturanScreen> {
       }) as Map<String, dynamic>;
       if (!mounted) return;
       setState(() => _subAdmins.insert(0, SubAdminData.fromJson(res)));
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Sub-admin baru berhasil ditambahkan')),
-      );
+      AppToast.success(context, 'Sub-admin baru berhasil ditambahkan');
     } on ApiException catch (e) {
       _showError(e.message);
     }
@@ -410,8 +594,8 @@ class _PengaturanScreenState extends State<PengaturanScreen> {
           _ProfileCard(
             nama: user?.nama ?? '-',
             email: user?.email ?? '-',
-            onEditProfil: () {},
-            onUbahPassword: () {},
+            onEditProfil: _editProfil,
+            onUbahPassword: _ubahPassword,
           ),
           const SizedBox(height: 14),
           _OnboardingPolicyCard(
