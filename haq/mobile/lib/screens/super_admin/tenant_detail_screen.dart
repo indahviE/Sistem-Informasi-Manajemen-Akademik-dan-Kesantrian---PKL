@@ -2,16 +2,12 @@
 //
 // Detail Tenant — Platform Control Panel (Super Admin)
 //
-// VERSI 3 — tampilan dilengkapi lagi supaya mirip referensi desain, tapi
-// struktur layout TETAP pola yang sudah kebukti aman:
-//   - Tidak ada AppBar/bottomNavigationBar bawaan Scaffold yang otomatis
-//     melebar penuh di web. Semuanya (header, isi, tombol bawah)
-//     dibungkus SATU Center > ConstrainedBox(maxWidth: 480) > Column,
-//     persis pola signup_screen.dart, jadi tampilan tetap "ngunci" di
-//     lebar mobile walau dibuka di browser lebar.
-//   - Hanya SATU SingleChildScrollView di bagian tengah (bukan ListView
-//     di dalam Expanded di dalam Column bertingkat).
-//   - Semua akses field dari `tenant` tetap pakai `??` + `.toString()`.
+// VERSI 4 — fix: background header & bottom bar sekarang full width,
+// konten di dalamnya tetap di-center & di-constrain (maxWidth: 480).
+// Pattern: tiap section yang punya warna sendiri (Container dengan
+// decoration) dibuat width: double.infinity, lalu isinya dibungkus
+// Center > ConstrainedBox(480). Body (scroll area) juga sama, ConstrainedBox
+// dipindah ke dalam SingleChildScrollView, bukan membungkus semuanya.
 
 import 'dart:convert';
 
@@ -52,34 +48,34 @@ class _TenantDetailScreenState extends State<TenantDetailScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: PColors.background,
-      // Tidak pakai Scaffold.appBar / bottomNavigationBar supaya tidak
-      // otomatis full-width. Semua dibungkus ConstrainedBox di bawah.
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 480),
-          child: SafeArea(
-            child: Column(
-              children: [
-                _Header(onBack: () => Navigator.of(context).maybePop()),
-                Expanded(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        _buildProfileCard(),
-                        const SizedBox(height: 16),
-                        _buildTabBar(),
-                        const SizedBox(height: 16),
-                        _buildTabContent(),
-                      ],
+      body: SafeArea(
+        child: Column(
+          children: [
+            _Header(onBack: () => Navigator.of(context).maybePop()),
+            Expanded(
+              child: SingleChildScrollView(
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 480),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _buildProfileCard(),
+                          const SizedBox(height: 16),
+                          _buildTabBar(),
+                          const SizedBox(height: 16),
+                          _buildTabContent(),
+                        ],
+                      ),
                     ),
                   ),
                 ),
-                _buildBottomBar(context),
-              ],
+              ),
             ),
-          ),
+            _buildBottomBar(context),
+          ],
         ),
       ),
     );
@@ -545,7 +541,7 @@ class _TenantDetailScreenState extends State<TenantDetailScreen> {
   }
 
   // --------------------------------------------------------------------
-  // Header (pengganti AppBar, biar ikut ke-constrain 480)
+  // Bottom bar — background full width, konten di-center & di-constrain
   // --------------------------------------------------------------------
   Widget _buildBottomBar(BuildContext context) {
     final status = _status();
@@ -592,17 +588,25 @@ class _TenantDetailScreenState extends State<TenantDetailScreen> {
     }
 
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+      width: double.infinity,
       decoration: const BoxDecoration(
         color: PColors.background,
         border: Border(top: BorderSide(color: PColors.border)),
       ),
-      child: Row(
-        children: [
-          Expanded(child: leftBtn),
-          const SizedBox(width: 8),
-          Expanded(child: rightBtn),
-        ],
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 480),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+            child: Row(
+              children: [
+                Expanded(child: leftBtn),
+                const SizedBox(width: 8),
+                Expanded(child: rightBtn),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -634,44 +638,49 @@ class _TenantDetailScreenState extends State<TenantDetailScreen> {
 }
 
 // ===========================================================================
-// Header — dipakai sebagai pengganti AppBar (biar ikut ConstrainedBox 480)
+// Header — background full width, konten di-center & di-constrain (480)
 // ===========================================================================
 class _Header extends StatelessWidget {
   const _Header({required this.onBack});
-
   final VoidCallback onBack;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(4, 8, 16, 8),
+      width: double.infinity,
       decoration: const BoxDecoration(
         color: PColors.surface,
         border: Border(bottom: BorderSide(color: PColors.border)),
       ),
-      child: Row(
-        children: [
-          IconButton(
-            onPressed: onBack,
-            icon: const Icon(Icons.chevron_left, color: PColors.ink, size: 26),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 480),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(4, 8, 16, 8),
+            child: Row(
+              children: [
+                IconButton(
+                  onPressed: onBack,
+                  icon: const Icon(Icons.chevron_left, color: PColors.ink, size: 26),
+                ),
+                Expanded(
+                  child: Text('Detail Tenant', style: PText.headlineSm.copyWith(fontSize: 17)),
+                ),
+                Container(
+                  width: 32,
+                  height: 32,
+                  decoration: const BoxDecoration(color: PColors.primary, shape: BoxShape.circle),
+                  child: const Icon(Icons.person, color: Colors.white, size: 16),
+                ),
+                const SizedBox(width: 4),
+                IconButton(
+                  onPressed: () {},
+                  icon: const Icon(Icons.more_vert, color: PColors.inkSecondary),
+                ),
+              ],
+            ),
           ),
-          Expanded(
-            child: Text('Detail Tenant',
-                style: PText.headlineSm.copyWith(fontSize: 17)),
-          ),
-          Container(
-            width: 32,
-            height: 32,
-            decoration: const BoxDecoration(
-                color: PColors.primary, shape: BoxShape.circle),
-            child: const Icon(Icons.person, color: Colors.white, size: 16),
-          ),
-          const SizedBox(width: 4),
-          IconButton(
-            onPressed: () {},
-            icon: const Icon(Icons.more_vert, color: PColors.inkSecondary),
-          ),
-        ],
+        ),
       ),
     );
   }
