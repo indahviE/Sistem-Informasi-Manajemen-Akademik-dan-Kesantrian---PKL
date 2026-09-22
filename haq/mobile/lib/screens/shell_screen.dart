@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import '../models/user.dart';
+import '../services/api_client.dart';
 import '../services/app_scope.dart';
 import '../theme/app_theme.dart';
 import 'ui_utils.dart';
 import 'notifikasi/notifikasi_screen.dart';
+import 'super_admin/notifikasi_superadmin_screen.dart';
 import 'dashboard_screen.dart';
 import 'santri/santri_list_screen.dart';
 import 'master/kelas_list_screen.dart';
@@ -64,6 +66,12 @@ class _ShellScreenState extends State<ShellScreen> {
   late List<_MenuItem> _moreItems;
   _MenuItem? _activeExtra;
 
+  // True kalau lagi nampilin Notifikasi Super Admin. Bukan route terpisah —
+  // cuma nge-swap `body`, jadi AppBar (SuperAdminHeader) & bottom nav Shell
+  // otomatis tetap kepakai (nggak ilang kayak kalau di-push).
+  bool _notifikasiOpen = false;
+  int _unreadCount = 0;
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -91,6 +99,19 @@ class _ShellScreenState extends State<ShellScreen> {
     _moreItems = all.where((e) => !chosen.contains(e)).toList();
     if (_navIndex >= _navItems.length) _navIndex = 0;
     _activeExtra = null;
+
+    if (user.isSuperAdmin) _loadUnreadCount();
+  }
+
+  Future<void> _loadUnreadCount() async {
+    try {
+      final api = AppScope.of(context).api;
+      final res = await api.get(ApiUrl.notifikasiUnreadCount);
+      final count = res is int ? res : int.tryParse('$res') ?? 0;
+      if (mounted) setState(() => _unreadCount = count);
+    } catch (_) {
+      // Diam-diam gagal — biar gak ganggu render header kalau lagi offline.
+    }
   }
 
   List<_MenuItem> _buildMenu(UserData user) {
@@ -179,6 +200,7 @@ class _ShellScreenState extends State<ShellScreen> {
       setState(() {
         _navIndex = i;
         _activeExtra = null;
+        _notifikasiOpen = false;
       });
     }
   }
@@ -199,8 +221,8 @@ class _ShellScreenState extends State<ShellScreen> {
           ? SuperAdminHeader(
               nama: user.nama,
               email: user.email,
-              onNotifikasi: () => Navigator.push(context,
-                  MaterialPageRoute(builder: (_) => const NotifikasiScreen())),
+              hasUnread: _unreadCount > 0,
+              onNotifikasi: () => setState(() => _notifikasiOpen = true),
               onPengaturan: () => _goToMenu('Pengaturan'),
               onLogout: _logout,
             )
@@ -240,7 +262,16 @@ class _ShellScreenState extends State<ShellScreen> {
           ),
         ],
       ),
-      body: active.builder(context),
+      body: (user.isSuperAdmin && _notifikasiOpen)
+          ? NotifikasiSuperAdminScreen(
+              onBack: () {
+                setState(() => _notifikasiOpen = false);
+                _loadUnreadCount();
+              },
+              onNavigate: _goToMenu,
+              onReadStateChanged: _loadUnreadCount,
+            )
+          : active.builder(context),
       bottomNavigationBar: Container(
         // Full-width fill supaya nggak ada strip abu-abu bawaan Scaffold yang
         // keliatan di kiri-kanan kotak nav 480px — warnanya disamain persis
@@ -276,10 +307,13 @@ class _ShellScreenState extends State<ShellScreen> {
                 selectedIndex: selectedIndex,
                 onDestinationSelected: (i) {
                   if (i < _navItems.length) {
+                    final wasNotifikasiOpen = _notifikasiOpen;
                     setState(() {
                       _navIndex = i;
                       _activeExtra = null;
+                      _notifikasiOpen = false;
                     });
+                    if (wasNotifikasiOpen) _loadUnreadCount();
                   } else {
                     _showMoreSheet();
                   }

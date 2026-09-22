@@ -15,7 +15,16 @@ class _NotifikasiScreenState extends State<NotifikasiScreen> {
   bool _loading = true;
   String? _error;
 
+  bool _initialized = false;
+
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_initialized) {
+      _initialized = true;
+      _load();
+    }
+  }
 
   Future<void> _load() async {
     setState(() {
