@@ -154,6 +154,7 @@ class ApiUrl {
   static const kunjungan = '/kunjungan';
   static const tataTertib = '/tata-tertib';
   static const notifikasi = '/notifikasi';
+  static const notifikasiUnreadCount = '/notifikasi/unread-count';
   static const wali = '/wali';
   static const waliMe = '/wali/me';
 

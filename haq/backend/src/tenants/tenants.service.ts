@@ -8,8 +8,9 @@ import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.service';
 import { Role, TenantStatus } from '@prisma/client';
 import { SignupTenantDto, UpdateBrandingDto } from './dto/tenant.dto';
-import { AuditKategori, AuditTingkat } from '@prisma/client';
+import { AuditKategori, AuditTingkat, JenisNotifikasi } from '@prisma/client';
 import { AuditService } from '../audit/audit.service';
+import { NotifikasiService } from '../notifikasi/notifikasi.service';
 import { RequestUser } from '../common/decorators/current-user.decorator';
 
 const STATUS_LABEL: Record<string, string> = {
@@ -23,6 +24,7 @@ export class TenantsService {
   constructor(
     private prisma: PrismaService,
     private audit: AuditService,
+    private notifikasi: NotifikasiService,
   ) {}
 
   async signup(dto: SignupTenantDto, ip?: string) {
@@ -95,6 +97,11 @@ export class TenantsService {
       userRole: 'ADMIN',
       ip,
     });
+
+    await this.notifikasi.kirimKeSuperAdmin(
+      JenisNotifikasi.TENANT_BARU,
+      `Tenant baru "${result.namaPondok}" (${result.kodeTenant}) mendaftar dan menunggu persetujuan.`,
+    );
 
     return result;
   }

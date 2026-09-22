@@ -22,6 +22,7 @@ import 'package:flutter/material.dart';
 import '../services/api_client.dart';
 import '../services/app_scope.dart';
 
+import 'landing_screen.dart';
 /// Design tokens diambil langsung dari DESIGN.md
 /// (Islamic Academic & Kesantrian Experience).
 class PColors {
@@ -247,34 +248,39 @@ class _SignupScreenState extends State<SignupScreen> {
   }
 
   Future<void> _submit() async {
-    setState(() {
-      _loading = true;
-      _error = null;
+  setState(() {
+    _loading = true;
+    _error = null;
+  });
+  try {
+    final api = AppScope.of(context).api;
+    await api.postPublic(ApiUrl.tenantSignup, {
+      'namaPondok': _nama.text.trim(),
+      'kodeTenant': _kode.text.trim(),
+      'logoUrl': _logo.text.trim().isEmpty ? null : _logo.text.trim(),
+      'adminNama': _adminNama.text.trim(),
+      'adminEmail': _adminEmail.text.trim(),
+      'adminPassword': _adminPassword.text,
+      'alamat': _alamat.text.trim(),
+      'karakteristik': _karakteristik.toList(),
     });
-    try {
-      final api = AppScope.of(context).api;
-      await api.postPublic(ApiUrl.tenantSignup, {
-        'namaPondok': _nama.text.trim(),
-        'kodeTenant': _kode.text.trim(),
-        'logoUrl': _logo.text.trim().isEmpty ? null : _logo.text.trim(),
-        'adminNama': _adminNama.text.trim(),
-        'adminEmail': _adminEmail.text.trim(),
-        'adminPassword': _adminPassword.text,
-        // TODO: tambahkan ke DTO backend bila field ini sudah didukung:
-        'alamat': _alamat.text.trim(),
-        'karakteristik': _karakteristik.toList(),
-      });
-      setState(() {
-        _success = 'Pendaftaran berhasil. Menunggu persetujuan Super Admin.';
-      });
-    } on ApiException catch (e) {
-      setState(() => _error = e.message);
-    } catch (_) {
-      setState(() => _error = 'Gagal mendaftar. Coba lagi.');
-    } finally {
-      if (mounted) setState(() => _loading = false);
-    }
+    final pesanSukses =
+        'Pendaftaran berhasil. Menunggu persetujuan Super Admin.';
+    if (!mounted) return;
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(
+        builder: (_) => LandingScreen(successMessage: pesanSukses),
+      ),
+    );
+    return;
+  } on ApiException catch (e) {
+    setState(() => _error = e.message);
+  } catch (_) {
+    setState(() => _error = 'Gagal mendaftar. Coba lagi.');
+  } finally {
+    if (mounted) setState(() => _loading = false);
   }
+}
 
   @override
   void dispose() {

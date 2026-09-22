@@ -45,7 +45,11 @@ String _computeSemesterFallback([DateTime? now]) {
 // ============================================================================
 
 class LandingScreen extends StatefulWidget {
-  const LandingScreen({super.key});
+  const LandingScreen({super.key, this.successMessage});
+
+  /// Pesan sukses opsional yang ditampilkan sekali (mis. setelah signup
+  /// pondok berhasil) lewat SnackBar begitu halaman ini terbuka.
+  final String? successMessage;
 
   @override
   State<LandingScreen> createState() => _LandingScreenState();
@@ -73,6 +77,20 @@ class _LandingScreenState extends State<LandingScreen> {
     super.initState();
     _detectedKode = _subdomainKodeTenant();
     if (_detectedKode != null) _kodeTenant.text = _detectedKode!;
+
+    final msg = widget.successMessage;
+    if (msg != null && msg.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(msg),
+            backgroundColor: PColors.successText,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      });
+    }
   }
 
   /// Deteksi kode tenant dari subdomain (Flutter Web saja).
