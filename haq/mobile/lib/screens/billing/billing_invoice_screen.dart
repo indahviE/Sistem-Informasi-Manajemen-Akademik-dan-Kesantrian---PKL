@@ -95,7 +95,6 @@ class _BillingInvoiceScreenState extends State<BillingInvoiceScreen> {
   void initState() {
     super.initState();
     Future.microtask(_load);
-    _search.addListener(() => setState(() {}));
   }
 
   @override
@@ -326,9 +325,9 @@ class _BillingInvoiceScreenState extends State<BillingInvoiceScreen> {
                               _buildSearch(),
                               const SizedBox(height: 10),
                               _buildFilterChips(),
-                              const SizedBox(height: 16),
+                              const SizedBox(height: 14),
                               _buildSummaryBanner(),
-                              const SizedBox(height: 16),
+                              const SizedBox(height: 14),
                               if (_filtered.isEmpty)
                                 _EmptyState(hasQuery: _search.text.trim().isNotEmpty)
                               else
@@ -366,14 +365,16 @@ class _BillingInvoiceScreenState extends State<BillingInvoiceScreen> {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        IconButton(
-          onPressed: widget.onBack ?? () => Navigator.maybePop(context),
-          tooltip: 'Kembali',
-          icon: const Icon(Icons.arrow_back, color: _IC.primary),
-          padding: EdgeInsets.zero,
-          constraints: const BoxConstraints(minWidth: 36, minHeight: 40),
-        ),
-        const SizedBox(width: 4),
+        if (widget.onBack != null) ...[
+          IconButton(
+            onPressed: widget.onBack,
+            tooltip: 'Kembali ke Billing',
+            icon: const Icon(Icons.arrow_back, color: _IC.primary),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 36, minHeight: 40),
+          ),
+          const SizedBox(width: 4),
+        ],
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -389,22 +390,42 @@ class _BillingInvoiceScreenState extends State<BillingInvoiceScreen> {
   }
 
   Widget _buildSearch() {
-    return TextField(
-      controller: _search,
-      decoration: InputDecoration(
-        hintText: 'Cari nama tenant, slug, atau no faktur...',
-        hintStyle: _IT.bodyMd,
-        prefixIcon: const Icon(Icons.search, color: _IC.onSurfaceVariant, size: 20),
-        suffixIcon: _search.text.isEmpty
-            ? null
-            : IconButton(
-                icon: const Icon(Icons.close, size: 18, color: _IC.onSurfaceVariant),
-                onPressed: () => setState(() => _search.clear()),
+    const borderColor = Color(0xFFE9E8E4);
+    return Container(
+      height: 46,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: _IC.surfaceContainerLowest,
+        borderRadius: BorderRadius.circular(9999),
+        border: Border.all(color: borderColor),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.search, size: 20, color: _IC.onSurfaceVariant),
+          const SizedBox(width: 8),
+          Expanded(
+            child: TextField(
+              controller: _search,
+              onChanged: (_) => setState(() {}),
+              style: _IT.bodyMd,
+              decoration: InputDecoration(
+                isDense: true,
+                border: InputBorder.none,
+                hintText: 'Cari nama tenant, slug, atau no faktur...',
+                hintStyle: _IT.bodyMd,
               ),
-        filled: true,
-        fillColor: _IC.surfaceContainerLowest,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+            ),
+          ),
+          if (_search.text.isNotEmpty)
+            InkWell(
+              onTap: () => setState(() => _search.clear()),
+              borderRadius: BorderRadius.circular(9999),
+              child: const Padding(
+                padding: EdgeInsets.all(2),
+                child: Icon(Icons.cancel, size: 18, color: _IC.onSurfaceVariant),
+              ),
+            ),
+        ],
       ),
     );
   }

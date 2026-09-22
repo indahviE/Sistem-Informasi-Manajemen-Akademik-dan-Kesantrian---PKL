@@ -461,41 +461,59 @@ class _PageTitleRow extends StatelessWidget {
 // Search
 // ============================================================================
 
-class _SearchField extends StatelessWidget {
+class _SearchField extends StatefulWidget {
   const _SearchField({required this.controller});
 
   final TextEditingController controller;
 
   @override
+  State<_SearchField> createState() => _SearchFieldState();
+}
+
+class _SearchFieldState extends State<_SearchField> {
+  @override
+  void initState() {
+    super.initState();
+    widget.controller.addListener(() => setState(() {}));
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return TextField(
-      controller: controller,
-      style: PText.bodyMd.copyWith(color: PColors.ink, fontSize: 13),
-      decoration: InputDecoration(
-        hintText: 'Cari nama pondok, kode tenant, subdomain...',
-        hintStyle: PText.bodyMd.copyWith(color: PColors.outline),
-        prefixIcon: const Icon(Icons.search, size: 19, color: PColors.outline),
-        suffixIcon: controller.text.isEmpty
-            ? null
-            : IconButton(
-                icon: const Icon(Icons.close, size: 17, color: PColors.outline),
-                onPressed: controller.clear,
+    return Container(
+      height: 46,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: PColors.surface,
+        borderRadius: BorderRadius.circular(9999),
+        border: Border.all(color: PColors.border),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.search, size: 19, color: PColors.outline),
+          const SizedBox(width: 8),
+          Expanded(
+            child: TextField(
+              controller: widget.controller,
+              onChanged: (_) => setState(() {}),
+              style: PText.bodyMd.copyWith(color: PColors.ink, fontSize: 13),
+              decoration: InputDecoration(
+                isDense: true,
+                border: InputBorder.none,
+                hintText: 'Cari nama pondok, kode tenant, subdomain...',
+                hintStyle: PText.bodyMd.copyWith(color: PColors.outline),
               ),
-        filled: true,
-        fillColor: PColors.surface,
-        contentPadding: const EdgeInsets.symmetric(vertical: 12),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: PColors.border),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: PColors.border),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: PColors.primary, width: 1.5),
-        ),
+            ),
+          ),
+          if (widget.controller.text.isNotEmpty)
+            InkWell(
+              onTap: () => setState(() => widget.controller.clear()),
+              borderRadius: BorderRadius.circular(9999),
+              child: const Padding(
+                padding: EdgeInsets.all(2),
+                child: Icon(Icons.cancel, size: 18, color: PColors.outline),
+              ),
+            ),
+        ],
       ),
     );
   }
