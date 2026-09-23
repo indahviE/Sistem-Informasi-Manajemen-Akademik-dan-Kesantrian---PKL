@@ -9,6 +9,7 @@
 // tidak duplikat.
 
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../services/api_client.dart';
 import '../../services/app_scope.dart';
 import 'tenant_detail_screen.dart';
@@ -124,6 +125,33 @@ class PText {
 // ============================================================================
 // Screen
 // ============================================================================
+
+Future<void> _hubungiPicTenant(
+    BuildContext context, Map<String, dynamic> tenant) async {
+  final raw = (tenant['adminPhone'] ?? '').toString().trim();
+  if (raw.isEmpty || raw == '-') {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Nomor PIC belum tersedia untuk tenant ini')),
+    );
+    return;
+  }
+
+  var nomor = raw.replaceAll(RegExp(r'[^0-9+]'), '');
+  if (nomor.startsWith('+')) {
+    nomor = nomor.substring(1);
+  } else if (nomor.startsWith('0')) {
+    nomor = '62${nomor.substring(1)}';
+  }
+
+  final url = Uri.parse('https://wa.me/$nomor');
+  final ok = await launchUrl(url, mode: LaunchMode.externalApplication);
+
+  if (!ok && context.mounted) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Tidak bisa membuka WhatsApp')),
+    );
+  }
+}
 
 enum _StatusFilter { semua, aktif, pending, suspended }
 
@@ -902,7 +930,7 @@ class _TenantCard extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 TextButton(
-                  onPressed: () {},
+                  onPressed: () => _hubungiPicTenant(context, tenant),
                   style: TextButton.styleFrom(
                     backgroundColor: PColors.surfaceContainerHigh,
                     foregroundColor: PColors.ink,
