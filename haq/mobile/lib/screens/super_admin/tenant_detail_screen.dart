@@ -12,6 +12,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'tenants_screen.dart' show PColors, PText;
 
 class TenantDetailScreen extends StatefulWidget {
@@ -21,12 +22,18 @@ class TenantDetailScreen extends StatefulWidget {
     this.onApprove,
     this.onSuspend,
     this.onRestore,
+    this.onArchive,
+    this.onUnarchive,
+    this.onDelete,
   });
 
   final Map<String, dynamic> tenant;
   final VoidCallback? onApprove;
   final VoidCallback? onSuspend;
   final VoidCallback? onRestore;
+  final VoidCallback? onArchive;
+  final VoidCallback? onUnarchive;
+  final VoidCallback? onDelete;
 
   @override
   State<TenantDetailScreen> createState() => _TenantDetailScreenState();
@@ -43,6 +50,32 @@ class _TenantDetailScreenState extends State<TenantDetailScreen> {
       v == null || v.toString().trim().isEmpty ? fallback : v.toString();
 
   String _status() => _s(t['status'], 'AKTIF').toUpperCase();
+
+  Future<void> _hubungiPIC(BuildContext context) async {
+    final raw = _s(t['adminPhone'], '');
+    if (raw.isEmpty || raw == '-') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Nomor PIC belum tersedia untuk tenant ini')),
+      );
+      return;
+    }
+
+    var nomor = raw.replaceAll(RegExp(r'[^0-9+]'), '');
+    if (nomor.startsWith('+')) {
+      nomor = nomor.substring(1);
+    } else if (nomor.startsWith('0')) {
+      nomor = '62${nomor.substring(1)}';
+    }
+
+    final url = Uri.parse('https://wa.me/$nomor');
+    final ok = await launchUrl(url, mode: LaunchMode.externalApplication);
+
+    if (!ok && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Tidak bisa membuka WhatsApp')),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -89,11 +122,13 @@ class _TenantDetailScreenState extends State<TenantDetailScreen> {
     final statusColor = switch (status) {
       'SUSPENDED' => PColors.errorText,
       'PENDING' => PColors.pendingText,
+      'ARCHIVED' => PColors.inkSecondary,
       _ => PColors.successText,
     };
     final statusBg = switch (status) {
       'SUSPENDED' => PColors.errorBg,
       'PENDING' => PColors.pendingBg,
+      'ARCHIVED' => PColors.surfaceDim,
       _ => PColors.successBg,
     };
     final paket = _s(t['paket'], 'Basic');
@@ -330,6 +365,12 @@ class _TenantDetailScreenState extends State<TenantDetailScreen> {
           text: _s(t['adminEmail']),
           trailingIcon: Icons.copy,
         ),
+        const SizedBox(height: 8),
+        _ContactRow(
+          icon: Icons.chat_outlined,
+          text: _s(t['adminPhone']),
+          trailingIcon: Icons.copy,
+        ),
         const SizedBox(height: 16),
         Text('ALAMAT PONDOK',
             style: PText.labelSm.copyWith(color: PColors.inkSecondary)),
@@ -483,22 +524,32 @@ class _TenantDetailScreenState extends State<TenantDetailScreen> {
         child: const Text('Setujui & Aktifkan'),
       );
     } else if (status == 'SUSPENDED') {
-      leftBtn = OutlinedButton(
-        onPressed: () {},
-        child: const Text('Hubungi PIC'),
+      leftBtn = OutlinedButton.icon(
+        onPressed: () => _hubungiPIC(context),
+        icon: const Icon(Icons.chat_outlined, size: 16),
+        label: const Text('Hubungi PIC'),
       );
       rightBtn = FilledButton.icon(
         onPressed: widget.onRestore,
         icon: const Icon(Icons.lock_open, size: 16),
         label: const Text('Pulihkan Akses'),
       );
+    } else if (status == 'ARCHIVED') {
+      leftBtn = OutlinedButton.icon(
+        onPressed: null,
+        icon: const Icon(Icons.block, size: 16),
+        label: const Text('Login Ditutup'),
+      );
+      rightBtn = FilledButton.icon(
+        onPressed: () => _confirmUnarchive(context),
+        icon: const Icon(Icons.unarchive_outlined, size: 16),
+        label: const Text('Pulihkan dari Arsip'),
+      );
     } else {
       leftBtn = OutlinedButton.icon(
-        onPressed: () =>
-            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                content: Text('Beralih sebagai admin tenant ini.'))),
-        icon: const Icon(Icons.switch_account, size: 16),
-        label: const Text('Impersonate'),
+        onPressed: () => _confirmArchive(context),
+        icon: const Icon(Icons.archive_outlined, size: 16),
+        label: const Text('Arsipkan'),
       );
       rightBtn = FilledButton.icon(
         onPressed: () => _confirmSuspend(context),
@@ -522,11 +573,27 @@ class _TenantDetailScreenState extends State<TenantDetailScreen> {
           constraints: const BoxConstraints(maxWidth: 480),
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
-            child: Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Expanded(child: leftBtn),
-                const SizedBox(width: 8),
-                Expanded(child: rightBtn),
+                Row(
+                  children: [
+                    Expanded(child: leftBtn),
+                    const SizedBox(width: 8),
+                    Expanded(child: rightBtn),
+                  ],
+                ),
+                if (status == 'PENDING') ...[
+                  const SizedBox(height: 8),
+                  Center(
+                    child: TextButton(
+                      onPressed: () => _confirmDelete(context),
+                      style: TextButton.styleFrom(foregroundColor: PColors.errorText),
+                      child: const Text('Hapus Pendaftaran Ini',
+                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -539,21 +606,119 @@ class _TenantDetailScreenState extends State<TenantDetailScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Tangguhkan Tenant?'),
+        backgroundColor: PColors.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Tangguhkan Tenant?', style: PText.headlineSm),
         content: const Text(
-            'Akses tenant ini akan dihentikan sementara sampai diaktifkan kembali.'),
+            'Akses tenant ini akan dihentikan sementara sampai diaktifkan kembali.',
+            style: PText.bodyMd),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Batal'),
+            child: Text('Batal',
+                style: PText.labelMd.copyWith(color: PColors.inkSecondary)),
           ),
-          FilledButton(
+          TextButton(
             onPressed: () {
               Navigator.pop(ctx);
               widget.onSuspend?.call();
             },
-            style: FilledButton.styleFrom(backgroundColor: PColors.errorText),
-            child: const Text('Ya, Suspend'),
+            style: TextButton.styleFrom(foregroundColor: PColors.errorText),
+            child: const Text('Ya, Suspend',
+                style: TextStyle(fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmArchive(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: PColors.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Arsipkan Tenant?', style: PText.headlineSm),
+        content: const Text(
+            'Tenant ini akan diarsipkan. Seluruh user (admin, ustadz, wali santri, dst) '
+            'tidak akan bisa login sampai tenant dipulihkan kembali dari arsip. '
+            'Data tidak dihapus dan bisa dipulihkan sewaktu-waktu.',
+            style: PText.bodyMd),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Batal',
+                style: PText.labelMd.copyWith(color: PColors.inkSecondary)),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              widget.onArchive?.call();
+            },
+            style: TextButton.styleFrom(foregroundColor: PColors.errorText),
+            child: const Text('Ya, Arsipkan',
+                style: TextStyle(fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmUnarchive(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: PColors.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Pulihkan Tenant dari Arsip?', style: PText.headlineSm),
+        content: const Text(
+            'Tenant ini akan diaktifkan kembali dan seluruh usernya bisa login seperti biasa.',
+            style: PText.bodyMd),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Batal',
+                style: PText.labelMd.copyWith(color: PColors.inkSecondary)),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              widget.onUnarchive?.call();
+            },
+            style: FilledButton.styleFrom(backgroundColor: PColors.primary),
+            child: const Text('Ya, Pulihkan'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmDelete(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: PColors.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Hapus Pendaftaran Ini?', style: PText.headlineSm),
+        content: const Text(
+            'Pendaftaran tenant ini akan dihapus permanen dan TIDAK BISA dikembalikan. '
+            'Gunakan ini hanya untuk pendaftaran yang tidak valid atau tidak jadi diproses.',
+            style: PText.bodyMd),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Batal',
+                style: PText.labelMd.copyWith(color: PColors.inkSecondary)),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              Navigator.of(context).maybePop();
+              widget.onDelete?.call();
+            },
+            style: TextButton.styleFrom(foregroundColor: PColors.errorText),
+            child: const Text('Ya, Hapus Permanen',
+                style: TextStyle(fontWeight: FontWeight.w700)),
           ),
         ],
       ),
