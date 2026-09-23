@@ -15,6 +15,24 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'tenants_screen.dart' show PColors, PText;
 
+const Map<String, IconData> kLogoIconOptions = {
+  'mosque': Icons.mosque,
+  'school': Icons.school,
+  'book': Icons.auto_stories,
+  'library': Icons.local_library,
+  'award': Icons.emoji_events,
+  'institution': Icons.account_balance,
+};
+
+IconData resolveLogoIcon(String? key) =>
+    kLogoIconOptions[key] ?? Icons.mosque;
+
+const List<String> kThemePresetColors = [
+  '#0F3A2E', '#114232', '#1B4D3E', '#0F172A',
+  '#7C2D12', '#991B1B', '#B45309', '#C5A059',
+  '#0369A1', '#1B5E20', '#4C1D95', '#FAF9F5',
+];
+
 class TenantDetailScreen extends StatefulWidget {
   const TenantDetailScreen({
     super.key,
@@ -48,6 +66,16 @@ class _TenantDetailScreenState extends State<TenantDetailScreen> {
 
   String _s(dynamic v, [String fallback = '-']) =>
       v == null || v.toString().trim().isEmpty ? fallback : v.toString();
+
+  Color _hexColor(dynamic v, Color fallback) {
+    final raw = v?.toString().trim();
+    if (raw == null || raw.isEmpty) return fallback;
+    var hex = raw.replaceAll('#', '');
+    if (hex.length == 6) hex = 'FF$hex';
+    final value = int.tryParse(hex, radix: 16);
+    return value == null ? fallback : Color(value);
+  }
+
 
   String _status() => _s(t['status'], 'AKTIF').toUpperCase();
 
@@ -144,7 +172,7 @@ class _TenantDetailScreenState extends State<TenantDetailScreen> {
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _LogoAvatar(logo: logo, size: 52),
+            _LogoAvatar(logo: logo, size: 52, iconKey: t['logoIcon']?.toString()),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -400,6 +428,12 @@ class _TenantDetailScreenState extends State<TenantDetailScreen> {
 
   Widget _buildBrandingCard() {
     final logo = t['logoUrl']?.toString();
+    final warnaPrimer = _hexColor(t['warnaPrimer'], PColors.primary);
+    final warnaSekunder = _hexColor(t['warnaSekunder'], PColors.gold);
+    final warnaCanvas = _hexColor(t['warnaCanvas'], PColors.background);
+    final hexPrimer = _s(t['warnaPrimer'], '#0F3A2E').toUpperCase();
+    final hexSekunder = _s(t['warnaSekunder'], '#C5A059').toUpperCase();
+    final hexCanvas = _s(t['warnaCanvas'], '#FAF9F5').toUpperCase();
     return _Card(
       children: [
         Row(
@@ -409,24 +443,28 @@ class _TenantDetailScreenState extends State<TenantDetailScreen> {
             Expanded(
                 child: Text('Identitas & Branding',
                     style: PText.headlineSm.copyWith(fontSize: 15))),
-            OutlinedButton.icon(
-              onPressed: () {},
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                side: const BorderSide(color: PColors.border),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(9999)),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: PColors.surfaceDim,
+                borderRadius: BorderRadius.circular(9999),
               ),
-              icon: const Icon(Icons.edit_outlined, size: 14, color: PColors.ink),
-              label: Text('Edit Tema',
-                  style: PText.labelSm.copyWith(color: PColors.ink)),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.lock_outline, size: 12, color: PColors.inkSecondary),
+                  const SizedBox(width: 4),
+                  Text('Dikelola Pondok',
+                      style: PText.labelSm.copyWith(color: PColors.inkSecondary)),
+                ],
+              ),
             ),
           ],
         ),
         const SizedBox(height: 14),
         Row(
           children: [
-            _LogoAvatar(logo: logo, size: 48, radius: 10),
+            _LogoAvatar(logo: logo, size: 48, radius: 10, iconKey: t['logoIcon']?.toString()),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -451,16 +489,16 @@ class _TenantDetailScreenState extends State<TenantDetailScreen> {
           children: [
             Expanded(
                 child: _ColorSwatch(
-                    color: PColors.primary, hex: '#0F3A2E', label: 'Utama')),
+                    color: warnaPrimer, hex: hexPrimer, label: 'Utama')),
             const SizedBox(width: 8),
             Expanded(
                 child: _ColorSwatch(
-                    color: PColors.gold, hex: '#C5A059', label: 'Sekunder')),
+                    color: warnaSekunder, hex: hexSekunder, label: 'Sekunder')),
             const SizedBox(width: 8),
             Expanded(
                 child: _ColorSwatch(
-                    color: PColors.background,
-                    hex: '#FAF9F5',
+                    color: warnaCanvas,
+                    hex: hexCanvas,
                     label: 'Canvas',
                     border: true)),
           ],
@@ -1000,15 +1038,22 @@ class _ColorSwatch extends StatelessWidget {
 }
 
 class _LogoAvatar extends StatelessWidget {
-  const _LogoAvatar({required this.logo, required this.size, this.radius = 12});
+  const _LogoAvatar({
+    required this.logo,
+    required this.size,
+    this.radius = 12,
+    this.iconKey,
+  });
 
   final String? logo;
   final double size;
   final double radius;
+  final String? iconKey;
 
   @override
   Widget build(BuildContext context) {
-    Widget child = Icon(Icons.mosque, color: PColors.primary, size: size * 0.46);
+    final fallbackIcon = resolveLogoIcon(iconKey);
+    Widget child = Icon(fallbackIcon, color: PColors.primary, size: size * 0.46);
 
     if (logo != null && logo!.trim().isNotEmpty) {
       try {
@@ -1023,7 +1068,7 @@ class _LogoAvatar extends StatelessWidget {
             borderRadius: BorderRadius.circular(radius),
             child: Image.network(logo!, fit: BoxFit.cover,
                 errorBuilder: (_, __, ___) =>
-                    Icon(Icons.mosque, color: PColors.primary, size: size * 0.46)),
+                    Icon(fallbackIcon, color: PColors.primary, size: size * 0.46)),
           );
         }
       } catch (_) {
