@@ -145,6 +145,43 @@ class _PaketScreenState extends State<PaketScreen> {
     super.dispose();
   }
 
+  /// Toast bertema hijau paket_screen — dipakai untuk semua feedback
+  /// sukses/error di halaman ini, gaya sama dengan _showSuccessToast di
+  /// landing_screen.dart (floating, rounded, background solid, teks putih
+  /// bold), tapi pakai token _PK/_PT lokal file ini.
+  void _showToast(String message, {bool isError = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).clearSnackBars();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: isError ? _PK.error : _PK.primaryContainer,
+        elevation: 6,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        width: 480,
+        duration: Duration(seconds: isError ? 4 : 3),
+        content: Row(
+          children: [
+            Icon(isError ? Icons.error_outline : Icons.check_circle,
+                size: 20, color: Colors.white),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                message,
+                style: const TextStyle(
+                  fontFamily: 'Nunito',
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _load({bool showSpinner = true}) async {
     setState(() {
       if (showSpinner) _loading = true;
@@ -225,12 +262,11 @@ class _PaketScreenState extends State<PaketScreen> {
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() => p['aktif'] = !value);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+      _showToast(e.message, isError: true);
     } catch (_) {
       if (!mounted) return;
       setState(() => p['aktif'] = !value);
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Gagal memperbarui status paket.')));
+      _showToast('Gagal memperbarui status paket.', isError: true);
     }
   }
 
@@ -299,9 +335,10 @@ class _PaketScreenState extends State<PaketScreen> {
     try {
       await AppScope.of(context).api.delete('${ApiUrl.paket}/${p['id']}');
       _load(showSpinner: false);
+      _showToast('Paket berhasil dihapus.');
     } on ApiException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+      _showToast(e.message, isError: true);
     }
   }
 
@@ -323,9 +360,10 @@ class _PaketScreenState extends State<PaketScreen> {
         await api.patch('${ApiUrl.paket}/${existing['id']}', body);
       }
       _load(showSpinner: false);
+      _showToast(existing == null ? 'Paket berhasil ditambahkan.' : 'Paket berhasil diperbarui.');
     } on ApiException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+      _showToast(e.message, isError: true);
     }
   }
 
