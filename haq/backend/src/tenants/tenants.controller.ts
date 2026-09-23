@@ -17,6 +17,14 @@ export class TenantsController {
     return this.tenantsService.signup(dto, req.ip);
   }
 
+  @Public()
+  @Get('check-slug')
+  checkSlug(@Query('kode') kode: string) {
+    return this.tenantsService
+      .isSlugAvailable(kode)
+      .then((available) => ({ available }));
+  }
+
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.SUPER_ADMIN)
   @Get()

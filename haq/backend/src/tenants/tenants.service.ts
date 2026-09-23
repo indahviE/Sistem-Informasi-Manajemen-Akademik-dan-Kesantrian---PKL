@@ -28,6 +28,14 @@ export class TenantsService {
     private notifikasi: NotifikasiService,
   ) {}
 
+  async isSlugAvailable(kodeTenant: string): Promise<boolean> {
+    if (!kodeTenant?.trim()) return false;
+    const existing = await this.prisma.tenant.findUnique({
+      where: { kodeTenant: kodeTenant.trim() },
+    });
+    return !existing;
+  }
+
   async signup(dto: SignupTenantDto, ip?: string) {
     const existing = await this.prisma.tenant.findUnique({
       where: { kodeTenant: dto.kodeTenant },
@@ -35,6 +43,8 @@ export class TenantsService {
     if (existing) {
       throw new ConflictException('Kode tenant sudah dipakai. Pilih kode lain.');
     }
+
+    
 
     const emailExists = await this.prisma.user.findFirst({
       where: { email: dto.adminEmail },
