@@ -108,7 +108,15 @@ export class MasterDataService {
     return this.prisma.tahunAjaran.create({ data: { tenantId, ...dto } });
   }
 
-  async setTahunAjaranAktif(tenantId: string, id: string) {
+    async setTahunAjaranAktif(tenantId: string, id: string) {
+    // Pastikan tahun ajaran dengan id ini memang milik tenant yang login —
+    // tanpa cek ini, admin tenant lain bisa mengaktifkan tahun ajaran
+    // milik tenant lain (celah kritis isolasi data, lihat PRD bagian 8).
+    const milikTenant = await this.prisma.tahunAjaran.findFirst({
+      where: { id, tenantId },
+    });
+    if (!milikTenant) throw new NotFoundException('Tahun ajaran tidak ditemukan.');
+
     await this.prisma.$transaction([
       this.prisma.tahunAjaran.updateMany({
         where: { tenantId },
