@@ -14,6 +14,7 @@
 //         - asset: assets/fonts/Nunito-Bold.ttf
 //           weight: 700
 
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:file_picker/file_picker.dart';
@@ -185,6 +186,13 @@ class _SignupScreenState extends State<SignupScreen> {
   String? _error;
   String? _success;
 
+  // --- Pengecekan ketersediaan kode tenant ke backend (real-time) ---
+  Timer? _slugDebounce;
+  bool _checkingSlug = false;
+  // null = belum dicek, true = tersedia, false = sudah dipakai
+  bool? _slugAvailable;
+  String? _slugCheckError;
+
   static const _slugPattern = r'^[a-z0-9]+(-[a-z0-9]+)*$';
 
   bool get _slugValid =>
@@ -194,6 +202,68 @@ class _SignupScreenState extends State<SignupScreen> {
   String get _slugSlugified {
     final raw = _kode.text.trim().isEmpty ? 'kode-tenant' : _kode.text.trim();
     return raw;
+  }
+
+  void _onKodeChanged(String _) {
+    // Setiap kali teks berubah, hasil pengecekan sebelumnya jadi basi.
+    setState(() {
+      _slugAvailable = null;
+      _slugCheckError = null;
+    });
+    _slugDebounce?.cancel();
+    if (!_slugValid) return;
+    _slugDebounce = Timer(
+      const Duration(milliseconds: 500),
+      _checkSlugAvailability,
+    );
+  }
+
+  Future<void> _checkSlugAvailability() async {
+    final slug = _kode.text.trim();
+    if (slug.isEmpty || !_slugValid) return;
+
+    setState(() {
+      _checkingSlug = true;
+      _slugCheckError = null;
+    });
+
+    try {
+      final api = AppScope.of(context).api;
+      // Butuh endpoint publik (belum login) GET /tenants/check-slug?kode=...
+      // yang membalas { "available": true }  atau  { "available": false }.
+      // Tambahkan `static const tenantSlugCheck = '/tenants/check-slug';`
+      // di class ApiUrl (api_client.dart) kalau belum ada.
+      final result = await api.get(
+        ApiUrl.tenantSlugCheck,
+        query: {'kode': slug},
+        auth: false,
+      );
+      final available = (result is Map) && result['available'] == true;
+
+      if (!mounted) return;
+      // Kalau user sudah lanjut mengetik sebelum request ini selesai,
+      // hasilnya sudah tidak relevan lagi — abaikan.
+      if (_kode.text.trim() != slug) return;
+
+      setState(() {
+        _slugAvailable = available;
+        _checkingSlug = false;
+      });
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      if (_kode.text.trim() != slug) return;
+      setState(() {
+        _checkingSlug = false;
+        _slugCheckError = e.message;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      if (_kode.text.trim() != slug) return;
+      setState(() {
+        _checkingSlug = false;
+        _slugCheckError = 'Gagal memeriksa ketersediaan kode tenant.';
+      });
+    }
   }
 
   bool _validateStep1() {
@@ -208,6 +278,27 @@ class _SignupScreenState extends State<SignupScreen> {
     if (!_slugValid) {
       setState(() => _error =
           'Kode Tenant wajib diisi (huruf kecil, angka, dan strip saja).');
+      return false;
+    }
+    if (_checkingSlug) {
+      setState(() =>
+          _error = 'Tunggu sebentar, sedang memeriksa ketersediaan kode tenant.');
+      return false;
+    }
+    if (_slugCheckError != null) {
+      setState(() => _error =
+          'Ketersediaan kode tenant belum berhasil diperiksa. Coba lagi.');
+      return false;
+    }
+    if (_slugAvailable == false) {
+      setState(
+          () => _error = 'Kode Tenant "${_kode.text.trim()}" sudah digunakan, silakan pilih kode lain.');
+      return false;
+    }
+    if (_slugAvailable != true) {
+      // Belum sempat dicek sama sekali (mis. debounce belum jalan).
+      setState(() =>
+          _error = 'Kode Tenant belum diverifikasi ketersediaannya. Coba ketik ulang.');
       return false;
     }
     setState(() => _error = null);
@@ -274,7 +365,15 @@ class _SignupScreenState extends State<SignupScreen> {
     );
     return;
   } on ApiException catch (e) {
-    setState(() => _error = e.message);
+    // Kalau race condition (kode direbut orang lain tepat sebelum submit),
+    // backend tetap jadi sumber kebenaran akhir — tampilkan pesannya.
+    setState(() {
+      _error = e.message;
+      if (e.message.toLowerCase().contains('tenant') ||
+          e.message.toLowerCase().contains('kode')) {
+        _slugAvailable = false;
+      }
+    });
   } catch (_) {
     setState(() => _error = 'Gagal mendaftar. Coba lagi.');
   } finally {
@@ -284,6 +383,7 @@ class _SignupScreenState extends State<SignupScreen> {
 
   @override
   void dispose() {
+    _slugDebounce?.cancel();
     _nama.dispose();
     _alamat.dispose();
     _kode.dispose();
@@ -408,11 +508,17 @@ class _SignupScreenState extends State<SignupScreen> {
         _PInput(
           controller: _kode,
           hint: 'mahad-alquran',
-          onChanged: (_) => setState(() {}),
+          onChanged: _onKodeChanged,
         ),
         const SizedBox(height: 10),
         if (_kode.text.trim().isNotEmpty)
-          _AvailabilityPill(available: _slugValid, slug: _slugSlugified),
+          _AvailabilityPill(
+            slugValid: _slugValid,
+            checking: _checkingSlug,
+            available: _slugAvailable,
+            error: _slugCheckError,
+            slug: _slugSlugified,
+          ),
         const SizedBox(height: 8),
         Text(
           'Kode unik ini digunakan untuk subdomain portal web dan identifikasi '
@@ -1018,14 +1124,60 @@ class _LogoUploadBoxState extends State<_LogoUploadBox> {
 }
 
 class _AvailabilityPill extends StatelessWidget {
-  const _AvailabilityPill({required this.available, required this.slug});
+  const _AvailabilityPill({
+    required this.slugValid,
+    required this.checking,
+    required this.available,
+    required this.slug,
+    this.error,
+  });
 
-  final bool available;
+  final bool slugValid;
+  final bool checking;
+  // null = belum sempat dicek ke backend, true = tersedia, false = sudah dipakai
+  final bool? available;
   final String slug;
+  final String? error;
 
   @override
   Widget build(BuildContext context) {
-    if (available) {
+    if (!slugValid) {
+      return _Pill(
+        icon: Icons.error_outline,
+        label: 'Hanya huruf kecil, angka, dan strip yang diperbolehkan',
+        bg: PColors.errorBg,
+        fg: PColors.errorText,
+        fullWidth: true,
+      );
+    }
+    if (checking) {
+      return _Pill(
+        icon: Icons.hourglass_top,
+        label: 'Memeriksa ketersediaan "$slug"...',
+        bg: PColors.infoBg,
+        fg: PColors.infoText,
+        fullWidth: true,
+      );
+    }
+    if (error != null) {
+      return _Pill(
+        icon: Icons.error_outline,
+        label: error!,
+        bg: PColors.errorBg,
+        fg: PColors.errorText,
+        fullWidth: true,
+      );
+    }
+    if (available == false) {
+      return _Pill(
+        icon: Icons.cancel_outlined,
+        label: '"$slug" sudah digunakan, pilih kode lain',
+        bg: PColors.errorBg,
+        fg: PColors.errorText,
+        fullWidth: true,
+      );
+    }
+    if (available == true) {
       return _Pill(
         icon: Icons.check,
         label: 'Tersedia ($slug siap didaftarkan)',
@@ -1034,11 +1186,12 @@ class _AvailabilityPill extends StatelessWidget {
         fullWidth: true,
       );
     }
+    // available == null: format valid tapi hasil pengecekan belum kembali
     return _Pill(
-      icon: Icons.error_outline,
-      label: 'Hanya huruf kecil, angka, dan strip yang diperbolehkan',
-      bg: PColors.errorBg,
-      fg: PColors.errorText,
+      icon: Icons.info_outline,
+      label: 'Menunggu pengecekan ketersediaan...',
+      bg: PColors.pendingBg,
+      fg: PColors.pendingText,
       fullWidth: true,
     );
   }
