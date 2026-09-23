@@ -249,8 +249,6 @@ class _TenantDetailScreenState extends State<TenantDetailScreen> {
             _buildAdminCard(),
             const SizedBox(height: 16),
             _buildBrandingCard(),
-            const SizedBox(height: 16),
-            _buildLegalCard(),
           ],
         );
       case _Tab.pengguna:
@@ -285,7 +283,10 @@ class _TenantDetailScreenState extends State<TenantDetailScreen> {
   // Informasi tab — sub cards mirip referensi
   // --------------------------------------------------------------------
   Widget _buildAdminCard() {
-    final role = _s(t['adminJabatan'] ?? t['adminRole'], "Mudir 'Am");
+    final karakteristikList = (t['karakteristik'] is List)
+        ? (t['karakteristik'] as List).map((e) => e.toString()).toList()
+        : <String>[];
+
     return _Card(
       children: [
         Row(
@@ -294,7 +295,6 @@ class _TenantDetailScreenState extends State<TenantDetailScreen> {
             const SizedBox(width: 8),
             Expanded(
                 child: Text('Data Admin Utama', style: PText.headlineSm.copyWith(fontSize: 15))),
-            _StatusBadge(label: role, bg: PColors.goldSurface, fg: PColors.gold),
           ],
         ),
         const SizedBox(height: 14),
@@ -318,8 +318,7 @@ class _TenantDetailScreenState extends State<TenantDetailScreen> {
                       style: PText.bodyMd.copyWith(
                           color: PColors.ink, fontWeight: FontWeight.w700, fontSize: 14)),
                   const SizedBox(height: 2),
-                  Text(_s(t['adminJabatanLengkap'], 'Ketua Yayasan / Pendaftar Pertama'),
-                      style: PText.bodySm),
+                  Text('Admin Awal Pondok', style: PText.bodySm),
                 ],
               ),
             ),
@@ -331,33 +330,29 @@ class _TenantDetailScreenState extends State<TenantDetailScreen> {
           text: _s(t['adminEmail']),
           trailingIcon: Icons.copy,
         ),
-        const SizedBox(height: 8),
-        _ContactRow(
-          icon: Icons.call_outlined,
-          text: _s(t['adminPhone']),
-          chipLabel: 'WhatsApp',
-        ),
         const SizedBox(height: 16),
-        Text('ALAMAT KAMPUS',
+        Text('ALAMAT PONDOK',
             style: PText.labelSm.copyWith(color: PColors.inkSecondary)),
         const SizedBox(height: 6),
-        Text(_s(t['alamatKampus']), style: PText.bodyMd.copyWith(color: PColors.ink)),
+        Text(_s(t['alamat']), style: PText.bodyMd.copyWith(color: PColors.ink)),
         const SizedBox(height: 14),
-        Row(
-          children: [
-            Expanded(
-              child: _InfoBox(
-                  label: 'Kategori Lembaga',
-                  value: _s(t['kategoriLembaga'])),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: _InfoBox(
-                  label: 'Estimasi Awal Santri',
-                  value: _s(t['estimasiSantri'] ?? t['jumlahSantri'])),
-            ),
-          ],
-        ),
+        Text('KARAKTERISTIK & KURIKULUM',
+            style: PText.labelSm.copyWith(color: PColors.inkSecondary)),
+        const SizedBox(height: 6),
+        if (karakteristikList.isEmpty)
+          Text('-', style: PText.bodyMd.copyWith(color: PColors.ink))
+        else
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: karakteristikList
+                .map((label) => _StatusBadge(
+                      label: label,
+                      bg: PColors.sage,
+                      fg: PColors.primary,
+                    ))
+                .toList(),
+          ),
       ],
     );
   }
@@ -433,77 +428,6 @@ class _TenantDetailScreenState extends State<TenantDetailScreen> {
     );
   }
 
-  Widget _buildLegalCard() {
-    final docs = <(IconData, String, String)>[
-      (Icons.description_outlined, 'SK NSPP Kemenag RI',
-          'NSPP: ${_s(t['nsppNo'], '510032010045')}'),
-      (Icons.description_outlined, 'Akta & SK Kemenkumham',
-          _s(t['aktaNo'], 'AHU-0012948.AH.01.04.2018')),
-      (Icons.verified_outlined, 'Surat Domisili Lembaga',
-          'No: ${_s(t['domisiliNo'], '474/12-Desa.MGM/2023')}'),
-    ];
-
-    return _Card(
-      children: [
-        Row(
-          children: [
-            const Icon(Icons.shield_outlined, size: 18, color: PColors.primary),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text('Legalitas & Berkas Kemenag',
-                  style: PText.headlineSm.copyWith(fontSize: 15)),
-            ),
-            _StatusBadge(
-                icon: Icons.check_circle,
-                label: '${docs.length} Valid',
-                bg: PColors.successBg,
-                fg: PColors.successText),
-          ],
-        ),
-        const SizedBox(height: 12),
-        for (final d in docs) ...[
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            margin: const EdgeInsets.only(bottom: 8),
-            decoration: BoxDecoration(
-              color: PColors.surfaceDim,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Row(
-              children: [
-                Icon(d.$1, size: 18, color: PColors.inkSecondary),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(d.$2,
-                          style: PText.bodyMd.copyWith(
-                              color: PColors.ink, fontWeight: FontWeight.w600)),
-                      const SizedBox(height: 2),
-                      Text(d.$3, style: PText.bodySm),
-                    ],
-                  ),
-                ),
-                IconButton(
-                  onPressed: () {},
-                  visualDensity: VisualDensity.compact,
-                  icon: const Icon(Icons.visibility_outlined,
-                      size: 18, color: PColors.inkSecondary),
-                ),
-                IconButton(
-                  onPressed: () {},
-                  visualDensity: VisualDensity.compact,
-                  icon: const Icon(Icons.download_outlined,
-                      size: 18, color: PColors.inkSecondary),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ],
-    );
-  }
 
   Widget _card(
       {required String title,

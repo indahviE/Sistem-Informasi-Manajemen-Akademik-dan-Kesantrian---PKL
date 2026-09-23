@@ -82,15 +82,45 @@ class _LandingScreenState extends State<LandingScreen> {
     if (msg != null && msg.isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(msg),
-            backgroundColor: PColors.successText,
-            duration: const Duration(seconds: 4),
-          ),
-        );
+        _showSuccessToast(msg);
       });
     }
+  }
+
+  /// Toast sukses bergaya sama dengan "Perubahan tersimpan" di
+  /// pengaturan_screen.dart — background hijau tua (PColors.primary),
+  /// teks putih bold, mengambang dengan rounded corner.
+  void _showSuccessToast(String message) {
+    ScaffoldMessenger.of(context).clearSnackBars();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: PColors.primary,
+        elevation: 6,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+        ),
+        width: 480,
+        duration: const Duration(seconds: 4),
+        content: Row(
+          children: [
+            const Icon(Icons.check_circle, size: 20, color: Colors.white),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                message,
+                style: const TextStyle(
+                  fontFamily: 'Nunito',
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   /// Deteksi kode tenant dari subdomain (Flutter Web saja).
@@ -169,7 +199,7 @@ class _LandingScreenState extends State<LandingScreen> {
                 children: [
                   _TenantHeaderCard(tenant: _tenant),
                   const SizedBox(height: 16),
-                    _LoginFormCard(
+                  _LoginFormCard(
                     kodeTenantController: _kodeTenant,
                     emailController: _email,
                     passwordController: _password,
@@ -374,7 +404,7 @@ class _LoginFormCard extends StatelessWidget {
             ),
           ],
         ),
-                const SizedBox(height: 18),
+        const SizedBox(height: 18),
         if (showKodeTenantField) ...[
           Text('Kode Tenant', style: PText.labelLg),
           const SizedBox(height: 8),
