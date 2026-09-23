@@ -50,6 +50,8 @@ export class TenantsService {
           kodeTenant: dto.kodeTenant,
           namaPondok: dto.namaPondok,
           logoUrl: dto.logoUrl,
+          alamat: dto.alamat,
+          karakteristik: dto.karakteristik,
           status: TenantStatus.PENDING,
         },
       });
@@ -112,6 +114,7 @@ export class TenantsService {
       orderBy: { tanggalDaftar: 'desc' },
       include: {
         _count: { select: { users: true, santris: true, kelas: true } },
+        adminAwal: { select: { nama: true, email: true } },
       },
     });
     return tenants.map((t) => ({
@@ -119,6 +122,8 @@ export class TenantsService {
       jumlahUser: t._count.users,
       jumlahSantri: t._count.santris,
       jumlahKelas: t._count.kelas,
+      adminNama: t.adminAwal?.nama,
+      adminEmail: t.adminAwal?.email,
     }));
   }
 
@@ -190,10 +195,15 @@ export class TenantsService {
       where: { id: tenantId },
       include: {
         _count: { select: { users: true, santris: true, kelas: true, ustadzs: true } },
+        adminAwal: { select: { nama: true, email: true } },
       },
     });
     if (!tenant) throw new NotFoundException('Tenant tidak ditemukan.');
-    return tenant;
+    return {
+      ...tenant,
+      adminNama: tenant.adminAwal?.nama,
+      adminEmail: tenant.adminAwal?.email,
+    };
   }
 
   async getBranding(kodeTenant: string) {

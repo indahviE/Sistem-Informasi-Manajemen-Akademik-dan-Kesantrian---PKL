@@ -1,4 +1,4 @@
-import { IsEmail, IsNotEmpty, IsOptional, IsString, Matches, MinLength } from 'class-validator';
+import { IsArray, IsEmail, IsNotEmpty, IsOptional, IsString, Matches, MinLength } from 'class-validator';
 import { IsUrlOrDataUri } from '../../common/validators/is-url-or-data-uri.validator';
 
 export class SignupTenantDto {
@@ -16,6 +16,15 @@ export class SignupTenantDto {
   @IsOptional()
   @IsUrlOrDataUri()
   logoUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  alamat?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  karakteristik?: string[];
 
   @IsString()
   @IsNotEmpty({ message: 'Nama admin awal wajib diisi' })

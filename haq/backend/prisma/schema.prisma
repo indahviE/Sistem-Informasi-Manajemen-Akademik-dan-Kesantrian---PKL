@@ -114,10 +114,13 @@ model Tenant {
   namaPondok     String
   logoUrl        String?       @db.MediumText
   warnaTema      String?
+  alamat              String?              @db.Text
+  karakteristik       Json?
   status              TenantStatus         @default(PENDING)
   kuotaSantriPpdb     Int?
   statusGelombangPpdb StatusGelombangPpdb  @default(DITUTUP)
   adminAwalId         String?
+  adminAwal           User?                @relation("TenantAdminAwal", fields: [adminAwalId], references: [id])
   tanggalDaftar  DateTime     @default(now())
 
   users          User[]
@@ -164,6 +167,7 @@ model User {
   tenant       Tenant?    @relation(fields: [tenantId], references: [id])
   notifikasis  Notifikasi[]
   waliSantris  WaliSantri[]
+  tenantSebagaiAdminAwal Tenant[] @relation("TenantAdminAwal")
 
   @@unique([tenantId, email])
   @@index([tenantId])
