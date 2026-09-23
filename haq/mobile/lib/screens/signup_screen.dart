@@ -180,6 +180,7 @@ class _SignupScreenState extends State<SignupScreen> {
   final _adminNama = TextEditingController();
   final _adminEmail = TextEditingController();
   final _adminPassword = TextEditingController();
+  final _adminPhone = TextEditingController();
 
   int _step = 0;
   bool _loading = false;
@@ -352,6 +353,8 @@ class _SignupScreenState extends State<SignupScreen> {
       'adminNama': _adminNama.text.trim(),
       'adminEmail': _adminEmail.text.trim(),
       'adminPassword': _adminPassword.text,
+      'adminPhone':
+          _adminPhone.text.trim().isEmpty ? null : _adminPhone.text.trim(),
       'alamat': _alamat.text.trim(),
       'karakteristik': _karakteristik.toList(),
     });
@@ -391,6 +394,7 @@ class _SignupScreenState extends State<SignupScreen> {
     _adminNama.dispose();
     _adminEmail.dispose();
     _adminPassword.dispose();
+    _adminPhone.dispose();
     super.dispose();
   }
 
@@ -556,6 +560,20 @@ class _SignupScreenState extends State<SignupScreen> {
           icon: Icons.lock_outline,
           obscureText: true,
         ),
+        const SizedBox(height: 20),
+        _FieldLabel('No. WhatsApp Admin (Opsional)'),
+        const SizedBox(height: 8),
+        _PInput(
+          controller: _adminPhone,
+          hint: '08xxxxxxxxxx',
+          icon: Icons.chat_outlined,
+          keyboardType: TextInputType.phone,
+        ),
+        const SizedBox(height: 6),
+        Text(
+          'Dipakai Super Admin untuk menghubungi PIC lewat WhatsApp bila diperlukan.',
+          style: PText.bodySm,
+        ),
         const SizedBox(height: 6),
         Text(
           'Akun ini akan menjadi Admin pertama yang mengelola data pondok setelah disetujui.',
@@ -584,6 +602,10 @@ class _SignupScreenState extends State<SignupScreen> {
         const SizedBox(height: 10),
         _SummaryRow('Nama Admin', _adminNama.text.trim()),
         _SummaryRow('Email Admin', _adminEmail.text.trim()),
+        _SummaryRow(
+          'No. WhatsApp',
+          _adminPhone.text.trim().isEmpty ? '-' : _adminPhone.text.trim(),
+        ),
         _SummaryRow('Password', '•' * _adminPassword.text.length),
         const SizedBox(height: 16),
         _MessageBanner(

@@ -149,6 +149,7 @@ class _TenantsScreenState extends State<TenantsScreen> {
   _SortOption _sort = _SortOption.terbaru;
 
   int _visibleCount = 5;
+  bool _archivedExpanded = false;
 
   @override
   void initState() {
@@ -202,11 +203,13 @@ class _TenantsScreenState extends State<TenantsScreen> {
     try {
       final api = AppScope.of(context).api;
       // 'restore' dipetakan ke endpoint approve karena keduanya sama-sama
-      // memindahkan tenant ke status AKTIF. Ganti ke endpoint khusus
-      // (mis. ApiUrl.tenantRestore) bila backend menyediakannya nanti.
+      // memindahkan tenant SUSPENDED ke status AKTIF.
       final url = switch (action) {
         'approve' => ApiUrl.tenantApprove,
         'restore' => ApiUrl.tenantApprove,
+        'archive' => ApiUrl.tenantArchive,
+        'unarchive' => ApiUrl.tenantUnarchive,
+        'delete' => ApiUrl.tenantDeletePending,
         _ => ApiUrl.tenantSuspend,
       };
       await api.post(url, {'tenantId': t['id']});
@@ -228,6 +231,9 @@ class _TenantsScreenState extends State<TenantsScreen> {
           onApprove: () => _action(t, 'approve'),
           onSuspend: () => _action(t, 'suspend'),
           onRestore: () => _action(t, 'restore'),
+          onArchive: () => _action(t, 'archive'),
+          onUnarchive: () => _action(t, 'unarchive'),
+          onDelete: () => _action(t, 'delete'),
         ),
       ),
     );
@@ -244,14 +250,17 @@ class _TenantsScreenState extends State<TenantsScreen> {
 
   Map<_StatusFilter, int> get _statusCounts {
     final counts = {
-      _StatusFilter.semua: _items.length,
+      _StatusFilter.semua: 0,
       _StatusFilter.aktif: 0,
       _StatusFilter.pending: 0,
       _StatusFilter.suspended: 0,
     };
     for (final raw in _items) {
       final t = raw as Map<String, dynamic>;
-      switch (_statusOf(t)) {
+      final s = _statusOf(t);
+      if (s == 'ARCHIVED') continue; // tidak dihitung di sini, punya section sendiri
+      counts[_StatusFilter.semua] = counts[_StatusFilter.semua]! + 1;
+      switch (s) {
         case 'AKTIF':
           counts[_StatusFilter.aktif] = counts[_StatusFilter.aktif]! + 1;
         case 'PENDING':
@@ -264,8 +273,14 @@ class _TenantsScreenState extends State<TenantsScreen> {
     return counts;
   }
 
+  List<Map<String, dynamic>> get _archivedItems => _items
+      .cast<Map<String, dynamic>>()
+      .where((t) => _statusOf(t) == 'ARCHIVED')
+      .toList();
+
   List<Map<String, dynamic>> get _filtered {
     var list = _items.cast<Map<String, dynamic>>().where((t) {
+      if (_statusOf(t) == 'ARCHIVED') return false; // punya section sendiri
       final matchesStatus = switch (_statusFilter) {
         _StatusFilter.semua => true,
         _StatusFilter.aktif => _statusOf(t) == 'AKTIF',
@@ -403,6 +418,8 @@ class _TenantsScreenState extends State<TenantsScreen> {
                   onApprove: () => _action(t, 'approve'),
                   onSuspend: () => _action(t, 'suspend'),
                   onRestore: () => _action(t, 'restore'),
+                  onArchive: () => _action(t, 'archive'),
+                  onUnarchive: () => _action(t, 'unarchive'),
                 ),
               ),
             ),
@@ -420,6 +437,17 @@ class _TenantsScreenState extends State<TenantsScreen> {
                 '${(filtered.length / 5).ceil().clamp(1, 999)}',
                 style: PText.labelSm,
               ),
+            ),
+          ],
+          if (_archivedItems.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            _ArchivedSection(
+              items: _archivedItems,
+              expanded: _archivedExpanded,
+              onToggle: () =>
+                  setState(() => _archivedExpanded = !_archivedExpanded),
+              onUnarchive: (t) => _action(t, 'unarchive'),
+              onTapTenant: _showTenantDetail,
             ),
           ],
         ],
@@ -725,6 +753,8 @@ class _TenantCard extends StatelessWidget {
     required this.onApprove,
     required this.onSuspend,
     required this.onRestore,
+    required this.onArchive,
+    required this.onUnarchive,
   });
 
   final Map<String, dynamic> tenant;
@@ -732,6 +762,8 @@ class _TenantCard extends StatelessWidget {
   final VoidCallback onApprove;
   final VoidCallback onSuspend;
   final VoidCallback onRestore;
+  final VoidCallback onArchive;
+  final VoidCallback onUnarchive;
 
   String get _status => (tenant['status'] ?? 'AKTIF').toString().toUpperCase();
   String get _paket => (tenant['paket'] ?? 'Basic').toString();
@@ -956,14 +988,23 @@ class _TenantCard extends StatelessWidget {
           ],
           if (_status == 'AKTIF') ...[
             const SizedBox(height: 8),
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton(
-                onPressed: onSuspend,
-                style: TextButton.styleFrom(foregroundColor: PColors.errorText),
-                child: const Text('Suspend',
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
-              ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(
+                  onPressed: onArchive,
+                  style: TextButton.styleFrom(foregroundColor: PColors.outline),
+                  child: const Text('Arsipkan',
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                ),
+                const SizedBox(width: 4),
+                TextButton(
+                  onPressed: onSuspend,
+                  style: TextButton.styleFrom(foregroundColor: PColors.errorText),
+                  child: const Text('Suspend',
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                ),
+              ],
             ),
           ],
         ],
@@ -994,6 +1035,13 @@ class _StatusBadge extends StatelessWidget {
           PColors.pendingText,
           PColors.pendingBorder,
           'Pending',
+          true,
+        ),
+      'ARCHIVED' => (
+          PColors.surfaceContainerHigh,
+          PColors.outline,
+          PColors.border,
+          'Diarsipkan',
           true,
         ),
       _ => (
@@ -1161,6 +1209,45 @@ class _PendingNotice extends StatelessWidget {
   }
 }
 
+class _ArchivedNotice extends StatelessWidget {
+  const _ArchivedNotice({required this.onUnarchive});
+
+  final VoidCallback onUnarchive;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: PColors.surfaceDim,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: PColors.border),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.archive_outlined, size: 15, color: PColors.outline),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Tenant ini diarsipkan. Seluruh user tidak bisa login.',
+              style: PText.bodySm.copyWith(color: PColors.inkSecondary),
+            ),
+          ),
+          TextButton(
+            onPressed: onUnarchive,
+            style: TextButton.styleFrom(
+              foregroundColor: PColors.primary,
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+            ),
+            child: const Text('Pulihkan →',
+                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _Metric extends StatelessWidget {
   const _Metric({required this.label, required this.value, this.small = false});
 
@@ -1290,6 +1377,150 @@ class _LoadMoreButton extends StatelessWidget {
         label: Text(
           'Muat Lebih Banyak ($remaining Tenant Lainnya)',
           style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
+        ),
+      ),
+    );
+  }
+}
+
+// ============================================================================
+// Archived section (folder-style, mirip Chat Diarsipkan di WhatsApp)
+// ============================================================================
+
+class _ArchivedSection extends StatelessWidget {
+  const _ArchivedSection({
+    required this.items,
+    required this.expanded,
+    required this.onToggle,
+    required this.onUnarchive,
+    required this.onTapTenant,
+  });
+
+  final List<Map<String, dynamic>> items;
+  final bool expanded;
+  final VoidCallback onToggle;
+  final ValueChanged<Map<String, dynamic>> onUnarchive;
+  final ValueChanged<Map<String, dynamic>> onTapTenant;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: PColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: PColors.border),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          InkWell(
+            onTap: onToggle,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              child: Row(
+                children: [
+                  Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: PColors.surfaceDim,
+                      borderRadius: BorderRadius.circular(9999),
+                    ),
+                    child: const Icon(Icons.archive_outlined,
+                        size: 16, color: PColors.outline),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Arsip (${items.length})',
+                      style: const TextStyle(
+                        fontFamily: 'Nunito',
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                        color: PColors.ink,
+                      ),
+                    ),
+                  ),
+                  AnimatedRotation(
+                    turns: expanded ? 0.5 : 0,
+                    duration: const Duration(milliseconds: 180),
+                    child: const Icon(Icons.expand_more,
+                        size: 20, color: PColors.outline),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (expanded)
+            Column(
+              children: [
+                const Divider(color: PColors.border, height: 1),
+                for (final t in items) _ArchivedTenantRow(
+                  tenant: t,
+                  onTap: () => onTapTenant(t),
+                  onUnarchive: () => onUnarchive(t),
+                ),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ArchivedTenantRow extends StatelessWidget {
+  const _ArchivedTenantRow({
+    required this.tenant,
+    required this.onTap,
+    required this.onUnarchive,
+  });
+
+  final Map<String, dynamic> tenant;
+  final VoidCallback onTap;
+  final VoidCallback onUnarchive;
+
+  @override
+  Widget build(BuildContext context) {
+    final namaPondok = (tenant['namaPondok'] ?? '-').toString();
+    final kodeTenant = (tenant['kodeTenant'] ?? '-').toString();
+
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    namaPondok,
+                    style: const TextStyle(
+                      fontFamily: 'Nunito',
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: PColors.ink,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(kodeTenant, style: PText.mono.copyWith(fontSize: 10)),
+                ],
+              ),
+            ),
+            TextButton(
+              onPressed: onUnarchive,
+              style: TextButton.styleFrom(
+                foregroundColor: PColors.primary,
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+              ),
+              child: const Text('Pulihkan',
+                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800)),
+            ),
+          ],
         ),
       ),
     );
