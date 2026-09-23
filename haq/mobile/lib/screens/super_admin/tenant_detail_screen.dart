@@ -134,7 +134,7 @@ class _TenantDetailScreenState extends State<TenantDetailScreen> {
     final paket = _s(t['paket'], 'Basic');
     final subdomain = _s(t['subdomain'] ??
         '${_s(t['kodeTenant'] ?? t['slug'], 'tenant')}.sistempesantren.com');
-    final lokasi = _s(t['lokasi'] ?? t['kota'] ?? t['alamatSingkat']);
+    final lokasi = _s(t['lokasi'] ?? t['kota'] ?? t['alamatSingkat'] ?? t['alamat']);
     final tanggal =
         _s(t['tanggalDaftar'] ?? t['createdAt'] ?? t['tanggalGabung']);
     final logo = t['logoUrl']?.toString();
