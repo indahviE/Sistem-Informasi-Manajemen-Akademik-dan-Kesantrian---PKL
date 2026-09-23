@@ -21,6 +21,7 @@ enum TenantStatus {
   PENDING
   AKTIF
   SUSPENDED
+  ARCHIVED
 }
 
 enum StatusGelombangPpdb {

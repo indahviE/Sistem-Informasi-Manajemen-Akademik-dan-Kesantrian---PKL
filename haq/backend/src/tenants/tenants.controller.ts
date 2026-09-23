@@ -38,6 +38,27 @@ export class TenantsController {
     return this.tenantsService.suspend(dto.tenantId, user, req.ip);
   }
 
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN)
+  @Post('archive')
+  archive(@Body() dto: ApproveTenantDto, @CurrentUser() user: RequestUser, @Req() req: { ip?: string }) {
+    return this.tenantsService.archive(dto.tenantId, user, req.ip);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN)
+  @Post('unarchive')
+  unarchive(@Body() dto: ApproveTenantDto, @CurrentUser() user: RequestUser, @Req() req: { ip?: string }) {
+    return this.tenantsService.unarchive(dto.tenantId, user, req.ip);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN)
+  @Post('delete-pending')
+  deletePending(@Body() dto: ApproveTenantDto, @CurrentUser() user: RequestUser, @Req() req: { ip?: string }) {
+    return this.tenantsService.deletePending(dto.tenantId, user, req.ip);
+  }
+
   @UseGuards(JwtAuthGuard)
   @Get('me')
   getMyTenant(@TenantId() tenantId: string | undefined) {

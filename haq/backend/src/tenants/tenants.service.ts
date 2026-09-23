@@ -17,6 +17,7 @@ const STATUS_LABEL: Record<string, string> = {
   PENDING: 'Pending',
   AKTIF: 'Aktif',
   SUSPENDED: 'Suspended',
+  ARCHIVED: 'Diarsipkan',
 };
 
 @Injectable()
@@ -188,6 +189,107 @@ export class TenantsService {
     });
 
     return { message: 'Tenant di-suspend.' };
+  }
+
+  async archive(tenantId: string, actor?: RequestUser, ip?: string) {
+    const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
+    if (!tenant) throw new NotFoundException('Tenant tidak ditemukan.');
+
+    if (tenant.status === TenantStatus.PENDING) {
+      throw new BadRequestException(
+        'Tenant yang masih pending belum punya data aktif. Gunakan Hapus, bukan Arsipkan.',
+      );
+    }
+    if (tenant.status === TenantStatus.ARCHIVED) {
+      throw new ConflictException('Tenant ini sudah diarsipkan.');
+    }
+
+    await this.prisma.tenant.update({
+      where: { id: tenantId },
+      data: { status: TenantStatus.ARCHIVED },
+    });
+
+    await this.audit.log({
+      action: 'TENANT_ARCHIVE',
+      entity: 'tenants',
+      entityId: tenantId,
+      tenantId,
+      kategori: AuditKategori.SISTEM,
+      tingkat: AuditTingkat.WARNING,
+      judul: 'Tenant Diarsipkan',
+      deskripsi: `Status beralih dari ${STATUS_LABEL[tenant.status] ?? tenant.status} ke Diarsipkan. Seluruh akses login untuk tenant \`${tenant.kodeTenant}\` ditutup.`,
+      meta: 'Tenant Diarsipkan',
+      userId: actor?.userId,
+      userRole: actor?.role ? String(actor.role) : null,
+      ip,
+    });
+
+    return { message: 'Tenant berhasil diarsipkan.', id: tenantId };
+  }
+
+  async unarchive(tenantId: string, actor?: RequestUser, ip?: string) {
+    const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
+    if (!tenant) throw new NotFoundException('Tenant tidak ditemukan.');
+
+    if (tenant.status !== TenantStatus.ARCHIVED) {
+      throw new BadRequestException('Tenant ini tidak sedang diarsipkan.');
+    }
+
+    await this.prisma.tenant.update({
+      where: { id: tenantId },
+      data: { status: TenantStatus.AKTIF },
+    });
+
+    await this.audit.log({
+      action: 'TENANT_UNARCHIVE',
+      entity: 'tenants',
+      entityId: tenantId,
+      tenantId,
+      kategori: AuditKategori.SISTEM,
+      tingkat: AuditTingkat.INFO,
+      judul: 'Tenant Dipulihkan dari Arsip',
+      deskripsi: `Status beralih dari Diarsipkan ke Aktif. Kode tenant \`${tenant.kodeTenant}\` kini dapat dipakai untuk login kembali.`,
+      meta: 'Tenant Aktif',
+      userId: actor?.userId,
+      userRole: actor?.role ? String(actor.role) : null,
+      ip,
+    });
+
+    return { message: 'Tenant berhasil dipulihkan dari arsip.', id: tenantId };
+  }
+
+  async deletePending(tenantId: string, actor?: RequestUser, ip?: string) {
+    const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
+    if (!tenant) throw new NotFoundException('Tenant tidak ditemukan.');
+
+    if (tenant.status !== TenantStatus.PENDING) {
+      throw new BadRequestException(
+        'Hanya tenant dengan status pending yang bisa dihapus permanen. Gunakan Arsipkan untuk tenant yang sudah aktif.',
+      );
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.tahunAjaran.deleteMany({ where: { tenantId } });
+      await tx.user.deleteMany({ where: { tenantId } });
+      await tx.tenant.delete({ where: { id: tenantId } });
+    });
+
+    await this.audit.log({
+      action: 'TENANT_DELETE_PENDING',
+      entity: 'tenants',
+      entityId: tenantId,
+      tenantId,
+      kategori: AuditKategori.SISTEM,
+      tingkat: AuditTingkat.WARNING,
+      judul: 'Pendaftaran Tenant Dihapus',
+      deskripsi: `Pendaftaran pondok "${tenant.namaPondok}" (\`${tenant.kodeTenant}\`) dihapus permanen sebelum sempat diaktifkan.`,
+      meta: 'Dihapus Permanen',
+      userId: actor?.userId,
+      userRole: actor?.role ? String(actor.role) : null,
+      ip,
+    });
+
+    return { message: 'Pendaftaran tenant berhasil dihapus.' };
   }
 
   async getByTenantId(tenantId: string) {

@@ -50,9 +50,11 @@ export class AuthService {
     }
 
     if (user.role !== Role.SUPER_ADMIN && user.tenant?.status !== TenantStatus.AKTIF) {
-      throw new ForbiddenException(
-        'Pondok belum aktif. Hubungi Super Admin untuk aktivasi.',
-      );
+      const pesan =
+        user.tenant?.status === TenantStatus.ARCHIVED
+          ? 'Pondok ini telah diarsipkan. Hubungi Super Admin untuk memulihkan akses.'
+          : 'Pondok belum aktif. Hubungi Super Admin untuk aktivasi.';
+      throw new ForbiddenException(pesan);
     }
 
     const payload = {
@@ -117,6 +119,9 @@ export class AuthService {
     });
     if (!user || user.status !== UserStatus.AKTIF) {
       throw new UnauthorizedException('Akun tidak aktif.');
+    }
+    if (user.role !== Role.SUPER_ADMIN && user.tenant?.status !== TenantStatus.AKTIF) {
+      throw new ForbiddenException('Akses tenant ini sudah tidak aktif.');
     }
 
     const newPayload = {
