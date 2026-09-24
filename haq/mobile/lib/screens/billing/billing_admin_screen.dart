@@ -675,6 +675,41 @@ class _BillingAdminScreenState extends State<BillingAdminScreen> {
   // PaketScreen's own _PaketFormDialog, so "Tambah Paket" looks identical
   // whether it's opened from the Billing overview or from Kelola Paket.
   // ===========================================================================
+  /// Show floating toast notification (success or error)
+  /// Mirip dengan paket_screen.dart: floating, rounded, solid background
+  void _showToast(String message, {bool isError = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).clearSnackBars();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: isError ? _BC.error : _BC.primaryContainer,
+        elevation: 6,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        width: 480,
+        duration: Duration(seconds: isError ? 4 : 3),
+        content: Row(
+          children: [
+            Icon(isError ? Icons.error_outline : Icons.check_circle,
+                size: 20, color: Colors.white),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                message,
+                style: const TextStyle(
+                  fontFamily: 'Nunito',
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _paketDialog({Map<String, dynamic>? existing}) async {
     final body = await showDialog<Map<String, dynamic>>(
       context: context,
@@ -686,13 +721,15 @@ class _BillingAdminScreenState extends State<BillingAdminScreen> {
       final api = AppScope.of(context).api;
       if (existing == null) {
         await api.post(ApiUrl.paket, body);
+        _showToast('Paket berhasil ditambahkan');
       } else {
         await api.patch('${ApiUrl.paket}/${existing['id']}', body);
+        _showToast('Paket berhasil diperbarui');
       }
       _load(showSpinner: false);
     } on ApiException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+      _showToast(e.message, isError: true);
     }
   }
 
@@ -706,12 +743,11 @@ class _BillingAdminScreenState extends State<BillingAdminScreen> {
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() => p['aktif'] = !value);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+      _showToast(e.message, isError: true);
     } catch (_) {
       if (!mounted) return;
       setState(() => p['aktif'] = !value);
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Gagal memperbarui status paket.')));
+      _showToast('Gagal memperbarui status paket.', isError: true);
     }
   }
 
@@ -738,10 +774,11 @@ class _BillingAdminScreenState extends State<BillingAdminScreen> {
     if (ok != true) return;
     try {
       await AppScope.of(context).api.delete('${ApiUrl.paket}/${p['id']}');
+      _showToast('Paket berhasil dihapus');
       _load(showSpinner: false);
     } on ApiException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+      _showToast(e.message, isError: true);
     }
   }
 
