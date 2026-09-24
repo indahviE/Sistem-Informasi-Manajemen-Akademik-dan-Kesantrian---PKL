@@ -759,9 +759,10 @@ class _BillingAdminScreenState extends State<BillingAdminScreen> {
               _BcSelect<String>(
                 value: tenantId,
                 label: 'Pilih Pondok',
-                options: [
+                 options: [
                   for (final t in _tenants)
-                    MapEntry(t['id'] as String, '${t['namaPondok']} (${t['kodeTenant']})'),
+                    if (t['status'] == 'PENDING' || t['status'] == 'AKTIF')
+                      MapEntry(t['id'] as String, '${t['namaPondok']} (${t['kodeTenant']})'),
                 ],
                 onChanged: (v) => setSt(() => tenantId = v),
               ),
@@ -800,7 +801,7 @@ class _BillingAdminScreenState extends State<BillingAdminScreen> {
           .post(ApiUrl.subscriptions, {'tenantId': tenantId, 'paketId': paketId});
       if (!mounted) return;
       ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Langganan dibuat (1 tahun).')));
+          .showSnackBar(const SnackBar(content: Text('Langganan berhasil dibuat.')));
       _load();
     } on ApiException catch (e) {
       if (!mounted) return;
@@ -974,8 +975,12 @@ class _BillingAdminScreenState extends State<BillingAdminScreen> {
         .map((s) => (((s as Map)['tenant'] as Map?)?['id']) ?? s['tenantId'])
         .where((id) => id != null)
         .toSet();
-    final totalTenant = _tenants.length;
-    final berbayar = tenantIdsBerbayar.length;
+        final tenantEligible = _tenants
+        .where((t) => t['status'] == 'PENDING' || t['status'] == 'AKTIF')
+        .toList();
+    final eligibleIds = tenantEligible.map((t) => t['id']).toSet();
+    final totalTenant = tenantEligible.length;
+    final berbayar = tenantIdsBerbayar.where(eligibleIds.contains).length;
     final trial = (totalTenant - berbayar).clamp(0, totalTenant);
     final progress = totalTenant > 0 ? berbayar / totalTenant : 0.0;
 
