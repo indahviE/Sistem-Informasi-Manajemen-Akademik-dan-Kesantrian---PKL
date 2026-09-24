@@ -22,11 +22,15 @@ export class DashboardService {
   }
 
   private async superAdminDashboard() {
-    const [totalTenant, tenantAktif, tenantPending, totalUser, totalSantri] =
+    const tigaPuluhHariLalu = new Date();
+    tigaPuluhHariLalu.setDate(tigaPuluhHariLalu.getDate() - 30);
+
+    const [totalTenant, tenantAktif, tenantPending, tenantBaru30Hari, totalUser, totalSantri] =
       await this.prisma.$transaction([
         this.prisma.tenant.count(),
         this.prisma.tenant.count({ where: { status: 'AKTIF' } }),
         this.prisma.tenant.count({ where: { status: 'PENDING' } }),
+        this.prisma.tenant.count({ where: { tanggalDaftar: { gte: tigaPuluhHariLalu } } }),
         this.prisma.user.count({ where: { role: { not: Role.SUPER_ADMIN } } }),
         this.prisma.santri.count(),
       ]);
@@ -39,7 +43,7 @@ export class DashboardService {
 
     return {
       role: 'SUPER_ADMIN',
-      statistik: { totalTenant, tenantAktif, tenantPending, totalUser, totalSantri },
+      statistik: { totalTenant, tenantAktif, tenantPending, tenantBaru30Hari, totalUser, totalSantri },
       tenantTerbaru: recentTenants,
       auditKeamanan: await this.audit.recent(3),
     };
