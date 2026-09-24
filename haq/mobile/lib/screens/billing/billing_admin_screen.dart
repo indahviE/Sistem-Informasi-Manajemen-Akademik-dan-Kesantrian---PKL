@@ -675,6 +675,41 @@ class _BillingAdminScreenState extends State<BillingAdminScreen> {
   // PaketScreen's own _PaketFormDialog, so "Tambah Paket" looks identical
   // whether it's opened from the Billing overview or from Kelola Paket.
   // ===========================================================================
+  /// Show floating toast notification (success or error)
+  /// Mirip dengan paket_screen.dart: floating, rounded, solid background
+  void _showToast(String message, {bool isError = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).clearSnackBars();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: isError ? _BC.error : _BC.primaryContainer,
+        elevation: 6,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        width: 480,
+        duration: Duration(seconds: isError ? 4 : 3),
+        content: Row(
+          children: [
+            Icon(isError ? Icons.error_outline : Icons.check_circle,
+                size: 20, color: Colors.white),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                message,
+                style: const TextStyle(
+                  fontFamily: 'Nunito',
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _paketDialog({Map<String, dynamic>? existing}) async {
     final body = await showDialog<Map<String, dynamic>>(
       context: context,
@@ -686,13 +721,15 @@ class _BillingAdminScreenState extends State<BillingAdminScreen> {
       final api = AppScope.of(context).api;
       if (existing == null) {
         await api.post(ApiUrl.paket, body);
+        _showToast('Paket berhasil ditambahkan');
       } else {
         await api.patch('${ApiUrl.paket}/${existing['id']}', body);
+        _showToast('Paket berhasil diperbarui');
       }
       _load(showSpinner: false);
     } on ApiException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+      _showToast(e.message, isError: true);
     }
   }
 
@@ -706,12 +743,11 @@ class _BillingAdminScreenState extends State<BillingAdminScreen> {
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() => p['aktif'] = !value);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+      _showToast(e.message, isError: true);
     } catch (_) {
       if (!mounted) return;
       setState(() => p['aktif'] = !value);
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Gagal memperbarui status paket.')));
+      _showToast('Gagal memperbarui status paket.', isError: true);
     }
   }
 
@@ -738,10 +774,11 @@ class _BillingAdminScreenState extends State<BillingAdminScreen> {
     if (ok != true) return;
     try {
       await AppScope.of(context).api.delete('${ApiUrl.paket}/${p['id']}');
+      _showToast('Paket berhasil dihapus');
       _load(showSpinner: false);
     } on ApiException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+      _showToast(e.message, isError: true);
     }
   }
 
@@ -759,9 +796,10 @@ class _BillingAdminScreenState extends State<BillingAdminScreen> {
               _BcSelect<String>(
                 value: tenantId,
                 label: 'Pilih Pondok',
-                options: [
+                 options: [
                   for (final t in _tenants)
-                    MapEntry(t['id'] as String, '${t['namaPondok']} (${t['kodeTenant']})'),
+                    if (t['status'] == 'PENDING' || t['status'] == 'AKTIF')
+                      MapEntry(t['id'] as String, '${t['namaPondok']} (${t['kodeTenant']})'),
                 ],
                 onChanged: (v) => setSt(() => tenantId = v),
               ),
@@ -800,7 +838,7 @@ class _BillingAdminScreenState extends State<BillingAdminScreen> {
           .post(ApiUrl.subscriptions, {'tenantId': tenantId, 'paketId': paketId});
       if (!mounted) return;
       ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Langganan dibuat (1 tahun).')));
+          .showSnackBar(const SnackBar(content: Text('Langganan berhasil dibuat.')));
       _load();
     } on ApiException catch (e) {
       if (!mounted) return;
@@ -974,8 +1012,12 @@ class _BillingAdminScreenState extends State<BillingAdminScreen> {
         .map((s) => (((s as Map)['tenant'] as Map?)?['id']) ?? s['tenantId'])
         .where((id) => id != null)
         .toSet();
-    final totalTenant = _tenants.length;
-    final berbayar = tenantIdsBerbayar.length;
+        final tenantEligible = _tenants
+        .where((t) => t['status'] == 'PENDING' || t['status'] == 'AKTIF')
+        .toList();
+    final eligibleIds = tenantEligible.map((t) => t['id']).toSet();
+    final totalTenant = tenantEligible.length;
+    final berbayar = tenantIdsBerbayar.where(eligibleIds.contains).length;
     final trial = (totalTenant - berbayar).clamp(0, totalTenant);
     final progress = totalTenant > 0 ? berbayar / totalTenant : 0.0;
 
@@ -1223,13 +1265,22 @@ class _BillingAdminScreenState extends State<BillingAdminScreen> {
   // ---------------------------------------------------------------------
   // 4. Katalog Paket
   // ---------------------------------------------------------------------
-  Widget _buildCatalogSection() {
+    Widget _buildCatalogSection() {
+    // Jumlah maksimal paket yang ditampilkan di overview Billing.
+    // Sisanya bisa dilihat lewat tombol "Lihat semua paket".
+    const batasTampil = 4;
+
     final pakets = List<Map<String, dynamic>>.from(_pakets.map((e) => (e as Map).cast<String, dynamic>()));
     pakets.sort((a, b) => _num(a, ['harga']).compareTo(_num(b, ['harga'])));
 
+    // Badge Enterprise/Populer dihitung dari SEMUA paket (sebelum dipotong),
+    // supaya badge tidak berpindah-pindah hanya karena daftar dibatasi.
     final paid = pakets.where((p) => _num(p, ['harga']) > 0).toList();
     final enterpriseId = paid.isNotEmpty ? paid.last['id'] : null;
     final popularId = paid.length >= 3 ? paid[paid.length - 2]['id'] : null;
+
+    final tampil = pakets.take(batasTampil).toList();
+    final sisa = pakets.length - tampil.length;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1273,7 +1324,7 @@ class _BillingAdminScreenState extends State<BillingAdminScreen> {
         else
           Column(
             children: [
-              for (final p in pakets)
+              for (final p in tampil)
                 _PaketTierCard(
                   paket: p,
                   isFree: _num(p, ['harga']) == 0,
@@ -1290,6 +1341,25 @@ class _BillingAdminScreenState extends State<BillingAdminScreen> {
                   onToggleAktif: (v) => _toggleAktif(p, v),
                 ),
             ],
+          ),
+        if (sisa > 0)
+          SizedBox(
+            width: double.infinity,
+            height: 44,
+            child: OutlinedButton.icon(
+              onPressed: () => setState(() => _view = _BillingView.paket),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: _BC.primary,
+                backgroundColor: _BC.surfaceContainerHigh,
+                side: BorderSide.none,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+              ),
+              icon: const Icon(Icons.arrow_forward, size: 16),
+              label: Text(
+                'Lihat semua paket (${pakets.length})',
+                style: const TextStyle(fontFamily: 'Nunito', fontSize: 12.5, fontWeight: FontWeight.w700),
+              ),
+            ),
           ),
       ],
     );

@@ -14,64 +14,6 @@ import '../../services/app_scope.dart';
 import 'pengaturan_dialogs.dart';
 
 // ============================================================================
-// Model
-// ============================================================================
-
-class SubAdminData {
-  SubAdminData({
-    required this.id,
-    required this.nama,
-    required this.email,
-    required this.roleType,
-    required this.tanggal,
-  });
-
-  final String id;
-  final String nama;
-  final String email;
-  final String? roleType; // 'OPERASIONAL' | 'KEUANGAN' | null
-
-  final String tanggal;
-
-  factory SubAdminData.fromJson(Map<String, dynamic> j) {
-    return SubAdminData(
-      id: j['id'].toString(),
-      nama: (j['nama'] ?? '-').toString(),
-      email: (j['email'] ?? '-').toString(),
-      roleType: j['subRole']?.toString(),
-      tanggal: _formatTanggal(j['createdAt']?.toString()),
-    );
-  }
-
-  String get initials {
-    final parts = nama.trim().split(RegExp(r'\s+')).where((e) => e.isNotEmpty).toList();
-    if (parts.isEmpty) return '?';
-    if (parts.length == 1) return parts[0].substring(0, 1).toUpperCase();
-    return (parts[0].substring(0, 1) + parts[1].substring(0, 1)).toUpperCase();
-  }
-
-  String get roleLabel => switch (roleType) {
-        'KEUANGAN' => 'Admin Keuangan & Billing',
-        'OPERASIONAL' => 'Admin Operasional',
-        _ => 'Sub-Admin',
-      };
-}
-
-String _formatTanggal(String? iso) {
-  if (iso == null) return '-';
-  try {
-    final d = DateTime.parse(iso).toLocal();
-    const bulan = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun',
-      'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des',
-    ];
-    return '${d.day.toString().padLeft(2, '0')} ${bulan[d.month - 1]} ${d.year}';
-  } catch (_) {
-    return '-';
-  }
-}
-
-// ============================================================================
 // Screen
 // ============================================================================
 
@@ -97,9 +39,6 @@ class _PengaturanScreenState extends State<PengaturanScreen> {
   bool _notifKeamanan = true;
   bool _notifLaporan = false;
 
-  // Sub-admin
-  List<SubAdminData> _subAdmins = [];
-
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -120,9 +59,6 @@ class _PengaturanScreenState extends State<PengaturanScreen> {
       final res = await _api.get(ApiUrl.pengaturan) as Map<String, dynamic>;
       final kebijakan = res['kebijakanOnboarding'] as Map<String, dynamic>? ?? {};
       final notifikasi = res['notifikasi'] as Map<String, dynamic>? ?? {};
-      final subAdmins = (res['subAdmins'] as List? ?? [])
-          .map((e) => SubAdminData.fromJson(e as Map<String, dynamic>))
-          .toList();
       if (!mounted) return;
       setState(() {
         _autoApprove = kebijakan['autoApproveTenant'] ?? false;
@@ -131,7 +67,6 @@ class _PengaturanScreenState extends State<PengaturanScreen> {
         _notifTagihan = notifikasi['notifTagihan'] ?? true;
         _notifKeamanan = notifikasi['notifKeamanan'] ?? true;
         _notifLaporan = notifikasi['notifLaporanMingguan'] ?? false;
-        _subAdmins = subAdmins;
         _loading = false;
       });
     } catch (e) {
@@ -170,76 +105,6 @@ class _PengaturanScreenState extends State<PengaturanScreen> {
     if (saved == true && mounted) AppToast.success(context, 'Perubahan tersimpan');
   }
 
-  Future<void> _editProfilLama() async {
-    final user = AppScope.of(context).user;
-    final namaCtrl = TextEditingController(text: user?.nama ?? '');
-    final emailCtrl = TextEditingController(text: user?.email ?? '');
-    final formKey = GlobalKey<FormState>();
-
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: PColors.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Edit Profil', style: PText.headlineSm),
-        content: Form(
-          key: formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              TextFormField(
-                controller: namaCtrl,
-                decoration: const InputDecoration(labelText: 'Nama Lengkap'),
-                validator: (v) => (v == null || v.trim().isEmpty) ? 'Wajib diisi' : null,
-              ),
-              const SizedBox(height: 10),
-              TextFormField(
-                controller: emailCtrl,
-                keyboardType: TextInputType.emailAddress,
-                decoration: const InputDecoration(labelText: 'Email'),
-                validator: (v) => (v == null || !v.contains('@')) ? 'Email tidak valid' : null,
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text('Batal', style: PText.labelMd.copyWith(color: PColors.inkSecondary)),
-          ),
-          FilledButton(
-            onPressed: () {
-              if (formKey.currentState!.validate()) Navigator.pop(ctx, true);
-            },
-            style: FilledButton.styleFrom(backgroundColor: PColors.primary),
-            child: const Text('Simpan'),
-          ),
-        ],
-      ),
-    );
-
-    if (result != true) return;
-
-    try {
-      await _api.patch(ApiUrl.pengaturanProfil, {
-        'nama': namaCtrl.text.trim(),
-        'email': emailCtrl.text.trim(),
-      });
-      if (!mounted) return;
-      await AppScope.of(context).updateProfil(
-        nama: namaCtrl.text.trim(),
-        email: emailCtrl.text.trim(),
-      );
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Profil berhasil diperbarui')),
-      );
-    } on ApiException catch (e) {
-      _showError(e.message);
-    }
-  }
-
   // -------------------------------------------------------------------
   // Ubah Password
   // -------------------------------------------------------------------
@@ -258,81 +123,6 @@ class _PengaturanScreenState extends State<PengaturanScreen> {
     );
 
     if (saved == true && mounted) AppToast.success(context, 'Password berhasil diubah');
-  }
-
-  Future<void> _ubahPasswordLama() async {
-    final lamaCtrl = TextEditingController();
-    final baruCtrl = TextEditingController();
-    final konfirmasiCtrl = TextEditingController();
-    final formKey = GlobalKey<FormState>();
-
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: PColors.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Ubah Password', style: PText.headlineSm),
-        content: Form(
-          key: formKey,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                TextFormField(
-                  controller: lamaCtrl,
-                  obscureText: true,
-                  decoration: const InputDecoration(labelText: 'Password Saat Ini'),
-                  validator: (v) => (v == null || v.isEmpty) ? 'Wajib diisi' : null,
-                ),
-                const SizedBox(height: 10),
-                TextFormField(
-                  controller: baruCtrl,
-                  obscureText: true,
-                  decoration: const InputDecoration(labelText: 'Password Baru'),
-                  validator: (v) => (v == null || v.length < 6) ? 'Minimal 6 karakter' : null,
-                ),
-                const SizedBox(height: 10),
-                TextFormField(
-                  controller: konfirmasiCtrl,
-                  obscureText: true,
-                  decoration: const InputDecoration(labelText: 'Konfirmasi Password Baru'),
-                  validator: (v) => (v != baruCtrl.text) ? 'Konfirmasi tidak cocok' : null,
-                ),
-              ],
-            ),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text('Batal', style: PText.labelMd.copyWith(color: PColors.inkSecondary)),
-          ),
-          FilledButton(
-            onPressed: () {
-              if (formKey.currentState!.validate()) Navigator.pop(ctx, true);
-            },
-            style: FilledButton.styleFrom(backgroundColor: PColors.primary),
-            child: const Text('Ubah Password'),
-          ),
-        ],
-      ),
-    );
-
-    if (result != true) return;
-
-    try {
-      await _api.patch(ApiUrl.pengaturanUbahPassword, {
-        'passwordLama': lamaCtrl.text,
-        'passwordBaru': baruCtrl.text,
-      });
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Password berhasil diubah')),
-      );
-    } on ApiException catch (e) {
-      _showError(e.message);
-    }
   }
 
   // -------------------------------------------------------------------
@@ -393,132 +183,6 @@ class _PengaturanScreenState extends State<PengaturanScreen> {
         _notifKeamanan = prev.$3;
         _notifLaporan = prev.$4;
       });
-      _showError(e.message);
-    }
-  }
-
-  // -------------------------------------------------------------------
-  // Sub-admin
-  // -------------------------------------------------------------------
-
-  Future<void> _removeSubAdmin(int index) async {
-    final admin = _subAdmins[index];
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: PColors.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Cabut Akses Sub-Admin?', style: PText.headlineSm),
-        content: Text('Akses ${admin.nama} akan langsung dicabut dan tidak dapat dibatalkan.', style: PText.bodyMd),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text('Batal', style: PText.labelMd.copyWith(color: PColors.inkSecondary)),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: TextButton.styleFrom(foregroundColor: PColors.errorText),
-            child: const Text('Cabut Akses', style: TextStyle(fontWeight: FontWeight.w700)),
-          ),
-        ],
-      ),
-    );
-    if (confirm != true) return;
-
-    try {
-      await _api.delete(ApiUrl.pengaturanSubAdminDelete(admin.id));
-      if (!mounted) return;
-      setState(() => _subAdmins.removeAt(index));
-      AppToast.success(context, 'Akses ${admin.nama} telah dicabut');
-    } on ApiException catch (e) {
-      _showError(e.message);
-    }
-  }
-
-  Future<void> _inviteSubAdmin() async {
-    final namaCtrl = TextEditingController();
-    final emailCtrl = TextEditingController();
-    final passwordCtrl = TextEditingController();
-    String subRole = 'OPERASIONAL';
-    final formKey = GlobalKey<FormState>();
-
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
-          backgroundColor: PColors.surface,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Text('Undang Sub-Admin Baru', style: PText.headlineSm),
-          content: Form(
-            key: formKey,
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  TextFormField(
-                    controller: namaCtrl,
-                    decoration: const InputDecoration(labelText: 'Nama Lengkap'),
-                    validator: (v) => (v == null || v.trim().isEmpty) ? 'Wajib diisi' : null,
-                  ),
-                  const SizedBox(height: 10),
-                  TextFormField(
-                    controller: emailCtrl,
-                    keyboardType: TextInputType.emailAddress,
-                    decoration: const InputDecoration(labelText: 'Email'),
-                    validator: (v) => (v == null || !v.contains('@')) ? 'Email tidak valid' : null,
-                  ),
-                  const SizedBox(height: 10),
-                  TextFormField(
-                    controller: passwordCtrl,
-                    obscureText: true,
-                    decoration: const InputDecoration(labelText: 'Password Awal'),
-                    validator: (v) => (v == null || v.length < 6) ? 'Minimal 6 karakter' : null,
-                  ),
-                  const SizedBox(height: 10),
-                  DropdownButtonFormField<String>(
-                    initialValue: subRole,
-                    decoration: const InputDecoration(labelText: 'Peran'),
-                    items: const [
-                      DropdownMenuItem(value: 'OPERASIONAL', child: Text('Admin Operasional')),
-                      DropdownMenuItem(value: 'KEUANGAN', child: Text('Admin Keuangan & Billing')),
-                    ],
-                    onChanged: (v) => setDialogState(() => subRole = v ?? 'OPERASIONAL'),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: Text('Batal', style: PText.labelMd.copyWith(color: PColors.inkSecondary)),
-            ),
-            FilledButton(
-              onPressed: () {
-                if (formKey.currentState!.validate()) Navigator.pop(ctx, true);
-              },
-              style: FilledButton.styleFrom(backgroundColor: PColors.primary),
-              child: const Text('Kirim Undangan'),
-            ),
-          ],
-        ),
-      ),
-    );
-
-    if (result != true) return;
-
-    try {
-      final res = await _api.post(ApiUrl.pengaturanSubAdmin, {
-        'nama': namaCtrl.text.trim(),
-        'email': emailCtrl.text.trim(),
-        'password': passwordCtrl.text,
-        'subRole': subRole,
-      }) as Map<String, dynamic>;
-      if (!mounted) return;
-      setState(() => _subAdmins.insert(0, SubAdminData.fromJson(res)));
-      AppToast.success(context, 'Sub-admin baru berhasil ditambahkan');
-    } on ApiException catch (e) {
       _showError(e.message);
     }
   }
@@ -587,8 +251,6 @@ class _PengaturanScreenState extends State<PengaturanScreen> {
       child: ListView(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
         children: [
-          const _ClusterStatusBanner(),
-          const SizedBox(height: 14),
           const _PengaturanTitleRow(),
           const SizedBox(height: 14),
           _ProfileCard(
@@ -608,12 +270,6 @@ class _PengaturanScreenState extends State<PengaturanScreen> {
             onIncrement: () {
               if (_graceDays < 90) _updateKebijakan(graceDays: _graceDays + 1);
             },
-          ),
-          const SizedBox(height: 14),
-          _SubAdminCard(
-            subAdmins: _subAdmins,
-            onDelete: _removeSubAdmin,
-            onInvite: _inviteSubAdmin,
           ),
           const SizedBox(height: 14),
           _NotificationCard(
@@ -717,60 +373,6 @@ class _SectionHeader extends StatelessWidget {
 }
 
 // ============================================================================
-// Cluster status banner
-// ============================================================================
-
-class _ClusterStatusBanner extends StatelessWidget {
-  const _ClusterStatusBanner();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: PColors.surfaceContainerHigh,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.cloud_done_outlined, size: 16, color: PColors.inkSecondary),
-          const SizedBox(width: 6),
-          Expanded(
-            child: Text(
-              'Cluster ap-southeast-1 (Jakarta DC)',
-              style: PText.bodySm,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-            decoration: BoxDecoration(
-              color: PColors.surface,
-              borderRadius: BorderRadius.circular(9999),
-              boxShadow: const [
-                BoxShadow(color: Color(0x14000000), blurRadius: 3, offset: Offset(0, 1)),
-              ],
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 7,
-                  height: 7,
-                  decoration: const BoxDecoration(color: PColors.primary, shape: BoxShape.circle),
-                ),
-                const SizedBox(width: 5),
-                Text('SEMUA NODE SEHAT', style: PText.labelSm.copyWith(color: PColors.primary)),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ============================================================================
 // Page title row
 // ============================================================================
 
@@ -793,7 +395,7 @@ class _PengaturanTitleRow extends StatelessWidget {
                 borderRadius: BorderRadius.circular(9999),
               ),
               child: const Text(
-                'ROOT ACCESS',
+                'SUPER ADMIN',
                 style: TextStyle(
                   fontFamily: 'Nunito',
                   fontSize: 10,
@@ -872,7 +474,7 @@ class _ProfileCard extends StatelessWidget {
                         borderRadius: BorderRadius.circular(9999),
                       ),
                       child: const Text(
-                        'ROOT Super Admin',
+                        'Super Admin',
                         style: TextStyle(
                           fontFamily: 'Nunito',
                           fontSize: 10,
@@ -1109,164 +711,7 @@ class _StepperButton extends StatelessWidget {
 }
 
 // ============================================================================
-// SECTION 3 — Sub-Admin Platform
-// ============================================================================
-
-class _SubAdminCard extends StatelessWidget {
-  const _SubAdminCard({required this.subAdmins, required this.onDelete, required this.onInvite});
-
-  final List<SubAdminData> subAdmins;
-  final ValueChanged<int> onDelete;
-  final VoidCallback onInvite;
-
-  @override
-  Widget build(BuildContext context) {
-    return _SectionCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _SectionHeader(
-            icon: Icons.admin_panel_settings_outlined,
-            title: 'Sub-Admin Platform',
-            trailing: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-              decoration: BoxDecoration(
-                color: PColors.surfaceContainerHigh,
-                borderRadius: BorderRadius.circular(9999),
-              ),
-              child: Text('${subAdmins.length} Akun Aktif', style: PText.labelSm.copyWith(color: PColors.primary)),
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text('Staf internal dengan izin operasional kontrol panel platform.', style: PText.bodySm),
-          const SizedBox(height: 12),
-          if (subAdmins.isEmpty)
-            Container(
-              padding: const EdgeInsets.all(16),
-              alignment: Alignment.center,
-              decoration: BoxDecoration(color: PColors.surfaceDim, borderRadius: BorderRadius.circular(12)),
-              child: Text('Belum ada sub-admin platform.', style: PText.bodySm),
-            )
-          else
-            ...List.generate(subAdmins.length, (i) {
-              final s = subAdmins[i];
-              final isKeuangan = s.roleType == 'KEUANGAN';
-              return Padding(
-                padding: EdgeInsets.only(bottom: i == subAdmins.length - 1 ? 0 : 8),
-                child: Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(color: PColors.surfaceDim, borderRadius: BorderRadius.circular(12)),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 40,
-                        height: 40,
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: isKeuangan ? PColors.goldDark : PColors.primaryContainer,
-                          shape: BoxShape.circle,
-                        ),
-                        child: Text(
-                          s.initials,
-                          style: const TextStyle(
-                            fontFamily: 'Nunito',
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(s.nama, style: PText.labelMd.copyWith(color: PColors.primary), overflow: TextOverflow.ellipsis),
-                            const SizedBox(height: 1),
-                            Text(s.email, style: PText.bodySm, overflow: TextOverflow.ellipsis),
-                            const SizedBox(height: 4),
-                            Wrap(
-                              spacing: 6,
-                              runSpacing: 2,
-                              crossAxisAlignment: WrapCrossAlignment.center,
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: isKeuangan ? PColors.goldSurface : PColors.primaryFixed,
-                                    borderRadius: BorderRadius.circular(6),
-                                  ),
-                                  child: Text(
-                                    s.roleLabel,
-                                    style: TextStyle(
-                                      fontFamily: 'Nunito',
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w600,
-                                      color: isKeuangan ? PColors.goldDark : PColors.primary,
-                                    ),
-                                  ),
-                                ),
-                                Text('• ${s.tanggal}', style: PText.labelSm),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Material(
-                        color: PColors.errorBg,
-                        borderRadius: BorderRadius.circular(9),
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(9),
-                          onTap: () => onDelete(i),
-                          child: Container(
-                            width: 34,
-                            height: 34,
-                            alignment: Alignment.center,
-                            child: const Icon(Icons.delete_outline, size: 17, color: PColors.errorText),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            }),
-          const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            child: Material(
-              color: PColors.primary,
-              borderRadius: BorderRadius.circular(12),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(12),
-                onTap: onInvite,
-                child: Container(
-                  height: 46,
-                  alignment: Alignment.center,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: const [
-                      Icon(Icons.person_add_alt_1, size: 18, color: Colors.white),
-                      SizedBox(width: 8),
-                      Text(
-                        '+ Undang Sub-Admin Baru',
-                        style: TextStyle(fontFamily: 'Nunito', fontSize: 13, fontWeight: FontWeight.w700, color: Colors.white),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ============================================================================
-// SECTION 4 — Notifikasi Platform
+// SECTION 3 — Notifikasi Platform
 // ============================================================================
 
 class _NotificationCard extends StatelessWidget {
@@ -1298,7 +743,7 @@ class _NotificationCard extends StatelessWidget {
         children: [
           const _SectionHeader(icon: Icons.notifications_active_outlined, title: 'Notifikasi Platform'),
           const SizedBox(height: 4),
-          Text('Konfigurasi saluran peringatan otomatis ke konsol ROOT.', style: PText.bodySm),
+          Text('Konfigurasi saluran peringatan otomatis ke konsol Super Admin.', style: PText.bodySm),
           const SizedBox(height: 12),
           _NotifToggleItem(
             title: 'Pendaftaran Tenant Baru',
@@ -1373,7 +818,7 @@ class _NotifToggleItem extends StatelessWidget {
 }
 
 // ============================================================================
-// SECTION 5 — Tentang Platform
+// SECTION 4 — Tentang Platform
 // ============================================================================
 
 class _AboutPlatformCard extends StatelessWidget {
@@ -1473,7 +918,7 @@ class _PolicyLinkRow extends StatelessWidget {
 }
 
 // ============================================================================
-// SECTION 6 — Keluar
+// SECTION 5 — Keluar
 // ============================================================================
 
 class _LogoutButton extends StatelessWidget {
@@ -1513,7 +958,7 @@ class _LogoutButton extends StatelessWidget {
 }
 
 // ============================================================================
-// Reusable toggle switch (dipakai di section 2 & 4)
+// Reusable toggle switch (dipakai di section 2 & 3)
 // ============================================================================
 
 class _SettingsToggle extends StatelessWidget {

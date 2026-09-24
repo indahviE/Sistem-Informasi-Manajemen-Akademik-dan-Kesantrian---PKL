@@ -44,14 +44,17 @@ export class TenantsService {
       throw new ConflictException('Kode tenant sudah dipakai. Pilih kode lain.');
     }
 
-    
-
     const emailExists = await this.prisma.user.findFirst({
       where: { email: dto.adminEmail },
     });
     if (emailExists) {
       throw new ConflictException('Email admin sudah terdaftar di platform ini.');
     }
+
+    // Baca kebijakan onboarding platform (tabel singleton PlatformSetting)
+    const platformSetting = await this.prisma.platformSetting.findFirst();
+    const autoApprove = platformSetting?.autoApproveTenant ?? false;
+    const initialStatus = autoApprove ? TenantStatus.AKTIF : TenantStatus.PENDING;
 
     const passwordHash = await bcrypt.hash(dto.adminPassword, 10);
 
@@ -63,7 +66,7 @@ export class TenantsService {
           logoUrl: dto.logoUrl,
           alamat: dto.alamat,
           karakteristik: dto.karakteristik,
-          status: TenantStatus.PENDING,
+          status: initialStatus,
         },
       });
 
@@ -91,21 +94,24 @@ export class TenantsService {
         namaPondok: tenant.namaPondok,
         kodeTenant: tenant.kodeTenant,
         status: tenant.status,
-        message:
-          'Pendaftaran berhasil. Menunggu persetujuan Super Admin sebelum bisa digunakan.',
+        message: autoApprove
+          ? 'Pendaftaran berhasil. Tenant langsung diaktifkan sesuai kebijakan platform.'
+          : 'Pendaftaran berhasil. Menunggu persetujuan Super Admin sebelum bisa digunakan.',
       };
     });
 
     await this.audit.log({
-      action: 'TENANT_SIGNUP',
+      action: autoApprove ? 'TENANT_SIGNUP_AUTO_APPROVED' : 'TENANT_SIGNUP',
       entity: 'tenants',
       entityId: result.id,
       tenantId: result.id,
       kategori: AuditKategori.SISTEM,
       tingkat: AuditTingkat.INFO,
-      judul: 'Pendaftaran Pondok Baru',
-      deskripsi: `Pondok "${result.namaPondok}" (\`${result.kodeTenant}\`) mendaftar via self-service dan menunggu validasi Super Admin.`,
-      meta: 'Menunggu Persetujuan',
+      judul: autoApprove ? 'Pondok Baru Terdaftar & Otomatis Aktif' : 'Pendaftaran Pondok Baru',
+      deskripsi: autoApprove
+        ? `Pondok "${result.namaPondok}" (\`${result.kodeTenant}\`) mendaftar via self-service dan langsung diaktifkan sesuai kebijakan Auto-Approve platform.`
+        : `Pondok "${result.namaPondok}" (\`${result.kodeTenant}\`) mendaftar via self-service dan menunggu validasi Super Admin.`,
+      meta: autoApprove ? 'Tenant Aktif' : 'Menunggu Persetujuan',
       userNama: dto.adminNama,
       userRole: 'ADMIN',
       ip,
@@ -113,7 +119,9 @@ export class TenantsService {
 
     await this.notifikasi.kirimKeSuperAdmin(
       JenisNotifikasi.TENANT_BARU,
-      `Tenant baru "${result.namaPondok}" (${result.kodeTenant}) mendaftar dan menunggu persetujuan.`,
+      autoApprove
+        ? `Tenant baru "${result.namaPondok}" (${result.kodeTenant}) mendaftar dan langsung diaktifkan otomatis.`
+        : `Tenant baru "${result.namaPondok}" (${result.kodeTenant}) mendaftar dan menunggu persetujuan.`,
     );
 
     return result;

@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { StatusInvoice, StatusSubscription } from '@prisma/client';
+import { PeriodePaket, StatusInvoice, StatusSubscription, TenantStatus } from '@prisma/client';
 import {
   AssignSubscriptionDto,
   CreateInvoiceDto,
@@ -49,21 +49,48 @@ export class BillingService {
   async assignSubscription(dto: AssignSubscriptionDto) {
     const tenant = await this.prisma.tenant.findUnique({ where: { id: dto.tenantId } });
     if (!tenant) throw new NotFoundException('Tenant tidak ditemukan.');
+
+    // Tenant suspended / archived tidak boleh di-assign paket.
+    // PENDING dan AKTIF diperbolehkan.
+    if (
+      tenant.status === TenantStatus.SUSPENDED ||
+      tenant.status === TenantStatus.ARCHIVED
+    ) {
+      throw new BadRequestException(
+        `Tenant berstatus ${tenant.status.toLowerCase()}. Aktifkan/pulihkan tenant terlebih dahulu sebelum assign paket.`,
+      );
+    }
+
     const paket = await this.prisma.paket.findUnique({ where: { id: dto.paketId } });
     if (!paket) throw new NotFoundException('Paket tidak ditemukan.');
+    if (!paket.aktif) throw new BadRequestException('Paket sudah tidak aktif.');
 
-    await this.prisma.subscription.updateMany({
-      where: { tenantId: dto.tenantId, status: StatusSubscription.AKTIF },
-      data: { status: StatusSubscription.EXPIRED },
-    });
+    // Hitung tanggal akhir sesuai periode paket
+    const tanggalAkhir = new Date();
+    if (paket.periode === PeriodePaket.HARIAN) {
+      tanggalAkhir.setDate(tanggalAkhir.getDate() + 1);
+    } else if (paket.periode === PeriodePaket.BULANAN) {
+      tanggalAkhir.setMonth(tanggalAkhir.getMonth() + 1);
+    } else {
+      tanggalAkhir.setFullYear(tanggalAkhir.getFullYear() + 1);
+    }
 
-    return this.prisma.subscription.create({
-      data: {
-        tenantId: dto.tenantId,
-        paketId: dto.paketId,
-        tanggalAkhir: new Date(new Date().setFullYear(new Date().getFullYear() + 1)),
-      },
-    });
+    // Expire subscription lama + buat yang baru dalam satu transaksi
+    const [, subscription] = await this.prisma.$transaction([
+      this.prisma.subscription.updateMany({
+        where: { tenantId: dto.tenantId, status: StatusSubscription.AKTIF },
+        data: { status: StatusSubscription.EXPIRED },
+      }),
+      this.prisma.subscription.create({
+        data: {
+          tenantId: dto.tenantId,
+          paketId: dto.paketId,
+          tanggalAkhir,
+        },
+      }),
+    ]);
+
+    return subscription;
   }
 
   async updateSubscription(id: string, dto: UpdateSubscriptionDto) {

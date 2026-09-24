@@ -199,7 +199,9 @@ class _LanggananScreenState extends State<LanggananScreen> {
 
   List<Map<String, dynamic>> get _filtered {
     final q = _search.text.trim().toLowerCase();
-    var list = List<Map<String, dynamic>>.from(_tenants.map((e) => (e as Map).cast<String, dynamic>()));
+    var list = List<Map<String, dynamic>>.from(_tenants.map((e) => (e as Map).cast<String, dynamic>()))
+    .where((t) => t['status'] == 'PENDING' || t['status'] == 'AKTIF')
+    .toList();
 
     if (q.isNotEmpty) {
       list = list.where((t) {
@@ -265,9 +267,10 @@ class _LanggananScreenState extends State<LanggananScreen> {
                     // Jumlah tenant terus bertambah — beri kolom cari.
                     searchable: true,
                     options: [
-                      for (final t in _tenants)
+                    for (final t in _tenants)
+                      if (t['status'] == 'PENDING' || t['status'] == 'AKTIF')
                         MapEntry(t['id'] as String, '${t['namaPondok']} (${t['kodeTenant']})'),
-                    ],
+                  ],
                     onChanged: (v) => setSt(() => selectedTenant = v),
                   ),
                   const SizedBox(height: 12),
