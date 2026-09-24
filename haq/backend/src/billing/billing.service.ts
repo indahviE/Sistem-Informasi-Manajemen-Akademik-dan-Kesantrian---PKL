@@ -21,7 +21,7 @@ export class BillingService {
 
   async createPaket(dto: CreatePaketDto) {
     return this.prisma.paket.create({
-      data: { nama: dto.nama, harga: dto.harga, limitSantri: dto.limitSantri, fitur: dto.fitur },
+      data: { nama: dto.nama, harga: dto.harga, limitSantri: dto.limitSantri, periode: dto.periode, fitur: dto.fitur },
     });
   }
 
