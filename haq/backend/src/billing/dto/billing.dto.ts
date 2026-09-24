@@ -1,6 +1,6 @@
 import { Type } from 'class-transformer';
 import { IsEnum, IsNotEmpty, IsNumber, IsOptional, IsString, Min } from 'class-validator';
-import { StatusInvoice, StatusSubscription } from '@prisma/client';
+import { PeriodePaket, StatusInvoice, StatusSubscription } from '@prisma/client';
 
 export class CreatePaketDto {
   @IsString()
@@ -16,6 +16,10 @@ export class CreatePaketDto {
   @IsNumber()
   @Min(1)
   limitSantri: number;
+
+  @IsOptional()
+  @IsEnum(PeriodePaket, { message: 'Periode tidak valid' })
+  periode?: PeriodePaket;
 
   @IsOptional()
   fitur?: any;
@@ -37,6 +41,10 @@ export class UpdatePaketDto {
   @IsNumber()
   @Min(1)
   limitSantri?: number;
+
+  @IsOptional()
+  @IsEnum(PeriodePaket, { message: 'Periode tidak valid' })
+  periode?: PeriodePaket;
 
   @IsOptional()
   fitur?: any;

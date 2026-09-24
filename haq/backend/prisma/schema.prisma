@@ -643,14 +643,21 @@ model RekamMedis {
   @@map("rekam_medis")
 }
 
+enum PeriodePaket {
+  HARIAN
+  BULANAN
+  TAHUNAN
+}
+
 model Paket {
-  id          String    @id @default(cuid())
+  id          String       @id @default(cuid())
   nama        String
   harga       Float
   limitSantri Int
+  periode     PeriodePaket @default(TAHUNAN)
   fitur       Json?
-  aktif       Boolean   @default(true)
-  createdAt   DateTime  @default(now())
+  aktif       Boolean      @default(true)
+  createdAt   DateTime     @default(now())
 
   subscriptions Subscription[]
 
