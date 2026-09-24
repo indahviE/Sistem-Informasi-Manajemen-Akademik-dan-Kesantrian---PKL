@@ -335,7 +335,7 @@ class _PaketScreenState extends State<PaketScreen> {
     try {
       await AppScope.of(context).api.delete('${ApiUrl.paket}/${p['id']}');
       _load(showSpinner: false);
-      _showToast('Paket berhasil dihapus.');
+      _showToast('Paket berhasil dihapus.', isError: true);
     } on ApiException catch (e) {
       if (!mounted) return;
       _showToast(e.message, isError: true);
