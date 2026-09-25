@@ -1698,7 +1698,7 @@ class _PaketTierCard extends StatelessWidget {
                         activeColor: isEnterprise ? _BC.secondary : _BC.primaryContainer,
                       ),
                     ],
-                  ),
+                  ), 
                 ],
               ),
               Padding(
@@ -1782,4 +1782,4 @@ class _ThousandsInputFormatter extends TextInputFormatter {
       selection: TextSelection.collapsed(offset: formatted.length),
     );
    }
-}
+} 
