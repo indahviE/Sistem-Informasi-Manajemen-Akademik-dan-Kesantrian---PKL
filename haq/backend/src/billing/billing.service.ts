@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
-import { PeriodePaket, StatusInvoice, StatusSubscription, TenantStatus } from '@prisma/client';
+import { JenisNotifikasi, PeriodePaket, StatusInvoice, StatusSubscription, TenantStatus } from '@prisma/client';
 import {
   AssignSubscriptionDto,
   CreateInvoiceDto,
@@ -9,10 +10,14 @@ import {
   UpdatePaketDto,
   UpdateSubscriptionDto,
 } from './dto/billing.dto';
+import { NotifikasiService } from '../notifikasi/notifikasi.service';
 
 @Injectable()
 export class BillingService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private notifikasi: NotifikasiService,
+  ) {}
 
   // ===== Paket (platform level) =====
   async findAllPaket() {
@@ -136,5 +141,44 @@ export class BillingService {
     if (dto.metodeBayar) data.metodeBayar = dto.metodeBayar;
 
     return this.prisma.invoice.update({ where: { id }, data });
+  }
+
+  // ===========================================================================
+  // Cron: cek tagihan jatuh tempo — jalan tiap hari jam 07:00
+  // ===========================================================================
+  @Cron(CronExpression.EVERY_DAY_AT_7AM)
+  async cekTagihanJatuhTempo(): Promise<void> {
+    const sekarang = new Date();
+
+    const overdue = await this.prisma.invoice.findMany({
+      where: {
+        status: { not: StatusInvoice.LUNAS },
+        tanggalJatuhTempo: { lt: sekarang },
+      },
+      include: { tenant: { select: { namaPondok: true, kodeTenant: true } } },
+    });
+
+    if (overdue.length === 0) return;
+
+    const awalHariIni = new Date(sekarang);
+    awalHariIni.setHours(0, 0, 0, 0);
+
+    const sudahAdaHariIni = await this.prisma.notifikasi.findFirst({
+      where: {
+        jenis: JenisNotifikasi.TAGIHAN,
+        tenantId: null,
+        tanggal: { gte: awalHariIni },
+      },
+    });
+    if (sudahAdaHariIni) return;
+
+    const totalTertunggak = overdue.reduce((sum, inv) => sum + Number(inv.jumlah), 0);
+    const daftarTenant = overdue.map((inv) => inv.tenant.namaPondok).slice(0, 3).join(', ');
+    const sisa = overdue.length > 3 ? ` +${overdue.length - 3} lainnya` : '';
+
+    await this.notifikasi.kirimKeSuperAdmin(
+      JenisNotifikasi.TAGIHAN,
+      `${overdue.length} tagihan menunggak (${daftarTenant}${sisa}). Total tertunggak Rp ${totalTertunggak.toLocaleString('id-ID')}.`,
+    );
   }
 }
