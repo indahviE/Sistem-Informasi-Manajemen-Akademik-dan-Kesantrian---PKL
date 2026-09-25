@@ -49,6 +49,21 @@ export class DashboardService {
     };
   }
 
+  private async getPlatformHealth() {
+    const mulai = Date.now();
+    let sehat = true;
+    try {
+      await this.prisma.$queryRaw`SELECT 1`;
+    } catch {
+      sehat = false;
+    }
+    return {
+      latencyMs: Date.now() - mulai,
+      clusterLabel: process.env.DEPLOY_REGION || 'Self-hosted VPS',
+      sehat,
+    };
+  }
+
   private async tenantDashboard(tenantId: string) {
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);

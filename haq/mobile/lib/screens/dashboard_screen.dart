@@ -545,10 +545,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
   // endpoint-nya di PRD saat ini (mis. GET /api/platform/health). Nilai di
   // bawah masih placeholder statis — gampang disambungkan begitu ada.
   // =========================================================================
+    // "Latency" & "Cluster" datang dari platformHealth di GET /api/dashboard
+  // (DashboardService.getPlatformHealth — ping DB asli, bukan angka statis).
+  // Null-safe: kalau backend lama belum kirim field ini, tampilkan teks
+  // netral alih-alih pura-pura tahu kondisi server.
+  // =========================================================================
   Widget _superAdminHeroHeader() {
     final namaPengguna = _pick(_data!, ['namaPengguna', 'nama', 'userName']) ?? 'Super Admin';
-    const latencyMs = 24;
-    const clusterLabel = 'ap-southeast-1 (Jakarta DC)';
+    final health = _data!['platformHealth'];
+    final healthMap = health is Map<String, dynamic> ? health : null;
+    final latencyMs = healthMap != null ? _num(healthMap, ['latencyMs']).round() : null;
+    final clusterLabel = healthMap != null ? _pick(healthMap, ['clusterLabel']) : null;
+    final sehat = healthMap != null ? healthMap['sehat'] == true : null;
+    final statusLabel = sehat == null
+        ? 'Status Tidak Diketahui'
+        : (sehat ? 'Semua Node Sehat' : 'Gangguan Terdeteksi');
+    final statusColor = sehat == null
+        ? _WC.inkSecondary
+        : (sehat ? _WC.gold : _WC.errorText);
 
     // Catatan desain: mengikuti screen.png — kartu ini TERANG (bukan gradient
     // emerald), teks gelap. Yang berwarna cuma dua pill kecil: "ROOT SUPER
@@ -619,7 +633,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         decoration: const BoxDecoration(color: _WC.inkSecondary, shape: BoxShape.circle),
                       ),
                       const SizedBox(width: 6),
-                      Text('Latency ${latencyMs}ms',
+                        Text(latencyMs != null ? 'Latency ${latencyMs}ms' : 'Latency —',
                           style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600, color: _WC.inkSecondary)),
                     ],
                   ),
@@ -641,13 +655,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        'Cluster: $clusterLabel',
+                        'Cluster: ${clusterLabel ?? 'Tidak diketahui'}',
                         style: const TextStyle(fontSize: 11.5, color: _WC.inkSecondary),
                       ),
                     ),
-                    const Text(
-                      'Semua Node Sehat',
-                      style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: _WC.gold),
+                    Text(
+                      statusLabel,
+                      style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: statusColor),
                     ),
                   ],
                 ),
