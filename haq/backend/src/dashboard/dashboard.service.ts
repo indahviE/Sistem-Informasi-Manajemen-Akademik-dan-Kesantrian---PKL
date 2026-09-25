@@ -45,6 +45,7 @@ export class DashboardService {
       role: 'SUPER_ADMIN',
       statistik: { totalTenant, tenantAktif, tenantPending, tenantBaru30Hari, totalUser, totalSantri },
       tenantTerbaru: recentTenants,
+      platformHealth: await this.getPlatformHealth(),
       auditKeamanan: await this.audit.recent(3),
     };
   }
