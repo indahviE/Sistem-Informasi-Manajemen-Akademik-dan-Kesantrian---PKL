@@ -67,6 +67,36 @@ export class TenantsController {
     return this.tenantsService.deletePending(dto.tenantId, user, req.ip);
   }
 
+  // ===== Sampah (Trash) =====
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN)
+  @Get('trash')
+  findTrashed() {
+    return this.tenantsService.findTrashed();
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN)
+  @Post('trash')
+  pindahKeSampah(@Body() dto: ApproveTenantDto, @CurrentUser() user: RequestUser, @Req() req: { ip?: string }) {
+    return this.tenantsService.pindahKeSampah(dto.tenantId, user, req.ip);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN)
+  @Post('trash/restore')
+  pulihkanDariSampah(@Body() dto: ApproveTenantDto, @CurrentUser() user: RequestUser, @Req() req: { ip?: string }) {
+    return this.tenantsService.pulihkanDariSampah(dto.tenantId, user, req.ip);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN)
+  @Post('trash/delete-permanent')
+  hapusPermanen(@Body() dto: ApproveTenantDto, @CurrentUser() user: RequestUser, @Req() req: { ip?: string }) {
+    return this.tenantsService.hapusPermanen(dto.tenantId, user, req.ip);
+  }
+
   @UseGuards(JwtAuthGuard)
   @Get('me')
   getMyTenant(@TenantId() tenantId: string | undefined) {
