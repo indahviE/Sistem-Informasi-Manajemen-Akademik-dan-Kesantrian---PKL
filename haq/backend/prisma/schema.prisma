@@ -148,6 +148,7 @@ model Tenant {
   pembinaanKarakters PembinaanKarakter[]
   pembinaanIbadahs   PembinaanIbadah[]
   keadaanDarurats    KeadaanDarurat[]
+  deletedAt DateTime?
 
   @@map("tenants")
 }

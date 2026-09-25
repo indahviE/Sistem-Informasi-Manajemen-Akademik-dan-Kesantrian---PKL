@@ -179,6 +179,9 @@ class _TenantsScreenState extends State<TenantsScreen> {
   int _visibleCount = 5;
   bool _archivedExpanded = false;
 
+  List<dynamic> _trashItems = [];
+  bool _trashExpanded = false;
+
   @override
   void initState() {
     super.initState();
@@ -209,10 +212,14 @@ class _TenantsScreenState extends State<TenantsScreen> {
     });
     try {
       final api = AppScope.of(context).api;
-      final res = await api.get(ApiUrl.tenants);
+      final results = await Future.wait([
+        api.get(ApiUrl.tenants),
+        api.get(ApiUrl.tenantTrash),
+      ]);
       if (!mounted) return;
       setState(() {
-        _items = (res as List);
+        _items = (results[0] as List);
+        _trashItems = (results[1] as List);
         _loading = false;
         _visibleCount = 5;
       });
@@ -238,6 +245,9 @@ class _TenantsScreenState extends State<TenantsScreen> {
         'archive' => ApiUrl.tenantArchive,
         'unarchive' => ApiUrl.tenantUnarchive,
         'delete' => ApiUrl.tenantDeletePending,
+        'trash' => ApiUrl.tenantTrash,
+        'restoreTrash' => ApiUrl.tenantTrashRestore,
+        'deletePermanent' => ApiUrl.tenantTrashDeletePermanent,
         _ => ApiUrl.tenantSuspend,
       };
       await api.post(url, {'tenantId': t['id']});
@@ -248,6 +258,33 @@ class _TenantsScreenState extends State<TenantsScreen> {
             .showSnackBar(SnackBar(content: Text(e.message)));
       }
     }
+  }
+
+  Future<void> _confirmDeletePermanent(Map<String, dynamic> t) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: PColors.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Hapus Permanen?', style: PText.headlineSm),
+        content: Text(
+          'Tenant "${t['namaPondok']}" beserta semua data (user, tahun ajaran, dll) akan dihapus permanen dan tidak bisa dikembalikan.',
+          style: PText.bodyMd,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('Batal', style: PText.labelMd.copyWith(color: PColors.inkSecondary)),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(backgroundColor: PColors.errorText),
+            child: const Text('Hapus Permanen'),
+          ),
+        ],
+      ),
+    );
+    if (ok == true) _action(t, 'deletePermanent');
   }
 
   void _showTenantDetail(Map<String, dynamic> t) {
@@ -434,6 +471,42 @@ class _TenantsScreenState extends State<TenantsScreen> {
             ),
           ),
           const SizedBox(height: 10),
+          InkWell(
+            onTap: () => setState(() => _trashExpanded = !_trashExpanded),
+            borderRadius: BorderRadius.circular(8),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.delete_outline,
+                    size: 14,
+                    color: _trashExpanded ? PColors.errorText : PColors.outline,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Sampah (${_trashItems.length})',
+                    style: TextStyle(
+                      fontFamily: 'Nunito',
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: _trashExpanded ? PColors.errorText : PColors.outline,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (_trashExpanded) ...[
+            const SizedBox(height: 8),
+            _TrashSection(
+              items: _trashItems.cast<Map<String, dynamic>>(),
+              onRestore: (t) => _action(t, 'restoreTrash'),
+              onDeletePermanent: _confirmDeletePermanent,
+            ),
+          ],
+          const SizedBox(height: 10),
           if (visible.isEmpty)
             const _EmptyState()
           else
@@ -448,6 +521,7 @@ class _TenantsScreenState extends State<TenantsScreen> {
                   onRestore: () => _action(t, 'restore'),
                   onArchive: () => _action(t, 'archive'),
                   onUnarchive: () => _action(t, 'unarchive'),
+                  onTrash: () => _action(t, 'trash'),
                 ),
               ),
             ),
@@ -783,6 +857,7 @@ class _TenantCard extends StatelessWidget {
     required this.onRestore,
     required this.onArchive,
     required this.onUnarchive,
+    required this.onTrash,
   });
 
   final Map<String, dynamic> tenant;
@@ -792,6 +867,7 @@ class _TenantCard extends StatelessWidget {
   final VoidCallback onRestore;
   final VoidCallback onArchive;
   final VoidCallback onUnarchive;
+  final VoidCallback onTrash;
 
   String get _status => (tenant['status'] ?? 'AKTIF').toString().toUpperCase();
   String get _paket => (tenant['paket'] ?? 'Basic').toString();
@@ -953,6 +1029,16 @@ class _TenantCard extends StatelessWidget {
                   icon: const Icon(Icons.lock_open, size: 14),
                   label: const Text('Pulihkan Akses',
                       style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
+                ),
+                const SizedBox(width: 4),
+                IconButton(
+                  onPressed: onTrash,
+                  tooltip: 'Pindahkan ke Sampah',
+                  icon: const Icon(Icons.delete_outline, size: 18, color: PColors.errorText),
+                  style: IconButton.styleFrom(
+                    backgroundColor: PColors.errorSoftBg,
+                    padding: const EdgeInsets.all(8),
+                  ),
                 ),
               ],
             ),
@@ -1550,6 +1636,150 @@ class _ArchivedTenantRow extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ============================================================================
+// Sampah (Trash) — sama gaya dengan Arsip, tapi punya 2 aksi: Pulihkan &
+// Hapus Permanen (yang terakhir minta konfirmasi karena tidak bisa dibalik).
+// ============================================================================
+
+class _TrashSection extends StatelessWidget {
+  const _TrashSection({
+    required this.items,
+    required this.onRestore,
+    required this.onDeletePermanent,
+  });
+
+  final List<Map<String, dynamic>> items;
+  final ValueChanged<Map<String, dynamic>> onRestore;
+  final ValueChanged<Map<String, dynamic>> onDeletePermanent;
+
+  @override
+  Widget build(BuildContext context) {
+    if (items.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: PColors.surface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: PColors.border),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.delete_outline, size: 15, color: PColors.outline),
+            const SizedBox(width: 8),
+            Text('Sampah kosong.', style: PText.bodySm),
+          ],
+        ),
+      );
+    }
+    return Container(
+      decoration: BoxDecoration(
+        color: PColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: PColors.errorBorder),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        children: [
+          for (final t in items)
+            _TrashedTenantRow(
+              tenant: t,
+              onRestore: () => onRestore(t),
+              onDeletePermanent: () => onDeletePermanent(t),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TrashedTenantRow extends StatelessWidget {
+  const _TrashedTenantRow({
+    required this.tenant,
+    required this.onRestore,
+    required this.onDeletePermanent,
+  });
+
+  final Map<String, dynamic> tenant;
+  final VoidCallback onRestore;
+  final VoidCallback onDeletePermanent;
+
+  static const _bulan = [
+    '', 'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun',
+    'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des',
+  ];
+
+  String? _fmtHapusPermanenPada() {
+    final raw = tenant['hapusPermanenPada'];
+    if (raw is! String) return null;
+    final d = DateTime.tryParse(raw);
+    if (d == null) return null;
+    return '${d.day} ${_bulan[d.month]} ${d.year}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final namaPondok = (tenant['namaPondok'] ?? '-').toString();
+    final kodeTenant = (tenant['kodeTenant'] ?? '-').toString();
+    final tanggalHapus = _fmtHapusPermanenPada();
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: const BoxDecoration(
+        border: Border(bottom: BorderSide(color: PColors.border)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  namaPondok,
+                  style: const TextStyle(
+                    fontFamily: 'Nunito',
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: PColors.ink,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 2),
+                Text(kodeTenant, style: PText.mono.copyWith(fontSize: 10)),
+                if (tanggalHapus != null) ...[
+                  const SizedBox(height: 3),
+                  Text(
+                    'Hapus permanen otomatis: $tanggalHapus',
+                    style: PText.bodySm.copyWith(color: PColors.errorText),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          TextButton(
+            onPressed: onRestore,
+            style: TextButton.styleFrom(
+              foregroundColor: PColors.primary,
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+            ),
+            child: const Text('Pulihkan',
+                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800)),
+          ),
+          TextButton(
+            onPressed: onDeletePermanent,
+            style: TextButton.styleFrom(
+              foregroundColor: PColors.errorText,
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+            ),
+            child: const Text('Hapus Permanen',
+                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800)),
+          ),
+        ],
       ),
     );
   }
