@@ -1,9 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.service';
-import { Role } from '@prisma/client';
 import {
-  CreateSubAdminDto,
   UbahPasswordDto,
   UpdateKebijakanOnboardingDto,
   UpdateNotifikasiDto,
@@ -24,7 +22,6 @@ export class PengaturanService {
 
   async getSettings() {
     const setting = await this.getOrCreateSetting();
-    const subAdmins = await this.getSubAdmins();
     return {
       kebijakanOnboarding: {
         autoApproveTenant: setting.autoApproveTenant,
@@ -36,7 +33,6 @@ export class PengaturanService {
         notifKeamanan: setting.notifKeamanan,
         notifLaporanMingguan: setting.notifLaporanMingguan,
       },
-      subAdmins,
     };
   }
 
@@ -50,49 +46,9 @@ export class PengaturanService {
     return this.prisma.platformSetting.update({ where: { id: setting.id }, data: dto });
   }
 
-  async getSubAdmins() {
-    return this.prisma.user.findMany({
-      where: { role: Role.SUPER_ADMIN, tenantId: null, isRootAdmin: false },
-      select: { id: true, nama: true, email: true, subRole: true, createdAt: true },
-      orderBy: { createdAt: 'desc' },
-    });
-  }
-
-  async createSubAdmin(dto: CreateSubAdminDto) {
-    const exists = await this.prisma.user.findFirst({ where: { email: dto.email } });
-    if (exists) throw new ConflictException('Email sudah dipakai.');
-
-    const passwordHash = await bcrypt.hash(dto.password, 10);
-    return this.prisma.user.create({
-      data: {
-        nama: dto.nama,
-        email: dto.email,
-        passwordHash,
-        role: Role.SUPER_ADMIN,
-        tenantId: null,
-        subRole: dto.subRole,
-        isRootAdmin: false,
-      },
-      select: { id: true, nama: true, email: true, subRole: true, createdAt: true },
-    });
-  }
-
-  async removeSubAdmin(id: string) {
-    const user = await this.prisma.user.findFirst({
-      where: { id, role: Role.SUPER_ADMIN, tenantId: null, isRootAdmin: false },
-    });
-    if (!user) throw new NotFoundException('Sub-admin tidak ditemukan.');
-    await this.prisma.user.delete({ where: { id } });
-    return { message: 'Akses sub-admin dicabut.' };
-  }
-
-    async updateProfil(userId: string, dto: UpdateProfilDto) {
-    console.log('[updateProfil] userId dari token:', userId, '| email dikirim:', dto.email);
-
+  async updateProfil(userId: string, dto: UpdateProfilDto) {
     const current = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!current) throw new NotFoundException('Pengguna tidak ditemukan.');
-
-    console.log('[updateProfil] akun di DB:', current.id, current.email);
 
     const data: { nama?: string; email?: string } = {};
     if (dto.nama?.trim()) data.nama = dto.nama.trim();

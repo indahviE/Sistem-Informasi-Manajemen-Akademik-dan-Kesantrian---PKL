@@ -677,6 +677,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final totalTenant = _num(s, ['totalTenant']);
     final tenantAktif = _num(s, ['tenantAktif']);
     final tenantPendingCount = _num(s, ['tenantPending']).round();
+    // tenantBaru30Hari: jumlah tenant yang tanggalDaftar-nya dalam 30 hari
+    // terakhir (dari GET /api/dashboard). null kalau backend lama belum
+    // mengirim field ini, supaya sublabel bisa disembunyikan alih-alih
+    // menampilkan angka 0 yang menyesatkan.
+    final tenantBaru30Hari = s.containsKey('tenantBaru30Hari') ? _num(s, ['tenantBaru30Hari']).round() : null;
     // TODO: pastikan key agregat "total user platform" ke tim backend —
     // sementara fallback ke totalSantri kalau belum ada.
     final totalUser = _num(s, ['totalUserPlatform', 'totalUser', 'totalSantri']);
@@ -725,7 +730,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 icon: Icons.apartment_rounded,
                 label: 'Total Tenant',
                 value: _fmtInt(totalTenant),
-                sublabel: '+3 bulan ini', // TODO: butuh histori pendaftaran dari backend
+                sublabel: tenantBaru30Hari != null
+                    ? '+${_fmtInt(tenantBaru30Hari)} 30 hari ini'
+                    : null,
               ),
             ),
             const SizedBox(width: 12),
@@ -1769,13 +1776,13 @@ class _SAStatCard extends StatelessWidget {
   final IconData icon;
   final String label;
   final String value;
-  final String sublabel;
+  final String? sublabel;
   final bool showDot;
   const _SAStatCard({
     required this.icon,
     required this.label,
     required this.value,
-    required this.sublabel,
+    this.sublabel,
     this.showDot = false,
   });
 
@@ -1800,20 +1807,22 @@ class _SAStatCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(value, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: _WC.ink)),
-          const SizedBox(height: 2),
-          Row(
-            children: [
-              if (showDot) ...[
-                Container(width: 5, height: 5, decoration: const BoxDecoration(color: _WC.successText, shape: BoxShape.circle)),
-                const SizedBox(width: 4),
+          if (sublabel != null) ...[
+            const SizedBox(height: 2),
+            Row(
+              children: [
+                if (showDot) ...[
+                  Container(width: 5, height: 5, decoration: const BoxDecoration(color: _WC.successText, shape: BoxShape.circle)),
+                  const SizedBox(width: 4),
+                ],
+                Flexible(
+                  child: Text(sublabel!,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 11, color: _WC.primary)),
+                ),
               ],
-              Flexible(
-                child: Text(sublabel,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 11, color: _WC.primary)),
-              ),
-            ],
-          ),
+            ),
+          ],
         ],
       ),
     );

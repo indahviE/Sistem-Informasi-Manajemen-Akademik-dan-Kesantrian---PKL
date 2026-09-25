@@ -1265,13 +1265,22 @@ class _BillingAdminScreenState extends State<BillingAdminScreen> {
   // ---------------------------------------------------------------------
   // 4. Katalog Paket
   // ---------------------------------------------------------------------
-  Widget _buildCatalogSection() {
+    Widget _buildCatalogSection() {
+    // Jumlah maksimal paket yang ditampilkan di overview Billing.
+    // Sisanya bisa dilihat lewat tombol "Lihat semua paket".
+    const batasTampil = 4;
+
     final pakets = List<Map<String, dynamic>>.from(_pakets.map((e) => (e as Map).cast<String, dynamic>()));
     pakets.sort((a, b) => _num(a, ['harga']).compareTo(_num(b, ['harga'])));
 
+    // Badge Enterprise/Populer dihitung dari SEMUA paket (sebelum dipotong),
+    // supaya badge tidak berpindah-pindah hanya karena daftar dibatasi.
     final paid = pakets.where((p) => _num(p, ['harga']) > 0).toList();
     final enterpriseId = paid.isNotEmpty ? paid.last['id'] : null;
     final popularId = paid.length >= 3 ? paid[paid.length - 2]['id'] : null;
+
+    final tampil = pakets.take(batasTampil).toList();
+    final sisa = pakets.length - tampil.length;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1315,7 +1324,7 @@ class _BillingAdminScreenState extends State<BillingAdminScreen> {
         else
           Column(
             children: [
-              for (final p in pakets)
+              for (final p in tampil)
                 _PaketTierCard(
                   paket: p,
                   isFree: _num(p, ['harga']) == 0,
@@ -1332,6 +1341,25 @@ class _BillingAdminScreenState extends State<BillingAdminScreen> {
                   onToggleAktif: (v) => _toggleAktif(p, v),
                 ),
             ],
+          ),
+        if (sisa > 0)
+          SizedBox(
+            width: double.infinity,
+            height: 44,
+            child: OutlinedButton.icon(
+              onPressed: () => setState(() => _view = _BillingView.paket),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: _BC.primary,
+                backgroundColor: _BC.surfaceContainerHigh,
+                side: BorderSide.none,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+              ),
+              icon: const Icon(Icons.arrow_forward, size: 16),
+              label: Text(
+                'Lihat semua paket (${pakets.length})',
+                style: const TextStyle(fontFamily: 'Nunito', fontSize: 12.5, fontWeight: FontWeight.w700),
+              ),
+            ),
           ),
       ],
     );
