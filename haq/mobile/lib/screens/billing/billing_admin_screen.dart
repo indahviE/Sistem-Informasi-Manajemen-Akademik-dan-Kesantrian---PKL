@@ -831,18 +831,20 @@ class _BillingAdminScreenState extends State<BillingAdminScreen> {
         ),
       ),
     );
-    if (ok != true) return;
+      if (ok != true) return;
     try {
       await AppScope.of(context)
           .api
           .post(ApiUrl.subscriptions, {'tenantId': tenantId, 'paketId': paketId});
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Langganan berhasil dibuat.')));
-      _load();
+      _showToast('Langganan berhasil dibuat.');
+      _load(showSpinner: false);
     } on ApiException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+      _showToast(e.message, isError: true);
+    } catch (e) {
+      if (!mounted) return;
+      _showToast('Gagal membuat langganan.', isError: true);
     }
   }
 
@@ -1617,124 +1619,133 @@ class _PaketTierCard extends StatelessWidget {
                 ]),
               ),
             ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                          decoration: BoxDecoration(color: badgeBg, borderRadius: BorderRadius.circular(999)),
-                          child: Row(mainAxisSize: MainAxisSize.min, children: [
-                            if (isEnterprise) ...[
-                              Icon(Icons.hotel_class, size: 13, color: badgeFg),
-                              const SizedBox(width: 4),
-                            ],
-                            Text(nama, style: TextStyle(fontFamily: 'Nunito', fontSize: 11.5, fontWeight: FontWeight.w800, color: badgeFg)),
-                          ]),
-                        ),
-                        const SizedBox(height: 8),
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.baseline,
-                          textBaseline: TextBaseline.alphabetic,
-                          children: [
-                            Text(harga == 0 ? 'Rp 0' : rupiah(harga),
-                                style: TextStyle(fontFamily: 'Nunito', fontSize: 24, fontWeight: FontWeight.w800, color: priceColor)),
-                            const SizedBox(width: 4),
-                            Text(harga == 0 ? '' : (_periodeSuffix[periode] ?? '/ tahun'), style: _BT.bodySm),
-                          ],
-                        ),
-                        if (limit != null) ...[
-                          const SizedBox(height: 3),
-                          Row(mainAxisSize: MainAxisSize.min, children: [
-                            Icon(Icons.groups, size: 13, color: isEnterprise ? _BC.secondary : _BC.secondary),
-                            const SizedBox(width: 3),
-                            Text('Maks $limit santri',
-                                style: TextStyle(fontFamily: 'Nunito', fontSize: 11.5, fontWeight: FontWeight.w700, color: _BC.secondary)),
-                          ]),
-                        ],
-                      ],
-                    ),
-                  ),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text('Pengguna Aktif', style: _BT.labelSm),
-                      Text('$subscriberCount Pondok',
-                          style: TextStyle(fontFamily: 'Nunito', fontSize: 13, fontWeight: FontWeight.w800, color: priceColor)),
-                    ],
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Container(height: 1, color: _BC.surfaceContainerHigh),
-              const SizedBox(height: 12),
-              if (fitur.isEmpty)
-                Text('Belum ada daftar fitur untuk paket ini.', style: _BT.bodySm)
-              else
-                Column(
+          // FIX: badge "Populer" (Positioned top:-16) menggantung di atas
+          // kartu, tapi Container terluar pakai clipBehavior: Clip.antiAlias
+          // sehingga sebagian badge itu kepotong dan jatuh menimpa teks
+          // header ("Pengguna Aktif"). Solusinya: beri jarak ekstra di atas
+          // konten kartu khusus untuk kartu yang isPopular, supaya teks
+          // header turun dan tidak lagi tertindih badge.
+          Padding(
+            padding: EdgeInsets.only(top: isPopular ? 16 : 0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    for (final f in fitur)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 6),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Icon(Icons.check_circle, size: 17,
-                                color: isEnterprise ? _BC.secondary : _BC.primaryContainer),
-                            const SizedBox(width: 8),
-                            Expanded(child: Text(f, style: _BT.bodyMd.copyWith(color: _BC.onSurface))),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                            decoration: BoxDecoration(color: badgeBg, borderRadius: BorderRadius.circular(999)),
+                            child: Row(mainAxisSize: MainAxisSize.min, children: [
+                              if (isEnterprise) ...[
+                                Icon(Icons.hotel_class, size: 13, color: badgeFg),
+                                const SizedBox(width: 4),
+                              ],
+                              Text(nama, style: TextStyle(fontFamily: 'Nunito', fontSize: 11.5, fontWeight: FontWeight.w800, color: badgeFg)),
+                            ]),
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.baseline,
+                            textBaseline: TextBaseline.alphabetic,
+                            children: [
+                              Text(harga == 0 ? 'Rp 0' : rupiah(harga),
+                                  style: TextStyle(fontFamily: 'Nunito', fontSize: 24, fontWeight: FontWeight.w800, color: priceColor)),
+                              const SizedBox(width: 4),
+                              Text(harga == 0 ? '' : (_periodeSuffix[periode] ?? '/ tahun'), style: _BT.bodySm),
+                            ],
+                          ),
+                          if (limit != null) ...[
+                            const SizedBox(height: 3),
+                            Row(mainAxisSize: MainAxisSize.min, children: [
+                              Icon(Icons.groups, size: 13, color: isEnterprise ? _BC.secondary : _BC.secondary),
+                              const SizedBox(width: 3),
+                              Text('Maks $limit santri',
+                                  style: TextStyle(fontFamily: 'Nunito', fontSize: 11.5, fontWeight: FontWeight.w700, color: _BC.secondary)),
+                            ]),
                           ],
-                        ),
+                        ],
                       ),
+                    ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text('Pengguna Aktif', style: _BT.labelSm),
+                        Text('$subscriberCount Pondok',
+                            style: TextStyle(fontFamily: 'Nunito', fontSize: 13, fontWeight: FontWeight.w800, color: priceColor)),
+                      ],
+                    ),
                   ],
                 ),
-              const SizedBox(height: 8),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  GestureDetector(
-                    onLongPress: onDelete,
-                    child: OutlinedButton.icon(
-                      onPressed: onEdit,
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: _BC.primary,
-                        backgroundColor: _BC.surfaceContainerHigh,
-                        side: BorderSide.none,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                      ),
-                      icon: const Icon(Icons.edit_outlined, size: 15),
-                      label: const Text('Edit Paket', style: TextStyle(fontFamily: 'Nunito', fontSize: 12, fontWeight: FontWeight.w700)),
-                    ),
-                  ),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
+                const SizedBox(height: 12),
+                Container(height: 1, color: _BC.surfaceContainerHigh),
+                const SizedBox(height: 12),
+                if (fitur.isEmpty)
+                  Text('Belum ada daftar fitur untuk paket ini.', style: _BT.bodySm)
+                else
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(aktif ? 'Aktif' : 'Nonaktif',
-                          style: TextStyle(fontFamily: 'Nunito', fontSize: 12, fontWeight: FontWeight.w700,
-                              color: aktif ? (isEnterprise ? _BC.secondary : _BC.primary) : _BC.onSurfaceVariant)),
-                      Switch(
-                        value: aktif,
-                        onChanged: onToggleAktif,
-                        activeColor: isEnterprise ? _BC.secondary : _BC.primaryContainer,
-                      ),
+                      for (final f in fitur)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 6),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Icon(Icons.check_circle, size: 17,
+                                  color: isEnterprise ? _BC.secondary : _BC.primaryContainer),
+                              const SizedBox(width: 8),
+                              Expanded(child: Text(f, style: _BT.bodyMd.copyWith(color: _BC.onSurface))),
+                            ],
+                          ),
+                        ),
                     ],
-                  ), 
-                ],
-              ),
-              Padding(
-                padding: const EdgeInsets.only(top: 2),
-                child: Text('Tahan lama tombol Edit untuk menghapus paket ini.',
-                    style: _BT.labelSm.copyWith(fontSize: 9.5)),
-              ),
-            ],
+                  ),
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    GestureDetector(
+                      onLongPress: onDelete,
+                      child: OutlinedButton.icon(
+                        onPressed: onEdit,
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: _BC.primary,
+                          backgroundColor: _BC.surfaceContainerHigh,
+                          side: BorderSide.none,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                        ),
+                        icon: const Icon(Icons.edit_outlined, size: 15),
+                        label: const Text('Edit Paket', style: TextStyle(fontFamily: 'Nunito', fontSize: 12, fontWeight: FontWeight.w700)),
+                      ),
+                    ),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(aktif ? 'Aktif' : 'Nonaktif',
+                            style: TextStyle(fontFamily: 'Nunito', fontSize: 12, fontWeight: FontWeight.w700,
+                                color: aktif ? (isEnterprise ? _BC.secondary : _BC.primary) : _BC.onSurfaceVariant)),
+                        Switch(
+                          value: aktif,
+                          onChanged: onToggleAktif,
+                          activeColor: isEnterprise ? _BC.secondary : _BC.primaryContainer,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Text('Tahan lama tombol Edit untuk menghapus paket ini.',
+                      style: _BT.labelSm.copyWith(fontSize: 9.5)),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -1810,4 +1821,4 @@ class _ThousandsInputFormatter extends TextInputFormatter {
       selection: TextSelection.collapsed(offset: formatted.length),
     );
    }
-} 
+}

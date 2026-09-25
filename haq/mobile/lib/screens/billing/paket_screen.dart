@@ -238,6 +238,23 @@ class _PaketScreenState extends State<PaketScreen> {
     }).length;
   }
 
+  /// Beda dengan _subscriberCount: ini menghitung SEMUA histori langganan
+  /// (aktif, expired, dibatalkan) tanpa filter status — dipakai untuk
+  /// menentukan apakah paket boleh dihapus permanen atau tidak. Backend
+  /// (removePaket) menolak hapus selama masih ada baris subscription apapun
+  /// yang mereferensikan paket ini (foreign key Restrict di schema.prisma —
+  /// relasi Subscription.paket tidak punya onDelete: SetNull, dan paketId
+  /// wajib diisi), jadi UI ini mencerminkan aturan yang sama supaya user
+  /// tidak sampai kena error dari backend.
+  bool _pernahDipakai(String? paketId) {
+    if (paketId == null) return false;
+    return _subs.any((s) {
+      final sm = s as Map;
+      final pid = (sm['paket'] as Map?)?['id'] ?? sm['paketId'];
+      return pid == paketId;
+    });
+  }
+
   List<Map<String, dynamic>> get _filtered {
     final q = _search.text.trim().toLowerCase();
     var list = List<Map<String, dynamic>>.from(_pakets.map((e) => (e as Map).cast<String, dynamic>()));
@@ -410,6 +427,7 @@ class _PaketScreenState extends State<PaketScreen> {
                                       _PaketCard(
                                         paket: p,
                                         subscriberCount: _subscriberCount(p['id'] as String?),
+                                        pernahDipakai: _pernahDipakai(p['id'] as String?),
                                         rupiah: _rupiah,
                                         onEdit: () => _paketDialog(existing: p),
                                         onDelete: () => _hapusPaket(p),
@@ -961,6 +979,7 @@ class _EmptyState extends StatelessWidget {
 class _PaketCard extends StatelessWidget {
   final Map<String, dynamic> paket;
   final int subscriberCount;
+  final bool pernahDipakai;
   final String Function(num) rupiah;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
@@ -969,6 +988,7 @@ class _PaketCard extends StatelessWidget {
   const _PaketCard({
     required this.paket,
     required this.subscriberCount,
+    required this.pernahDipakai,
     required this.rupiah,
     required this.onEdit,
     required this.onDelete,
@@ -1083,6 +1103,31 @@ class _PaketCard extends StatelessWidget {
               ),
             ],
           ),
+          if (pernahDipakai) ...[
+            const SizedBox(height: 8),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: _PK.secondaryContainer.withOpacity(0.35),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.info_outline, size: 14, color: _PK.onSecondaryContainer),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'Paket ini pernah/sedang dipakai tenant, sehingga tidak bisa dihapus. Gunakan saklar di atas untuk menonaktifkan.',
+                      style: _PT.bodySm.copyWith(color: _PK.onSecondaryContainer, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          const SizedBox(height: 8),
           Row(
             children: [
               Expanded(
@@ -1100,17 +1145,22 @@ class _PaketCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              SizedBox(
-                height: 40,
-                child: OutlinedButton(
-                  onPressed: onDelete,
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: _PK.error,
-                    side: const BorderSide(color: _PK.errorContainer),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
+              Tooltip(
+                message: pernahDipakai
+                    ? 'Tidak bisa dihapus — masih terkait histori langganan'
+                    : 'Hapus paket',
+                child: SizedBox(
+                  height: 40,
+                  child: OutlinedButton(
+                    onPressed: pernahDipakai ? null : onDelete,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: pernahDipakai ? _PK.onSurfaceVariant : _PK.error,
+                      side: BorderSide(color: pernahDipakai ? _PK.outlineVariant : _PK.errorContainer),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                    ),
+                    child: const Icon(Icons.delete_outline, size: 17),
                   ),
-                  child: const Icon(Icons.delete_outline, size: 17),
                 ),
               ),
             ],
