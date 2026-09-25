@@ -25,8 +25,11 @@ import { AuditLogInterceptor } from './common/interceptors/audit-log.interceptor
 import { PembinaanModule } from './pembinaan/pembinaan.module';
 import { AuditModule } from './audit/audit.module';
 
+import { ScheduleModule } from '@nestjs/schedule';
+
 @Module({
   imports: [
+    ScheduleModule.forRoot(),
     ConfigModule.forRoot({ isGlobal: true }),
     PrismaModule,
     AuthModule,
