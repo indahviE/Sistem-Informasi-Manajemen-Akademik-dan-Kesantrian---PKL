@@ -799,11 +799,6 @@ class _Header extends StatelessWidget {
                   decoration: const BoxDecoration(color: PColors.primary, shape: BoxShape.circle),
                   child: const Icon(Icons.person, color: Colors.white, size: 16),
                 ),
-                const SizedBox(width: 4),
-                IconButton(
-                  onPressed: () {},
-                  icon: const Icon(Icons.more_vert, color: PColors.inkSecondary),
-                ),
               ],
             ),
           ),
