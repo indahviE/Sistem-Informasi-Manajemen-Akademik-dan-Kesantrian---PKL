@@ -8,58 +8,12 @@ import 'super_admin/tenants_screen.dart'; // TODO: sesuaikan path bila struktur 
 import 'billing/billing_admin_screen.dart'; // TODO: sesuaikan nama class/path bila beda (asumsi: BillingAdminScreen)
 
 /// ---------------------------------------------------------------------------
-/// Design tokens — mirrored 1:1 from DESIGN.md / the approved HTML mockup.
-/// NOTE: font family is intentionally left unset everywhere in this file so
-/// text inherits the app's default theme font — matching how signup_screen.dart
-/// does not override fontFamily either.
-/// ---------------------------------------------------------------------------
-class _C {
-  _C._();
-
-  static const primary = Color(0xFF00231A);
-  static const onPrimary = Color(0xFFFFFFFF);
-  static const primaryContainer = Color(0xFF0F3A2E);
-  static const onPrimaryContainer = Color(0xFF7AA494);
-  static const primaryFixed = Color(0xFFC0ECDA);
-  static const primaryFixedDim = Color(0xFFA4D0BF);
-  static const onPrimaryFixed = Color(0xFF002118);
-
-  static const secondary = Color(0xFF775A19);
-  static const secondaryContainer = Color(0xFFFED488);
-  static const onSecondaryContainer = Color(0xFF785A1A);
-  static const secondaryFixed = Color(0xFFFFDEA5);
-  static const secondaryFixedDim = Color(0xFFE9C176);
-  static const onSecondaryFixed = Color(0xFF261900);
-
-  static const tertiaryFixed = Color(0xFFD5E7DF);
-  static const onTertiaryFixed = Color(0xFF0F1E1A);
-  static const onTertiaryContainer = Color(0xFF8E9F98);
-
-  static const surface = Color(0xFFFAF9F5);
-  static const surfaceDim = Color(0xFFDBDAD6);
-  static const surfaceContainerLowest = Color(0xFFFFFFFF);
-  static const surfaceContainerLow = Color(0xFFF4F4F0);
-  static const surfaceContainer = Color(0xFFEFEEEA);
-  static const surfaceContainerHigh = Color(0xFFE9E8E4);
-  static const surfaceContainerHighest = Color(0xFFE3E2DF);
-
-  static const onSurface = Color(0xFF1B1C1A);
-  static const onSurfaceVariant = Color(0xFF414845);
-  static const outline = Color(0xFF717975);
-  static const outlineVariant = Color(0xFFC0C8C3);
-
-  static const error = Color(0xFFBA1A1A);
-}
-
-/// ---------------------------------------------------------------------------
-/// Wali Santri (parent) theme — mirrored 1:1 from signup_screen.dart's
-/// `PColors`, so the parent-facing dashboard shares the same "Islamic
-/// Academic & Kesantrian Experience" identity as the signup flow (Deep
-/// Emerald Forest + Antique Gold on a warm ivory canvas).
+/// Palet warna dashboard — mirrored 1:1 dari signup_screen.dart's `PColors`
+/// (Deep Emerald Forest + Antique Gold di atas kanvas ivory hangat).
 ///
-/// Sekarang juga dipakai untuk bagian SUPER ADMIN (lihat _superAdminHeroHeader
-/// & _superBody) supaya emerald-nya identik dengan landing page, sesuai
-/// permintaan — bukan warna baru yang ditebak.
+/// Dipakai oleh SEMUA role: Wali Santri, Super Admin, dan Admin Lembaga
+/// (tenant admin). NOTE: font family sengaja tidak di-set di file ini supaya
+/// teks mengikuti font default theme aplikasi.
 /// ---------------------------------------------------------------------------
 class _WC {
   _WC._();
@@ -90,7 +44,12 @@ class _WC {
   static const pendingBg = Color(0xFFFFF8E1);
   static const pendingText = Color(0xFFB78103);
 
+  static const errorBg = Color(0xFFFEE2E2);
   static const errorText = Color(0xFF991B1B);
+
+  // Cokelat emas tua — dipakai untuk tombol aksi "Plot Wali" & teks
+  // "Input Langsung" seperti di screen.png.
+  static const goldDark = Color(0xFF7A5B10);
 }
 
 class DashboardScreen extends StatefulWidget {
@@ -175,9 +134,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final isSuperAdmin = role == 'SUPER_ADMIN';
 
     return Container(
-      // Menyamakan background dashboard Super Admin dengan TenantsScreen
+      // Background ivory yang sama untuk Super Admin & Admin Lembaga
       // (PColors.background == _WC.background == 0xFFFAF9F5).
-      color: isSuperAdmin ? _WC.background : null,
+      color: (isSuperAdmin || isTenantAdmin) ? _WC.background : null,
       child: RefreshIndicator(
         onRefresh: _load,
         child: Align(
@@ -305,6 +264,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   // =========================================================================
   // 1. Hero greeting / sync-status header (tenant & admin-like roles)
+  // Restyle: gradient emerald `_WC` + pill emas, mengikuti screen.png.
   // =========================================================================
   Widget _heroHeader(String role) {
     final namaPengguna = _pick(_data!, ['namaPengguna', 'nama', 'userName']) ?? 'Rekan Pondok';
@@ -314,19 +274,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return Container(
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: _C.primaryContainer,
-        borderRadius: BorderRadius.circular(16),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [_WC.primary, _WC.primaryGradientEnd],
+        ),
+        borderRadius: BorderRadius.circular(18),
         boxShadow: [
-          BoxShadow(color: _C.primary.withOpacity(0.15), blurRadius: 10, offset: const Offset(0, 4)),
+          BoxShadow(color: _WC.primary.withOpacity(0.18), blurRadius: 12, offset: const Offset(0, 4)),
         ],
       ),
       child: Stack(
         clipBehavior: Clip.none,
         children: [
           Positioned(
-            right: -20,
-            top: -20,
-            child: Opacity(opacity: 0.05, child: _RubElHizb(size: 130, color: _C.primaryFixedDim)),
+            right: -18,
+            top: -18,
+            child: Opacity(opacity: 0.06, child: _RubElHizb(size: 130, color: Colors.white)),
           ),
           Padding(
             padding: const EdgeInsets.all(16),
@@ -339,10 +303,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   runSpacing: 6,
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                       decoration: BoxDecoration(
-                        color: _C.secondaryContainer,
+                        color: Colors.white.withOpacity(0.12),
                         borderRadius: BorderRadius.circular(999),
+                        border: Border.all(color: _WC.gold.withOpacity(0.5)),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
@@ -350,7 +315,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           Container(
                             width: 6,
                             height: 6,
-                            decoration: const BoxDecoration(color: _C.secondary, shape: BoxShape.circle),
+                            decoration: const BoxDecoration(color: _WC.gold, shape: BoxShape.circle),
                           ),
                           const SizedBox(width: 6),
                           Text(
@@ -358,7 +323,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             style: const TextStyle(
                               fontSize: 10,
                               fontWeight: FontWeight.w700,
-                              color: _C.onSecondaryContainer,
+                              color: _WC.gold,
                             ),
                           ),
                         ],
@@ -367,7 +332,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     Text(
                       namaPondok,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(fontSize: 12, color: _C.onPrimaryContainer),
+                      style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.7)),
                     ),
                   ],
                 ),
@@ -376,17 +341,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   'Ahlan wa Sahlan, $namaPengguna',
                   style: const TextStyle(
                     fontSize: 22,
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.w700,
                     height: 1.25,
-                    color: _C.onPrimary,
+                    color: Colors.white,
                   ),
                 ),
                 const SizedBox(height: 3),
                 Text(
                   semester,
-                  style: TextStyle(fontSize: 12, color: _C.onPrimaryContainer),
+                  style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.7)),
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 12),
                 Row(
                   children: [
                     Expanded(
@@ -396,37 +361,33 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             width: 16,
                             height: 16,
                             child: _syncing
-                                ? const CircularProgressIndicator(
-                                    strokeWidth: 2, color: _C.secondaryFixedDim)
-                                : Icon(Icons.sync, size: 16, color: _C.secondaryFixedDim),
+                                ? const CircularProgressIndicator(strokeWidth: 2, color: _WC.gold)
+                                : const Icon(Icons.sync, size: 16, color: _WC.gold),
                           ),
                           const SizedBox(width: 6),
                           Flexible(
                             child: Text(
                               'Sinkronisasi Data Master: ${_elapsed(_lastLoaded)}',
                               overflow: TextOverflow.ellipsis,
-                              style: TextStyle(fontSize: 11.5, color: _C.onPrimaryContainer),
+                              style: TextStyle(fontSize: 11.5, color: Colors.white.withOpacity(0.7)),
                             ),
                           ),
                         ],
                       ),
                     ),
+                    const SizedBox(width: 8),
                     InkWell(
                       onTap: _syncing ? null : _load,
                       borderRadius: BorderRadius.circular(999),
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.15),
+                          color: _WC.mint,
                           borderRadius: BorderRadius.circular(999),
                         ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: const [
-                            Icon(Icons.refresh, size: 14, color: _C.onPrimary),
-                            SizedBox(width: 4),
-                            Text('Perbarui', style: TextStyle(fontSize: 11.5, color: _C.onPrimary)),
-                          ],
+                        child: const Text(
+                          'Perbarui',
+                          style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: _WC.primary),
                         ),
                       ),
                     ),
@@ -1110,7 +1071,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   // =========================================================================
-  // TENANT / ADMIN PONDOK — matches the approved mockup
+  // TENANT / ADMIN PONDOK — restyle mengikuti screen.png + palet `_WC`
   // =========================================================================
   Widget _tenantBody() {
     final s = (_data!['statistik'] as Map?)?.cast<String, dynamic>() ?? <String, dynamic>{};
@@ -1135,21 +1096,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // ---- 2. Ringkasan angka pondok ----
-        _SectionLabel(title: 'Master Data Terdata', trailing: 'Cakupan Lembaga Sendiri'),
+        _SectionLabel(title: 'Master Data Terdata', trailing: 'Cakupan Lembaga Sendiri', trailingAsPill: true),
         const SizedBox(height: 10),
-        GridView.count(
-          crossAxisCount: 2,
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          mainAxisSpacing: 8,
-          crossAxisSpacing: 8,
-          childAspectRatio: 1.5,
+        _TwoColGrid(
           children: [
             _MetricCard(
               label: 'Santri Aktif',
               value: _fmtInt(santriAktif),
               icon: Icons.school,
-              iconColor: _C.primaryContainer,
+              iconColor: _WC.primary,
+              iconBg: _WC.sage,
               caption: (santriPutra > 0 || santriPutri > 0)
                   ? '${_fmtInt(santriPutra)} Putra • ${_fmtInt(santriPutri)} Putri'
                   : 'Data santri aktif pondok',
@@ -1158,7 +1114,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
               label: 'Ustadz / Pembina',
               value: _fmtInt(totalUstadz),
               icon: Icons.badge,
-              iconColor: _C.secondary,
+              iconColor: _WC.gold,
+              iconBg: _WC.goldSurface,
               caption: (ustadzMukim > 0 || ustadzEksternal > 0)
                   ? '${_fmtInt(ustadzMukim)} Mukim • ${_fmtInt(ustadzEksternal)} Eksternal'
                   : 'Tenaga pendidik aktif',
@@ -1167,7 +1124,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
               label: 'Kelas & Halaqah',
               value: '${_fmtInt(totalKelas)} Rombel',
               icon: Icons.menu_book,
-              iconColor: _C.primaryContainer,
+              iconColor: _WC.primary,
+              iconBg: _WC.sage,
               caption: (kelasTahfidz > 0 || kelasDiniyah > 0)
                   ? '${_fmtInt(kelasTahfidz)} Tahfidz • ${_fmtInt(kelasDiniyah)} Diniyah'
                   : 'Rombongan belajar aktif',
@@ -1176,7 +1134,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
               label: 'Akun Terdaftar',
               value: _fmtInt(totalAkun),
               icon: Icons.manage_accounts,
-              iconColor: _C.secondary,
+              iconColor: _WC.gold,
+              iconBg: _WC.goldSurface,
               caption: (akunWali > 0 || akunGuru > 0)
                   ? '${_fmtInt(santriAktif)} Santri • ${_fmtInt(akunWali)} Wali • ${_fmtInt(akunGuru)} Guru'
                   : 'Akun aktif portal mobile & web',
@@ -1186,22 +1145,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
         const SizedBox(height: 20),
 
         // ---- 3. Tindakan cepat ----
-        _SectionLabel(title: 'Tindakan Data Master', trailing: 'Input Langsung'),
+        _SectionLabel(title: 'Tindakan Data Master', trailing: 'Input Langsung', trailingColor: _WC.goldDark),
         const SizedBox(height: 10),
-        GridView.count(
-          crossAxisCount: 2,
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          mainAxisSpacing: 8,
-          crossAxisSpacing: 8,
-          childAspectRatio: 1.55,
+        _TwoColGrid(
           children: [
             _QuickAction(
               title: 'Santri Baru',
               subtitle: 'Entri biodata & berkas santri',
               icon: Icons.person_add,
-              iconBg: _C.primaryFixed,
-              iconColor: _C.primaryContainer,
+              iconBg: _WC.sage,
+              iconColor: _WC.primary,
               tag: 'Auto-NIS',
               onTap: _notAvailable,
             ),
@@ -1209,24 +1162,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
               title: 'Ustadz / Guru',
               subtitle: 'Registrasi asatidz & musyrif',
               icon: Icons.assignment_ind,
-              iconBg: _C.secondaryFixed,
-              iconColor: _C.onSecondaryFixed,
+              iconBg: _WC.goldSurface,
+              iconColor: _WC.gold,
               onTap: _notAvailable,
             ),
             _QuickAction(
               title: 'Rombel & Halaqah',
               subtitle: 'Plotting santri & wali kelas',
               icon: Icons.meeting_room,
-              iconBg: _C.tertiaryFixed,
-              iconColor: _C.onTertiaryFixed,
+              iconBg: _WC.sage,
+              iconColor: _WC.primary,
               onTap: _notAvailable,
             ),
             _QuickAction(
               title: 'Akun Pengguna',
               subtitle: 'Generate kredensial wali & santri',
               icon: Icons.lock_person,
-              iconBg: _C.surfaceContainerHigh,
-              iconColor: _C.primaryContainer,
+              iconBg: _WC.goldSurface,
+              iconColor: _WC.gold,
               onTap: _notAvailable,
             ),
           ],
@@ -1247,31 +1200,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
         // ---- Catatan batas akses ----
         Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(color: _C.surfaceContainerLow, borderRadius: BorderRadius.circular(12)),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Icon(Icons.info_outline, size: 18, color: _C.onSurfaceVariant),
-              const SizedBox(width: 8),
-              Expanded(
-                child: RichText(
-                  text: const TextSpan(
-                    style: TextStyle(fontSize: 11.5, color: _C.onSurfaceVariant, height: 1.5),
-                    children: [
-                      TextSpan(
-                        text: 'Catatan Batas Akses Admin Lembaga: ',
-                        style: TextStyle(fontWeight: FontWeight.w700, color: _C.onSurfaceVariant),
-                      ),
-                      TextSpan(
-                        text:
-                            'Pengajuan perizinan kepulangan santri dan evaluasi mutaba\'ah kelulusan diproses secara terpisah oleh Mudir Pesantren & Dewan Asatidz. Modul Anda difokuskan penuh pada integritas master data pondok.',
-                      ),
-                    ],
-                  ),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: _WC.surfaceDim,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: _WC.border),
+          ),
+          child: RichText(
+            text: const TextSpan(
+              style: TextStyle(fontSize: 11.5, color: _WC.inkSecondary, height: 1.5, fontStyle: FontStyle.italic),
+              children: [
+                TextSpan(
+                  text: 'Catatan Batas Akses Admin Lembaga: ',
+                  style: TextStyle(fontWeight: FontWeight.w700, color: _WC.inkSecondary),
                 ),
-              ),
-            ],
+                TextSpan(
+                  text:
+                      'Pengajuan perizinan kepulangan santri dan evaluasi mutaba\'ah kelulusan diproses secara terpisah oleh Mudir Pesantren & Dewan Asatidz. Modul Anda difokuskan penuh pada integritas master data pondok.',
+                ),
+              ],
+            ),
           ),
         ),
       ],
@@ -1287,33 +1235,27 @@ class _DashboardScreenState extends State<DashboardScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                children: [
-                  Container(
-                    width: 32,
-                    height: 32,
-                    decoration: BoxDecoration(color: _C.secondaryContainer, borderRadius: BorderRadius.circular(999)),
-                    child: const Icon(Icons.verified_user, size: 18, color: _C.onSecondaryContainer),
-                  ),
-                  const SizedBox(width: 10),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('Audit Kelengkapan Data',
-                          style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _C.primaryContainer)),
-                      Text('Kelola data wajib sebelum penomoran ijazah',
-                          style: TextStyle(fontSize: 11.5, color: _C.onSurfaceVariant)),
-                    ],
-                  ),
-                ],
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Audit Kelengkapan Data',
+                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _WC.ink)),
+                    SizedBox(height: 2),
+                    Text('Kelola data wajib sebelum penomoran ijazah',
+                        style: TextStyle(fontSize: 11.5, color: _WC.inkSecondary)),
+                  ],
+                ),
               ),
-              if (items.isNotEmpty)
+              if (items.isNotEmpty) ...[
+                const SizedBox(width: 8),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(color: _C.secondaryContainer, borderRadius: BorderRadius.circular(999)),
+                  decoration: BoxDecoration(color: _WC.errorBg, borderRadius: BorderRadius.circular(999)),
                   child: Text('${items.length} Tindakan',
-                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: _C.onSecondaryContainer)),
+                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: _WC.errorText)),
                 ),
+              ],
             ],
           ),
           const SizedBox(height: 12),
@@ -1322,7 +1264,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           else
             Column(
               children: [
-                for (final item in items) _auditRow(item),
+                for (int i = 0; i < items.length; i++) _auditRow(items[i], i),
               ],
             ),
         ],
@@ -1330,29 +1272,37 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _auditRow(Map<String, dynamic> item) {
+  Widget _auditRow(Map<String, dynamic> item, int index) {
     final title = _pick(item, ['judul', 'title']) ?? 'Tindakan diperlukan';
     final subtitle = _pick(item, ['deskripsi', 'subtitle']) ?? '';
     final actionLabel = _pick(item, ['aksi', 'actionLabel']) ?? 'Lihat';
+
+    // Warna tombol aksi bergantian seperti screen.png: merah, cokelat emas, hijau tua.
+    const accents = [_WC.errorText, _WC.goldDark, _WC.primary];
+    final accent = accents[index % accents.length];
+
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(color: _C.surfaceContainer, borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(
+        color: _WC.surfaceDim,
+        borderRadius: BorderRadius.circular(12),
+      ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Padding(
-            padding: EdgeInsets.only(top: 1),
-            child: Icon(Icons.error_outline, size: 18, color: _C.secondary),
+          Padding(
+            padding: const EdgeInsets.only(top: 1),
+            child: Icon(Icons.error_outline, size: 18, color: accent),
           ),
           const SizedBox(width: 8),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: _C.onSurface)),
+                Text(title, style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: _WC.ink)),
                 if (subtitle.isNotEmpty)
-                  Text(subtitle, style: TextStyle(fontSize: 11.5, color: _C.onSurfaceVariant)),
+                  Text(subtitle, style: const TextStyle(fontSize: 11.5, color: _WC.inkSecondary)),
               ],
             ),
           ),
@@ -1361,9 +1311,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
             onTap: _notAvailable,
             borderRadius: BorderRadius.circular(999),
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(color: _C.primaryContainer, borderRadius: BorderRadius.circular(999)),
-              child: Text(actionLabel, style: const TextStyle(fontSize: 11, color: _C.onPrimary)),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+              decoration: BoxDecoration(color: accent, borderRadius: BorderRadius.circular(999)),
+              child: Text(actionLabel,
+                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.white)),
             ),
           ),
         ],
@@ -1389,24 +1340,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text('Kelola Akademik & KBM',
-                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _C.primaryContainer)),
+                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _WC.ink)),
+                    SizedBox(height: 2),
                     Text('Pusat entri kolektif dan monitoring rombel',
-                        style: TextStyle(fontSize: 11.5, color: _C.onSurfaceVariant)),
+                        style: TextStyle(fontSize: 11.5, color: _WC.inkSecondary)),
                   ],
                 ),
               ),
               Container(
                 width: 34,
                 height: 34,
-                decoration: BoxDecoration(color: _C.primaryFixed, borderRadius: BorderRadius.circular(999)),
-                child: const Icon(Icons.library_books, size: 18, color: _C.onPrimaryFixed),
+                decoration: const BoxDecoration(color: _WC.sage, shape: BoxShape.circle),
+                child: const Icon(Icons.library_books, size: 18, color: _WC.primary),
               ),
             ],
           ),
           const SizedBox(height: 12),
           Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(color: _C.surfaceContainerLow, borderRadius: BorderRadius.circular(12)),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(color: _WC.surfaceDim, borderRadius: BorderRadius.circular(12)),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -1414,22 +1366,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     const Expanded(
-                      child: Text('Kepatuhan Rekap Absensi Harian', style: TextStyle(fontSize: 12, color: _C.onSurface)),
+                      child: Text('Kepatuhan Rekap Absensi Harian',
+                          style: TextStyle(fontSize: 12, color: _WC.ink)),
                     ),
                     Text(
                       pct != null ? '${_fmtInt(terisi!)} / ${_fmtInt(total!)} Rombel (${(pct * 100).round()}%)' : 'Belum ada data',
-                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _C.primaryContainer),
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _WC.primary),
                     ),
                   ],
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(height: 8),
                 ClipRRect(
                   borderRadius: BorderRadius.circular(999),
                   child: LinearProgressIndicator(
                     value: pct ?? 0,
                     minHeight: 8,
-                    backgroundColor: _C.surfaceContainer,
-                    valueColor: const AlwaysStoppedAnimation(_C.primaryContainer),
+                    backgroundColor: _WC.border,
+                    valueColor: const AlwaysStoppedAnimation(_WC.primary),
                   ),
                 ),
               ],
@@ -1465,18 +1418,29 @@ class _DashboardScreenState extends State<DashboardScreen> {
       child: Container(
         height: 48,
         padding: const EdgeInsets.symmetric(horizontal: 14),
-        decoration: BoxDecoration(color: _C.surfaceContainer, borderRadius: BorderRadius.circular(999)),
+        decoration: BoxDecoration(
+          color: _WC.surfaceDim,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: _WC.border),
+        ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Row(
-              children: [
-                Icon(icon, size: 18, color: _C.primaryContainer),
-                const SizedBox(width: 10),
-                Text(label, style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: _C.primaryContainer)),
-              ],
+            Expanded(
+              child: Row(
+                children: [
+                  Icon(icon, size: 18, color: _WC.primary),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: _WC.ink)),
+                  ),
+                ],
+              ),
             ),
-            const Icon(Icons.chevron_right, size: 18, color: _C.onSurfaceVariant),
+            const Icon(Icons.chevron_right, size: 18, color: _WC.inkSecondary),
           ],
         ),
       ),
@@ -1492,20 +1456,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                children: [
-                  Container(
-                    width: 32,
-                    height: 32,
-                    decoration: BoxDecoration(color: _C.surfaceContainer, borderRadius: BorderRadius.circular(999)),
-                    child: const Icon(Icons.history, size: 18, color: _C.onSurfaceVariant),
-                  ),
-                  const SizedBox(width: 10),
-                  const Text('Log Aktivitas Data Master',
-                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _C.primaryContainer)),
-                ],
+              const Expanded(
+                child: Text('Log Aktivitas Data Master',
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _WC.ink)),
               ),
-              Text('Internal Ma\'had', style: TextStyle(fontSize: 11, color: _C.onSurfaceVariant)),
+              const Text('Internal Ma\'had',
+                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: _WC.inkSecondary)),
             ],
           ),
           const SizedBox(height: 10),
@@ -1532,21 +1488,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            width: 26,
-            height: 26,
+            width: 28,
+            height: 28,
             margin: const EdgeInsets.only(top: 2),
-            decoration: BoxDecoration(color: _C.primaryFixed, borderRadius: BorderRadius.circular(999)),
-            child: const Icon(Icons.person_add, size: 14, color: _C.primaryContainer),
+            decoration: const BoxDecoration(color: _WC.sage, shape: BoxShape.circle),
+            child: const Icon(Icons.person_add, size: 14, color: _WC.primary),
           ),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(message, style: const TextStyle(fontSize: 12.5, color: _C.onSurface, height: 1.3)),
+                Text(message, style: const TextStyle(fontSize: 12.5, color: _WC.ink, height: 1.3)),
+                const SizedBox(height: 2),
                 Text(
                   time.isNotEmpty ? '$actor • $time' : actor,
-                  style: TextStyle(fontSize: 11, color: _C.onSurfaceVariant),
+                  style: const TextStyle(fontSize: 11, color: _WC.inkSecondary),
                 ),
               ],
             ),
@@ -1558,7 +1515,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 }
 
 /// ---------------------------------------------------------------------------
-/// Reusable pieces — Tenant / Admin (unchanged)
+/// Reusable pieces — Tenant / Admin (restyled dengan palet `_WC`)
 /// ---------------------------------------------------------------------------
 
 class _Card extends StatelessWidget {
@@ -1571,9 +1528,9 @@ class _Card extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: _C.surfaceContainerLowest,
+        color: _WC.surface,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 6, offset: const Offset(0, 2))],
+        border: Border.all(color: _WC.border),
       ),
       child: child,
     );
@@ -1583,15 +1540,35 @@ class _Card extends StatelessWidget {
 class _SectionLabel extends StatelessWidget {
   final String title;
   final String trailing;
-  const _SectionLabel({required this.title, required this.trailing});
+  final bool trailingAsPill;
+  final Color trailingColor;
+  const _SectionLabel({
+    required this.title,
+    required this.trailing,
+    this.trailingAsPill = false,
+    this.trailingColor = _WC.inkSecondary,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(title, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _C.primaryContainer)),
-        Text(trailing, style: TextStyle(fontSize: 11.5, color: _C.onSurfaceVariant)),
+        Flexible(
+          child: Text(title,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _WC.ink)),
+        ),
+        const SizedBox(width: 8),
+        if (trailingAsPill)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(color: _WC.surfaceDim, borderRadius: BorderRadius.circular(999)),
+            child: Text(trailing,
+                style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600, color: _WC.inkSecondary)),
+          )
+        else
+          Text(trailing, style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: trailingColor)),
       ],
     );
   }
@@ -1603,6 +1580,7 @@ class _MetricCard extends StatelessWidget {
   final String caption;
   final IconData icon;
   final Color iconColor;
+  final Color iconBg;
 
   const _MetricCard({
     required this.label,
@@ -1610,52 +1588,49 @@ class _MetricCard extends StatelessWidget {
     required this.caption,
     required this.icon,
     required this.iconColor,
+    required this.iconBg,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: _C.surfaceContainerLowest,
+        color: _WC.surface,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 6, offset: const Offset(0, 2))],
+        border: Border.all(color: _WC.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        mainAxisSize: MainAxisSize.min,
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(color: iconBg, shape: BoxShape.circle),
+                child: Icon(icon, size: 16, color: iconColor),
+              ),
+              const SizedBox(width: 8),
               Expanded(
                 child: Text(label,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(fontSize: 11.5, color: _C.onSurfaceVariant)),
-              ),
-              Container(
-                width: 28,
-                height: 28,
-                decoration: BoxDecoration(color: _C.surfaceContainer, shape: BoxShape.circle),
-                child: Icon(icon, size: 15, color: iconColor),
+                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _WC.inkSecondary)),
               ),
             ],
           ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(value,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w800, color: _C.primaryContainer)),
-              const SizedBox(height: 2),
-              Text(caption,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 10.5, color: _C.onSurfaceVariant)),
-            ],
-          ),
+          const SizedBox(height: 12),
+          Text(value,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: _WC.ink)),
+          const SizedBox(height: 2),
+          Text(caption,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 10.5, color: _WC.inkSecondary)),
         ],
       ),
     );
@@ -1684,7 +1659,7 @@ class _QuickAction extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: _C.surfaceContainerLowest,
+      color: _WC.surface,
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
         onTap: onTap,
@@ -1693,7 +1668,7 @@ class _QuickAction extends StatelessWidget {
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
-            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 6, offset: const Offset(0, 2))],
+            border: Border.all(color: _WC.border),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1709,24 +1684,53 @@ class _QuickAction extends StatelessWidget {
                   ),
                   if (tag != null)
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(color: _C.surfaceContainer, borderRadius: BorderRadius.circular(999)),
-                      child: Text(tag!, style: TextStyle(fontSize: 8.5, color: _C.onSurfaceVariant, fontWeight: FontWeight.w600)),
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(color: _WC.mint, borderRadius: BorderRadius.circular(999)),
+                      child: Text(tag!,
+                          style: const TextStyle(fontSize: 9.5, color: _WC.primary, fontWeight: FontWeight.w700)),
                     ),
                 ],
               ),
               const SizedBox(height: 8),
-              Text(title, style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: _C.onSurface)),
+              Text(title, style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: _WC.ink)),
               const SizedBox(height: 1),
               Text(subtitle,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 10.5, color: _C.onSurfaceVariant)),
+                  style: const TextStyle(fontSize: 10.5, color: _WC.inkSecondary)),
             ],
           ),
         ),
       ),
     );
+  }
+}
+
+/// Grid 2 kolom yang tingginya mengikuti isi kartu (bukan rasio tetap),
+/// jadi tidak ada ruang kosong dan tidak overflow di layar kecil.
+class _TwoColGrid extends StatelessWidget {
+  final List<Widget> children;
+  const _TwoColGrid({required this.children});
+
+  @override
+  Widget build(BuildContext context) {
+    final rows = <Widget>[];
+    for (int i = 0; i < children.length; i += 2) {
+      if (i > 0) rows.add(const SizedBox(height: 10));
+      rows.add(
+        IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(child: children[i]),
+              const SizedBox(width: 10),
+              Expanded(child: i + 1 < children.length ? children[i + 1] : const SizedBox.shrink()),
+            ],
+          ),
+        ),
+      );
+    }
+    return Column(children: rows);
   }
 }
 
@@ -1739,9 +1743,9 @@ class _EmptyRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Icon(icon, size: 18, color: _C.onSurfaceVariant),
+        Icon(icon, size: 18, color: _WC.inkSecondary),
         const SizedBox(width: 8),
-        Expanded(child: Text(text, style: TextStyle(fontSize: 12.5, color: _C.onSurfaceVariant))),
+        Expanded(child: Text(text, style: const TextStyle(fontSize: 12.5, color: _WC.inkSecondary))),
       ],
     );
   }
