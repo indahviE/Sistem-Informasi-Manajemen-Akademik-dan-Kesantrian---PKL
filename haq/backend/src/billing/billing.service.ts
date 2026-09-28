@@ -36,9 +36,19 @@ export class BillingService {
     return this.prisma.paket.update({ where: { id }, data: dto });
   }
 
-  async removePaket(id: string) {
+    async removePaket(id: string) {
     const exist = await this.prisma.paket.findUnique({ where: { id } });
     if (!exist) throw new NotFoundException('Paket tidak ditemukan.');
+
+    const jumlahLangganan = await this.prisma.subscription.count({
+      where: { paketId: id },
+    });
+    if (jumlahLangganan > 0) {
+      throw new BadRequestException(
+        `Paket ini masih terkait dengan ${jumlahLangganan} langganan dan tidak bisa dihapus. Nonaktifkan paket ini saja, atau hapus langganan terkait terlebih dahulu.`,
+      );
+    }
+
     return this.prisma.paket.delete({ where: { id } });
   }
 

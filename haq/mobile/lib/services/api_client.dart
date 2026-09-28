@@ -143,6 +143,9 @@ class ApiUrl {
   static const tenantArchive = '/tenants/archive';
   static const tenantUnarchive = '/tenants/unarchive';
   static const tenantDeletePending = '/tenants/delete-pending';
+  static const tenantTrash = '/tenants/trash';
+  static const tenantTrashRestore = '/tenants/trash/restore';
+  static const tenantTrashDeletePermanent = '/tenants/trash/delete-permanent';
   static const users = '/users';
   static const santri = '/santri';
   static const ustadz = '/ustadz';

@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.service';
 import { Role, TenantStatus } from '@prisma/client';
@@ -22,6 +23,9 @@ const STATUS_LABEL: Record<string, string> = {
 
 @Injectable()
 export class TenantsService {
+  /** Lama tenant boleh nongkrong di sampah sebelum dihapus permanen otomatis. */
+  private readonly RETENSI_SAMPAH_HARI = 30; // ganti ke 40 kalau mau lebih lama
+
   constructor(
     private prisma: PrismaService,
     private audit: AuditService,
@@ -129,7 +133,7 @@ export class TenantsService {
 
   async findAll(status?: TenantStatus) {
     const tenants = await this.prisma.tenant.findMany({
-      where: status ? { status } : {},
+      where: { deletedAt: null, ...(status ? { status } : {}) },
       orderBy: { tanggalDaftar: 'desc' },
       include: {
         _count: { select: { users: true, santris: true, kelas: true } },
@@ -370,5 +374,197 @@ export class TenantsService {
         warnaTema: true,
       },
     });
+  }
+
+  // ===========================================================================
+  // Sampah (Trash) — soft-delete ala galeri. Tenant yang dipindah ke sampah
+  // hilang dari listing biasa (findAll sudah filter deletedAt: null), tapi
+  // masih bisa dipulihkan sampai RETENSI_SAMPAH_HARI hari, setelah itu
+  // dihapus permanen otomatis oleh cron di bawah.
+  // ===========================================================================
+
+  async pindahKeSampah(tenantId: string, actor?: RequestUser, ip?: string) {
+    const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
+    if (!tenant) throw new NotFoundException('Tenant tidak ditemukan.');
+    if (tenant.deletedAt) throw new ConflictException('Tenant ini sudah ada di sampah.');
+
+    await this.prisma.tenant.update({
+      where: { id: tenantId },
+      data: { deletedAt: new Date() },
+    });
+
+    await this.audit.log({
+      action: 'TENANT_TRASH',
+      entity: 'tenants',
+      entityId: tenantId,
+      tenantId,
+      kategori: AuditKategori.SISTEM,
+      tingkat: AuditTingkat.WARNING,
+      judul: 'Tenant Dipindahkan ke Sampah',
+      deskripsi: `Pondok "${tenant.namaPondok}" (\`${tenant.kodeTenant}\`) dipindahkan ke sampah. Akan dihapus permanen otomatis dalam ${this.RETENSI_SAMPAH_HARI} hari jika tidak dipulihkan.`,
+      meta: 'Masuk Sampah',
+      userId: actor?.userId,
+      userRole: actor?.role ? String(actor.role) : null,
+      ip,
+    });
+
+    return { message: 'Tenant dipindahkan ke sampah.', id: tenantId };
+  }
+
+  async pulihkanDariSampah(tenantId: string, actor?: RequestUser, ip?: string) {
+    const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
+    if (!tenant) throw new NotFoundException('Tenant tidak ditemukan.');
+    if (!tenant.deletedAt) throw new BadRequestException('Tenant ini tidak ada di sampah.');
+
+    await this.prisma.tenant.update({
+      where: { id: tenantId },
+      data: { deletedAt: null },
+    });
+
+    await this.audit.log({
+      action: 'TENANT_RESTORE_FROM_TRASH',
+      entity: 'tenants',
+      entityId: tenantId,
+      tenantId,
+      kategori: AuditKategori.SISTEM,
+      tingkat: AuditTingkat.INFO,
+      judul: 'Tenant Dipulihkan dari Sampah',
+      deskripsi: `Pondok "${tenant.namaPondok}" (\`${tenant.kodeTenant}\`) dipulihkan dari sampah.`,
+      meta: 'Dipulihkan',
+      userId: actor?.userId,
+      userRole: actor?.role ? String(actor.role) : null,
+      ip,
+    });
+
+    return { message: 'Tenant berhasil dipulihkan.', id: tenantId };
+  }
+
+  async findTrashed() {
+    const tenants = await this.prisma.tenant.findMany({
+      where: { deletedAt: { not: null } },
+      orderBy: { deletedAt: 'desc' },
+      include: {
+        _count: { select: { users: true, santris: true, kelas: true } },
+        adminAwal: { select: { nama: true, email: true } },
+      },
+    });
+    return tenants.map((t) => ({
+      ...t,
+      jumlahUser: t._count.users,
+      jumlahSantri: t._count.santris,
+      jumlahKelas: t._count.kelas,
+      adminNama: t.adminAwal?.nama,
+      adminEmail: t.adminAwal?.email,
+      hapusPermanenPada: new Date(
+        t.deletedAt!.getTime() + this.RETENSI_SAMPAH_HARI * 24 * 60 * 60 * 1000,
+      ),
+    }));
+  }
+
+  async hapusPermanen(tenantId: string, actor?: RequestUser, ip?: string) {
+    const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
+    if (!tenant) throw new NotFoundException('Tenant tidak ditemukan.');
+    if (!tenant.deletedAt) {
+      throw new BadRequestException('Pindahkan tenant ke sampah terlebih dahulu sebelum menghapus permanen.');
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.tahunAjaran.deleteMany({ where: { tenantId } });
+      await tx.user.deleteMany({ where: { tenantId } });
+      await tx.tenant.delete({ where: { id: tenantId } });
+    });
+
+    await this.audit.log({
+      action: 'TENANT_DELETE_PERMANENT',
+      entity: 'tenants',
+      entityId: tenantId,
+      kategori: AuditKategori.SISTEM,
+      tingkat: AuditTingkat.WARNING,
+      judul: 'Tenant Dihapus Permanen',
+      deskripsi: `Pondok "${tenant.namaPondok}" (\`${tenant.kodeTenant}\`) dihapus permanen dari sampah oleh Super Admin.`,
+      meta: 'Dihapus Permanen',
+      userId: actor?.userId,
+      userRole: actor?.role ? String(actor.role) : null,
+      ip,
+    });
+
+    return { message: 'Tenant berhasil dihapus permanen.' };
+  }
+
+  /** Cron: beres-beres sampah tiap hari jam 09:00 — hapus permanen yang udah kelewat retensi. */
+  @Cron(CronExpression.EVERY_DAY_AT_9AM)
+  async purgeSampahKedaluwarsa(): Promise<void> {
+    const batasWaktu = new Date();
+    batasWaktu.setDate(batasWaktu.getDate() - this.RETENSI_SAMPAH_HARI);
+
+    const expired = await this.prisma.tenant.findMany({
+      where: { deletedAt: { not: null, lt: batasWaktu } },
+    });
+    if (expired.length === 0) return;
+
+    for (const tenant of expired) {
+      await this.prisma.$transaction(async (tx) => {
+        await tx.tahunAjaran.deleteMany({ where: { tenantId: tenant.id } });
+        await tx.user.deleteMany({ where: { tenantId: tenant.id } });
+        await tx.tenant.delete({ where: { id: tenant.id } });
+      });
+
+      await this.audit.log({
+        action: 'TENANT_AUTO_PURGE',
+        entity: 'tenants',
+        kategori: AuditKategori.SISTEM,
+        tingkat: AuditTingkat.WARNING,
+        judul: 'Tenant Dihapus Permanen Otomatis',
+        deskripsi: `Pondok "${tenant.namaPondok}" (\`${tenant.kodeTenant}\`) sudah di sampah lebih dari ${this.RETENSI_SAMPAH_HARI} hari, dihapus permanen otomatis oleh sistem.`,
+        meta: 'Auto-Purge',
+      });
+    }
+  }
+
+  // ===========================================================================
+  // Cron: auto-tolak pendaftaran PENDING yang melewati masa tenggang —
+  // jalan tiap hari jam 08:00. Grace period diambil dari
+  // PlatformSetting.graceDaysPending (diatur di halaman Pengaturan).
+  // ===========================================================================
+  @Cron(CronExpression.EVERY_DAY_AT_8AM)
+  async autoTolakPendingKedaluwarsa(): Promise<void> {
+    const setting = await this.prisma.platformSetting.findFirst();
+    const graceDays = setting?.graceDaysPending ?? 14;
+
+    const batasWaktu = new Date();
+    batasWaktu.setDate(batasWaktu.getDate() - graceDays);
+
+    const expired = await this.prisma.tenant.findMany({
+      where: {
+        status: TenantStatus.PENDING,
+        tanggalDaftar: { lt: batasWaktu },
+      },
+    });
+
+    if (expired.length === 0) return;
+
+    for (const tenant of expired) {
+      await this.prisma.tenant.update({
+        where: { id: tenant.id },
+        data: { deletedAt: new Date() },
+      });
+
+      await this.audit.log({
+        action: 'TENANT_AUTO_REJECT_GRACE_EXPIRED',
+        entity: 'tenants',
+        entityId: tenant.id,
+        tenantId: tenant.id,
+        kategori: AuditKategori.SISTEM,
+        tingkat: AuditTingkat.WARNING,
+        judul: 'Pendaftaran Otomatis Dipindahkan ke Sampah',
+        deskripsi: `Pondok "${tenant.namaPondok}" (\`${tenant.kodeTenant}\`) tidak diverifikasi dalam ${graceDays} hari sejak mendaftar (${tenant.tanggalDaftar.toISOString().split('T')[0]}), sehingga dipindahkan ke sampah oleh sistem. Akan dihapus permanen dalam ${this.RETENSI_SAMPAH_HARI} hari jika tidak dipulihkan.`,
+        meta: 'Masuk Sampah',
+      });
+    }
+
+    await this.notifikasi.kirimKeSuperAdmin(
+      JenisNotifikasi.TENANT_BARU,
+      `${expired.length} pendaftaran tenant otomatis dibatalkan karena melewati masa tenggang ${graceDays} hari: ${expired.map((t) => t.namaPondok).join(', ')}.`,
+    );
   }
 }

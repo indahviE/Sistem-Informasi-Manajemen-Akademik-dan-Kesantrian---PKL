@@ -833,9 +833,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
         const SizedBox(height: 24),
         _SASectionHeader(
           title: 'Direktori Tenant Platform',
-          badgeLabel: '${tenantTerbaru.length} Terdaftar',
+          subtitle: tenantTerbaru.length < totalTenant
+              ? 'Menampilkan ${tenantTerbaru.length} pendaftaran terbaru'
+              : null,
+          badgeLabel: '${_fmtInt(totalTenant)} Terdaftar',
           badgeBg: _WC.sage,
           badgeFg: _WC.primary,
+          onSeeAll: () => widget.onNavigate?.call('Tenant'),
         ),
         const SizedBox(height: 10),
         SizedBox(
@@ -844,7 +848,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             scrollDirection: Axis.horizontal,
             children: [
               _SAFilterChip(
-                label: 'Semua (${tenantTerbaru.length})',
+                label: 'Semua',
                 selected: _tenantFilter == 'semua',
                 onTap: () => setState(() => _tenantFilter = 'semua'),
               ),
@@ -1896,21 +1900,23 @@ class _SAReviewCard extends StatelessWidget {
 class _SASectionHeader extends StatelessWidget {
   final String title;
   final String? subtitle;
-  final String badgeLabel;
-  final Color badgeBg;
-  final Color badgeFg;
+  final String? badgeLabel;
+  final Color? badgeBg;
+  final Color? badgeFg;
+  final VoidCallback? onSeeAll;
   const _SASectionHeader({
     required this.title,
     this.subtitle,
-    required this.badgeLabel,
-    required this.badgeBg,
-    required this.badgeFg,
+    this.badgeLabel,
+    this.badgeBg,
+    this.badgeFg,
+    this.onSeeAll,
   });
 
   @override
   Widget build(BuildContext context) {
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Expanded(
           child: Column(
@@ -1924,11 +1930,27 @@ class _SASectionHeader extends StatelessWidget {
             ],
           ),
         ),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          decoration: BoxDecoration(color: badgeBg, borderRadius: BorderRadius.circular(999)),
-          child: Text(badgeLabel, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: badgeFg)),
-        ),
+        if (badgeLabel != null)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(color: badgeBg, borderRadius: BorderRadius.circular(999)),
+            child: Text(badgeLabel!, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: badgeFg)),
+          ),
+        if (onSeeAll != null) ...[
+          const SizedBox(width: 8),
+          Material(
+            color: _WC.sage,
+            shape: const CircleBorder(),
+            child: InkWell(
+              onTap: onSeeAll,
+              customBorder: const CircleBorder(),
+              child: const Padding(
+                padding: EdgeInsets.all(8),
+                child: Icon(Icons.arrow_forward_rounded, size: 16, color: _WC.primary),
+              ),
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -2024,99 +2046,111 @@ class _SAPendaftaranCard extends StatelessWidget {
     final lokasi = tenant['lokasi'] as String?;
     final kategori = tenant['kategori'] as String?;
     final waktuDaftar = tenant['tanggalDaftar'] as String?;
+    final inisial = nama.trim().isNotEmpty ? nama.trim()[0].toUpperCase() : '?';
 
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: _WC.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _WC.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    final metaChips = <Widget>[
+      _metaChip(Icons.link_rounded, '$kode.sistempesantren.com'),
+      if (waktuDaftar != null) _metaChip(Icons.schedule_rounded, waktuDaftar),
+      if (lokasi != null) _metaChip(Icons.place_outlined, lokasi),
+      if (kategori != null) _metaChip(Icons.menu_book_outlined, kategori),
+    ];
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        decoration: BoxDecoration(
+          color: _WC.surface,
+          border: Border.all(color: _WC.goldBorder),
+        ),
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              Container(width: 4, color: _WC.gold),
               Expanded(
-                child: Text(nama, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: _WC.ink)),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(color: _WC.surfaceDim, borderRadius: BorderRadius.circular(999)),
-                child: Text(kode, style: const TextStyle(fontSize: 10, color: _WC.inkSecondary)),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Row(
-            children: [
-              const Icon(Icons.link_rounded, size: 13, color: _WC.inkSecondary),
-              const SizedBox(width: 4),
-              Text('$kode.sistempesantren.com', style: const TextStyle(fontSize: 11.5, color: _WC.inkSecondary)),
-            ],
-          ),
-          if (waktuDaftar != null || lokasi != null) ...[
-            const SizedBox(height: 4),
-            Row(
-              children: [
-                if (waktuDaftar != null) ...[
-                  const Icon(Icons.schedule_rounded, size: 13, color: _WC.inkSecondary),
-                  const SizedBox(width: 4),
-                  Text(waktuDaftar, style: const TextStyle(fontSize: 11.5, color: _WC.inkSecondary)),
-                  const SizedBox(width: 10),
-                ],
-                if (lokasi != null) ...[
-                  const Icon(Icons.place_outlined, size: 13, color: _WC.inkSecondary),
-                  const SizedBox(width: 4),
-                  Expanded(child: Text(lokasi, style: const TextStyle(fontSize: 11.5, color: _WC.inkSecondary))),
-                ],
-              ],
-            ),
-          ],
-          if (kategori != null) ...[
-            const SizedBox(height: 4),
-            Row(
-              children: [
-                const Icon(Icons.menu_book_outlined, size: 13, color: _WC.inkSecondary),
-                const SizedBox(width: 4),
-                Text(kategori, style: const TextStyle(fontSize: 11.5, color: _WC.inkSecondary)),
-              ],
-            ),
-          ],
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: Color(0xFFF1B8B8)),
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 14, 14, 14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Container(
+                            width: 38,
+                            height: 38,
+                            alignment: Alignment.center,
+                            decoration: const BoxDecoration(color: _WC.goldSurface, shape: BoxShape.circle),
+                            child: Text(inisial,
+                                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: _WC.gold)),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(nama,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: _WC.ink)),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(color: _WC.surfaceDim, borderRadius: BorderRadius.circular(999)),
+                            child: Text(kode, style: const TextStyle(fontSize: 10, color: _WC.inkSecondary)),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Wrap(spacing: 14, runSpacing: 6, children: metaChips),
+                      const SizedBox(height: 14),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              style: OutlinedButton.styleFrom(
+                                side: const BorderSide(color: Color(0xFFF1B8B8)),
+                                padding: const EdgeInsets.symmetric(vertical: 10),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+                              ),
+                              onPressed: onTolak,
+                              child: const Text('Tolak',
+                                  style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: _WC.errorText)),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            flex: 2,
+                            child: FilledButton(
+                              style: FilledButton.styleFrom(
+                                backgroundColor: _WC.primary,
+                                padding: const EdgeInsets.symmetric(vertical: 10),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+                              ),
+                              onPressed: onSetujui,
+                              child: const Text('Setujui Tenant',
+                                  style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: Colors.white)),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
-                  onPressed: onTolak,
-                  child: const Text('Tolak',
-                      style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: _WC.errorText)),
                 ),
               ),
-              const SizedBox(width: 8),
-              Expanded(
-                flex: 2,
-                child: FilledButton(
-                  style: FilledButton.styleFrom(
-                    backgroundColor: _WC.primary,
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-                  ),
-                  onPressed: onSetujui,
-                  child: const Text('Setujui Tenant',
-                      style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: Colors.white)),
-                ),
-              ),
             ],
           ),
-        ],
+        ),
       ),
+    );
+  }
+
+  Widget _metaChip(IconData icon, String label) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 13, color: _WC.inkSecondary),
+        const SizedBox(width: 4),
+        Text(label, style: const TextStyle(fontSize: 11.5, color: _WC.inkSecondary)),
+      ],
     );
   }
 }
@@ -2138,64 +2172,117 @@ class _SATenantCard extends StatelessWidget {
 
     final isSuspended = status == 'SUSPENDED';
     final isPending = status == 'PENDING';
+    final accent = isSuspended ? _WC.errorText : (isPending ? _WC.gold : _WC.successText);
     final statusBg = isSuspended ? const Color(0xFFFEE2E2) : (isPending ? _WC.pendingBg : _WC.successBg);
     final statusFg = isSuspended ? _WC.errorText : (isPending ? _WC.pendingText : _WC.successText);
+    final inisial = nama.trim().isNotEmpty ? nama.trim()[0].toUpperCase() : '?';
 
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: _WC.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _WC.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        decoration: BoxDecoration(
+          color: _WC.surface,
+          border: Border.all(color: _WC.border),
+        ),
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              Container(width: 4, color: accent),
               Expanded(
-                  child: Text(nama, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: _WC.ink))),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-                decoration: BoxDecoration(color: statusBg, borderRadius: BorderRadius.circular(999)),
-                child: Text(status, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: statusFg)),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 14, 14, 14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Container(
+                            width: 38,
+                            height: 38,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(color: statusBg, shape: BoxShape.circle),
+                            child: Text(inisial,
+                                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: statusFg)),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(nama,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: _WC.ink)),
+                                const SizedBox(height: 2),
+                                Text(kode, style: const TextStyle(fontSize: 11.5, color: _WC.inkSecondary)),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                            decoration: BoxDecoration(color: statusBg, borderRadius: BorderRadius.circular(999)),
+                            child: Text(status,
+                                style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: statusFg)),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          const Icon(Icons.groups_2_outlined, size: 14, color: _WC.inkSecondary),
+                          const SizedBox(width: 4),
+                          Text('$jumlahUser Users', style: const TextStyle(fontSize: 11.5, color: _WC.inkSecondary)),
+                          const Spacer(),
+                          if (isSuspended)
+                            _SAPillButton(label: 'Pulihkan Tenant', filled: true, onTap: onAktifkan)
+                          else if (!isPending)
+                            _SAPillButton(label: 'Suspend', filled: false, onTap: onSuspend),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ],
           ),
-          const SizedBox(height: 2),
-          Text(kode, style: const TextStyle(fontSize: 11.5, color: _WC.inkSecondary)),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              const Icon(Icons.groups_2_outlined, size: 14, color: _WC.inkSecondary),
-              const SizedBox(width: 4),
-              Text('$jumlahUser Users', style: const TextStyle(fontSize: 11.5, color: _WC.inkSecondary)),
-              const Spacer(),
-              if (isSuspended)
-                FilledButton(
-                  style: FilledButton.styleFrom(
-                    backgroundColor: _WC.primary,
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-                  ),
-                  onPressed: onAktifkan,
-                  child: const Text('Pulihkan Tenant',
-                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.white)),
-                )
-              else if (!isPending)
-                OutlinedButton(
-                  style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: Color(0xFFF1B8B8)),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-                  ),
-                  onPressed: onSuspend,
-                  child: const Text('Suspend',
-                      style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: _WC.errorText)),
-                ),
-            ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Tombol pill kecil dipakai bareng di kartu tenant & pendaftaran, biar
+/// ripple & sizing-nya konsisten (sebelumnya tiap kartu bikin style sendiri).
+class _SAPillButton extends StatelessWidget {
+  final String label;
+  final bool filled;
+  final VoidCallback onTap;
+  const _SAPillButton({required this.label, required this.filled, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: filled ? _WC.primary : Colors.transparent,
+      borderRadius: BorderRadius.circular(999),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(999),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(999),
+            border: filled ? null : Border.all(color: const Color(0xFFF1B8B8)),
           ),
-        ],
+          child: Text(label,
+              style: TextStyle(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w700,
+                color: filled ? Colors.white : _WC.errorText,
+              )),
+        ),
       ),
     );
   }
