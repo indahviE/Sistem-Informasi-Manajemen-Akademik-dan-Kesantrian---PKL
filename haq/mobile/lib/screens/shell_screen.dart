@@ -30,6 +30,7 @@ import 'super_admin/tenants_screen.dart';
 import 'super_admin/audit_log_screen.dart';
 import 'super_admin/pengaturan_screen.dart';
 import 'super_admin/super_admin_header.dart';
+import 'admin/admin_header.dart';
 import 'wali/wali_screen.dart';
 import 'ppdb/ppdb_list_screen.dart';
 import 'kurikulum/kurikulum_screen.dart';
@@ -45,6 +46,21 @@ class ShellScreen extends StatefulWidget {
   State<ShellScreen> createState() => _ShellScreenState();
 }
 
+// TODO: ganti dengan layar Pengaturan Admin yang sebenarnya.
+class _AdminPengaturanPlaceholder extends StatelessWidget {
+  const _AdminPengaturanPlaceholder();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Center(
+      child: Text(
+        'Pengaturan Admin — segera hadir',
+        style: TextStyle(color: PColors.inkSecondary),
+      ),
+    );
+  }
+}
+
 class _MenuItem {
   final String label;
   final IconData icon;
@@ -56,6 +72,7 @@ class _ShellScreenState extends State<ShellScreen> {
   // Fallback pin order used only when a role has more than 5 menu items
   // (super admin's 5-item menu is shown in full, without this cap).
   static const _pinned = ['Dashboard', 'Santri', 'Absensi', 'Kurikulum'];
+  static const _adminPinned = ['Dashboard', 'Santri', 'Absensi', 'Pengaturan'];
 
   // Keeps the bottom nav pinned to a mobile-sized width and centered,
   // instead of stretching full-width on tablet/web/desktop screens.
@@ -85,7 +102,7 @@ class _ShellScreenState extends State<ShellScreen> {
       chosen = List.of(all);
     } else {
       chosen = <_MenuItem>[];
-      for (final label in _pinned) {
+      for (final label in (user.isAdmin ? _adminPinned : _pinned)) {
         final i = all.indexWhere((e) => e.label == label);
         if (i >= 0) chosen.add(all[i]);
       }
@@ -100,7 +117,7 @@ class _ShellScreenState extends State<ShellScreen> {
     if (_navIndex >= _navItems.length) _navIndex = 0;
     _activeExtra = null;
 
-    if (user.isSuperAdmin) _loadUnreadCount();
+    if (user.isSuperAdmin || user.isAdmin) _loadUnreadCount();
   }
 
   Future<void> _loadUnreadCount() async {
@@ -181,6 +198,7 @@ class _ShellScreenState extends State<ShellScreen> {
 
     if (user.isAdmin) {
       m.add(_MenuItem('Kelola User', Icons.admin_panel_settings, (_) => const UsersScreen()));
+      m.add(_MenuItem('Pengaturan', Icons.tune, (_) => const _AdminPengaturanPlaceholder()));
     }
 
     if (user.isWali) {
@@ -226,7 +244,19 @@ class _ShellScreenState extends State<ShellScreen> {
               onPengaturan: () => _goToMenu('Pengaturan'),
               onLogout: _logout,
             )
-          : AppBar(
+          : user.isAdmin
+              ? AdminHeader(
+                  subtitle: title == 'Dashboard' ? 'Beranda' : title,
+                  nama: user.nama,
+                  email: user.email,
+                  onPengaturan: () => _goToMenu('Pengaturan'),
+                  hasUnread: _unreadCount > 0,
+                  onNotifikasi: () => Navigator.push(context,
+                          MaterialPageRoute(builder: (_) => const NotifikasiScreen()))
+                      .then((_) => _loadUnreadCount()),
+                  onLogout: _logout,
+                )
+              : AppBar(
         title: _appBarTitle(user, title),
         actions: [
           IconButton(
@@ -417,6 +447,24 @@ class _ShellScreenState extends State<ShellScreen> {
   }
 
   Color get _seed => AppScope.of(context).brandingColor ?? PColors.primary;
+
+  String? get _namaPondok => AppScope.of(context).user?.tenantNama;
+
+  Widget _headerLogo() {
+    final logo = AppScope.of(context).brandingLogo;
+    return Container(
+      width: 40,
+      height: 40,
+      decoration: BoxDecoration(
+        color: PColors.mint,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: logo != null && logo.isNotEmpty
+          ? brandLogo(logo, width: 40, height: 40, radius: 10)
+          : Icon(Icons.mosque, size: 22, color: _seed),
+    );
+  }
 
   Widget _appBarTitle(UserData user, String title) {
     final logo = AppScope.of(context).brandingLogo;

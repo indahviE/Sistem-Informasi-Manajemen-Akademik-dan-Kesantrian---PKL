@@ -229,7 +229,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       case 'PIMPINAN':
         return 'Pimpinan / Mudir';
       default:
-        return 'Pengguna Pondok';
+        return 'Pengguna SIMEdu';
     }
   }
 
@@ -253,6 +253,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return '${days[dt.weekday % 7]}, ${dt.day} ${months[dt.month]} ${dt.year}';
   }
 
+  /// Perkiraan semester berjalan dari tanggal perangkat:
+  /// Juli-Desember = Ganjil, Januari-Juni = Genap.
+  /// Tahun ajaran dimulai bulan Juli.
+  String _semesterOtomatis() {
+    final now = DateTime.now();
+    final mulai = now.month >= 7 ? now.year : now.year - 1;
+    final semester = now.month >= 7 ? 'Ganjil' : 'Genap';
+    return 'Semester $semester TA $mulai/${mulai + 1}';
+  }
+
   String _kelasLabel(Map<String, dynamic> a) {
     final k = a['kelas'];
     if (k is String && k.trim().isNotEmpty) return k;
@@ -267,9 +277,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
   // Restyle: gradient emerald `_WC` + pill emas, mengikuti screen.png.
   // =========================================================================
   Widget _heroHeader(String role) {
-    final namaPengguna = _pick(_data!, ['namaPengguna', 'nama', 'userName']) ?? 'Rekan Pondok';
-    final namaPondok = _pick(_data!, ['namaPondok', 'namaLembaga', 'tenantNama']) ?? 'Ma\'had Anda';
-    final semester = _pick(_data!, ['semester', 'tahunAjaran']) ?? 'Tahun Ajaran Berjalan';
+    // Fallback berlapis: data dashboard -> data user login -> teks netral.
+    final namaPengguna = _pick(_data!, ['namaPengguna', 'nama', 'userName']) ??
+        AppScope.of(context).user?.nama ??
+        'Admin';
+    final tenantNama = AppScope.of(context).user?.tenantNama;
+    final namaPondok = _pick(_data!, ['namaPondok', 'namaLembaga', 'tenantNama']) ??
+        ((tenantNama != null && tenantNama.isNotEmpty) ? tenantNama : 'Lembaga Anda');
+    final semester = _pick(_data!, ['semester', 'tahunAjaran']) ?? _semesterOtomatis();
 
     return Container(
       clipBehavior: Clip.antiAlias,
@@ -338,7 +353,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
                 const SizedBox(height: 10),
                 Text(
-                  'Ahlan wa Sahlan, $namaPengguna',
+                  'Halo, $namaPengguna',
                   style: const TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.w700,
@@ -367,7 +382,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           const SizedBox(width: 6),
                           Flexible(
                             child: Text(
-                              'Sinkronisasi Data Master: ${_elapsed(_lastLoaded)}',
+                              'Data diperbarui: ${_elapsed(_lastLoaded)}',
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(fontSize: 11.5, color: Colors.white.withOpacity(0.7)),
                             ),
