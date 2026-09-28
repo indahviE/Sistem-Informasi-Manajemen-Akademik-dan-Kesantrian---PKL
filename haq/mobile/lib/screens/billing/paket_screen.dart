@@ -1181,4 +1181,4 @@ class _ThousandsInputFormatter extends TextInputFormatter {
     final formatted = _ribuan(digitsOnly);
     return TextEditingValue(text: formatted, selection: TextSelection.collapsed(offset: formatted.length));
   }
-}
+} 
