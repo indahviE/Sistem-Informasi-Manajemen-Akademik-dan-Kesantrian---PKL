@@ -158,6 +158,10 @@ const _awalJuz = <String>[
 ];
 
 /// Halaman mushaf Madinah: juz 1 mulai hal. 1, juz n (n>=2) mulai hal. 2 + 20(n-1).
+/// CATATAN: ini perkiraan berbasis standar Mushaf Madinah (604 halaman). Cetakan
+/// mushaf lain (mis. Kemenag) bisa berbeda jumlah halaman per juz-nya, sehingga
+/// nomor halaman di banner ini sifatnya ESTIMASI, bukan angka pasti untuk semua
+/// jenis mushaf.
 int _halMushaf(int juz, int halaman) {
   final awal = juz <= 1 ? 1 : 2 + 20 * (juz - 1);
   return (awal + halaman - 1).clamp(1, 604).toInt();
@@ -1300,6 +1304,12 @@ class _SetoranSheetState extends State<_SetoranSheet> {
   String _jenis = 'ZIYADAH';
   String? _kualitas;
 
+  // Controller terpisah untuk field ketik manual, supaya kursor & fokus
+  // tidak direset tiap kali widget rebuild (beda dengan bikin controller
+  // baru di dalam build()).
+  late final TextEditingController _halMulaiCtrl;
+  late final TextEditingController _halSelesaiCtrl;
+
   String get _rentangTeks => _halMulai == _halSelesai ? '$_halMulai' : '$_halMulai–$_halSelesai';
   final _catatan = TextEditingController();
   bool _saving = false;
@@ -1319,12 +1329,34 @@ class _SetoranSheetState extends State<_SetoranSheet> {
     _juzAktif = _juz;
     _halMulai = (hal + 1).clamp(1, 20).toInt();
     _halSelesai = _halMulai;
+    _halMulaiCtrl = TextEditingController(text: '$_halMulai');
+    _halSelesaiCtrl = TextEditingController(text: '$_halSelesai');
   }
 
   @override
   void dispose() {
     _catatan.dispose();
+    _halMulaiCtrl.dispose();
+    _halSelesaiCtrl.dispose();
     super.dispose();
+  }
+
+  void _setHalMulai(int v) {
+    setState(() {
+      _halMulai = v.clamp(1, 20).toInt();
+      if (_halSelesai < _halMulai) _halSelesai = _halMulai;
+      _halMulaiCtrl.text = '$_halMulai';
+      _halSelesaiCtrl.text = '$_halSelesai';
+    });
+  }
+
+  void _setHalSelesai(int v) {
+    setState(() {
+      _halSelesai = v.clamp(1, 20).toInt();
+      if (_halMulai > _halSelesai) _halMulai = _halSelesai;
+      _halMulaiCtrl.text = '$_halMulai';
+      _halSelesaiCtrl.text = '$_halSelesai';
+    });
   }
 
   Future<void> _simpan() async {
@@ -1433,11 +1465,23 @@ class _SetoranSheetState extends State<_SetoranSheet> {
                       child: ChoiceChip(
                         label: SizedBox(
                           width: double.infinity,
-                          child: Text(j[1], textAlign: TextAlign.center, style: _lb(12, FontWeight.w600, _C.onSurface)),
+                          child: Text(
+                            j[1],
+                            textAlign: TextAlign.center,
+                            style: _lb(12, FontWeight.w600, _jenis == j[0] ? Colors.white : _C.onSurface),
+                          ),
                         ),
                         selected: _jenis == j[0],
-                        selectedColor: _C.tertiaryFixed,
+                        // Warna lebih tegas (hijau tua solid) supaya jelas dibedakan
+                        // dari warna tidak-terpilih, tidak pucat seperti sebelumnya.
+                        selectedColor: _C.primaryContainer,
                         backgroundColor: _C.surface,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(999),
+                          side: BorderSide(
+                            color: _jenis == j[0] ? _C.primaryContainer : _C.outlineVariant.withOpacity(0.6),
+                          ),
+                        ),
                         onSelected: _saving ? null : (_) => setState(() => _jenis = j[0]),
                       ),
                     ),
@@ -1467,38 +1511,34 @@ class _SetoranSheetState extends State<_SetoranSheet> {
             ),
             const SizedBox(height: 14),
 
-            // --- Halaman mulai & selesai ---
+            // --- Halaman mulai & selesai (bisa diketik manual + tombol +/-) ---
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _stepper(
-                  'Halaman Mulai',
-                  _halMulai,
-                  _halMulai > 1 && !_saving ? () => setState(() => _halMulai--) : null,
-                  _halMulai < 20 && !_saving
-                      ? () => setState(() {
-                            _halMulai++;
-                            if (_halSelesai < _halMulai) _halSelesai = _halMulai;
-                          })
-                      : null,
+                  label: 'Halaman Mulai',
+                  controller: _halMulaiCtrl,
+                  value: _halMulai,
+                  onMinus: _halMulai > 1 && !_saving ? () => _setHalMulai(_halMulai - 1) : null,
+                  onPlus: _halMulai < 20 && !_saving ? () => _setHalMulai(_halMulai + 1) : null,
+                  onSubmit: (v) => _setHalMulai(v),
                 ),
                 const SizedBox(width: 12),
                 _stepper(
-                  'Halaman Selesai',
-                  _halSelesai,
-                  _halSelesai > 1 && !_saving
-                      ? () => setState(() {
-                            _halSelesai--;
-                            if (_halMulai > _halSelesai) _halMulai = _halSelesai;
-                          })
-                      : null,
-                  _halSelesai < 20 && !_saving ? () => setState(() => _halSelesai++) : null,
+                  label: 'Halaman Selesai',
+                  controller: _halSelesaiCtrl,
+                  value: _halSelesai,
+                  onMinus: _halSelesai > 1 && !_saving ? () => _setHalSelesai(_halSelesai - 1) : null,
+                  onPlus: _halSelesai < 20 && !_saving ? () => _setHalSelesai(_halSelesai + 1) : null,
+                  onSubmit: (v) => _setHalSelesai(v),
                 ),
               ],
             ),
             const SizedBox(height: 14),
 
-            // Banner mushaf (Amiri): halaman & awal juz dari metadata mushaf Madinah
+            // Banner mushaf (Amiri): halaman & awal juz dari metadata mushaf Madinah.
+            // Nomor halaman di sini estimasi standar Mushaf Madinah — lihat catatan
+            // pada fungsi _halMushaf().
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(12),
@@ -1513,7 +1553,7 @@ class _SetoranSheetState extends State<_SetoranSheet> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text('MUSHAF STANDAR MADINAH', style: _lb(10.5, FontWeight.w600, _C.secondary, ls: 0.8)),
-                      Text('Hal. ${_halMushaf(_juz, _halMulai)}',
+                      Text('Hal. ${_halMushaf(_juz, _halMulai)} (estimasi)',
                           style: _lb(11, FontWeight.w400, _C.onSurfaceVariant)),
                     ],
                   ),
@@ -1628,7 +1668,17 @@ class _SetoranSheetState extends State<_SetoranSheet> {
     );
   }
 
-  Widget _stepper(String label, int value, VoidCallback? onMinus, VoidCallback? onPlus) {
+  /// Stepper halaman: tombol +/- di kiri-kanan, angka di tengah bisa DIKETIK
+  /// manual (tap lalu ganti angkanya). Nilai divalidasi & di-clamp ke 1..20
+  /// saat fokus keluar dari field (onTapOutside) atau saat menekan Enter/Done.
+  Widget _stepper({
+    required String label,
+    required TextEditingController controller,
+    required int value,
+    required VoidCallback? onMinus,
+    required VoidCallback? onPlus,
+    required ValueChanged<int> onSubmit,
+  }) {
     return Expanded(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1647,13 +1697,26 @@ class _SetoranSheetState extends State<_SetoranSheet> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 _StepBtn(icon: Icons.remove, onTap: onMinus),
-                Text.rich(
-                  TextSpan(
+                Expanded(
+                  child: TextField(
+                    controller: controller,
+                    textAlign: TextAlign.center,
+                    keyboardType: TextInputType.number,
+                    enabled: !_saving,
                     style: _t(18, FontWeight.w700, _C.primary),
-                    children: [
-                      TextSpan(text: '$value'),
-                      TextSpan(text: ' /20', style: _lb(11, FontWeight.w400, _C.onSurfaceVariant)),
-                    ],
+                    decoration: const InputDecoration(
+                      border: InputBorder.none,
+                      isDense: true,
+                      isCollapsed: true,
+                    ),
+                    onSubmitted: (v) {
+                      final n = int.tryParse(v.trim());
+                      onSubmit(n ?? value);
+                    },
+                    onTapOutside: (_) {
+                      final n = int.tryParse(controller.text.trim());
+                      onSubmit(n ?? value);
+                    },
                   ),
                 ),
                 _StepBtn(icon: Icons.add, filled: true, onTap: onPlus),
