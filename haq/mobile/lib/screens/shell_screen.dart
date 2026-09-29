@@ -8,6 +8,7 @@ import 'notifikasi/notifikasi_screen.dart';
 import 'super_admin/notifikasi_superadmin_screen.dart';
 import 'dashboard_screen.dart';
 import 'santri/santri_list_screen.dart';
+import 'santri/direktori_santri_screen.dart';
 import 'master/kelas_list_screen.dart';
 import 'master/ustadz_list_screen.dart';
 import 'master/mapel_list_screen.dart';
@@ -174,6 +175,10 @@ class _ShellScreenState extends State<ShellScreen> {
 
     if (user.isAdmin || user.isMusyrif || user.isUstadz || user.isPimpinan) {
       m.add(_MenuItem('Konseling', Icons.support_agent, (_) => const KonselingScreen()));
+    }
+
+    if (user.isMusyrif) {
+      m.add(_MenuItem('Direktori Santri', Icons.groups, (_) => const DirektoriSantriScreen()));
     }
 
     if (user.isAdmin || user.isMusyrif || user.isUstadz || user.isPimpinan) {
