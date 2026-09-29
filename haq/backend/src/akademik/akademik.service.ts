@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   BulkAbsensiDto,
@@ -8,7 +8,7 @@ import {
   QueryAbsensiDto,
 } from './dto/akademik.dto';
 import { RequestUser } from '../common/decorators/current-user.decorator';
-import { JenisNilai } from '@prisma/client';
+import { JenisNilai, Role } from '@prisma/client';
 
 @Injectable()
 export class AkademikService {
@@ -149,36 +149,95 @@ export class AkademikService {
 
   // ===== Tahfidz =====
     // ===== Tahfidz =====
-  async findAllTahfidz(tenantId: string, santriId?: string, allowedSantriIds?: string[]) {
-    const santriFilter = allowedSantriIds
+  // ===== Tahfidz =====
+
+  /** ID santri binaan seorang ustadz = santri di kelas yang dia jadi wali kelasnya. */
+  private async santriIdsBinaan(tenantId: string, user: RequestUser): Promise<string[]> {
+    const ustadz = await this.prisma.ustadz.findFirst({
+      where: { tenantId, userId: user.userId },
+      select: { id: true },
+    });
+    if (!ustadz) return [];
+    const santris = await this.prisma.santri.findMany({
+      where: { tenantId, kelas: { waliKelasId: ustadz.id } },
+      select: { id: true },
+    });
+    return santris.map((s) => s.id);
+  }
+
+  /** Tanggal hari ini menurut WIB, disimpan sebagai tengah malam UTC. */
+  private tanggalHariIniWib(): Date {
+    const wib = new Date(Date.now() + 7 * 60 * 60 * 1000);
+    return new Date(`${wib.toISOString().slice(0, 10)}T00:00:00.000Z`);
+  }
+
+  async findAllTahfidz(
+    tenantId: string,
+    santriId?: string,
+    allowedSantriIds?: string[],
+    user?: RequestUser,
+  ) {
+    let allowed = allowedSantriIds;
+
+    // Ustadz hanya boleh melihat santri binaannya
+    if (user?.role === Role.USTADZ) {
+      allowed = await this.santriIdsBinaan(tenantId, user);
+      if (santriId && !allowed.includes(santriId)) {
+        throw new ForbiddenException('Santri ini bukan binaan Anda.');
+      }
+    }
+
+    const santriFilter = allowed
       ? santriId
         ? { santriId }
-        : { santriId: { in: allowedSantriIds } }
+        : { santriId: { in: allowed } }
       : santriId
         ? { santriId }
         : {};
+
     return this.prisma.capaianTahfidz.findMany({
       where: { tenantId, ...santriFilter },
       include: { santri: { select: { id: true, nama: true, nis: true } } },
-      orderBy: { tanggalSetor: 'desc' },
+      orderBy: [{ tanggalSetor: 'desc' }, { createdAt: 'desc' }],
     });
   }
 
   async createTahfidz(tenantId: string, dto: CreateTahfidzDto, user: RequestUser) {
     await this.assertSantriInTenant(tenantId, dto.santriId);
+
+    if (user.role === Role.USTADZ) {
+      const binaan = await this.santriIdsBinaan(tenantId, user);
+      if (!binaan.includes(dto.santriId)) {
+        throw new ForbiddenException('Santri ini bukan binaan Anda.');
+      }
+    }
+
+    // Kompatibel dengan klien lama yang hanya mengirim `halaman`
+    const mulai = dto.halamanMulai ?? dto.halamanSelesai ?? dto.halaman;
+    const selesai = dto.halamanSelesai ?? dto.halamanMulai ?? dto.halaman;
+    if (mulai == null || selesai == null) {
+      throw new BadRequestException('Halaman wajib diisi.');
+    }
+    if (mulai > selesai) {
+      throw new BadRequestException('Halaman mulai tidak boleh lebih besar dari halaman selesai.');
+    }
+
     return this.prisma.capaianTahfidz.create({
       data: {
         tenantId,
         santriId: dto.santriId,
         juz: dto.juz,
-        halaman: dto.halaman,
+        halaman: selesai,
+        halamanMulai: mulai,
+        halamanSelesai: selesai,
+        jenis: dto.jenis ?? 'ZIYADAH',
+        kualitas: dto.kualitas,
         catatanUstadz: dto.catatanUstadz,
-        tanggalSetor: new Date(dto.tanggalSetor),
+        tanggalSetor: this.tanggalHariIniWib(),
         inputOleh: user.userId,
       },
     });
   }
-
   private async assertSantriInTenant(tenantId: string, santriId: string) {
     const found = await this.assertSantri(tenantId, santriId);
     if (!found) throw new NotFoundException('Santri tidak ditemukan di pondok ini.');

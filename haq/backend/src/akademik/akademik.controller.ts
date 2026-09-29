@@ -82,7 +82,7 @@ export class AkademikController {
         throw new ForbiddenException('Anda tidak memiliki akses ke data santri ini.');
       }
     }
-    return this.akademikService.findAllTahfidz(tenantId, santriId, allowed);
+    return this.akademikService.findAllTahfidz(tenantId, santriId, allowed, user);
   }
 
   @Roles(Role.ADMIN, Role.USTADZ)
