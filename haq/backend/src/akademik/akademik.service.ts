@@ -24,6 +24,7 @@ export class AkademikService {
       tenantId,
       ...(query.santriId ? { santriId: query.santriId } : {}),
       ...(query.kelasId ? { santri: { kelasId: query.kelasId } } : {}),
+      ...(query.mapelId ? { mapelId: query.mapelId } : {}),
       ...(query.startDate || query.endDate
         ? {
             tanggal: {
@@ -62,46 +63,64 @@ export class AkademikService {
 
   async bulkAbsensi(tenantId: string, dto: BulkAbsensiDto, user: RequestUser) {
     const tanggal = new Date(dto.tanggal);
-    const results = [];
-    for (const item of dto.items) {
-      await this.assertSantriInTenant(tenantId, item.santriId);
-      const existing = await this.prisma.absensi.findFirst({
-        where: {
-          tenantId,
-          santriId: item.santriId,
-          mapelId: dto.mapelId ?? null,
-          tanggal,
-        },
-      });
-      if (existing) {
-        results.push(
-          await this.prisma.absensi.update({
-            where: { id: existing.id },
-            data: { status: item.status, catatan: item.catatan, inputOleh: user.userId },
-          }),
-        );
-      } else {
-        results.push(
-          await this.prisma.absensi.create({
-            data: {
-              tenantId,
-              santriId: item.santriId,
-              kelasId: dto.kelasId,
-              mapelId: dto.mapelId,
-              tanggal,
-              status: item.status,
-              catatan: item.catatan,
-              inputOleh: user.userId,
-            },
-          }),
-        );
-      }
+    const mapelId = dto.mapelId ?? null;
+
+    // 1 santri = 1 entri (kalau dobel, yang terakhir dipakai)
+    const itemMap = new Map<string, BulkAbsensiDto['items'][number]>();
+    for (const i of dto.items) itemMap.set(i.santriId, i);
+    const ids = [...itemMap.keys()];
+
+    const valid = await this.prisma.santri.count({ where: { tenantId, id: { in: ids } } });
+    if (valid !== ids.length) {
+      throw new NotFoundException('Ada santri yang tidak ditemukan di pondok ini.');
     }
-    return { count: results.length, message: 'Absensi massal disimpan.' };
+
+    // Rekap untuk kelas + mapel + tanggal ini sudah ada?
+    const existing = await this.prisma.absensi.findMany({
+      where: {
+        tenantId,
+        mapelId,
+        tanggal,
+        OR: [{ kelasId: dto.kelasId }, { santriId: { in: ids } }],
+      },
+      select: { id: true, santriId: true },
+    });
+
+    // Sudah direkap = terkunci; hanya ADMIN yang boleh mengubah
+    if (existing.length > 0 && user.role !== Role.ADMIN) {
+      throw new ForbiddenException('Absensi sudah direkap. Hanya admin yang dapat mengubahnya.');
+    }
+
+    const existingMap = new Map<string, string>();
+    for (const e of existing) existingMap.set(e.santriId, e.id);
+
+    await this.prisma.$transaction(
+      [...itemMap.values()].map((item) => {
+        const existingId = existingMap.get(item.santriId);
+        return existingId
+          ? this.prisma.absensi.update({
+              where: { id: existingId },
+              data: { status: item.status, catatan: item.catatan, inputOleh: user.userId },
+            })
+          : this.prisma.absensi.create({
+              data: {
+                tenantId,
+                santriId: item.santriId,
+                kelasId: dto.kelasId,
+                mapelId: dto.mapelId,
+                tanggal,
+                status: item.status,
+                catatan: item.catatan,
+                inputOleh: user.userId,
+              },
+            });
+      }),
+    );
+
+    return { count: itemMap.size, message: 'Absensi massal disimpan.' };
   }
 
   // ===== Nilai =====
-    // ===== Nilai =====
   async findAllNilai(
     tenantId: string,
     santriId?: string,
@@ -147,8 +166,6 @@ export class AkademikService {
     });
   }
 
-  // ===== Tahfidz =====
-    // ===== Tahfidz =====
   // ===== Tahfidz =====
 
   /** ID santri binaan seorang ustadz = santri di kelas yang dia jadi wali kelasnya. */
