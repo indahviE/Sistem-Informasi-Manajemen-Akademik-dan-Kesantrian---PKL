@@ -108,6 +108,7 @@ enum JenisNotifikasi {
   ABSENSI
   SISTEM
   DARURAT
+  WALI_BELUM_AKTIVASI
 }
 
 enum StatusIbadah {

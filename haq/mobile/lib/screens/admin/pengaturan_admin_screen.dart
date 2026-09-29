@@ -47,7 +47,7 @@ TextStyle _t(double size, FontWeight w, Color c, {double? height}) =>
 
 // Nomor WhatsApp bantuan teknis (format internasional tanpa +, mis. 6281234567890).
 // Kosong = tombol menampilkan info "belum diatur".
-const String _kNomorBantuan = '';
+const String _kNomorBantuan = '628996733553';
 
 // Definisi 5 toggle notifikasi (key = nama field di backend).
 const List<({String key, String title, String desc})> _notifItems = [
@@ -590,31 +590,6 @@ class _ProfileCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 14),
-          // 2FA belum tersedia di backend: tampil sebagai info, bukan status aktif.
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            decoration: BoxDecoration(color: _AC.surfaceDim, borderRadius: BorderRadius.circular(12)),
-            child: Row(
-              children: [
-                const Icon(Icons.shield_outlined, size: 20, color: _AC.inkSecondary),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Verifikasi 2 Langkah', style: _t(12, FontWeight.w800, _AC.primary)),
-                      Text(
-                        'Google Authenticator segera hadir',
-                        style: _t(11, FontWeight.w500, _AC.inkSecondary),
-                      ),
-                    ],
-                  ),
-                ),
-                const Icon(Icons.lock_outline, size: 18, color: _AC.inkSecondary),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
           Row(
             children: [
               Expanded(
@@ -715,18 +690,61 @@ class _PaketCard extends StatelessWidget {
     return '${d.day} ${_bulan[d.month - 1]} ${d.year}';
   }
 
+  int _int(dynamic v) => v is num ? v.toInt() : 0;
+
   @override
   Widget build(BuildContext context) {
     final p = paket;
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(18),
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: _AC.primary,
-        borderRadius: BorderRadius.circular(20),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [_AC.primary, _AC.primarySoft],
+        ),
+        borderRadius: BorderRadius.circular(22),
+        boxShadow: [
+          BoxShadow(color: _AC.primary.withOpacity(0.22), blurRadius: 14, offset: const Offset(0, 6)),
+        ],
       ),
-      child: p == null ? _kosong() : _isi(p),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          // Dekorasi lingkaran halus di pojok kartu.
+          Positioned(right: -40, top: -40, child: _ring(160)),
+          Positioned(right: 10, top: 10, child: _ring(80)),
+          Positioned(
+            left: -36,
+            bottom: -46,
+            child: Container(
+              width: 130,
+              height: 130,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: _AC.gold.withOpacity(0.07),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(18),
+            child: p == null ? _kosong() : _isi(p),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _ring(double size) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(color: Colors.white.withOpacity(0.08), width: 1.5),
+      ),
     );
   }
 
@@ -734,69 +752,187 @@ class _PaketCard extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Paket Langganan', style: _t(18, FontWeight.w800, Colors.white)),
-        const SizedBox(height: 6),
-        Text(
-          'Belum ada paket aktif untuk pondok ini.',
-          style: _t(12, FontWeight.w500, Colors.white70),
+        Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.10),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.workspace_premium_outlined, size: 22, color: _AC.gold),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text('Paket Langganan', style: _t(18, FontWeight.w800, Colors.white)),
+            ),
+          ],
         ),
-        const SizedBox(height: 14),
+        const SizedBox(height: 10),
+        Text(
+          'Belum ada paket aktif untuk pondok ini. Ajukan paket untuk mulai memakai seluruh modul.',
+          style: _t(12, FontWeight.w500, Colors.white70, height: 1.4),
+        ),
+        const SizedBox(height: 16),
         _upgradeButton(),
       ],
     );
   }
 
   Widget _isi(Map<String, dynamic> p) {
-    final periode = (p['periode'] ?? '') as String;
-    final sisaHari = p['sisaHari'];
+    final periode = ((p['periode'] ?? '') as String).toUpperCase();
     final akhir = _tgl(p['tanggalAkhir']);
-    final aktifLabel = [
-      if (akhir != null) 'Aktif s.d. $akhir',
-      if (sisaHari is int) 'Sisa $sisaHari Hari',
-    ].join(' • ');
+    final sisaHari = p['sisaHari'] is num ? (p['sisaHari'] as num).toInt() : null;
+    final hampirHabis = sisaHari != null && sisaHari <= 30;
 
-    final aktif = (p['santriAktif'] ?? 0) as int;
-    final limit = (p['limitSantri'] ?? 0) as int;
-    final persen = (p['persenSantri'] ?? 0) as int;
+    final aktif = _int(p['santriAktif']);
+    final limit = _int(p['limitSantri']);
+    final persen = _int(p['persenSantri']).clamp(0, 100);
+    final sisaKuota = (limit - aktif).clamp(0, limit > 0 ? limit : 0);
+    final hampirPenuh = limit > 0 && persen >= 90;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (periode.isNotEmpty)
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-            decoration: BoxDecoration(color: _AC.gold, borderRadius: BorderRadius.circular(9999)),
-            child: Text(periode, style: _t(10, FontWeight.w800, _AC.primary)),
-          ),
-        const SizedBox(height: 10),
-        Text((p['nama'] ?? 'Paket') as String, style: _t(20, FontWeight.w800, Colors.white)),
-        if (aktifLabel.isNotEmpty) ...[
-          const SizedBox(height: 4),
-          Text(aktifLabel, style: _t(12, FontWeight.w600, Colors.white60)),
-        ],
-        const SizedBox(height: 16),
+        // Baris atas: label periode + lencana paket
         Row(
           children: [
-            const Icon(Icons.groups_outlined, size: 16, color: Colors.white60),
-            const SizedBox(width: 6),
-            Expanded(child: Text('Santri Aktif', style: _t(12, FontWeight.w600, Colors.white60))),
-            Text(
-              '$aktif dari $limit Santri ($persen%)',
-              style: _t(12, FontWeight.w800, Colors.white),
+            if (periode.isNotEmpty)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: _AC.gold,
+                  borderRadius: BorderRadius.circular(9999),
+                ),
+                child: Text(periode, style: _t(10, FontWeight.w800, _AC.primary)),
+              ),
+            const Spacer(),
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.10),
+                shape: BoxShape.circle,
+                border: Border.all(color: _AC.gold.withOpacity(0.55)),
+              ),
+              child: const Icon(Icons.workspace_premium_outlined, size: 22, color: _AC.gold),
             ),
           ],
         ),
+        const SizedBox(height: 10),
+        Text(
+          (p['nama'] ?? 'Paket') as String,
+          style: _t(23, FontWeight.w800, Colors.white, height: 1.15),
+        ),
         const SizedBox(height: 8),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(9999),
-          child: LinearProgressIndicator(
-            value: (persen.clamp(0, 100)) / 100,
-            minHeight: 7,
-            backgroundColor: Colors.white12,
-            valueColor: AlwaysStoppedAnimation<Color>(persen >= 90 ? _AC.gold : _AC.mint),
-          ),
+        Wrap(
+          spacing: 8,
+          runSpacing: 6,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            if (akhir != null)
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.event_available_outlined, size: 14, color: Colors.white60),
+                  const SizedBox(width: 5),
+                  Text('Aktif s.d. $akhir', style: _t(12, FontWeight.w600, Colors.white70)),
+                ],
+              ),
+            if (sisaHari != null)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+                decoration: BoxDecoration(
+                  color: hampirHabis ? _AC.gold : Colors.white.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(9999),
+                ),
+                child: Text(
+                  'Sisa $sisaHari Hari',
+                  style: _t(10.5, FontWeight.w800, hampirHabis ? _AC.primary : _AC.mint),
+                ),
+              ),
+          ],
         ),
         const SizedBox(height: 16),
+        // Panel kuota santri
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.07),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.white.withOpacity(0.09)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.groups_outlined, size: 17, color: Colors.white70),
+                  const SizedBox(width: 7),
+                  Expanded(
+                    child: Text('Kuota Santri Aktif', style: _t(12, FontWeight.w700, Colors.white70)),
+                  ),
+                  if (limit > 0)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: hampirPenuh ? _AC.gold : _AC.mint,
+                        borderRadius: BorderRadius.circular(9999),
+                      ),
+                      child: Text('$persen%', style: _t(11, FontWeight.w800, _AC.primary)),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.baseline,
+                textBaseline: TextBaseline.alphabetic,
+                children: [
+                  Text('$aktif', style: _t(32, FontWeight.w800, Colors.white, height: 1)),
+                  const SizedBox(width: 6),
+                  Text(
+                    limit > 0 ? '/ $limit santri' : 'santri aktif',
+                    style: _t(13, FontWeight.w600, Colors.white60),
+                  ),
+                ],
+              ),
+              if (limit > 0) ...[
+                const SizedBox(height: 12),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(9999),
+                  child: LinearProgressIndicator(
+                    value: persen / 100,
+                    minHeight: 9,
+                    backgroundColor: Colors.white.withOpacity(0.14),
+                    valueColor: AlwaysStoppedAnimation<Color>(hampirPenuh ? _AC.gold : _AC.mint),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Icon(
+                      hampirPenuh ? Icons.warning_amber_rounded : Icons.check_circle_outline,
+                      size: 14,
+                      color: hampirPenuh ? _AC.gold : Colors.white60,
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        hampirPenuh
+                            ? 'Kuota hampir penuh, pertimbangkan upgrade.'
+                            : 'Masih tersedia $sisaKuota slot santri.',
+                        style: _t(11.5, FontWeight.w600, hampirPenuh ? _AC.gold : Colors.white60),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ],
+          ),
+        ),
+        const SizedBox(height: 14),
         _upgradeButton(),
       ],
     );
@@ -810,14 +946,16 @@ class _PaketCard extends StatelessWidget {
         onTap: onUpgrade,
         borderRadius: BorderRadius.circular(14),
         child: Container(
-          height: 48,
-          alignment: Alignment.center,
+          height: 50,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.rocket_launch_outlined, size: 18, color: _AC.primary),
-              const SizedBox(width: 8),
-              Text('Ajukan Upgrade Kuota Santri', style: _t(14, FontWeight.w800, _AC.primary)),
+              const Icon(Icons.rocket_launch_outlined, size: 19, color: _AC.primary),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text('Ajukan Upgrade Kuota Santri', style: _t(14, FontWeight.w800, _AC.primary)),
+              ),
+              const Icon(Icons.arrow_forward_rounded, size: 19, color: _AC.primary),
             ],
           ),
         ),
