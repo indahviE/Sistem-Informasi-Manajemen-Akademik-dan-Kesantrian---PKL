@@ -1,13 +1,29 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { RequestUser } from '../common/decorators/current-user.decorator';
 import { CreateSantriDto, QuerySantriDto, UpdateSantriDto } from './dto/santri.dto';
 
 @Injectable()
 export class SantriService {
   constructor(private prisma: PrismaService) {}
 
-  async findAll(tenantId: string, query: QuerySantriDto) {
-    const { kelasId, search, page = 1, perPage = 20 } = query;
+  /** ID santri binaan seorang ustadz = santri di kelas yang dia jadi wali kelasnya. */
+  private async santriIdsBinaan(tenantId: string, userId: string): Promise<string[]> {
+    const ustadz = await this.prisma.ustadz.findFirst({
+      where: { tenantId, userId },
+      select: { id: true },
+    });
+    if (!ustadz) return [];
+    const santris = await this.prisma.santri.findMany({
+      where: { tenantId, kelas: { waliKelasId: ustadz.id } },
+      select: { id: true },
+    });
+    return santris.map((s) => s.id);
+  }
+
+  async findAll(tenantId: string, query: QuerySantriDto, user: RequestUser) {
+    const { kelasId, search, binaan, page = 1, perPage = 20 } = query;
     const where: any = {
       tenantId,
       ...(kelasId ? { kelasId } : {}),
@@ -16,6 +32,11 @@ export class SantriService {
         : {}),
     };
 
+    // Filter khusus USTADZ: hanya santri di kelas yang ia ampu
+    if (binaan === 'true' && user.role === Role.USTADZ) {
+      const ids = await this.santriIdsBinaan(tenantId, user.userId);
+      where.id = { in: ids.length ? ids : ['__none__'] };
+    }
     const [items, total] = await this.prisma.$transaction([
       this.prisma.santri.findMany({
         where,

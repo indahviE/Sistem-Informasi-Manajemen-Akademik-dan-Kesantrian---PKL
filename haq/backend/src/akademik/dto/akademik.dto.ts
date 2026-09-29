@@ -14,8 +14,7 @@ import {
   MaxLength,
   ValidateNested,
 } from 'class-validator';
-import { Type } from 'class-transformer';
-import { AbsensiStatus, JenisNilai } from '@prisma/client';
+import { AbsensiStatus, JenisNilai, JenisSetoran, KualitasSetoran } from '@prisma/client';
 
 export class CreateAbsensiDto {
   @IsString()
@@ -105,17 +104,45 @@ export class CreateTahfidzDto {
   santriId: string;
 
   @IsInt({ message: 'Juz harus angka' })
+  @Min(1)
+  @Max(30)
   juz: number;
 
+  // LAMA: masih diterima supaya Flutter lama tidak rusak
+  @IsOptional()
   @IsInt({ message: 'Halaman harus angka' })
-  halaman: number;
+  @Min(1)
+  @Max(20)
+  halaman?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(20)
+  halamanMulai?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(20)
+  halamanSelesai?: number;
+
+  @IsOptional()
+  @IsEnum(JenisSetoran, { message: 'Jenis setoran tidak valid' })
+  jenis?: JenisSetoran;
+
+  @IsOptional()
+  @IsEnum(KualitasSetoran, { message: 'Kualitas setoran tidak valid' })
+  kualitas?: KualitasSetoran;
 
   @IsOptional()
   @IsString()
   catatanUstadz?: string;
 
+  // DEPRECATED: diabaikan, tanggal diisi server
+  @IsOptional()
   @IsDateString()
-  tanggalSetor: string;
+  tanggalSetor?: string;
 }
 
 export class QueryAbsensiDto {

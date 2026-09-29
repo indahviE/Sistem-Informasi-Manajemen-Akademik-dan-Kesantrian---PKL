@@ -3,7 +3,7 @@ import { SantriService } from './santri.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
-import { TenantId } from '../common/decorators/current-user.decorator';
+import { CurrentUser, RequestUser, TenantId } from '../common/decorators/current-user.decorator';
 import { CreateSantriDto, QuerySantriDto, UpdateSantriDto } from './dto/santri.dto';
 import { Role } from '@prisma/client';
 
@@ -14,8 +14,12 @@ export class SantriController {
 
   @Roles(Role.ADMIN, Role.PIMPINAN, Role.USTADZ, Role.MUSYRIF)
   @Get()
-  findAll(@TenantId() tenantId: string, @Query() query: QuerySantriDto) {
-    return this.santriService.findAll(tenantId, query);
+  findAll(
+    @TenantId() tenantId: string,
+    @Query() query: QuerySantriDto,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return this.santriService.findAll(tenantId, query, user);
   }
 
   @Roles(Role.ADMIN, Role.PIMPINAN, Role.USTADZ, Role.MUSYRIF)
