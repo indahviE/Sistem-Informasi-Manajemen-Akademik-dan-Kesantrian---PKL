@@ -13,6 +13,14 @@ export class UpdateNotifikasiDto {
   @IsOptional() @IsBoolean() notifLaporanMingguan?: boolean;
 }
 
+export class UpdateNotifikasiAdminDto {
+  @IsOptional() @IsBoolean() perizinanBaru?: boolean;
+  @IsOptional() @IsBoolean() pelanggaranBaru?: boolean;
+  @IsOptional() @IsBoolean() waliBelumAktivasi?: boolean;
+  @IsOptional() @IsBoolean() eskalasiDarurat?: boolean;
+  @IsOptional() @IsBoolean() rekapAbsensiShalat?: boolean;
+}
+
 export class UpdateProfilDto {
   @IsOptional()
   @IsString()
@@ -21,6 +29,10 @@ export class UpdateProfilDto {
   @IsOptional()
   @IsEmail()
   email?: string;
+
+  @IsOptional()
+  @IsString()
+  noHp?: string;
 }
 
 export class UbahPasswordDto {

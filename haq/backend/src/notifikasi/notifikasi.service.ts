@@ -2,6 +2,21 @@ import { Injectable, Logger } from '@nestjs/common';
 import { JenisNotifikasi, Prisma, Role, UserStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
+type AdminNotifKey =
+  | 'perizinanBaru'
+  | 'pelanggaranBaru'
+  | 'waliBelumAktivasi'
+  | 'eskalasiDarurat'
+  | 'rekapAbsensiShalat';
+
+const ADMIN_NOTIF_DEFAULT: Record<AdminNotifKey, boolean> = {
+  perizinanBaru: true,
+  pelanggaranBaru: true,
+  waliBelumAktivasi: true,
+  eskalasiDarurat: true,
+  rekapAbsensiShalat: false,
+};
+
 @Injectable()
 export class NotifikasiService {
   private readonly logger = new Logger(NotifikasiService.name);
@@ -49,31 +64,68 @@ export class NotifikasiService {
   }
 
   // -------------------------------------------------------------------------
-  // Pengiriman notifikasi platform ke Super Admin
+  // Pengiriman notifikasi ke Admin Lembaga (per tenant)
   // -------------------------------------------------------------------------
 
   /**
-   * Kirim notifikasi platform ke semua akun Super Admin (ROOT + sub-admin).
-   * Menghormati toggle di halaman Pengaturan. Tidak pernah melempar error:
-   * gagal kirim notifikasi tidak boleh menggagalkan proses utama
-   * (login, pendaftaran tenant, dst).
+   * Kirim ke semua Admin aktif di satu tenant, satu baris per admin, dan
+   * hormati toggle masing-masing (UserNotifSetting). Admin yang belum pernah
+   * membuka Pengaturan (belum ada baris setting) memakai nilai default.
+   * Tidak pernah melempar error.
    */
-  async kirimKeSuperAdmin(jenis: JenisNotifikasi, pesan: string): Promise<void> {
+  async kirimKeAdminTenant(
+    tenantId: string,
+    jenis: JenisNotifikasi,
+    pesan: string,
+  ): Promise<void> {
     try {
-      if (!(await this.diizinkan(jenis))) return;
+      const key = this.kunciToggleAdmin(jenis);
 
       const admins = await this.prisma.user.findMany({
-        where: { role: Role.SUPER_ADMIN, tenantId: null, status: UserStatus.AKTIF },
-        select: { id: true },
+        where: { tenantId, role: Role.ADMIN, status: UserStatus.AKTIF },
+        select: { id: true, notifSetting: true },
       });
-      if (admins.length === 0) return;
+
+      const penerima = admins.filter((a) => {
+        if (!key) return true;
+        return a.notifSetting ? a.notifSetting[key] : ADMIN_NOTIF_DEFAULT[key];
+      });
+      if (penerima.length === 0) return;
 
       await this.prisma.notifikasi.createMany({
-        data: admins.map((a) => ({ tenantId: null, userId: a.id, jenis, pesan })),
+        data: penerima.map((a) => ({ tenantId, userId: a.id, jenis, pesan })),
       });
     } catch (e) {
-      this.logger.error(`Gagal mengirim notifikasi ${jenis}: ${(e as Error).message}`);
+      this.logger.error(`Gagal kirim notifikasi admin ${jenis}: ${(e as Error).message}`);
     }
+  }
+
+  /** Jenis notifikasi -> nama toggle di Pengaturan Admin. */
+  private kunciToggleAdmin(jenis: JenisNotifikasi): AdminNotifKey | null {
+    switch (jenis) {
+      case JenisNotifikasi.PERIZINAN:
+        return 'perizinanBaru';
+      case JenisNotifikasi.PELANGGARAN:
+        return 'pelanggaranBaru';
+      case JenisNotifikasi.WALI_BELUM_AKTIVASI:
+        return 'waliBelumAktivasi';
+      case JenisNotifikasi.DARURAT:
+      case JenisNotifikasi.KESEHATAN:
+        return 'eskalasiDarurat';
+      case JenisNotifikasi.ABSENSI:
+        return 'rekapAbsensiShalat';
+      default:
+        return null; // jenis lain: selalu dikirim
+    }
+  }
+
+  /**
+   * TODO (penting): sambungkan ke tempat toggle admin disimpan, yaitu data
+   * yang dibaca GET /pengaturan/admin. Sementara ini memakai nilai default
+   * yang sama dengan di Flutter, jadi toggle BELUM berpengaruh.
+   */
+  private async adminMenerima(adminId: string, key: AdminNotifKey): Promise<boolean> {
+    return ADMIN_NOTIF_DEFAULT[key];
   }
 
   /** Cek toggle di Pengaturan (PlatformSetting). Tanpa data = pakai nilai default. */

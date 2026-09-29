@@ -1,4 +1,6 @@
 import {
+  ArrayMinSize,
+  IsArray,
   IsDateString,
   IsEnum,
   IsIn,
@@ -9,8 +11,11 @@ import {
   IsString,
   Min,
   Max,
+  MaxLength,
+  ValidateNested,
 } from 'class-validator';
-import { AbsensiStatus, JenisNilai } from '@prisma/client';
+import { Type } from 'class-transformer';
+import { AbsensiStatus, JenisNilai, JenisSetoran, KualitasSetoran } from '@prisma/client';
 
 export class CreateAbsensiDto {
   @IsString()
@@ -36,6 +41,20 @@ export class CreateAbsensiDto {
   catatan?: string;
 }
 
+export class BulkAbsensiItemDto {
+  @IsString()
+  @IsNotEmpty()
+  santriId: string;
+
+  @IsEnum(AbsensiStatus, { message: 'Status absensi tidak valid' })
+  status: AbsensiStatus;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(150, { message: 'Keterangan maksimal 150 karakter' })
+  catatan?: string;
+}
+
 export class BulkAbsensiDto {
   @IsString()
   @IsNotEmpty()
@@ -48,12 +67,11 @@ export class BulkAbsensiDto {
   @IsDateString({}, { message: 'Tanggal tidak valid' })
   tanggal: string;
 
-  @IsString({ each: true })
-  items: {
-    santriId: string;
-    status: AbsensiStatus;
-    catatan?: string;
-  }[];
+  @IsArray()
+  @ArrayMinSize(1, { message: 'Daftar santri tidak boleh kosong' })
+  @ValidateNested({ each: true })
+  @Type(() => BulkAbsensiItemDto)
+  items: BulkAbsensiItemDto[];
 }
 
 export class CreateNilaiDto {
@@ -87,17 +105,45 @@ export class CreateTahfidzDto {
   santriId: string;
 
   @IsInt({ message: 'Juz harus angka' })
+  @Min(1)
+  @Max(30)
   juz: number;
 
+  // LAMA: masih diterima supaya Flutter lama tidak rusak
+  @IsOptional()
   @IsInt({ message: 'Halaman harus angka' })
-  halaman: number;
+  @Min(1)
+  @Max(20)
+  halaman?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(20)
+  halamanMulai?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(20)
+  halamanSelesai?: number;
+
+  @IsOptional()
+  @IsEnum(JenisSetoran, { message: 'Jenis setoran tidak valid' })
+  jenis?: JenisSetoran;
+
+  @IsOptional()
+  @IsEnum(KualitasSetoran, { message: 'Kualitas setoran tidak valid' })
+  kualitas?: KualitasSetoran;
 
   @IsOptional()
   @IsString()
   catatanUstadz?: string;
 
+  // DEPRECATED: diabaikan, tanggal diisi server
+  @IsOptional()
   @IsDateString()
-  tanggalSetor: string;
+  tanggalSetor?: string;
 }
 
 export class QueryAbsensiDto {
@@ -108,6 +154,10 @@ export class QueryAbsensiDto {
   @IsOptional()
   @IsString()
   kelasId?: string;
+
+  @IsOptional()
+  @IsString()
+  mapelId?: string;
 
   @IsOptional()
   @IsDateString()

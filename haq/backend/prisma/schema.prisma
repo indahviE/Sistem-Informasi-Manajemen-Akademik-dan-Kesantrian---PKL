@@ -64,6 +64,19 @@ enum JenisNilai {
   BAHASA_ARAB
 }
 
+enum JenisSetoran {
+  ZIYADAH
+  MURAJAAH
+}
+
+enum KualitasSetoran {
+  MUMTAZ
+  JAYYID_JIDDAN
+  JAYYID
+  MAQBUL
+  DHAIF
+}
+
 enum JenisPerizinan {
   PULANG
   KELUAR
@@ -95,6 +108,7 @@ enum JenisNotifikasi {
   ABSENSI
   SISTEM
   DARURAT
+  WALI_BELUM_AKTIVASI
 }
 
 enum StatusIbadah {
@@ -170,6 +184,7 @@ model User {
   notifikasis  Notifikasi[]
   waliSantris  WaliSantri[]
   tenantSebagaiAdminAwal Tenant[] @relation("TenantAdminAwal")
+  notifSetting UserNotifSetting?
 
   @@unique([tenantId, email])
   @@index([tenantId])
@@ -345,17 +360,21 @@ model Nilai {
 }
 
 model CapaianTahfidz {
-  id            String   @id @default(cuid())
-  tenantId      String
-  santriId      String
-  juz           Int
-  halaman       Int
-  tanggalSetor  DateTime
-  catatanUstadz String?
-  inputOleh     String
-  createdAt     DateTime @default(now())
+  id             String           @id @default(cuid())
+  tenantId       String
+  santriId       String
+  juz            Int
+  halaman        Int              // kolom lama, tetap ada supaya Flutter lama tidak rusak
+  halamanMulai   Int?
+  halamanSelesai Int?
+  jenis          JenisSetoran     @default(ZIYADAH)
+  kualitas       KualitasSetoran?
+  tanggalSetor   DateTime
+  catatanUstadz  String?
+  inputOleh      String
+  createdAt      DateTime         @default(now())
 
-  santri        Santri   @relation(fields: [santriId], references: [id], onDelete: Cascade)
+  santri         Santri           @relation(fields: [santriId], references: [id], onDelete: Cascade)
 
   @@index([tenantId, santriId])
   @@map("capaian_tahfidzs")
@@ -889,6 +908,21 @@ model KeadaanDarurat {
   @@index([tenantId, status])
   @@index([tenantId, tanggal])
   @@map("keadaan_darurats")
+}
+
+model UserNotifSetting {
+  id                 String   @id @default(cuid())
+  userId             String   @unique
+  perizinanBaru      Boolean  @default(true)
+  pelanggaranBaru    Boolean  @default(true)
+  waliBelumAktivasi  Boolean  @default(true)
+  eskalasiDarurat    Boolean  @default(true)
+  rekapAbsensiShalat Boolean  @default(false)
+  updatedAt          DateTime @updatedAt
+
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_notif_settings")
 }
 
 model PlatformSetting {

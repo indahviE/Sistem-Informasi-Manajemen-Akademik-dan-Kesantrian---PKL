@@ -75,6 +75,11 @@ export class QuerySantriDto {
   @IsString()
   search?: string;
 
+   // BARU
+  @IsOptional()
+  @IsString()
+  binaan?: string;
+
   @IsOptional()
   @Type(() => Number)
   @IsInt()

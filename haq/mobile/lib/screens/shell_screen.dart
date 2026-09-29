@@ -6,6 +6,7 @@ import '../theme/app_theme.dart';
 import 'ui_utils.dart';
 import 'notifikasi/notifikasi_screen.dart';
 import 'super_admin/notifikasi_superadmin_screen.dart';
+import 'admin/notifikasi_screen.dart';
 import 'dashboard_screen.dart';
 import 'santri/santri_list_screen.dart';
 import 'santri/direktori_santri_screen.dart';
@@ -32,6 +33,7 @@ import 'super_admin/audit_log_screen.dart';
 import 'super_admin/pengaturan_screen.dart';
 import 'super_admin/super_admin_header.dart';
 import 'admin/admin_header.dart';
+import 'admin/pengaturan_admin_screen.dart';
 import 'wali/wali_screen.dart';
 import 'ppdb/ppdb_list_screen.dart';
 import 'kurikulum/kurikulum_screen.dart';
@@ -45,21 +47,6 @@ class ShellScreen extends StatefulWidget {
 
   @override
   State<ShellScreen> createState() => _ShellScreenState();
-}
-
-// TODO: ganti dengan layar Pengaturan Admin yang sebenarnya.
-class _AdminPengaturanPlaceholder extends StatelessWidget {
-  const _AdminPengaturanPlaceholder();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Center(
-      child: Text(
-        'Pengaturan Admin — segera hadir',
-        style: TextStyle(color: PColors.inkSecondary),
-      ),
-    );
-  }
 }
 
 class _MenuItem {
@@ -203,7 +190,11 @@ class _ShellScreenState extends State<ShellScreen> {
 
     if (user.isAdmin) {
       m.add(_MenuItem('Kelola User', Icons.admin_panel_settings, (_) => const UsersScreen()));
-      m.add(_MenuItem('Pengaturan', Icons.tune, (_) => const _AdminPengaturanPlaceholder()));
+      m.add(_MenuItem(
+        'Pengaturan',
+        Icons.tune,
+        (_) => PengaturanAdminScreen(onBack: () => _goToMenu('Dashboard')),
+      ));
     }
 
     if (user.isWali) {
@@ -223,6 +214,15 @@ class _ShellScreenState extends State<ShellScreen> {
       setState(() {
         _navIndex = i;
         _activeExtra = null;
+        _notifikasiOpen = false;
+      });
+      return;
+    }
+    final extra = _moreItems.where((e) => e.label == label);
+    if (extra.isNotEmpty) {
+      setState(() {
+        _activeExtra = extra.first;
+        _navIndex = _navItems.length;
         _notifikasiOpen = false;
       });
     }
@@ -256,9 +256,7 @@ class _ShellScreenState extends State<ShellScreen> {
                   email: user.email,
                   onPengaturan: () => _goToMenu('Pengaturan'),
                   hasUnread: _unreadCount > 0,
-                  onNotifikasi: () => Navigator.push(context,
-                          MaterialPageRoute(builder: (_) => const NotifikasiScreen()))
-                      .then((_) => _loadUnreadCount()),
+                  onNotifikasi: () => setState(() => _notifikasiOpen = true),
                   onLogout: _logout,
                 )
               : AppBar(
@@ -306,7 +304,16 @@ class _ShellScreenState extends State<ShellScreen> {
               onNavigate: _goToMenu,
               onReadStateChanged: _loadUnreadCount,
             )
-          : active.builder(context),
+          : (user.isAdmin && _notifikasiOpen)
+              ? NotifikasiAdminScreen(
+                  onBack: () {
+                    setState(() => _notifikasiOpen = false);
+                    _loadUnreadCount();
+                  },
+                  onNavigate: _goToMenu,
+                  onReadStateChanged: _loadUnreadCount,
+                )
+              : active.builder(context),
       bottomNavigationBar: Container(
         // Full-width fill supaya nggak ada strip abu-abu bawaan Scaffold yang
         // keliatan di kiri-kanan kotak nav 480px — warnanya disamain persis
@@ -420,10 +427,13 @@ class _ShellScreenState extends State<ShellScreen> {
           borderRadius: BorderRadius.circular(10),
           onTap: () {
             Navigator.pop(context);
+            final wasNotifikasiOpen = _notifikasiOpen;
             setState(() {
               _activeExtra = m;
               _navIndex = _navItems.length;
+              _notifikasiOpen = false;
             });
+            if (wasNotifikasiOpen) _loadUnreadCount();
           },
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
