@@ -1,4 +1,6 @@
 import {
+  ArrayMinSize,
+  IsArray,
   IsDateString,
   IsEnum,
   IsIn,
@@ -9,7 +11,10 @@ import {
   IsString,
   Min,
   Max,
+  MaxLength,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 import { AbsensiStatus, JenisNilai } from '@prisma/client';
 
 export class CreateAbsensiDto {
@@ -36,6 +41,20 @@ export class CreateAbsensiDto {
   catatan?: string;
 }
 
+export class BulkAbsensiItemDto {
+  @IsString()
+  @IsNotEmpty()
+  santriId: string;
+
+  @IsEnum(AbsensiStatus, { message: 'Status absensi tidak valid' })
+  status: AbsensiStatus;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(150, { message: 'Keterangan maksimal 150 karakter' })
+  catatan?: string;
+}
+
 export class BulkAbsensiDto {
   @IsString()
   @IsNotEmpty()
@@ -48,12 +67,11 @@ export class BulkAbsensiDto {
   @IsDateString({}, { message: 'Tanggal tidak valid' })
   tanggal: string;
 
-  @IsString({ each: true })
-  items: {
-    santriId: string;
-    status: AbsensiStatus;
-    catatan?: string;
-  }[];
+  @IsArray()
+  @ArrayMinSize(1, { message: 'Daftar santri tidak boleh kosong' })
+  @ValidateNested({ each: true })
+  @Type(() => BulkAbsensiItemDto)
+  items: BulkAbsensiItemDto[];
 }
 
 export class CreateNilaiDto {
@@ -108,6 +126,10 @@ export class QueryAbsensiDto {
   @IsOptional()
   @IsString()
   kelasId?: string;
+
+  @IsOptional()
+  @IsString()
+  mapelId?: string;
 
   @IsOptional()
   @IsDateString()
