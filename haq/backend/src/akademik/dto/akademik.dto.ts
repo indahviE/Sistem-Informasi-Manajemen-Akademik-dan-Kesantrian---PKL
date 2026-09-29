@@ -14,6 +14,7 @@ import {
   MaxLength,
   ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 import { AbsensiStatus, JenisNilai, JenisSetoran, KualitasSetoran } from '@prisma/client';
 
 export class CreateAbsensiDto {
