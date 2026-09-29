@@ -59,6 +59,24 @@ _Kat _katOf(String jenis) {
   return _Kat.lainnya;
 }
 
+/// Kategori -> nama field toggle di Pengaturan Admin. null = selalu tampil.
+String? _settingKey(_Kat k) {
+  switch (k) {
+    case _Kat.perizinan:
+      return 'perizinanBaru';
+    case _Kat.pelanggaran:
+      return 'pelanggaranBaru';
+    case _Kat.wali:
+      return 'waliBelumAktivasi';
+    case _Kat.darurat:
+      return 'eskalasiDarurat';
+    case _Kat.absensi:
+      return 'rekapAbsensiShalat';
+    case _Kat.lainnya:
+      return null;
+  }
+}
+
 class NotifikasiAdminScreen extends StatefulWidget {
   const NotifikasiAdminScreen({
     super.key,
@@ -97,16 +115,41 @@ class _NotifikasiAdminScreenState extends State<NotifikasiAdminScreen> {
   }
 
   // ------------------------------------------------------------------ data
+  Future<Map<String, bool>> _loadPref(ApiClient api) async {
+    try {
+      final res = await api.get('${ApiUrl.pengaturan}/admin') as Map<String, dynamic>;
+      final n = (res['notifikasi'] as Map<String, dynamic>?) ?? {};
+      return {
+        for (final e in n.entries)
+          if (e.value is bool) e.key: e.value as bool,
+      };
+    } catch (_) {
+      return {}; // gagal ambil pengaturan -> tampilkan semua
+    }
+  }
+
+  bool _enabled(Map<String, dynamic> n, Map<String, bool> pref) {
+    final key = _settingKey(_katOf('${n['jenis']}'));
+    if (key == null) return true;
+    // Default sama seperti di Pengaturan: semua aktif kecuali rekap absensi.
+    return pref[key] ?? (key != 'rekapAbsensiShalat');
+  }
   Future<void> _load() async {
     setState(() {
       _loading = true;
       _error = null;
     });
     try {
-      final res = await AppScope.of(context).api.get(ApiUrl.notifikasi);
+      final api = AppScope.of(context).api;
+      final results = await Future.wait([
+        api.get(ApiUrl.notifikasi),
+        _loadPref(api),
+      ]);
       if (!mounted) return;
+      final all = (results[0] as List).cast<Map<String, dynamic>>();
+      final pref = results[1] as Map<String, bool>;
       setState(() {
-        _items = (res as List).cast<Map<String, dynamic>>();
+        _items = all.where((n) => _enabled(n, pref)).toList();
         _loading = false;
       });
     } on ApiException catch (e) {
@@ -203,7 +246,7 @@ class _NotifikasiAdminScreenState extends State<NotifikasiAdminScreen> {
                           _buildFilterChips(),
                           ..._buildGroupedList(),
                           const SizedBox(height: 12),
-                          const _AllClearFooter(),
+                          if (_unreadCount == 0) const _AllClearFooter(),
                         ],
                       ),
                     ),
