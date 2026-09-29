@@ -40,6 +40,14 @@ String _computeSemesterFallback([DateTime? now]) {
   return (month >= 7 && month <= 12) ? 'Semester Ganjil' : 'Semester Genap';
 }
 
+/// Tahun ajaran (Masehi) dari bulan berjalan; dimulai bulan Juli.
+/// Fallback sementara sampai backend mengirim tahun ajaran aktif.
+String _computeTahunAjaranFallback([DateTime? now]) {
+  final d = now ?? DateTime.now();
+  final mulai = d.month >= 7 ? d.year : d.year - 1;
+  return 'TA $mulai/${mulai + 1}';
+}
+
 // ============================================================================
 // LandingScreen
 // ============================================================================
@@ -216,8 +224,8 @@ class _LandingScreenState extends State<LandingScreen> {
                   const SizedBox(height: 16),
                   _FooterLink(
                     icon: Icons.apartment_outlined,
-                    title: 'Belum terdaftar sebagai pondok?',
-                    subtitle: 'Daftarkan Pondok Baru Secara Mandiri',
+                    title: 'Belum terdaftar sebagai lembaga?',
+                    subtitle: 'Daftarkan Lembaga Baru Secara Mandiri',
                     onTap: () => Navigator.push(
                       context,
                       MaterialPageRoute(builder: (_) => const SignupScreen()),
@@ -226,7 +234,7 @@ class _LandingScreenState extends State<LandingScreen> {
                   const SizedBox(height: 10),
                   _FooterLink(
                     icon: Icons.app_registration_outlined,
-                    title: 'Calon santri baru?',
+                    title: 'Calon siswa / santri baru?',
                     subtitle: 'Isi Formulir & Tes PPDB Online',
                     onTap: () => Navigator.push(
                       context,
@@ -283,9 +291,13 @@ class _TenantHeaderCard extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      Text(
-                        'PLATFORM SIM PESANTREN',
-                        style: PText.labelMd.copyWith(color: PColors.primary),
+                      Flexible(
+                        child: Text(
+                          'PLATFORM PENDIDIKAN',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: PText.labelMd.copyWith(color: PColors.primary),
+                        ),
                       ),
                       const SizedBox(width: 6),
                       Container(
@@ -326,7 +338,7 @@ class _TenantHeaderCard extends StatelessWidget {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  '${tenant.tahunAjaran} • ${_computeSemesterFallback()}',
+                  '${_computeTahunAjaranFallback()} • ${_computeSemesterFallback()}',
                   style: PText.bodySm,
                 ),
               ),
@@ -410,7 +422,7 @@ class _LoginFormCard extends StatelessWidget {
           const SizedBox(height: 8),
           _LInput(
             controller: kodeTenantController,
-            hint: 'mahad-alquran',
+            hint: 'kode-tenant',
             icon: Icons.apartment_outlined,
           ),
           const SizedBox(height: 6),
@@ -424,7 +436,7 @@ class _LoginFormCard extends StatelessWidget {
         const SizedBox(height: 8),
         _LInput(
           controller: emailController,
-          hint: 'nama@pesantren.id',
+          hint: 'nama@lembaga.id',
           icon: Icons.alternate_email,
           keyboardType: TextInputType.emailAddress,
         ),
@@ -615,7 +627,7 @@ class _FooterBrand extends StatelessWidget {
             const Icon(Icons.verified_user_outlined,
                 size: 14, color: PColors.inkSecondary),
             const SizedBox(width: 6),
-            Text('SIMPesantren Multi-Tenant Enterprise v2.4',
+            Text('SIMEdu Multi-Tenant Enterprise v2.4',
                 style: PText.bodySm),
           ],
         ),
