@@ -31,6 +31,7 @@ import 'super_admin/audit_log_screen.dart';
 import 'super_admin/pengaturan_screen.dart';
 import 'super_admin/super_admin_header.dart';
 import 'admin/admin_header.dart';
+import 'admin/pengaturan_admin_screen.dart';
 import 'wali/wali_screen.dart';
 import 'ppdb/ppdb_list_screen.dart';
 import 'kurikulum/kurikulum_screen.dart';
@@ -44,21 +45,6 @@ class ShellScreen extends StatefulWidget {
 
   @override
   State<ShellScreen> createState() => _ShellScreenState();
-}
-
-// TODO: ganti dengan layar Pengaturan Admin yang sebenarnya.
-class _AdminPengaturanPlaceholder extends StatelessWidget {
-  const _AdminPengaturanPlaceholder();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Center(
-      child: Text(
-        'Pengaturan Admin — segera hadir',
-        style: TextStyle(color: PColors.inkSecondary),
-      ),
-    );
-  }
 }
 
 class _MenuItem {
@@ -198,7 +184,11 @@ class _ShellScreenState extends State<ShellScreen> {
 
     if (user.isAdmin) {
       m.add(_MenuItem('Kelola User', Icons.admin_panel_settings, (_) => const UsersScreen()));
-      m.add(_MenuItem('Pengaturan', Icons.tune, (_) => const _AdminPengaturanPlaceholder()));
+      m.add(_MenuItem(
+        'Pengaturan',
+        Icons.tune,
+        (_) => PengaturanAdminScreen(onBack: () => _goToMenu('Dashboard')),
+      ));
     }
 
     if (user.isWali) {
