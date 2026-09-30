@@ -9,9 +9,9 @@ import {
 import { Type } from 'class-transformer';
 
 export class CreateSantriDto {
+  @IsOptional()
   @IsString()
-  @IsNotEmpty({ message: 'NIS wajib diisi' })
-  nis: string;
+  nis?: string;
 
   @IsString()
   @IsNotEmpty({ message: 'Nama wajib diisi' })

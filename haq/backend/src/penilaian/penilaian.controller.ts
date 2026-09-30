@@ -1,5 +1,6 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { PenilaianService } from './penilaian.service';
+import { SimpanRemedialDto } from './dto/simpan-remedial.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -84,6 +85,19 @@ export class PenilaianController {
   @Delete('ujian/:id/nilai/:nilaiId')
   removeNilaiUjian(@TenantId() tenantId: string, @Param('id') id: string, @Param('nilaiId') nilaiId: string) {
     return this.penilaianService.removeNilaiUjian(tenantId, id, nilaiId);
+  }
+
+    // ===== Remedial per Ujian =====
+  @Roles(...PENGELOLA)
+  @Get('ujian/:id/remedial')
+  listRemedialUjian(@TenantId() tenantId: string, @Param('id') id: string) {
+    return this.penilaianService.listRemedialUjian(tenantId, id);
+  }
+
+  @Roles(...WRITE)
+  @Post('ujian/:id/remedial')
+  simpanRemedialUjian(@TenantId() tenantId: string, @Param('id') id: string, @Body() dto: SimpanRemedialDto) {
+    return this.penilaianService.simpanRemedialUjian(tenantId, id, dto);
   }
 
   // ===== Remedial =====

@@ -120,18 +120,26 @@ export class PpdbService {
     const list = await this.prisma.pendaftaran.findMany({
       where,
       orderBy: { tanggalDaftar: 'desc' },
-      include: { ujian: true },
+      include: { ujian: true, tenant: { select: { kodeTenant: true } } },
     });
-    return list.map((p) => ({ ...p, noPendaftaran: this.noPendaftaranLabel(p.id) }));
+    return list.map(({ tenant, ...p }) => ({
+      ...p,
+      noPendaftaran: this.noPendaftaran(tenant.kodeTenant, p.id),
+    }));
   }
 
   async findOne(tenantId: string, id: string) {
-    const p = await this.prisma.pendaftaran.findFirst({
+    const found = await this.prisma.pendaftaran.findFirst({
       where: { id, tenantId },
-      include: { ujian: true },
+      include: { ujian: true, tenant: { select: { kodeTenant: true } } },
     });
-    if (!p) throw new NotFoundException('Pendaftaran tidak ditemukan.');
-    return p;
+    if (!found) throw new NotFoundException('Pendaftaran tidak ditemukan.');
+
+    const { tenant, ...p } = found;
+    return {
+      ...p,
+      noPendaftaran: this.noPendaftaran(tenant.kodeTenant, p.id),
+    };
   }
 
   async updateStatus(tenantId: string, id: string, dto: UpdatePendaftaranDto) {
@@ -141,14 +149,25 @@ export class PpdbService {
     });
     if (!p) throw new NotFoundException('Pendaftaran tidak ditemukan.');
 
+    // Kelas tujuan harus milik tenant yang sama (cegah kelasId dari pondok lain)
+    if (dto.kelasId) {
+      const kelas = await this.prisma.kelas.findFirst({
+        where: { id: dto.kelasId, tenantId },
+        select: { id: true },
+      });
+      if (!kelas) throw new BadRequestException('Kelas tujuan tidak ditemukan.');
+    }
+
     const nextStatus = dto.status ?? p.status;
     const updated = await this.prisma.pendaftaran.update({
       where: { id },
       data: { status: nextStatus, catatan: dto.catatan ?? p.catatan },
     });
 
-    if (nextStatus === StatusPendaftaran.DITERIMA) {
-      await this.createSantriDariPendaftaran(p);
+    // Hanya buat santri saat status BARU berubah jadi DITERIMA,
+    // supaya tidak terbentuk santri ganda kalau endpoint dipanggil ulang.
+    if (nextStatus === StatusPendaftaran.DITERIMA && p.status !== StatusPendaftaran.DITERIMA) {
+      await this.createSantriDariPendaftaran(p, dto.kelasId);
     }
 
     if (nextStatus === StatusPendaftaran.DITERIMA || nextStatus === StatusPendaftaran.DITOLAK) {
@@ -173,7 +192,7 @@ export class PpdbService {
     nama: string;
     jenisKelamin: string;
     tanggalLahir?: Date | null;
-  }) {
+  }, kelasId?: string) {
     const tahun = new Date().getFullYear();
     const jumlah = await this.prisma.santri.count({
       where: { tenantId: p.tenantId, tahunMasuk: tahun },
@@ -194,15 +213,13 @@ export class PpdbService {
         nama: p.nama,
         jenisKelamin: p.jenisKelamin,
         tanggalLahir: p.tanggalLahir ?? null,
+        kelasId: kelasId ?? null,
         tahunMasuk: tahun,
       },
     });
   }
 
-  private noPendaftaranLabel(id: string) {
-    return `PPDB-${id.slice(-6).toUpperCase()}`;
-  }
-
+  /** Satu-satunya format nomor pendaftaran: PPDB-KODETENANT-A1B2C3 */
   private noPendaftaran(kodeTenant: string, id: string) {
     return `PPDB-${kodeTenant.toUpperCase()}-${id.slice(-6).toUpperCase()}`;
   }

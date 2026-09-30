@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE `ujians` ADD COLUMN `kkm` DOUBLE NOT NULL DEFAULT 75;

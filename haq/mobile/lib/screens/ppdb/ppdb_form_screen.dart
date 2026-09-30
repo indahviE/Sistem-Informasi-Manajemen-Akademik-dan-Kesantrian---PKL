@@ -114,6 +114,7 @@ class _PpdbFormScreenState extends State<PpdbFormScreen> {
   final _tempatLahir = TextEditingController();
   final _tglLahir = TextEditingController();
   final _asalSekolah = TextEditingController();
+  String? _tglLahirIso; // format YYYY-MM-DD untuk dikirim ke backend
   String _jenisKelamin = 'L';
   String _jenjang = 'mutawassithah';
 
@@ -206,7 +207,10 @@ class _PpdbFormScreenState extends State<PpdbFormScreen> {
     if (picked != null) {
       final dd = picked.day.toString().padLeft(2, '0');
       final mm = picked.month.toString().padLeft(2, '0');
-      setState(() => _tglLahir.text = '$dd/$mm/${picked.year}');
+      setState(() {
+        _tglLahir.text = '$dd/$mm/${picked.year}';
+        _tglLahirIso = '${picked.year}-$mm-$dd';
+      });
     }
   }
 
@@ -266,7 +270,7 @@ class _PpdbFormScreenState extends State<PpdbFormScreen> {
         'nisn': _nisn.text.trim().isEmpty ? null : _nisn.text.trim(),
         'tempatLahir':
             _tempatLahir.text.trim().isEmpty ? null : _tempatLahir.text.trim(),
-        'tanggalLahir': _tglLahir.text.trim().isEmpty ? null : _tglLahir.text.trim(),
+        'tanggalLahir': _tglLahirIso,
         'asalSekolah':
             _asalSekolah.text.trim().isEmpty ? null : _asalSekolah.text.trim(),
         'jenjang': _jenjang,

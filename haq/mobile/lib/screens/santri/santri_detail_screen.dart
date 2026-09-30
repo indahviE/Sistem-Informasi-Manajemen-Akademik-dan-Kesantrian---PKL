@@ -2,29 +2,7 @@ import 'package:flutter/material.dart';
 import '../../services/api_client.dart';
 import '../../services/app_scope.dart';
 import '../ui_utils.dart';
-
-/// Palet sama persis dengan `_WC` di dashboard_screen.dart.
-class _DC {
-  _DC._();
-
-  static const primary = Color(0xFF0F3A2E);
-  static const primaryGradientEnd = Color(0xFF164E3D);
-  static const gold = Color(0xFFC5A059);
-  static const goldSurface = Color(0xFFFAF5EC);
-  static const mint = Color(0xFFD2E4DC);
-  static const sage = Color(0xFFE2ECE9);
-
-  static const background = Color(0xFFFAF9F5);
-  static const surface = Color(0xFFFFFFFF);
-  static const surfaceDim = Color(0xFFF5F4EE);
-
-  static const ink = Color(0xFF0F172A);
-  static const inkSecondary = Color(0xFF475569);
-  static const border = Color(0xFFEAE6DC);
-
-  static const errorBg = Color(0xFFFEE2E2);
-  static const errorText = Color(0xFF991B1B);
-}
+import 'santri_ui.dart';
 
 class SantriDetailScreen extends StatefulWidget {
   final String santriId;
@@ -84,111 +62,44 @@ class _SantriDetailScreenState extends State<SantriDetailScreen> {
     return '${l.day.toString().padLeft(2, '0')}/${l.month.toString().padLeft(2, '0')}/${l.year}';
   }
 
-  // ---------------------------------------------------------------------
-  // Building blocks
-  // ---------------------------------------------------------------------
-  Widget _backButton({bool onDark = true}) {
-    return InkWell(
-      onTap: () => Navigator.pop(context),
-      customBorder: const CircleBorder(),
-      child: Container(
-        width: 40,
-        height: 40,
-        decoration: BoxDecoration(
-          color: onDark ? Colors.white.withOpacity(0.12) : _DC.sage,
-          shape: BoxShape.circle,
-        ),
-        child: Icon(Icons.arrow_back_rounded, size: 20, color: onDark ? Colors.white : _DC.primary),
-      ),
-    );
-  }
+  List<Map<String, dynamic>> _list(dynamic v) => ((v as List?) ?? const [])
+      .whereType<Map>()
+      .map((e) => Map<String, dynamic>.from(e))
+      .toList();
 
-  Widget _pill(String label, {required Color bg, required Color fg, Color? border}) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(999),
-        border: border == null ? null : Border.all(color: border),
-      ),
-      child: Text(label, style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: fg)),
-    );
-  }
-
-  Widget _hero(Map<String, dynamic> d) {
+  // ---------------------------------------------------------------------
+  // Hero + statistik
+  // ---------------------------------------------------------------------
+  Widget _hero(Map<String, dynamic> d, {required int setoran, required int poin}) {
     final nama = _str(d['nama'], 'Santri');
     final nis = _str(d['nis']);
     final kelas = (d['kelas'] as Map?)?['namaKelas']?.toString();
-    final inisial = nama.isNotEmpty ? nama[0].toUpperCase() : '?';
+    final status = d['status'] is String ? (d['status'] as String) : null;
+    final top = MediaQuery.of(context).padding.top + 12;
 
-    return Container(
-      clipBehavior: Clip.antiAlias,
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [_DC.primary, _DC.primaryGradientEnd],
-        ),
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: [
-          BoxShadow(color: _DC.primary.withOpacity(0.18), blurRadius: 12, offset: const Offset(0, 4)),
-        ],
-      ),
-      child: Stack(
-        children: [
-          Positioned(
-            right: -24,
-            top: -24,
-            child: Container(
-              width: 120,
-              height: 120,
-              decoration: BoxDecoration(color: _DC.gold.withOpacity(0.10), shape: BoxShape.circle),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(16),
+    return Stack(
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(bottom: 40),
+          child: HeroShell(
+            top: top,
+            bottom: 62,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
-                    _backButton(),
+                    const HeroBackButton(),
                     const SizedBox(width: 12),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.12),
-                        borderRadius: BorderRadius.circular(999),
-                        border: Border.all(color: _DC.gold.withOpacity(0.5)),
-                      ),
-                      child: const Text(
-                        'DETAIL SANTRI',
-                        style: TextStyle(
-                          fontSize: 9.5,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 0.3,
-                          color: _DC.gold,
-                        ),
-                      ),
-                    ),
+                    Text('Profil santri', style: sty(16, FontWeight.w800, Colors.white)),
                   ],
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 20),
                 Row(
                   children: [
-                    Container(
-                      width: 54,
-                      height: 54,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: _DC.mint,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: _DC.gold.withOpacity(0.6), width: 1.5),
-                      ),
-                      child: Text(inisial,
-                          style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: _DC.primary)),
-                    ),
-                    const SizedBox(width: 14),
+                    SantriAvatar(
+                        name: nama, gender: d['jenisKelamin']?.toString(), size: 68, onDark: true, badge: true),
+                    const SizedBox(width: 16),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -196,15 +107,21 @@ class _SantriDetailScreenState extends State<SantriDetailScreen> {
                           Text(nama,
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                  fontSize: 20, fontWeight: FontWeight.w700, height: 1.2, color: Colors.white)),
+                              style: sty(20, FontWeight.w800, Colors.white, h: 1.2)),
                           const SizedBox(height: 8),
                           Wrap(
-                            spacing: 8,
+                            spacing: 6,
                             runSpacing: 6,
                             children: [
-                              _pill('NIS $nis', bg: Colors.white.withOpacity(0.12), fg: Colors.white),
-                              if (kelas != null) _pill(kelas, bg: _DC.mint, fg: _DC.primary),
+                              SPill('NIS $nis',
+                                  icon: Icons.tag_rounded,
+                                  bg: Colors.white.withOpacity(0.14),
+                                  fg: Colors.white),
+                              if (kelas != null && kelas.trim().isNotEmpty)
+                                SPill(kelas, icon: Icons.class_outlined, bg: SC.mint, fg: SC.primary),
+                              if (status != null && status.isNotEmpty)
+                                SPill(status,
+                                    bg: statusColors(status).bg, fg: statusColors(status).fg),
                             ],
                           ),
                         ],
@@ -215,11 +132,64 @@ class _SantriDetailScreenState extends State<SantriDetailScreen> {
               ],
             ),
           ),
+        ),
+        Positioned(
+          left: 16,
+          right: 16,
+          bottom: 0,
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            decoration: BoxDecoration(
+              color: SC.surface,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: SC.border),
+              boxShadow: const [
+                BoxShadow(color: Color(0x1A0F3A2E), blurRadius: 18, offset: Offset(0, 8)),
+              ],
+            ),
+            child: IntrinsicHeight(
+              child: Row(
+                children: [
+                  _stat(Icons.event_available_outlined, _str(d['tahunMasuk']), 'Tahun masuk', SC.primary),
+                  Container(width: 1, color: SC.border),
+                  _stat(Icons.menu_book_rounded, '$setoran', 'Setoran tahfidz', SC.goldDark),
+                  Container(width: 1, color: SC.border),
+                  _stat(Icons.gavel_rounded, '$poin', 'Poin pelanggaran',
+                      poin > 0 ? SC.errorText : SC.successText),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _stat(IconData icon, String value, String label, Color color) {
+    return Expanded(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 16, color: color),
+              const SizedBox(width: 5),
+              Text(value, style: sty(19, FontWeight.w800, color)),
+            ],
+          ),
+          const SizedBox(height: 2),
+          Text(label,
+              textAlign: TextAlign.center,
+              style: sty(10.5, FontWeight.w600, SC.inkSecondary)),
         ],
       ),
     );
   }
 
+  // ---------------------------------------------------------------------
+  // Kartu & baris
+  // ---------------------------------------------------------------------
   Widget _card({
     required String title,
     required IconData icon,
@@ -228,11 +198,12 @@ class _SantriDetailScreenState extends State<SantriDetailScreen> {
   }) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: _DC.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _DC.border),
+        color: SC.surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: SC.border),
+        boxShadow: softShadow,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -240,55 +211,59 @@ class _SantriDetailScreenState extends State<SantriDetailScreen> {
           Row(
             children: [
               Container(
-                width: 30,
-                height: 30,
-                decoration: const BoxDecoration(color: _DC.sage, shape: BoxShape.circle),
-                child: Icon(icon, size: 16, color: _DC.primary),
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(color: SC.sage, borderRadius: BorderRadius.circular(12)),
+                child: Icon(icon, size: 19, color: SC.primary),
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(title,
-                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _DC.ink)),
-              ),
-              if (trailing != null) _pill(trailing, bg: _DC.sage, fg: _DC.primary),
+              const SizedBox(width: 12),
+              Expanded(child: Text(title, style: sty(15, FontWeight.w800, SC.ink))),
+              if (trailing != null) SPill(trailing, bg: SC.goldSurface, fg: SC.goldDark, border: SC.gold.withOpacity(0.4)),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
           ...children,
         ],
       ),
     );
   }
 
-  Widget _row(String label, String value, {bool last = false}) {
+  Widget _row(IconData icon, String label, String value, {bool last = false}) {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 10),
+      padding: const EdgeInsets.symmetric(vertical: 11),
       decoration: BoxDecoration(
-        border: last ? null : const Border(bottom: BorderSide(color: _DC.border)),
+        border: last ? null : const Border(bottom: BorderSide(color: SC.border)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(
-            width: 110,
-            child: Text(label, style: const TextStyle(fontSize: 12, color: _DC.inkSecondary)),
-          ),
+          Icon(icon, size: 18, color: SC.inkMuted),
+          const SizedBox(width: 10),
+          SizedBox(width: 96, child: Text(label, style: sty(12, FontWeight.w500, SC.inkSecondary))),
           Expanded(
-            child: Text(value,
-                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _DC.ink)),
+            child: Text(value, style: sty(13, FontWeight.w700, SC.ink, h: 1.3)),
           ),
         ],
       ),
     );
   }
 
-  Widget _emptyRow(String text, IconData icon) {
-    return Row(
-      children: [
-        Icon(icon, size: 18, color: _DC.inkSecondary),
-        const SizedBox(width: 8),
-        Expanded(child: Text(text, style: const TextStyle(fontSize: 12.5, color: _DC.inkSecondary))),
-      ],
+  Widget _emptyRow(String text, IconData icon, {Color color = SC.inkSecondary}) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+      decoration: BoxDecoration(
+        color: SC.background,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: SC.border),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 20, color: color),
+          const SizedBox(width: 10),
+          Expanded(child: Text(text, style: sty(12.5, FontWeight.w600, SC.inkSecondary))),
+        ],
+      ),
     );
   }
 
@@ -296,37 +271,54 @@ class _SantriDetailScreenState extends State<SantriDetailScreen> {
     final catatan = _str(c['catatanUstadz'], '');
     final tgl = _tgl(c['tanggalSetor']);
     return Container(
-      margin: const EdgeInsets.only(bottom: 8),
+      margin: const EdgeInsets.only(bottom: 9),
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: _DC.surfaceDim, borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(
+        color: SC.background,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: SC.border),
+      ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            width: 36,
-            height: 36,
-            decoration: const BoxDecoration(color: _DC.goldSurface, shape: BoxShape.circle),
-            child: const Icon(Icons.menu_book, size: 17, color: _DC.gold),
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: SC.goldSurface,
+              borderRadius: BorderRadius.circular(15),
+              border: Border.all(color: SC.gold.withOpacity(0.45)),
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text('JUZ', style: sty(8.5, FontWeight.w800, SC.goldDark, ls: 0.6)),
+                Text(_str(c['juz']), style: sty(17, FontWeight.w800, SC.goldDark, h: 1.05)),
+              ],
+            ),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Juz ${_str(c['juz'])} • Halaman ${_str(c['halaman'])}',
-                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _DC.ink)),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text('Halaman ${_str(c['halaman'])}',
+                          style: sty(13.5, FontWeight.w800, SC.ink)),
+                    ),
+                    if (tgl.isNotEmpty)
+                      Text(tgl, style: sty(11, FontWeight.w600, SC.inkSecondary)),
+                  ],
+                ),
                 if (catatan.isNotEmpty) ...[
-                  const SizedBox(height: 2),
-                  Text(catatan,
-                      style: const TextStyle(fontSize: 11.5, color: _DC.inkSecondary, height: 1.35)),
+                  const SizedBox(height: 4),
+                  Text(catatan, style: sty(12, FontWeight.w500, SC.inkSecondary, h: 1.4)),
                 ],
               ],
             ),
           ),
-          if (tgl.isNotEmpty) ...[
-            const SizedBox(width: 8),
-            Text(tgl, style: const TextStyle(fontSize: 11, color: _DC.inkSecondary)),
-          ],
         ],
       ),
     );
@@ -334,24 +326,28 @@ class _SantriDetailScreenState extends State<SantriDetailScreen> {
 
   Widget _pelanggaranItem(Map<String, dynamic> p) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 8),
+      margin: const EdgeInsets.only(bottom: 9),
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: _DC.surfaceDim, borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(
+        color: SC.errorBg.withOpacity(0.45),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: SC.errorText.withOpacity(0.15)),
+      ),
       child: Row(
         children: [
           Container(
-            width: 36,
-            height: 36,
-            decoration: const BoxDecoration(color: _DC.errorBg, shape: BoxShape.circle),
-            child: const Icon(Icons.gavel, size: 17, color: _DC.errorText),
+            width: 38,
+            height: 38,
+            decoration: const BoxDecoration(color: SC.errorBg, shape: BoxShape.circle),
+            child: const Icon(Icons.gavel_rounded, size: 18, color: SC.errorText),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 12),
           Expanded(
             child: Text(_str(p['jenisPelanggaran']),
-                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _DC.ink)),
+                style: sty(13.5, FontWeight.w700, SC.ink, h: 1.3)),
           ),
           const SizedBox(width: 8),
-          _pill('${_str(p['poin'], '0')} poin', bg: _DC.errorBg, fg: _DC.errorText),
+          SPill('${_str(p['poin'], '0')} poin', bg: SC.surface, fg: SC.errorText, border: SC.errorText.withOpacity(0.25)),
         ],
       ),
     );
@@ -361,46 +357,63 @@ class _SantriDetailScreenState extends State<SantriDetailScreen> {
   // Build
   // ---------------------------------------------------------------------
   Widget _content(Map<String, dynamic> d) {
-    final tahfidz = ((d['capaianTahfidzs'] as List?) ?? const []).cast<Map<String, dynamic>>();
-    final pelanggaran = ((d['pelanggarans'] as List?) ?? const []).cast<Map<String, dynamic>>();
+    final tahfidz = _list(d['capaianTahfidzs']);
+    final pelanggaran = _list(d['pelanggarans']);
+    final totalPoin = pelanggaran.fold<int>(
+        0, (sum, p) => sum + (num.tryParse(p['poin']?.toString() ?? '')?.toInt() ?? 0));
+    final asrama = _str(d['asrama'], '');
 
     return RefreshIndicator(
-      color: _DC.primary,
+      color: SC.primary,
       onRefresh: _load,
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
+        padding: EdgeInsets.only(bottom: 28 + MediaQuery.of(context).padding.bottom),
         children: [
-          _hero(d),
-          const SizedBox(height: 16),
-          _card(
-            title: 'Identitas',
-            icon: Icons.badge,
-            children: [
-              _row('NIS', _str(d['nis'])),
-              _row('Nama', _str(d['nama'])),
-              _row('Jenis Kelamin', _jk(d['jenisKelamin'])),
-              _row('Kelas', _str((d['kelas'] as Map?)?['namaKelas'])),
-              _row('Tahun Masuk', _str(d['tahunMasuk'])),
-              _row('Wali', _str((d['wali'] as Map?)?['nama']), last: true),
-            ],
-          ),
-          const SizedBox(height: 12),
-          _card(
-            title: 'Capaian Tahfidz',
-            icon: Icons.menu_book,
-            trailing: tahfidz.isEmpty ? null : '${tahfidz.length} Setoran',
-            children: tahfidz.isEmpty
-                ? [_emptyRow('Belum ada capaian tahfidz.', Icons.inbox_outlined)]
-                : [for (final c in tahfidz) _tahfidzItem(c)],
-          ),
-          const SizedBox(height: 12),
-          _card(
-            title: 'Pelanggaran',
-            icon: Icons.gavel,
-            children: pelanggaran.isEmpty
-                ? [_emptyRow('Tidak ada pelanggaran.', Icons.check_circle_outline)]
-                : [for (final p in pelanggaran) _pelanggaranItem(p)],
+          _hero(d, setoran: tahfidz.length, poin: totalPoin),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _card(
+                  title: 'Identitas',
+                  icon: Icons.badge_rounded,
+                  children: [
+                    _row(Icons.tag_rounded, 'NIS', _str(d['nis'])),
+                    _row(Icons.person_outline, 'Nama', _str(d['nama'])),
+                    _row(Icons.wc_rounded, 'Jenis kelamin', _jk(d['jenisKelamin'])),
+                    _row(Icons.class_outlined, 'Kelas', _str((d['kelas'] as Map?)?['namaKelas'])),
+                    if (asrama.isNotEmpty) _row(Icons.bed_outlined, 'Asrama', asrama),
+                    _row(Icons.event_available_outlined, 'Tahun masuk', _str(d['tahunMasuk'])),
+                    _row(Icons.people_outline, 'Wali', _str((d['wali'] as Map?)?['nama']),
+                        last: true),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                _card(
+                  title: 'Capaian tahfidz',
+                  icon: Icons.menu_book_rounded,
+                  trailing: tahfidz.isEmpty ? null : '${tahfidz.length} setoran',
+                  children: tahfidz.isEmpty
+                      ? [_emptyRow('Belum ada capaian tahfidz.', Icons.inbox_outlined)]
+                      : [for (final c in tahfidz) _tahfidzItem(c)],
+                ),
+                const SizedBox(height: 14),
+                _card(
+                  title: 'Pelanggaran',
+                  icon: Icons.gavel_rounded,
+                  trailing: pelanggaran.isEmpty ? null : '$totalPoin poin',
+                  children: pelanggaran.isEmpty
+                      ? [
+                          _emptyRow('Tidak ada pelanggaran. Pertahankan!',
+                              Icons.check_circle_outline,
+                              color: SC.successText)
+                        ]
+                      : [for (final p in pelanggaran) _pelanggaranItem(p)],
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -413,27 +426,27 @@ class _SantriDetailScreenState extends State<SantriDetailScreen> {
     if (_data != null) {
       body = _content(_data!);
     } else {
-      // Loading / error pertama kali: tampilkan tombol kembali + status.
-      body = Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-            child: Align(alignment: Alignment.centerLeft, child: _backButton(onDark: false)),
-          ),
-          Expanded(child: _error != null ? errorView(_error!, _load) : loadingView()),
-        ],
+      // Loading / error pertama kali: tombol kembali + status.
+      body = SafeArea(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              child: Align(alignment: Alignment.centerLeft, child: HeroBackButton(onDark: false)),
+            ),
+            Expanded(child: _error != null ? errorView(_error!, _load) : loadingView()),
+          ],
+        ),
       );
     }
 
     return Scaffold(
-      backgroundColor: _DC.background,
-      body: SafeArea(
-        child: Align(
-          alignment: Alignment.topCenter,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 480),
-            child: body,
-          ),
+      backgroundColor: SC.background,
+      body: Align(
+        alignment: Alignment.topCenter,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 480),
+          child: body,
         ),
       ),
     );

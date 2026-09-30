@@ -726,6 +726,7 @@ model Ujian {
   kelasId     String?
   tanggal     DateTime?
   durasiMenit Int?
+  kkm         Float      @default(75)
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
 
@@ -758,24 +759,39 @@ model NilaiUjian {
   @@map("nilai_ujians")
 }
 
-model Remedial {
-  id         String    @id @default(cuid())
-  tenantId   String
-  santriId   String
-  ujianId    String?
-  mapelId    String?
-  keterangan String
-  hasil      String?   @default("PROSES")
-  tanggal    DateTime  @default(now())
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
+enum StatusRemedial {
+  BELUM_TES
+  PROSES
+  TUNTAS
+}
 
-  tenant Tenant        @relation(fields: [tenantId], references: [id])
-  santri Santri        @relation(fields: [santriId], references: [id], onDelete: Cascade)
-  ujian  Ujian?        @relation(fields: [ujianId], references: [id])
+model Remedial {
+  id            String         @id @default(cuid())
+  tenantId      String
+  santriId      String
+  ujianId       String?
+  mapelId       String?
+  keterangan    String
+  hasil         String?        @default("PROSES")
+  status        StatusRemedial @default(BELUM_TES)
+  nilaiAwal     Float?
+  nilaiRemedial Float?
+  catatan       String?
+  jadwal        DateTime?
+  ruang         String?
+  tenggat       DateTime?
+  tanggal       DateTime       @default(now())
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  tenant Tenant         @relation(fields: [tenantId], references: [id])
+  santri Santri         @relation(fields: [santriId], references: [id], onDelete: Cascade)
+  ujian  Ujian?         @relation(fields: [ujianId], references: [id])
   mapel  MataPelajaran? @relation(fields: [mapelId], references: [id])
 
+  @@unique([ujianId, santriId])
   @@index([tenantId])
+  @@index([tenantId, ujianId])
   @@map("remedials")
 }
 
