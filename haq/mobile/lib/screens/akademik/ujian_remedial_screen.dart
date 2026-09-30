@@ -36,8 +36,8 @@ class _C {
 
 const double _maxW = 480;
 
-/// Nilai minimal tuntas (KKM).
-const double _kkm = 75;
+/// KKM bawaan, dipakai bila ujian belum punya nilai kkm.
+const double _kkmDefault = 75;
 
 // ───────────────────────────── HELPER ─────────────────────────────
 
@@ -97,10 +97,10 @@ String _initials(String nama) {
 }
 
 /// Predikat nilai (Mumtaz / Jayyid Jiddan / Jayyid / Dha'if).
-String _predikat(double n) {
+String _predikat(double n, double kkm) {
   if (n >= 85) return 'Mumtaz';
   if (n >= 80) return 'Jayyid Jiddan';
-  if (n >= _kkm) return 'Jayyid';
+  if (n >= kkm) return 'Jayyid';
   return "Dha'if";
 }
 
@@ -279,6 +279,13 @@ class _UjianRemedialScreenState extends State<UjianRemedialScreen> {
 
   Map<String, dynamic> get _ujian => {...widget.ujian, ...?_data};
 
+  /// KKM milik ujian ini (jatuh ke bawaan bila belum ada).
+  double get _kkm =>
+      (_ujian['kkm'] is num) ? (_ujian['kkm'] as num).toDouble() : _kkmDefault;
+
+  String get _kkmText =>
+      _kkm == _kkm.roundToDouble() ? _kkm.toStringAsFixed(0) : _kkm.toStringAsFixed(1);
+
   List<Map<String, dynamic>> get _nilais => _listOf(_data?['nilais']);
 
   String get _kelasNama => '${_ujian['kelas']?['namaKelas'] ?? ''}';
@@ -431,7 +438,7 @@ class _UjianRemedialScreenState extends State<UjianRemedialScreen> {
       return;
     }
     if (_status == 'TUNTAS' && (v == null || v < _kkm)) {
-      _msg('Status Tuntas butuh nilai perbaikan minimal KKM ${_kkm.toStringAsFixed(0)}.');
+      _msg('Status Tuntas butuh nilai perbaikan minimal KKM $_kkmText.');
       return;
     }
 
@@ -619,7 +626,7 @@ class _UjianRemedialScreenState extends State<UjianRemedialScreen> {
                       fontSize: 19, fontWeight: FontWeight.w800, color: _C.ink)),
             ),
             const SizedBox(width: 8),
-            _pill('KKM: ${_kkm.toStringAsFixed(0)}', const Color(0xFFFED488), _C.goldText,
+            _pill('KKM: $_kkmText', const Color(0xFFFED488), _C.goldText,
                 fs: 13, pad: const EdgeInsets.symmetric(horizontal: 14, vertical: 6)),
           ],
         ),
@@ -829,14 +836,14 @@ class _UjianRemedialScreenState extends State<UjianRemedialScreen> {
                                   fontWeight: FontWeight.w800,
                                   color: awalBelow ? _C.badFg : _C.ink)),
                           TextSpan(
-                              text: ' / ${_kkm.toStringAsFixed(0)}',
+                              text: ' / $_kkmText',
                               style: const TextStyle(fontSize: 11.5, color: _C.ink2)),
                         ])),
                         if (r.awal != null)
                           Text(
                               awalBelow
-                                  ? "${_predikat(r.awal!)} (Di bawah KKM)"
-                                  : _predikat(r.awal!),
+                                  ? "${_predikat(r.awal!, _kkm)} (Di bawah KKM)"
+                                  : _predikat(r.awal!, _kkm),
                               style: TextStyle(
                                   fontSize: 10.5,
                                   fontWeight: FontWeight.w600,
@@ -912,7 +919,7 @@ class _UjianRemedialScreenState extends State<UjianRemedialScreen> {
                                   ),
                                 ),
                                 if (v != null)
-                                  Text(_predikat(v),
+                                  Text(_predikat(v, _kkm),
                                       style: TextStyle(
                                           fontSize: 11,
                                           fontWeight: FontWeight.w700,
@@ -1117,7 +1124,7 @@ class _UjianRemedialScreenState extends State<UjianRemedialScreen> {
                                 fontSize: 17, fontWeight: FontWeight.w800, color: _C.ink)),
                         if (r.hasil != null)
                           TextSpan(
-                              text: ' (${_predikat(r.hasil!)})',
+                              text: ' (${_predikat(r.hasil!, _kkm)})',
                               style: const TextStyle(fontSize: 11, color: _C.goldText)),
                       ])),
                     ],
@@ -1195,7 +1202,7 @@ class _UjianRemedialScreenState extends State<UjianRemedialScreen> {
                       TextSpan(
                           text: r.awal == null
                               ? '-'
-                              : '${_fmtNum(r.awal)} (${_predikat(r.awal!)})',
+                              : '${_fmtNum(r.awal)} (${_predikat(r.awal!, _kkm)})',
                           style: const TextStyle(
                               fontWeight: FontWeight.w800, color: _C.badFg)),
                     ],

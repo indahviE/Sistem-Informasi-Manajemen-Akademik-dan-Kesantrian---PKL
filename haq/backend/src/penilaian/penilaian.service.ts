@@ -63,6 +63,7 @@ export class PenilaianService {
         kelasId: dto.kelasId ?? null,
         tanggal: dto.tanggal ? new Date(dto.tanggal) : null,
         durasiMenit: dto.durasiMenit ?? null,
+        kkm: dto.kkm ?? 75,
       },
       include: {
         mapel: { select: { id: true, namaMapel: true } },
@@ -83,6 +84,7 @@ export class PenilaianService {
         kelasId: dto.kelasId ?? undefined,
         tanggal: dto.tanggal ? new Date(dto.tanggal) : undefined,
         durasiMenit: dto.durasiMenit,
+        kkm: dto.kkm,
       },
     });
   }
