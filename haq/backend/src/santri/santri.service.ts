@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { RequestUser } from '../common/decorators/current-user.decorator';
@@ -68,20 +68,56 @@ export class SantriService {
     return santri;
   }
 
-  create(tenantId: string, dto: CreateSantriDto) {
-    return this.prisma.santri.create({
-      data: {
-        tenantId,
-        nis: dto.nis,
-        nama: dto.nama,
-        jenisKelamin: dto.jenisKelamin,
-        tanggalLahir: dto.tanggalLahir ? new Date(dto.tanggalLahir) : undefined,
-        kelasId: dto.kelasId,
-        asrama: dto.asrama,
-        waliId: dto.waliId,
-        tahunMasuk: dto.tahunMasuk,
-      },
+  /** NIS otomatis: 11 digit, mulai 01234567890, naik 1 dari NIS terbesar di tenant. */
+  private async buatNisBerikutnya(tenantId: string): Promise<string> {
+    const AWAL = 1234567890n; // "01234567890"
+    const LEBAR = 11;
+
+    const rows = await this.prisma.santri.findMany({
+      where: { tenantId },
+      select: { nis: true },
     });
+
+    let maks: bigint | null = null;
+    for (const r of rows) {
+      if (!/^\d{11}$/.test(r.nis)) continue; // abaikan NIS berformat lain
+      const n = BigInt(r.nis);
+      if (maks === null || n > maks) maks = n;
+    }
+
+    const berikut = maks === null ? AWAL : maks + 1n;
+    return berikut.toString().padStart(LEBAR, '0');
+  }
+
+  async create(tenantId: string, dto: CreateSantriDto) {
+    const manual = dto.nis?.trim();
+
+    // Coba ulang kalau dua admin menyimpan bersamaan dan NIS otomatisnya bentrok.
+    for (let percobaan = 0; percobaan < 5; percobaan++) {
+      const nis = manual || (await this.buatNisBerikutnya(tenantId));
+      try {
+        return await this.prisma.santri.create({
+          data: {
+            tenantId,
+            nis,
+            nama: dto.nama,
+            jenisKelamin: dto.jenisKelamin,
+            tanggalLahir: dto.tanggalLahir ? new Date(dto.tanggalLahir) : undefined,
+            kelasId: dto.kelasId,
+            asrama: dto.asrama,
+            waliId: dto.waliId,
+            tahunMasuk: dto.tahunMasuk,
+          },
+        });
+      } catch (e: any) {
+        if (e?.code === 'P2002') {
+          if (manual) throw new ConflictException('NIS sudah dipakai santri lain.');
+          continue; // NIS otomatis bentrok, hitung ulang
+        }
+        throw e;
+      }
+    }
+    throw new ConflictException('Gagal membuat NIS otomatis, coba simpan lagi.');
   }
 
   async update(tenantId: string, id: string, dto: UpdateSantriDto) {

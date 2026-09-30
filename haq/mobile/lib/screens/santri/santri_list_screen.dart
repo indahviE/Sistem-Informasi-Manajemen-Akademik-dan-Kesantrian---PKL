@@ -69,6 +69,12 @@ class _SantriListScreenState extends State<SantriListScreen> {
   /// null = semua, [_tanpaKelas] = santri tanpa kelas, selain itu = nama kelas.
   String? _kelasFilter;
 
+  /// Banner notifikasi inline (di bawah hero), hilang otomatis.
+  String? _bannerTitle;
+  String? _bannerSub;
+  bool _bannerError = false;
+  Timer? _bannerTimer;
+
   @override
   void initState() {
     super.initState();
@@ -80,6 +86,7 @@ class _SantriListScreenState extends State<SantriListScreen> {
   @override
   void dispose() {
     _debounce?.cancel();
+    _bannerTimer?.cancel();
     _search.dispose();
     super.dispose();
   }
@@ -198,39 +205,84 @@ class _SantriListScreenState extends State<SantriListScreen> {
   // ---------------------------------------------------------------------
   // Aksi
   // ---------------------------------------------------------------------
-  void _toast(String title, {bool error = false}) {
+  /// Notifikasi inline: tampil sebagai banner di bawah hero, tidak menimpa apa pun.
+  void _toast(String title, {String? subtitle, bool error = false}) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          behavior: SnackBarBehavior.floating,
-          backgroundColor: error ? SC.errorBg : SC.primary,
-          elevation: 4,
-          margin: const EdgeInsets.fromLTRB(16, 0, 16, 84),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          duration: Duration(seconds: error ? 4 : 2),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-            side: BorderSide(
-              color: error ? SC.errorText.withOpacity(0.25) : SC.gold.withOpacity(0.5),
-            ),
-          ),
-          content: Row(
-            children: [
-              Icon(error ? Icons.error_outline : Icons.check_circle_rounded,
-                  size: 18, color: error ? SC.errorText : SC.gold),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  title,
-                  style: sty(13, FontWeight.w700, error ? SC.errorText : Colors.white),
+    _bannerTimer?.cancel();
+    setState(() {
+      _bannerTitle = title;
+      _bannerSub = subtitle;
+      _bannerError = error;
+    });
+    _bannerTimer = Timer(Duration(seconds: error ? 5 : 3), _closeBanner);
+  }
+
+  void _closeBanner() {
+    _bannerTimer?.cancel();
+    if (mounted) setState(() => _bannerTitle = null);
+  }
+
+  Widget _banner() {
+    final title = _bannerTitle;
+    final error = _bannerError;
+    final fg = error ? SC.errorText : Colors.white;
+
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOutCubic,
+      alignment: Alignment.topCenter,
+      child: title == null
+          ? const SizedBox(width: double.infinity)
+          : Container(
+              margin: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+              padding: const EdgeInsets.fromLTRB(12, 10, 6, 10),
+              decoration: BoxDecoration(
+                color: error ? SC.errorBg : SC.primary,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: error ? SC.errorText.withOpacity(0.25) : SC.gold.withOpacity(0.5),
                 ),
               ),
-            ],
-          ),
-        ),
-      );
+              child: Row(
+                children: [
+                  Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: error ? Colors.white : SC.gold.withOpacity(0.18),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      error ? Icons.error_outline : Icons.check_rounded,
+                      size: 18,
+                      color: error ? SC.errorText : SC.gold,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(title, style: sty(13.5, FontWeight.w800, fg)),
+                        if (_bannerSub != null) ...[
+                          const SizedBox(height: 2),
+                          Text(_bannerSub!,
+                              style: sty(11.5, FontWeight.w500, fg.withOpacity(0.75))),
+                        ],
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: _closeBanner,
+                    visualDensity: VisualDensity.compact,
+                    tooltip: 'Tutup',
+                    icon: Icon(Icons.close_rounded, size: 18, color: fg.withOpacity(0.7)),
+                  ),
+                ],
+              ),
+            ),
+    );
   }
 
   Future<void> _hapus(Map<String, dynamic> s) async {
@@ -332,6 +384,7 @@ class _SantriListScreenState extends State<SantriListScreen> {
                   physics: const AlwaysScrollableScrollPhysics(),
                   slivers: [
                     SliverToBoxAdapter(child: _hero()),
+                    SliverToBoxAdapter(child: _banner()),
                     SliverPersistentHeader(
                       pinned: true,
                       delegate: _PinnedBar(

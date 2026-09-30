@@ -88,10 +88,10 @@ class _SantriFormScreenState extends State<SantriFormScreen> {
 
   Future<void> _submit() async {
     FocusScope.of(context).unfocus();
-    if (_nis.text.trim().isEmpty || _nama.text.trim().isEmpty) {
+    if (_nama.text.trim().isEmpty) {
       setState(() {
         _tried = true;
-        _error = 'NIS dan nama wajib diisi.';
+        _error = 'Nama wajib diisi.';
       });
       return;
     }
@@ -102,7 +102,7 @@ class _SantriFormScreenState extends State<SantriFormScreen> {
     try {
       final api = AppScope.of(context).api;
       await api.post(ApiUrl.santri, {
-        'nis': _nis.text.trim(),
+        'nis': _nis.text.trim().isEmpty ? null : _nis.text.trim(),
         'nama': _nama.text.trim(),
         'jenisKelamin': _jk,
         'kelasId': _kelasId,
@@ -380,7 +380,7 @@ class _SantriFormScreenState extends State<SantriFormScreen> {
                         spacing: 6,
                         runSpacing: 4,
                         children: [
-                          SPill(nis.isEmpty ? 'NIS belum diisi' : 'NIS $nis',
+                          SPill(nis.isEmpty ? 'NIS otomatis' : 'NIS $nis',
                               icon: Icons.tag_rounded,
                               bg: Colors.white.withOpacity(0.14),
                               fg: Colors.white),
@@ -409,13 +409,11 @@ class _SantriFormScreenState extends State<SantriFormScreen> {
           icon: Icons.person_rounded,
           children: [
             _labeled(
-              'NIS',
-              required: true,
+              'NIS (opsional)',
               _textField(
                 _nis,
-                hint: 'Nomor induk santri',
+                hint: 'Kosongkan untuk NIS otomatis',
                 icon: Icons.badge_outlined,
-                errorText: _tried && _nis.text.trim().isEmpty ? 'NIS wajib diisi' : null,
               ),
             ),
             const SizedBox(height: 14),

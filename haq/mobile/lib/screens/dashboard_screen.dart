@@ -6,6 +6,7 @@ import '../services/app_scope.dart';
 import 'ui_utils.dart';
 import 'super_admin/tenants_screen.dart'; // TODO: sesuaikan path bila struktur foldernya beda
 import 'billing/billing_admin_screen.dart'; // TODO: sesuaikan nama class/path bila beda (asumsi: BillingAdminScreen)
+import 'santri/santri_form_screen.dart';
 
 /// ---------------------------------------------------------------------------
 /// Palet warna dashboard — mirrored 1:1 dari signup_screen.dart's `PColors`
@@ -122,6 +123,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Fitur ini akan segera tersedia.')),
     );
+  }
+
+  /// Buka form Santri Baru. Kalau berhasil disimpan, angka dashboard dimuat ulang.
+  Future<void> _bukaSantriBaru() async {
+    final created = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (_) => const SantriFormScreen()),
+    );
+    if (created == true && mounted) {
+      _load();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Santri baru ditambahkan.')),
+      );
+    }
   }
 
   @override
@@ -1171,7 +1186,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               iconBg: _WC.sage,
               iconColor: _WC.primary,
               tag: 'Auto-NIS',
-              onTap: _notAvailable,
+              onTap: _bukaSantriBaru,
             ),
             _QuickAction(
               title: 'Ustadz / Guru',
