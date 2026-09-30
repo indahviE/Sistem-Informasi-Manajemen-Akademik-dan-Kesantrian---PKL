@@ -25,6 +25,12 @@ export class CreateUjianDto {
   @IsInt()
   @Min(1)
   durasiMenit?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  kkm?: number;
 }
 
 export class UpdateUjianDto {
@@ -52,6 +58,12 @@ export class UpdateUjianDto {
   @IsInt()
   @Min(1)
   durasiMenit?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  kkm?: number;
 }
 
 export class InputNilaiUjianDto {

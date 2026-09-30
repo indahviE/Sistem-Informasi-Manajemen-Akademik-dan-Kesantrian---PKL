@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { SimpanRemedialDto } from './dto/simpan-remedial.dto';
 import { PrismaService } from '../prisma/prisma.service';
 import { RequestUser } from '../common/decorators/current-user.decorator';
 import {
@@ -183,6 +184,57 @@ export class PenilaianService {
     const found = await this.prisma.remedial.findFirst({ where: { id, tenantId } });
     if (!found) throw new NotFoundException('Remedial tidak ditemukan.');
     return this.prisma.remedial.delete({ where: { id } });
+  }
+
+  async listRemedialUjian(tenantId: string, ujianId: string) {
+    return this.prisma.remedial.findMany({
+      where: { tenantId, ujianId },
+      include: { santri: { select: { id: true, nama: true, nis: true } } },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async simpanRemedialUjian(tenantId: string, ujianId: string, dto: SimpanRemedialDto) {
+    const { santriId, keterangan, status, catatan, nilaiRemedial, jadwal, ruang, tenggat } = dto;
+
+    const [ujian, santri] = await Promise.all([
+      this.prisma.ujian.findFirst({ where: { id: ujianId, tenantId } }),
+      this.prisma.santri.findFirst({ where: { id: santriId, tenantId } }),
+    ]);
+    if (!ujian) throw new NotFoundException('Ujian tidak ditemukan');
+    if (!santri) throw new NotFoundException('Santri tidak ditemukan');
+
+    const KKM = ujian.kkm ?? 75;
+    if (status === 'TUNTAS' && !(Number(nilaiRemedial) >= KKM)) {
+      throw new BadRequestException(`Status Tuntas butuh nilai perbaikan minimal KKM ${KKM}`);
+    }
+    const nilaiUtama = await this.prisma.nilaiUjian.findUnique({
+      where: { ujianId_santriId: { ujianId, santriId } },
+    });
+
+    const data = {
+      keterangan: keterangan.trim(),
+      status,
+      hasil: status,
+      catatan,
+      nilaiRemedial,
+      jadwal: jadwal ? new Date(jadwal) : undefined,
+      tenggat: tenggat ? new Date(tenggat) : undefined,
+      ruang,
+    };
+
+    return this.prisma.remedial.upsert({
+      where: { ujianId_santriId: { ujianId, santriId } },
+      update: data,
+      create: {
+        ...data,
+        tenantId,
+        ujianId,
+        santriId,
+        mapelId: ujian.mapelId,
+        nilaiAwal: nilaiUtama?.nilai ?? null,
+      },
+    });
   }
 
   // ===== RAPOR =====
