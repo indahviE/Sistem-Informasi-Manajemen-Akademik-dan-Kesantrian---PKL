@@ -1,8 +1,42 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import '../../services/api_client.dart';
 import '../../services/app_scope.dart';
-import '../../theme/app_theme.dart';
+import '../signup_screen.dart'; // reuse PColors & PText (sama seperti ppdb_form_screen)
 import '../ui_utils.dart';
+
+// ============================================================================
+// Helper status (warna & label)
+// ============================================================================
+
+class _StatusStyle {
+  const _StatusStyle(this.fg, this.bg, this.label);
+  final Color fg;
+  final Color bg;
+  final String label;
+}
+
+_StatusStyle _statusStyle(String status) {
+  switch (status) {
+    case 'DIAJUKAN':
+      return const _StatusStyle(PColors.pendingText, PColors.pendingBg, 'Diajukan');
+    case 'TES':
+      return const _StatusStyle(Color(0xFF0369A1), Color(0xFFE0F2FE), 'Tes');
+    case 'DITERIMA':
+      return const _StatusStyle(PColors.successText, PColors.successBg, 'Diterima');
+    case 'DITOLAK':
+      return const _StatusStyle(PColors.errorText, PColors.errorBg, 'Ditolak');
+    case 'WAITING_LIST':
+      return const _StatusStyle(Color(0xFF4338CA), Color(0xFFE0E7FF), 'Waiting List');
+    default:
+      return _StatusStyle(PColors.inkSecondary, PColors.surfaceDim, status);
+  }
+}
+
+// ============================================================================
+// PpdbListScreen
+// ============================================================================
 
 class PpdbListScreen extends StatefulWidget {
   const PpdbListScreen({super.key});
@@ -17,13 +51,18 @@ class _PpdbListScreenState extends State<PpdbListScreen> {
   String? _error;
   String _filter = '';
 
-  static const _statusColors = <String, List<Color>>{
-    'DIAJUKAN': [Tw.amber, Tw.amberSoft],
-    'TES': [Tw.sky, Tw.skySoft],
-    'DITERIMA': [Tw.teal, Tw.tealSoft],
-    'DITOLAK': [Tw.red, Tw.redSoft],
-    'WAITING_LIST': [Tw.indigo, Tw.indigoSoft],
-  };
+  /// Ringkasan jumlah per status. Hanya diperbarui saat filter = "Semua"
+  /// supaya angkanya tetap akurat walau lagi memfilter.
+  Map<String, int>? _counts;
+
+  static const _filters = <List<String>>[
+    ['', 'Semua'],
+    ['DIAJUKAN', 'Diajukan'],
+    ['TES', 'Tes'],
+    ['WAITING_LIST', 'Waiting List'],
+    ['DITERIMA', 'Diterima'],
+    ['DITOLAK', 'Ditolak'],
+  ];
 
   @override
   void initState() {
@@ -46,17 +85,24 @@ class _PpdbListScreenState extends State<PpdbListScreen> {
       setState(() {
         _items = (res as List);
         _loading = false;
+        if (_filter.isEmpty) {
+          final m = <String, int>{};
+          for (final e in _items) {
+            final s = (e as Map<String, dynamic>)['status'] as String;
+            m[s] = (m[s] ?? 0) + 1;
+          }
+          _counts = m;
+        }
       });
     } on ApiException catch (e) {
-      if (mounted) setState(() {
-        _error = e.message;
-        _loading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _error = e.message;
+          _loading = false;
+        });
+      }
     }
   }
-
-  List<Color> _colors(String status) =>
-      _statusColors[status] ?? [Tw.gray600, Tw.gray100];
 
   void _openDetail(Map<String, dynamic> p) {
     Navigator.of(context).push(MaterialPageRoute(
@@ -66,80 +112,520 @@ class _PpdbListScreenState extends State<PpdbListScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  _chip('', 'Semua'),
-                  for (final s in ['DIAJUKAN', 'TES', 'DITERIMA', 'DITOLAK', 'WAITING_LIST'])
-                    _chip(s, s),
-                ],
-              ),
+    return Container(
+      color: PColors.background,
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 480),
+          child: RefreshIndicator(
+            color: PColors.primary,
+            onRefresh: _load,
+            child: ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.only(bottom: 24),
+              children: [
+                _ListHero(
+                  total: _loading || _error != null ? null : _items.length,
+                  counts: _counts,
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        for (final f in _filters) _chip(f[0], f[1]),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                ..._buildBody(),
+              ],
             ),
           ),
-          Expanded(
-            child: _loading
-                ? loadingView()
-                : _error != null
-                    ? errorView(_error!, _load)
-                    : _items.isEmpty
-                        ? emptyView('Belum ada pendaftar.')
-                        : RefreshIndicator(
-                            onRefresh: _load,
-                            child: ListView.builder(
-                              padding: const EdgeInsets.only(bottom: 24),
-                              itemCount: _items.length,
-                              itemBuilder: (ctx, i) {
-                                final p = _items[i] as Map<String, dynamic>;
-                                final c = _colors(p['status'] as String);
-                                return Card(
-                                  child: ListTile(
-                                    leading: CircleAvatar(
-                                      backgroundColor: c[1],
-                                      child: Icon(Icons.person, color: c[0]),
-                                    ),
-                                    title: Text(p['nama'] as String,
-                                        style: const TextStyle(fontWeight: FontWeight.w600)),
-                                    subtitle: Text(
-                                      '${p['noPendaftaran']} • ${p['jalur'] ?? 'Reguler'}',
-                                      style: const TextStyle(fontSize: 12),
-                                    ),
-                                    trailing: twBadge(context, p['status'] as String,
-                                        color: c[0], soft: c[1]),
-                                    onTap: () => _openDetail(p),
-                                  ),
-                                );
-                              },
-                            ),
-                          ),
-          ),
-        ],
+        ),
       ),
     );
+  }
+
+  List<Widget> _buildBody() {
+    if (_loading) {
+      return [SizedBox(height: 320, child: loadingView())];
+    }
+    if (_error != null) {
+      return [SizedBox(height: 320, child: errorView(_error!, _load))];
+    }
+    if (_items.isEmpty) {
+      return [const _EmptyState()];
+    }
+    return [
+      for (final raw in _items)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+          child: _PendaftarCard(
+            p: raw as Map<String, dynamic>,
+            onTap: () => _openDetail(raw),
+          ),
+        ),
+    ];
   }
 
   Widget _chip(String value, String label) {
     final active = _filter == value;
     return Padding(
       padding: const EdgeInsets.only(right: 8),
-      child: ChoiceChip(
-        label: Text(label),
-        selected: active,
-        selectedColor: Tw.primary,
-        labelStyle: TextStyle(color: active ? Colors.white : Tw.gray600, fontWeight: FontWeight.w600),
-        onSelected: (_) {
+      child: GestureDetector(
+        onTap: () {
           setState(() => _filter = value);
           _load();
         },
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+          decoration: BoxDecoration(
+            color: active ? PColors.primary : PColors.surface,
+            borderRadius: BorderRadius.circular(9999),
+            border: Border.all(color: active ? PColors.primary : PColors.border),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (active) ...[
+                const Icon(Icons.check, size: 14, color: Colors.white),
+                const SizedBox(width: 5),
+              ],
+              Text(
+                label,
+                style: TextStyle(
+                  fontFamily: 'Nunito',
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: active ? Colors.white : PColors.inkSecondary,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
 }
+
+// ============================================================================
+// Hero banner (gradient + motif arabesque, sama seperti form PPDB)
+// ============================================================================
+
+class _ArabesquePatternPainter extends CustomPainter {
+  static const double _tile = 48;
+  static const double _starRadius = _tile * 0.34;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.white.withOpacity(0.07)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.1;
+
+    for (double y = -_tile; y < size.height + _tile; y += _tile) {
+      for (double x = -_tile; x < size.width + _tile; x += _tile) {
+        _drawEightPointStar(canvas, Offset(x, y), _starRadius, paint);
+      }
+    }
+  }
+
+  void _drawEightPointStar(Canvas canvas, Offset center, double r, Paint paint) {
+    final square1 = Path();
+    final square2 = Path();
+    for (int i = 0; i < 4; i++) {
+      final a1 = (math.pi / 2) * i;
+      final a2 = a1 + math.pi / 4;
+      final p1 = center + Offset(math.cos(a1), math.sin(a1)) * r;
+      final p2 = center + Offset(math.cos(a2), math.sin(a2)) * r;
+      if (i == 0) {
+        square1.moveTo(p1.dx, p1.dy);
+        square2.moveTo(p2.dx, p2.dy);
+      } else {
+        square1.lineTo(p1.dx, p1.dy);
+        square2.lineTo(p2.dx, p2.dy);
+      }
+    }
+    square1.close();
+    square2.close();
+    canvas.drawPath(square1, paint);
+    canvas.drawPath(square2, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _ArabesquePatternPainter oldDelegate) => false;
+}
+
+class _ListHero extends StatelessWidget {
+  const _ListHero({required this.total, required this.counts});
+
+  final int? total;
+  final Map<String, int>? counts;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = counts;
+    final totalAll = c?.values.fold<int>(0, (a, b) => a + b);
+
+    return Stack(
+      children: [
+        // ---------- Hero gradient (sudut bawah membulat) ----------
+        Padding(
+          padding: const EdgeInsets.only(bottom: 38),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 58),
+            clipBehavior: Clip.antiAlias,
+            decoration: const BoxDecoration(
+              borderRadius: BorderRadius.vertical(bottom: Radius.circular(32)),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [PColors.primary, PColors.primaryGradientEnd],
+              ),
+            ),
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: CustomPaint(
+                      painter: _ArabesquePatternPainter(),
+                      size: Size.infinite,
+                    ),
+                  ),
+                ),
+                // Lingkaran dekoratif lembut
+                Positioned(
+                  right: -50,
+                  top: -60,
+                  child: Container(
+                    width: 170,
+                    height: 170,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.white.withOpacity(0.08),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  right: 30,
+                  bottom: -46,
+                  child: Container(
+                    width: 90,
+                    height: 90,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: PColors.gold.withOpacity(0.16),
+                    ),
+                  ),
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          width: 46,
+                          height: 46,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.16),
+                            borderRadius: BorderRadius.circular(15),
+                            border: Border.all(color: Colors.white.withOpacity(0.28)),
+                          ),
+                          child: const Icon(Icons.app_registration,
+                              size: 22, color: Colors.white),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'PENERIMAAN SANTRI BARU',
+                                style: TextStyle(
+                                  fontFamily: 'Nunito',
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: 1.2,
+                                  color: Colors.white.withOpacity(0.75),
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              const Text(
+                                'Data Pendaftar',
+                                style: TextStyle(
+                                  fontFamily: 'Nunito',
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.w800,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      total == null
+                          ? 'Memuat data pendaftar...'
+                          : '$total pendaftar ditampilkan. Ketuk untuk melihat detail dan mengambil keputusan.',
+                      style: TextStyle(
+                        fontFamily: 'Nunito',
+                        fontSize: 12.5,
+                        height: 18 / 12.5,
+                        color: Colors.white.withOpacity(0.86),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+
+        // ---------- Kartu statistik melayang ----------
+        Positioned(
+          left: 16,
+          right: 16,
+          bottom: 0,
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            decoration: BoxDecoration(
+              color: PColors.surface,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: PColors.border),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x1A0F3A2E),
+                  blurRadius: 18,
+                  offset: Offset(0, 8),
+                ),
+              ],
+            ),
+            child: IntrinsicHeight(
+              child: Row(
+                children: [
+                  _StatCell(
+                    icon: Icons.groups_2_outlined,
+                    label: 'Total',
+                    value: totalAll?.toString() ?? '–',
+                    color: PColors.primary,
+                  ),
+                  const _StatDivider(),
+                  _StatCell(
+                    icon: Icons.hourglass_top_rounded,
+                    label: 'Diajukan',
+                    value: c == null ? '–' : '${c['DIAJUKAN'] ?? 0}',
+                    color: PColors.pendingText,
+                  ),
+                  const _StatDivider(),
+                  _StatCell(
+                    icon: Icons.check_circle_outline,
+                    label: 'Diterima',
+                    value: c == null ? '–' : '${c['DITERIMA'] ?? 0}',
+                    color: PColors.successText,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _StatCell extends StatelessWidget {
+  const _StatCell({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 16, color: color),
+              const SizedBox(width: 5),
+              Text(
+                value,
+                style: TextStyle(
+                  fontFamily: 'Nunito',
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                  color: color,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 2),
+          Text(label, style: PText.bodySm),
+        ],
+      ),
+    );
+  }
+}
+
+class _StatDivider extends StatelessWidget {
+  const _StatDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(width: 1, color: PColors.border);
+  }
+}
+
+// ============================================================================
+// Kartu pendaftar
+// ============================================================================
+
+class _PendaftarCard extends StatelessWidget {
+  const _PendaftarCard({required this.p, required this.onTap});
+
+  final Map<String, dynamic> p;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final status = p['status'] as String;
+    final st = _statusStyle(status);
+    final nama = (p['nama'] as String).trim();
+    final inisial = nama.isEmpty ? '?' : nama.substring(0, 1).toUpperCase();
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: PColors.surface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: PColors.border),
+          boxShadow: const [
+            BoxShadow(color: Color(0x0A0F3A2E), blurRadius: 6, offset: Offset(0, 2)),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              alignment: Alignment.center,
+              decoration: const BoxDecoration(color: PColors.sage, shape: BoxShape.circle),
+              child: Text(
+                inisial,
+                style: const TextStyle(
+                  fontFamily: 'Nunito',
+                  fontSize: 17,
+                  fontWeight: FontWeight.w800,
+                  color: PColors.primary,
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    nama,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: PText.labelLg,
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    '${p['noPendaftaran'] ?? 'Belum ada nomor'} • ${p['jalur'] ?? 'Reguler'}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: PText.bodySm,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            _StatusPill(label: st.label, fg: st.fg, bg: st.bg),
+            const SizedBox(width: 4),
+            const Icon(Icons.chevron_right, color: PColors.inkSecondary, size: 20),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _StatusPill extends StatelessWidget {
+  const _StatusPill({required this.label, required this.fg, required this.bg});
+
+  final String label;
+  final Color fg;
+  final Color bg;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(9999)),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontFamily: 'Nunito',
+          fontSize: 10,
+          fontWeight: FontWeight.w700,
+          color: fg,
+        ),
+      ),
+    );
+  }
+}
+
+class _EmptyState extends StatelessWidget {
+  const _EmptyState();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 40, 16, 0),
+      child: Column(
+        children: [
+          Container(
+            width: 72,
+            height: 72,
+            decoration: const BoxDecoration(color: PColors.sage, shape: BoxShape.circle),
+            child: const Icon(Icons.inbox_outlined, size: 32, color: PColors.primary),
+          ),
+          const SizedBox(height: 14),
+          Text('Belum ada pendaftar.', style: PText.labelLg),
+          const SizedBox(height: 4),
+          Text(
+            'Pendaftar baru akan muncul di sini setelah mengisi formulir PPDB.',
+            textAlign: TextAlign.center,
+            style: PText.bodySm,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ============================================================================
+// Detail pendaftar
+// ============================================================================
 
 class _PendaftarDetail extends StatefulWidget {
   final Map<String, dynamic> p;
@@ -155,161 +641,963 @@ class _PendaftarDetailState extends State<_PendaftarDetail> {
   final _testNilai = TextEditingController();
   final _testHasil = TextEditingController();
   final _testCatatan = TextEditingController();
+  bool _saving = false;
+  bool _editingTest = false; // true = hasil tes dibuka kuncinya untuk diubah
 
   @override
   void initState() {
     super.initState();
     _p = widget.p;
+    _isiFormTest();
+  }
+
+  /// Isi form dengan hasil tes yang sudah tersimpan (kalau ada),
+  /// supaya tinggal diedit, bukan mengetik ulang.
+  void _isiFormTest() {
+    final u = _p['ujian'] as Map<String, dynamic>?;
+    if (u == null) return;
+    _testNilai.text = u['nilai']?.toString() ?? '';
+    _testHasil.text = u['hasil'] as String? ?? '';
+    _testCatatan.text = u['catatan'] as String? ?? '';
+  }
+
+  @override
+  void dispose() {
+    _testNilai.dispose();
+    _testHasil.dispose();
+    _testCatatan.dispose();
+    super.dispose();
   }
 
   Future<void> _simpanTest() async {
-    final nilai = double.tryParse(_testNilai.text.trim());
-    final body = {
+    final nilaiText = _testNilai.text.trim();
+    final nilai = double.tryParse(nilaiText);
+    if (nilaiText.isNotEmpty && (nilai == null || nilai < 0 || nilai > 100)) {
+      _toast('Nilai tidak valid', subtitle: 'Isi angka antara 0 sampai 100.', error: true);
+      return;
+    }
+    final body = <String, dynamic>{
       if (nilai != null) 'nilai': nilai,
       if (_testHasil.text.trim().isNotEmpty) 'hasil': _testHasil.text.trim(),
       if (_testCatatan.text.trim().isNotEmpty) 'catatan': _testCatatan.text.trim(),
     };
+    if (body.isEmpty) {
+      _toast('Belum ada yang diisi',
+          subtitle: 'Isi nilai, rekomendasi kelas, atau catatan.', error: true);
+      return;
+    }
+
+    final wasEditing = _editingTest;
+    setState(() => _saving = true);
     try {
       final api = AppScope.of(context).api;
       final has = _p['ujian'] != null;
       await (has
           ? api.patch('${ApiUrl.ppdb}/${_p['id']}/placement-test', body)
           : api.post('${ApiUrl.ppdb}/${_p['id']}/placement-test', body));
-      if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Placement test tersimpan.')));
       _p = await api.get('${ApiUrl.ppdb}/${_p['id']}') as Map<String, dynamic>;
       widget.onChanged();
-      setState(() {});
+      if (!mounted) return;
+      setState(() {
+        _saving = false;
+        _editingTest = false;
+        _isiFormTest();
+      });
+      _toast(
+        wasEditing ? 'Perubahan hasil tes disimpan' : 'Hasil tes berhasil disimpan',
+        subtitle: '${_p['nama']}',
+      );
     } on ApiException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+      setState(() => _saving = false);
+      _toast(e.message, error: true);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      _toast('Gagal menyimpan hasil tes.', error: true);
     }
   }
 
-  Widget _item(String label, String value) {
+  Future<void> _ubahStatus(String status) async {
+    try {
+      final api = AppScope.of(context).api;
+      await api.patch('${ApiUrl.ppdb}/${_p['id']}', {'status': status});
+      _p = await api.get('${ApiUrl.ppdb}/${_p['id']}') as Map<String, dynamic>;
+      widget.onChanged();
+      if (!mounted) return;
+      setState(() {});
+      if (status == 'DITERIMA') {
+        _toast('Pendaftar diterima',
+            subtitle: '${_p['nama']} • data santri dibuat otomatis');
+      } else {
+        _toast('Status diperbarui', subtitle: 'Sekarang: ${_statusStyle(status).label}');
+      }
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      _toast(e.message, error: true);
+    } catch (_) {
+      if (!mounted) return;
+      _toast('Gagal memperbarui status.', error: true);
+    }
+  }
+
+  /// Notifikasi melayang bertema (sama seperti di halaman absensi).
+  void _toast(String title, {String? subtitle, bool error = false}) {
+    if (!mounted) return;
+    final w = MediaQuery.of(context).size.width;
+    final side = w > 472 ? (w - 440) / 2 : 16.0;
+    final fg = error ? PColors.errorText : Colors.white;
+
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: error ? PColors.errorBg : PColors.primary,
+          elevation: 6,
+          margin: EdgeInsets.fromLTRB(side, 0, side, 24),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          duration: Duration(seconds: error ? 4 : 3),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(
+              color: error
+                  ? PColors.errorText.withOpacity(0.25)
+                  : PColors.gold.withOpacity(0.5),
+            ),
+          ),
+          content: Row(
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: error ? Colors.white : PColors.gold.withOpacity(0.18),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  error ? Icons.error_outline : Icons.check_rounded,
+                  size: 18,
+                  color: error ? PColors.errorText : PColors.gold,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title,
+                        style: TextStyle(
+                            fontSize: 13.5, fontWeight: FontWeight.w800, color: fg)),
+                    if (subtitle != null) ...[
+                      const SizedBox(height: 2),
+                      Text(subtitle,
+                          style: TextStyle(fontSize: 11.5, color: fg.withOpacity(0.75))),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+  }
+
+  Future<bool> _konfirmasi({
+    required String judul,
+    required String pesan,
+    required String label,
+    bool bahaya = false,
+  }) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: PColors.surface,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(judul, style: PText.headlineSm),
+        content: Text(pesan, style: PText.bodyMd),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text(
+              'Batal',
+              style: TextStyle(
+                fontFamily: 'Nunito',
+                fontWeight: FontWeight.w700,
+                color: PColors.inkSecondary,
+              ),
+            ),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: bahaya ? PColors.errorText : PColors.primary,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9999)),
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(
+              label,
+              style: const TextStyle(
+                fontFamily: 'Nunito',
+                fontWeight: FontWeight.w700,
+                color: Colors.white,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    return ok == true;
+  }
+
+  Future<void> _aksi(
+    String status, {
+    String? judul,
+    String? pesan,
+    String? label,
+    bool bahaya = false,
+  }) async {
+    if (judul != null) {
+      final ok = await _konfirmasi(
+        judul: judul,
+        pesan: pesan ?? '',
+        label: label ?? 'Ya, Lanjutkan',
+        bahaya: bahaya,
+      );
+      if (!ok) return;
+    }
+    setState(() => _saving = true);
+    await _ubahStatus(status);
+    if (mounted) setState(() => _saving = false);
+  }
+
+  // -------------------------------------------------------------------------
+  // Helper UI: komponen tampilan
+  // -------------------------------------------------------------------------
+
+  Widget _card({
+    required String title,
+    IconData? icon,
+    String? subtitle,
+    required List<Widget> children,
+  }) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: PColors.surface,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: PColors.border),
+          boxShadow: const [
+            BoxShadow(color: Color(0x0A0F3A2E), blurRadius: 6, offset: Offset(0, 2)),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                if (icon != null) ...[
+                  Container(
+                    width: 34,
+                    height: 34,
+                    decoration: BoxDecoration(
+                      color: PColors.sage,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(icon, size: 18, color: PColors.primary),
+                  ),
+                  const SizedBox(width: 10),
+                ],
+                Expanded(child: Text(title, style: PText.headlineSm)),
+              ],
+            ),
+            if (subtitle != null) ...[
+              const SizedBox(height: 6),
+              Text(subtitle, style: PText.bodySm),
+            ],
+            const SizedBox(height: 14),
+            ...children,
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _infoRow(IconData icon, String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(width: 110, child: Text(label, style: const TextStyle(color: Tw.gray500, fontSize: 13))),
-          Expanded(child: Text(value.isEmpty ? '—' : value, style: const TextStyle(fontWeight: FontWeight.w600))),
+          Icon(icon, size: 18, color: PColors.inkSecondary),
+          const SizedBox(width: 10),
+          SizedBox(width: 92, child: Text(label, style: PText.bodySm)),
+          Expanded(
+            child: Text(
+              value.isEmpty ? '—' : value,
+              style: PText.bodyMd.copyWith(color: PColors.ink, fontWeight: FontWeight.w600),
+            ),
+          ),
         ],
       ),
     );
   }
+
+  InputDecoration _fieldDecoration(String label, {String? hint, IconData? icon}) {
+    OutlineInputBorder border(Color c, [double w = 1]) => OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: c, width: w),
+        );
+    return InputDecoration(
+      labelText: label,
+      hintText: hint,
+      labelStyle: PText.bodyMd,
+      hintStyle: PText.bodyMd,
+      prefixIcon: icon == null ? null : Icon(icon, size: 20, color: PColors.inkSecondary),
+      filled: true,
+      fillColor: PColors.background,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      border: border(PColors.inputBorder),
+      enabledBorder: border(PColors.inputBorder),
+      focusedBorder: border(PColors.primary, 2),
+    );
+  }
+
+  Widget _subJudul(String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8, top: 4),
+      child: Text(
+        text.toUpperCase(),
+        style: const TextStyle(
+          fontFamily: 'Nunito',
+          fontSize: 10.5,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 1.1,
+          color: PColors.inkSecondary,
+        ),
+      ),
+    );
+  }
+
+  Widget _hasilTesBox(Map<String, dynamic> ujian) {
+    final nilai = ujian['nilai']?.toString() ?? '—';
+    final hasil = (ujian['hasil'] as String? ?? '').trim();
+    final catatan = (ujian['catatan'] as String? ?? '').trim();
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: PColors.sage,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: PColors.border),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Column(
+            children: [
+              Text(
+                nilai,
+                style: const TextStyle(
+                  fontFamily: 'Nunito',
+                  fontSize: 30,
+                  fontWeight: FontWeight.w800,
+                  color: PColors.primary,
+                ),
+              ),
+              Text('Nilai', style: PText.bodySm),
+            ],
+          ),
+          const SizedBox(width: 16),
+          Container(width: 1, height: 44, color: PColors.border),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Rekomendasi Kelas', style: PText.bodySm),
+                const SizedBox(height: 2),
+                Text(
+                  hasil.isEmpty ? '—' : hasil,
+                  style: PText.labelLg,
+                ),
+                if (catatan.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text('Catatan Ustadz', style: PText.bodySm),
+                  const SizedBox(height: 2),
+                  Text(catatan, style: PText.bodyMd.copyWith(color: PColors.ink)),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  ButtonStyle get _pillFilled => FilledButton.styleFrom(
+        backgroundColor: PColors.primary,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9999)),
+      );
+
+  // -------------------------------------------------------------------------
+  // Build
+  // -------------------------------------------------------------------------
 
   @override
   Widget build(BuildContext context) {
     final ujian = _p['ujian'] as Map<String, dynamic>?;
     final status = _p['status'] as String;
+    final st = _statusStyle(status);
+    final nama = (_p['nama'] as String).trim();
+    final inisial = nama.isEmpty ? '?' : nama.substring(0, 1).toUpperCase();
+    final jk = _p['jenisKelamin'] as String == 'L' ? 'Laki-laki' : 'Perempuan';
+
     return Scaffold(
-      appBar: AppBar(title: Text(_p['nama'] as String)),
-      body: ListView(
-        padding: const EdgeInsets.all(12),
-        children: [
-          SectionCard(
-            title: 'Data Pendaftar',
-            trailing: twBadge(context, status,
-                color: status == 'DITERIMA' ? Tw.teal : status == 'DITOLAK' ? Tw.red : Tw.amber,
-                soft: status == 'DITERIMA' ? Tw.tealSoft : status == 'DITOLAK' ? Tw.redSoft : Tw.amberSoft),
-            children: [
-              _item('No. Pendaftaran', _p['noPendaftaran'] as String),
-              _item('Jenis Kelamin', _p['jenisKelamin'] as String == 'L' ? 'Laki-laki' : 'Perempuan'),
-              _item('Tgl Lahir', (_p['tanggalLahir'] as String? ?? '').split('T').first),
-              _item('Asal Sekolah', _p['asalSekolah'] as String? ?? ''),
-              _item('No. HP', _p['noHp'] as String? ?? ''),
-              _item('Email', _p['email'] as String? ?? ''),
-              _item('Alamat', _p['alamat'] as String? ?? ''),
-              _item('Jalur', _p['jalur'] as String? ?? ''),
-              _item('Tgl Daftar', (_p['tanggalDaftar'] as String).split('T').first),
-            ],
-          ),
-          SectionCard(
-            title: 'Placement Test',
-            children: [
-              if (ujian != null) ...[
-                _item('Nilai', '${ujian['nilai'] ?? '—'}'),
-                _item('Rekomendasi', ujian['hasil'] as String? ?? ''),
-                _item('Catatan', ujian['catatan'] as String? ?? ''),
-              ],
-              TextField(
-                controller: _testNilai,
-                keyboardType: TextInputType.number,
-                decoration: InputDecoration(
-                  labelText: 'Nilai (0-100)',
-                  hintText: ujian?['nilai']?.toString() ?? '',
+      backgroundColor: PColors.background,
+      appBar: PreferredSize(
+        preferredSize: const Size.fromHeight(72),
+        child: Container(
+          color: PColors.background,
+          child: SafeArea(
+            bottom: false,
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 480),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                  child: Row(
+                    children: [
+                      Material(
+                        color: PColors.surface,
+                        shape: const CircleBorder(
+                          side: BorderSide(color: PColors.border),
+                        ),
+                        child: InkWell(
+                          customBorder: const CircleBorder(),
+                          onTap: () => Navigator.of(context).maybePop(),
+                          child: const SizedBox(
+                            width: 42,
+                            height: 42,
+                            child: Icon(Icons.arrow_back_rounded,
+                                size: 20, color: PColors.ink),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Text(
+                              'Detail Pendaftar',
+                              style: TextStyle(
+                                fontFamily: 'Nunito',
+                                fontSize: 18,
+                                fontWeight: FontWeight.w800,
+                                color: PColors.ink,
+                              ),
+                            ),
+                            const SizedBox(height: 1),
+                            Text('Data & tindak lanjut seleksi', style: PText.bodySm),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: _testHasil,
-                decoration: InputDecoration(
-                  labelText: 'Rekomendasi Kelas',
-                  hintText: 'mis. Kelas 1A',
+            ),
+          ),
+        ),
+      ),
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 480),
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
+            children: [
+              // ---------- Header identitas ----------
+              Container(
+                padding: const EdgeInsets.all(18),
+                clipBehavior: Clip.antiAlias,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(22),
+                  gradient: const LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [PColors.primary, PColors.primaryGradientEnd],
+                  ),
+                ),
+                child: Stack(
+                  children: [
+                    Positioned.fill(
+                      child: IgnorePointer(
+                        child: CustomPaint(
+                          painter: _ArabesquePatternPainter(),
+                          size: Size.infinite,
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      right: -40,
+                      top: -50,
+                      child: Container(
+                        width: 140,
+                        height: 140,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.white.withOpacity(0.08),
+                        ),
+                      ),
+                    ),
+                    Row(
+                      children: [
+                        Container(
+                          width: 58,
+                          height: 58,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.18),
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white.withOpacity(0.35)),
+                          ),
+                          child: Text(
+                            inisial,
+                            style: const TextStyle(
+                              fontFamily: 'Nunito',
+                              fontSize: 24,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                nama,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontFamily: 'Nunito',
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w800,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              const SizedBox(height: 3),
+                              Text(
+                                _p['noPendaftaran'] == null
+                                    ? 'Nomor pendaftaran belum tersedia'
+                                    : 'No. ${_p['noPendaftaran']}',
+                                style: TextStyle(
+                                  fontFamily: 'Nunito',
+                                  fontSize: 12,
+                                  color: Colors.white.withOpacity(0.85),
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              _StatusPill(label: st.label, fg: st.fg, bg: st.bg),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: _testCatatan,
-                decoration: const InputDecoration(labelText: 'Catatan Ustadz'),
+              const SizedBox(height: 14),
+
+              // ---------- Tahapan seleksi ----------
+              _card(
+                title: 'Tahapan Seleksi',
+                icon: Icons.timeline,
+                children: [_TahapanSeleksi(status: status)],
               ),
-              const SizedBox(height: 12),
-              FilledButton.tonal(onPressed: _simpanTest, child: const Text('Simpan Placement Test')),
-            ],
-          ),
-          SectionCard(
-            title: 'Keputusan',
-            children: [
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
+
+              // ---------- Data calon santri ----------
+              _card(
+                title: 'Data Calon Santri',
+                icon: Icons.badge_outlined,
                 children: [
-                  FilledButton(
-                    onPressed: status == 'DITERIMA'
+                  _infoRow(Icons.wc, 'Jenis Kelamin', jk),
+                  _infoRow(Icons.cake_outlined, 'Tgl Lahir',
+                      (_p['tanggalLahir'] as String? ?? '').split('T').first),
+                  _infoRow(Icons.school_outlined, 'Asal Sekolah',
+                      _p['asalSekolah'] as String? ?? ''),
+                  _infoRow(Icons.alt_route, 'Jalur', _p['jalur'] as String? ?? 'Reguler'),
+                  _infoRow(Icons.event_available_outlined, 'Tgl Daftar',
+                      (_p['tanggalDaftar'] as String).split('T').first),
+                ],
+              ),
+
+              // ---------- Kontak wali ----------
+              _card(
+                title: 'Kontak Wali',
+                icon: Icons.contact_phone_outlined,
+                children: [
+                  _infoRow(Icons.phone_outlined, 'No. HP', _p['noHp'] as String? ?? ''),
+                  _infoRow(Icons.mail_outline, 'Email', _p['email'] as String? ?? ''),
+                  _infoRow(Icons.home_outlined, 'Alamat', _p['alamat'] as String? ?? ''),
+                ],
+              ),
+
+                            // ---------- Placement test ----------
+              _card(
+                title: 'Placement Test',
+                icon: Icons.quiz_outlined,
+                subtitle: ujian == null
+                    ? 'Belum ada hasil tes. Isi nilai dan rekomendasi kelas di bawah.'
+                    : (_editingTest
+                        ? 'Mode ubah: perbarui hasil tes lalu simpan.'
+                        : 'Hasil tes sudah tersimpan dan terkunci.'),
+                children: [
+                  if (ujian != null) _hasilTesBox(ujian),
+                  if (ujian != null && !_editingTest)
+                    SizedBox(
+                      height: 48,
+                      child: OutlinedButton.icon(
+                        onPressed: () => setState(() => _editingTest = true),
+                        icon: const Icon(Icons.edit_outlined, size: 16),
+                        label: const Text(
+                          'Ubah Hasil Tes',
+                          style: TextStyle(
+                              fontFamily: 'Nunito',
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: PColors.primary,
+                          side: const BorderSide(color: PColors.border),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(9999)),
+                        ),
+                      ),
+                    )
+                  else ...[
+                    _subJudul(ujian == null ? 'Input hasil tes' : 'Perbarui hasil tes'),
+                    TextField(
+                      controller: _testNilai,
+                      keyboardType: TextInputType.number,
+                      style: PText.bodyMd.copyWith(color: PColors.ink),
+                      decoration:
+                          _fieldDecoration('Nilai (0-100)', icon: Icons.grade_outlined),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _testHasil,
+                      style: PText.bodyMd.copyWith(color: PColors.ink),
+                      decoration: _fieldDecoration('Rekomendasi Kelas',
+                          hint: 'mis. Kelas 1A', icon: Icons.class_outlined),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _testCatatan,
+                      style: PText.bodyMd.copyWith(color: PColors.ink),
+                      decoration: _fieldDecoration('Catatan Ustadz', icon: Icons.notes),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: SizedBox(
+                            height: 48,
+                            child: FilledButton(
+                              style: _pillFilled,
+                              onPressed: _saving ? null : _simpanTest,
+                              child: _saving
+                                  ? const SizedBox(
+                                      width: 18,
+                                      height: 18,
+                                      child: CircularProgressIndicator(
+                                          strokeWidth: 2, color: Colors.white),
+                                    )
+                                  : Text(
+                                      _editingTest
+                                          ? 'Simpan Perubahan'
+                                          : 'Simpan Hasil Tes',
+                                      style: const TextStyle(
+                                        fontFamily: 'Nunito',
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w700,
+                                        color: PColors.gold,
+                                      ),
+                                    ),
+                            ),
+                          ),
+                        ),
+                        if (_editingTest) ...[
+                          const SizedBox(width: 8),
+                          OutlinedButton(
+                            onPressed: _saving
+                                ? null
+                                : () => setState(() {
+                                      _editingTest = false;
+                                      _isiFormTest(); // kembalikan ke nilai tersimpan
+                                    }),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: PColors.inkSecondary,
+                              side: const BorderSide(color: PColors.border),
+                              minimumSize: const Size(0, 48),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(9999)),
+                            ),
+                            child: const Text('Batal',
+                                style: TextStyle(
+                                    fontFamily: 'Nunito', fontWeight: FontWeight.w700)),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+
+              // ---------- Tindak lanjut ----------
+              _card(
+                title: 'Tindak Lanjut Pendaftaran',
+                icon: Icons.fact_check_outlined,
+                subtitle:
+                    'Pilih langkah berikutnya untuk pendaftar ini. Status saat ini: ${st.label}.',
+                children: [
+                  _subJudul('Ubah tahap seleksi'),
+                  _AksiTile(
+                    icon: Icons.event_note_outlined,
+                    title: 'Jadwalkan Tes',
+                    desc: 'Pindahkan ke tahap tes masuk. Belum diterima atau ditolak.',
+                    fg: const Color(0xFF0369A1),
+                    bg: const Color(0xFFE0F2FE),
+                    current: status == 'TES',
+                    onTap: (_saving || status == 'TES') ? null : () => _aksi('TES'),
+                  ),
+                  const SizedBox(height: 8),
+                  _AksiTile(
+                    icon: Icons.hourglass_bottom_rounded,
+                    title: 'Masukkan ke Waiting List',
+                    desc: 'Masuk daftar tunggu, bisa diterima nanti jika kuota tersedia.',
+                    fg: const Color(0xFF4338CA),
+                    bg: const Color(0xFFE0E7FF),
+                    current: status == 'WAITING_LIST',
+                    onTap: (_saving || status == 'WAITING_LIST')
                         ? null
-                        : () => _ubahStatus('DITERIMA'),
-                    child: const Text('Terima & Buat Santri'),
+                        : () => _aksi('WAITING_LIST'),
                   ),
-                  OutlinedButton(
-                    onPressed: () => _ubahStatus('TES'),
-                    child: const Text('Jadwalkan Tes'),
+                  const SizedBox(height: 14),
+                  _subJudul('Keputusan akhir'),
+                  _AksiTile(
+                    icon: Icons.verified_outlined,
+                    title: 'Terima Sebagai Santri',
+                    desc: 'Dinyatakan lulus. Data santri dibuat otomatis dari data pendaftar ini.',
+                    fg: PColors.successText,
+                    bg: PColors.successBg,
+                    current: status == 'DITERIMA',
+                    onTap: (_saving || status == 'DITERIMA')
+                        ? null
+                        : () => _aksi(
+                              'DITERIMA',
+                              judul: 'Terima pendaftar ini?',
+                              pesan:
+                                  '${_p['nama']} akan dinyatakan diterima dan data santri '
+                                  'dibuat otomatis. Pastikan data sudah benar.',
+                              label: 'Ya, Terima',
+                            ),
                   ),
-                  OutlinedButton(
-                    onPressed: () => _ubahStatus('WAITING_LIST'),
-                    child: const Text('Waiting List'),
-                  ),
-                  TextButton(
-                    onPressed: () => _ubahStatus('DITOLAK'),
-                    style: TextButton.styleFrom(foregroundColor: Tw.red),
-                    child: const Text('Tolak'),
+                  const SizedBox(height: 8),
+                  _AksiTile(
+                    icon: Icons.cancel_outlined,
+                    title: 'Tolak Pendaftaran',
+                    desc: 'Dinyatakan tidak lulus seleksi.',
+                    fg: PColors.errorText,
+                    bg: PColors.errorBg,
+                    current: status == 'DITOLAK',
+                    onTap: (_saving || status == 'DITOLAK')
+                        ? null
+                        : () => _aksi(
+                              'DITOLAK',
+                              judul: 'Tolak pendaftar ini?',
+                              pesan:
+                                  '${_p['nama']} akan dinyatakan tidak lulus seleksi.',
+                              label: 'Ya, Tolak',
+                              bahaya: true,
+                            ),
                   ),
                 ],
               ),
             ],
           ),
-        ],
+        ),
       ),
     );
   }
+}
 
-  Future<void> _ubahStatus(String status) async {
-    try {
-      await AppScope.of(context).api.patch('${ApiUrl.ppdb}/${_p['id']}', {'status': status});
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(status == 'DITERIMA'
-            ? '${_p['nama']} diterima. Santri otomatis dibuat.'
-            : 'Status diperbarui ke $status.'),
-      ));
-      final api = AppScope.of(context).api;
-      _p = await api.get('${ApiUrl.ppdb}/${_p['id']}') as Map<String, dynamic>;
-      widget.onChanged();
-      setState(() {});
-    } on ApiException catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+// ============================================================================
+// Tile aksi (tindak lanjut)
+// ============================================================================
+
+class _AksiTile extends StatelessWidget {
+  const _AksiTile({
+    required this.icon,
+    required this.title,
+    required this.desc,
+    required this.fg,
+    required this.bg,
+    required this.onTap,
+    this.current = false,
+  });
+
+  final IconData icon;
+  final String title;
+  final String desc;
+  final Color fg;
+  final Color bg;
+  final bool current;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final disabled = onTap == null && !current;
+    return Opacity(
+      opacity: disabled ? 0.5 : 1,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: current ? bg : PColors.surface,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: current ? fg.withOpacity(0.4) : PColors.border),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(color: bg, shape: BoxShape.circle),
+                  child: Icon(icon, size: 20, color: fg),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(title, style: PText.labelLg),
+                      const SizedBox(height: 2),
+                      Text(desc, style: PText.bodySm),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                if (current)
+                  _StatusPill(label: 'Saat ini', fg: fg, bg: Colors.white)
+                else
+                  const Icon(Icons.chevron_right, color: PColors.inkSecondary, size: 20),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ============================================================================
+// Indikator tahapan seleksi
+// ============================================================================
+
+class _TahapanSeleksi extends StatelessWidget {
+  const _TahapanSeleksi({required this.status});
+
+  final String status;
+
+  @override
+  Widget build(BuildContext context) {
+    final current = status == 'DIAJUKAN' ? 0 : (status == 'TES' ? 1 : 2);
+    final st = _statusStyle(status);
+    final labels = ['Diajukan', 'Tes', current == 2 ? st.label : 'Keputusan'];
+
+    IconData finalIcon() {
+      switch (status) {
+        case 'DITERIMA':
+          return Icons.check;
+        case 'DITOLAK':
+          return Icons.close;
+        default:
+          return Icons.hourglass_bottom_rounded;
+      }
     }
+
+    return Row(
+      children: List.generate(5, (i) {
+        if (i.isOdd) {
+          final done = (i - 1) ~/ 2 < current;
+          return Expanded(
+            child: Container(
+              height: 2,
+              margin: const EdgeInsets.only(bottom: 22, left: 4, right: 4),
+              color: done ? PColors.primary : PColors.border,
+            ),
+          );
+        }
+        final idx = i ~/ 2;
+        final active = idx == current;
+        final done = idx < current;
+        final isFinal = idx == 2 && current == 2;
+        final circleColor = isFinal
+            ? st.fg
+            : (active || done)
+                ? PColors.primary
+                : PColors.surfaceDim;
+        return Column(
+          children: [
+            Container(
+              width: 34,
+              height: 34,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(color: circleColor, shape: BoxShape.circle),
+              child: isFinal
+                  ? Icon(finalIcon(), size: 17, color: Colors.white)
+                  : done
+                      ? const Icon(Icons.check, size: 17, color: Colors.white)
+                      : Text(
+                          '${idx + 1}',
+                          style: TextStyle(
+                            fontFamily: 'Nunito',
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: active ? Colors.white : PColors.inkSecondary,
+                          ),
+                        ),
+            ),
+            const SizedBox(height: 6),
+            SizedBox(
+              width: 76,
+              child: Text(
+                labels[idx],
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontFamily: 'Nunito',
+                  fontSize: 11,
+                  fontWeight: active ? FontWeight.w800 : FontWeight.w600,
+                  color: active ? PColors.ink : PColors.inkSecondary,
+                ),
+              ),
+            ),
+          ],
+        );
+      }),
+    );
   }
 }
