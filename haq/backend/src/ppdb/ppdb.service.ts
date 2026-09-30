@@ -120,18 +120,26 @@ export class PpdbService {
     const list = await this.prisma.pendaftaran.findMany({
       where,
       orderBy: { tanggalDaftar: 'desc' },
-      include: { ujian: true },
+      include: { ujian: true, tenant: { select: { kodeTenant: true } } },
     });
-    return list.map((p) => ({ ...p, noPendaftaran: this.noPendaftaranLabel(p.id) }));
+    return list.map(({ tenant, ...p }) => ({
+      ...p,
+      noPendaftaran: this.noPendaftaran(tenant.kodeTenant, p.id),
+    }));
   }
 
   async findOne(tenantId: string, id: string) {
-    const p = await this.prisma.pendaftaran.findFirst({
+    const found = await this.prisma.pendaftaran.findFirst({
       where: { id, tenantId },
-      include: { ujian: true },
+      include: { ujian: true, tenant: { select: { kodeTenant: true } } },
     });
-    if (!p) throw new NotFoundException('Pendaftaran tidak ditemukan.');
-    return p;
+    if (!found) throw new NotFoundException('Pendaftaran tidak ditemukan.');
+
+    const { tenant, ...p } = found;
+    return {
+      ...p,
+      noPendaftaran: this.noPendaftaran(tenant.kodeTenant, p.id),
+    };
   }
 
   async updateStatus(tenantId: string, id: string, dto: UpdatePendaftaranDto) {
@@ -147,7 +155,9 @@ export class PpdbService {
       data: { status: nextStatus, catatan: dto.catatan ?? p.catatan },
     });
 
-    if (nextStatus === StatusPendaftaran.DITERIMA) {
+    // Hanya buat santri saat status BARU berubah jadi DITERIMA,
+    // supaya tidak terbentuk santri ganda kalau endpoint dipanggil ulang.
+    if (nextStatus === StatusPendaftaran.DITERIMA && p.status !== StatusPendaftaran.DITERIMA) {
       await this.createSantriDariPendaftaran(p);
     }
 
@@ -199,10 +209,7 @@ export class PpdbService {
     });
   }
 
-  private noPendaftaranLabel(id: string) {
-    return `PPDB-${id.slice(-6).toUpperCase()}`;
-  }
-
+  /** Satu-satunya format nomor pendaftaran: PPDB-KODETENANT-A1B2C3 */
   private noPendaftaran(kodeTenant: string, id: string) {
     return `PPDB-${kodeTenant.toUpperCase()}-${id.slice(-6).toUpperCase()}`;
   }
