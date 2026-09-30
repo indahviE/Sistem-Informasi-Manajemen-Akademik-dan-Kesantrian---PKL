@@ -59,9 +59,9 @@ class _PpdbListScreenState extends State<PpdbListScreen> {
     ['', 'Semua'],
     ['DIAJUKAN', 'Diajukan'],
     ['TES', 'Tes'],
+    ['WAITING_LIST', 'Waiting List'],
     ['DITERIMA', 'Diterima'],
     ['DITOLAK', 'Ditolak'],
-    ['WAITING_LIST', 'Waiting List'],
   ];
 
   @override
