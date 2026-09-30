@@ -64,6 +64,33 @@ export class NotifikasiService {
   }
 
   // -------------------------------------------------------------------------
+  // Pengiriman notifikasi ke Super Admin (platform, tanpa tenant)
+  // -------------------------------------------------------------------------
+
+  /**
+   * Kirim ke semua Super Admin aktif, satu baris per akun (tenantId kosong,
+   * sesuai scope() di atas). Menghormati toggle di PlatformSetting lewat
+   * diizinkan(). Tidak pernah melempar error.
+   */
+  async kirimKeSuperAdmin(jenis: JenisNotifikasi, pesan: string): Promise<void> {
+    try {
+      if (!(await this.diizinkan(jenis))) return;
+
+      const superAdmins = await this.prisma.user.findMany({
+        where: { role: Role.SUPER_ADMIN, status: UserStatus.AKTIF },
+        select: { id: true },
+      });
+      if (superAdmins.length === 0) return;
+
+      await this.prisma.notifikasi.createMany({
+        data: superAdmins.map((u) => ({ userId: u.id, jenis, pesan })),
+      });
+    } catch (e) {
+      this.logger.error(`Gagal kirim notifikasi super admin ${jenis}: ${(e as Error).message}`);
+    }
+  }
+
+  // -------------------------------------------------------------------------
   // Pengiriman notifikasi ke Admin Lembaga (per tenant)
   // -------------------------------------------------------------------------
 
@@ -117,15 +144,6 @@ export class NotifikasiService {
       default:
         return null; // jenis lain: selalu dikirim
     }
-  }
-
-  /**
-   * TODO (penting): sambungkan ke tempat toggle admin disimpan, yaitu data
-   * yang dibaca GET /pengaturan/admin. Sementara ini memakai nilai default
-   * yang sama dengan di Flutter, jadi toggle BELUM berpengaruh.
-   */
-  private async adminMenerima(adminId: string, key: AdminNotifKey): Promise<boolean> {
-    return ADMIN_NOTIF_DEFAULT[key];
   }
 
   /** Cek toggle di Pengaturan (PlatformSetting). Tanpa data = pakai nilai default. */
