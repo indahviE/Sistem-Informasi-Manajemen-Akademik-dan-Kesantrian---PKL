@@ -643,12 +643,52 @@ class _PendaftarDetailState extends State<_PendaftarDetail> {
   final _testCatatan = TextEditingController();
   bool _saving = false;
   bool _editingTest = false; // true = hasil tes dibuka kuncinya untuk diubah
+  List<Map<String, dynamic>> _kelas = [];
 
   @override
   void initState() {
     super.initState();
     _p = widget.p;
     _isiFormTest();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _loadKelas();
+    });
+  }
+
+  Future<void> _loadKelas() async {
+    try {
+      final res = await AppScope.of(context).api.get(ApiUrl.kelas);
+      final raw = res is List ? res : (res is Map ? (res['items'] ?? res['data']) : null);
+      if (!mounted) return;
+      setState(() {
+        _kelas = (raw is List ? raw : const [])
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList();
+      });
+    } catch (_) {
+      // Diam-diam: pilihan kelas kosong, admin tetap bisa terima tanpa kelas.
+    }
+  }
+
+  /// Cari kelas yang namanya cocok dengan rekomendasi tersimpan (hasil tes).
+  String? get _kelasRekomendasiId {
+    final h = ((_p['ujian'] as Map?)?['hasil'] as String? ?? '').trim().toLowerCase();
+    if (h.isEmpty) return null;
+    for (final k in _kelas) {
+      if ((k['namaKelas']?.toString() ?? '').trim().toLowerCase() == h) {
+        return k['id'] as String;
+      }
+    }
+    return null;
+  }
+
+  String _namaKelas(String? id) {
+    if (id == null) return '';
+    for (final k in _kelas) {
+      if (k['id'] == id) return k['namaKelas']?.toString() ?? '';
+    }
+    return '';
   }
 
   /// Isi form dengan hasil tes yang sudah tersimpan (kalau ada),
@@ -718,17 +758,23 @@ class _PendaftarDetailState extends State<_PendaftarDetail> {
     }
   }
 
-  Future<void> _ubahStatus(String status) async {
+  Future<void> _ubahStatus(String status, {String? kelasId}) async {
     try {
       final api = AppScope.of(context).api;
-      await api.patch('${ApiUrl.ppdb}/${_p['id']}', {'status': status});
+      await api.patch('${ApiUrl.ppdb}/${_p['id']}', {
+        'status': status,
+        if (kelasId != null) 'kelasId': kelasId,
+      });
       _p = await api.get('${ApiUrl.ppdb}/${_p['id']}') as Map<String, dynamic>;
       widget.onChanged();
       if (!mounted) return;
       setState(() {});
       if (status == 'DITERIMA') {
+        final kelas = _namaKelas(kelasId);
         _toast('Pendaftar diterima',
-            subtitle: '${_p['nama']} • data santri dibuat otomatis');
+            subtitle: kelas.isEmpty
+                ? '${_p['nama']} • santri dibuat, belum punya kelas'
+                : '${_p['nama']} • masuk kelas $kelas');
       } else {
         _toast('Status diperbarui', subtitle: 'Sekarang: ${_statusStyle(status).label}');
       }
@@ -849,6 +895,88 @@ class _PendaftarDetailState extends State<_PendaftarDetail> {
       ),
     );
     return ok == true;
+  }
+
+  /// Dialog Terima: kelas rekomendasi sudah terpilih, admin boleh mengganti.
+  /// Mengembalikan null kalau dibatalkan, atau {'kelasId': String?} kalau lanjut.
+  Future<Map<String, dynamic>?> _dialogTerima() {
+    String? pilihan = _kelasRekomendasiId;
+    return showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setD) => AlertDialog(
+          backgroundColor: PColors.surface,
+          surfaceTintColor: Colors.transparent,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Text('Terima pendaftar ini?', style: PText.headlineSm),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${_p['nama']} akan dinyatakan diterima dan data santri dibuat otomatis.',
+                style: PText.bodyMd,
+              ),
+              const SizedBox(height: 16),
+              Text('Tempatkan di kelas', style: PText.labelLg),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<String?>(
+                value: pilihan,
+                isExpanded: true,
+                decoration: _fieldDecoration('Kelas', icon: Icons.class_outlined),
+                items: [
+                  const DropdownMenuItem<String?>(
+                    value: null,
+                    child: Text('Belum ditempatkan (isi nanti)'),
+                  ),
+                  for (final k in _kelas)
+                    DropdownMenuItem<String?>(
+                      value: k['id'] as String,
+                      child: Text('${k['namaKelas']}', overflow: TextOverflow.ellipsis),
+                    ),
+                ],
+                onChanged: (v) => setD(() => pilihan = v),
+              ),
+              if (_kelasRekomendasiId != null) ...[
+                const SizedBox(height: 8),
+                Text('Terpilih otomatis dari rekomendasi placement test.',
+                    style: PText.bodySm),
+              ],
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Batal',
+                  style: TextStyle(
+                      fontFamily: 'Nunito',
+                      fontWeight: FontWeight.w700,
+                      color: PColors.inkSecondary)),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: PColors.primary,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9999)),
+              ),
+              onPressed: () => Navigator.pop(ctx, {'kelasId': pilihan}),
+              child: const Text('Ya, Terima',
+                  style: TextStyle(
+                      fontFamily: 'Nunito',
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _terima() async {
+    final hasil = await _dialogTerima();
+    if (hasil == null) return;
+    setState(() => _saving = true);
+    await _ubahStatus('DITERIMA', kelasId: hasil['kelasId'] as String?);
+    if (mounted) setState(() => _saving = false);
   }
 
   Future<void> _aksi(
@@ -982,6 +1110,46 @@ class _PendaftarDetailState extends State<_PendaftarDetail> {
     );
   }
 
+  Future<void> _pilihKelasRekomendasi() async {
+    final nama = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: PColors.surface,
+      constraints: const BoxConstraints(maxWidth: 480),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 18, 20, 8),
+              child: Text('Pilih Rekomendasi Kelas', style: PText.headlineSm),
+            ),
+            Flexible(
+              child: ListView(
+                shrinkWrap: true,
+                children: [
+                  for (final k in _kelas)
+                    ListTile(
+                      title: Text('${k['namaKelas']}', style: PText.labelLg),
+                      trailing: (k['namaKelas']?.toString() ?? '') == _testHasil.text.trim()
+                          ? const Icon(Icons.check_circle, color: PColors.primary, size: 20)
+                          : null,
+                      onTap: () => Navigator.pop(ctx, k['namaKelas']?.toString() ?? ''),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+    if (nama != null && mounted) setState(() => _testHasil.text = nama);
+  }
+
   Widget _hasilTesBox(Map<String, dynamic> ujian) {
     final nilai = ujian['nilai']?.toString() ?? '—';
     final hasil = (ujian['hasil'] as String? ?? '').trim();
@@ -1026,7 +1194,7 @@ class _PendaftarDetailState extends State<_PendaftarDetail> {
                 ),
                 if (catatan.isNotEmpty) ...[
                   const SizedBox(height: 8),
-                  Text('Catatan Ustadz', style: PText.bodySm),
+                  Text('Catatan Tes', style: PText.bodySm),
                   const SizedBox(height: 2),
                   Text(catatan, style: PText.bodyMd.copyWith(color: PColors.ink)),
                 ],
@@ -1291,17 +1459,29 @@ class _PendaftarDetailState extends State<_PendaftarDetail> {
                           _fieldDecoration('Nilai (0-100)', icon: Icons.grade_outlined),
                     ),
                     const SizedBox(height: 12),
-                    TextField(
-                      controller: _testHasil,
-                      style: PText.bodyMd.copyWith(color: PColors.ink),
-                      decoration: _fieldDecoration('Rekomendasi Kelas',
-                          hint: 'mis. Kelas 1A', icon: Icons.class_outlined),
+                    InkWell(
+                      borderRadius: BorderRadius.circular(12),
+                      onTap: _kelas.isEmpty ? null : _pilihKelasRekomendasi,
+                      child: InputDecorator(
+                        isEmpty: _testHasil.text.trim().isEmpty,
+                        decoration: _fieldDecoration(
+                          _kelas.isEmpty ? 'Belum ada kelas' : 'Rekomendasi Kelas',
+                          icon: Icons.class_outlined,
+                        ).copyWith(
+                          suffixIcon: const Icon(Icons.unfold_more_rounded,
+                              size: 20, color: PColors.inkSecondary),
+                        ),
+                        child: Text(
+                          _testHasil.text.trim(),
+                          style: PText.bodyMd.copyWith(color: PColors.ink),
+                        ),
+                      ),
                     ),
                     const SizedBox(height: 12),
                     TextField(
                       controller: _testCatatan,
                       style: PText.bodyMd.copyWith(color: PColors.ink),
-                      decoration: _fieldDecoration('Catatan Ustadz', icon: Icons.notes),
+                      decoration: _fieldDecoration('Catatan Tes', icon: Icons.notes),
                     ),
                     const SizedBox(height: 16),
                     Row(
@@ -1400,14 +1580,7 @@ class _PendaftarDetailState extends State<_PendaftarDetail> {
                     current: status == 'DITERIMA',
                     onTap: (_saving || status == 'DITERIMA')
                         ? null
-                        : () => _aksi(
-                              'DITERIMA',
-                              judul: 'Terima pendaftar ini?',
-                              pesan:
-                                  '${_p['nama']} akan dinyatakan diterima dan data santri '
-                                  'dibuat otomatis. Pastikan data sudah benar.',
-                              label: 'Ya, Terima',
-                            ),
+                        : _terima,
                   ),
                   const SizedBox(height: 8),
                   _AksiTile(

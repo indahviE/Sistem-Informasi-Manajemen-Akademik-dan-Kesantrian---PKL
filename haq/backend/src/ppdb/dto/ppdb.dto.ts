@@ -73,6 +73,11 @@ export class UpdatePendaftaranDto {
   @IsEnum(StatusPendaftaran, { message: 'Status tidak valid' })
   status?: StatusPendaftaran;
 
+  /** Kelas tujuan santri saat status DITERIMA (opsional). */
+  @IsOptional()
+  @IsString()
+  kelasId?: string;
+
   @IsOptional()
   @IsString()
   catatan?: string;
