@@ -2,27 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../services/api_client.dart';
 import '../../services/app_scope.dart';
-
-/// Palet sama persis dengan `_WC` di dashboard_screen.dart.
-class _FC {
-  _FC._();
-
-  static const primary = Color(0xFF0F3A2E);
-  static const primaryGradientEnd = Color(0xFF164E3D);
-  static const gold = Color(0xFFC5A059);
-  static const sage = Color(0xFFE2ECE9);
-
-  static const background = Color(0xFFFAF9F5);
-  static const surface = Color(0xFFFFFFFF);
-  static const surfaceDim = Color(0xFFF5F4EE);
-
-  static const ink = Color(0xFF0F172A);
-  static const inkSecondary = Color(0xFF475569);
-  static const border = Color(0xFFEAE6DC);
-
-  static const errorBg = Color(0xFFFEE2E2);
-  static const errorText = Color(0xFF991B1B);
-}
+import 'santri_ui.dart';
 
 class _Opt {
   final String value;
@@ -49,12 +29,22 @@ class _SantriFormScreenState extends State<SantriFormScreen> {
   List<Map<String, dynamic>> _wali = [];
   bool _loading = true;
   bool _submitting = false;
+  bool _tried = false; // sudah pernah menekan Simpan
   String? _error;
 
   @override
   void initState() {
     super.initState();
-    _init();
+    // Pratinjau di hero ikut berubah saat mengetik.
+    _nis.addListener(_refresh);
+    _nama.addListener(_refresh);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _init();
+    });
+  }
+
+  void _refresh() {
+    if (mounted) setState(() {});
   }
 
   @override
@@ -72,12 +62,21 @@ class _SantriFormScreenState extends State<SantriFormScreen> {
       final k = await api.get(ApiUrl.kelas);
       final w = await api.get(ApiUrl.wali);
       if (!mounted) return;
+      List<Map<String, dynamic>> toList(dynamic res) {
+        final raw = res is List ? res : (res is Map ? (res['items'] ?? res['data']) : null);
+        return (raw is List ? raw : const [])
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList();
+      }
+
       setState(() {
-        _kelas = (k as List).cast<Map<String, dynamic>>();
-        _wali = (w as List).cast<Map<String, dynamic>>();
+        _kelas = toList(k);
+        _wali = toList(w);
         _loading = false;
       });
-    } catch (_) {
+    } catch (e) {
+      debugPrint('Gagal muat kelas/wali: $e');
       if (mounted) {
         setState(() {
           _loading = false;
@@ -88,8 +87,12 @@ class _SantriFormScreenState extends State<SantriFormScreen> {
   }
 
   Future<void> _submit() async {
+    FocusScope.of(context).unfocus();
     if (_nis.text.trim().isEmpty || _nama.text.trim().isEmpty) {
-      setState(() => _error = 'NIS dan nama wajib diisi.');
+      setState(() {
+        _tried = true;
+        _error = 'NIS dan nama wajib diisi.';
+      });
       return;
     }
     setState(() {
@@ -126,25 +129,36 @@ class _SantriFormScreenState extends State<SantriFormScreen> {
     }
   }
 
+  String get _kelasNama {
+    for (final k in _kelas) {
+      if (k['id'] == _kelasId) return k['namaKelas']?.toString() ?? '';
+    }
+    return '';
+  }
+
   // ---------------------------------------------------------------------
   // Building blocks
   // ---------------------------------------------------------------------
-  InputDecoration _dec({String? hint, IconData? icon}) {
+  InputDecoration _dec({String? hint, IconData? icon, String? errorText}) {
     OutlineInputBorder b(Color c, [double w = 1]) => OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(14),
           borderSide: BorderSide(color: c, width: w),
         );
     return InputDecoration(
       hintText: hint,
-      hintStyle: const TextStyle(fontSize: 13.5, color: _FC.inkSecondary),
-      prefixIcon: icon == null ? null : Icon(icon, size: 18, color: _FC.inkSecondary),
+      hintStyle: sty(13.5, FontWeight.w500, SC.inkMuted),
+      errorText: errorText,
+      errorStyle: sty(11.5, FontWeight.w600, SC.errorText),
+      prefixIcon: icon == null ? null : Icon(icon, size: 19, color: SC.primary),
       filled: true,
-      fillColor: _FC.surfaceDim,
+      fillColor: SC.background,
       isDense: true,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-      border: b(Colors.transparent),
-      enabledBorder: b(Colors.transparent),
-      focusedBorder: b(_FC.primary, 1.4),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 15),
+      border: b(SC.border),
+      enabledBorder: b(SC.border),
+      focusedBorder: b(SC.primary, 1.6),
+      errorBorder: b(SC.errorText.withOpacity(0.6)),
+      focusedErrorBorder: b(SC.errorText, 1.6),
     );
   }
 
@@ -153,14 +167,13 @@ class _SantriFormScreenState extends State<SantriFormScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.only(left: 2, bottom: 6),
+          padding: const EdgeInsets.only(left: 2, bottom: 7),
           child: RichText(
             text: TextSpan(
-              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _FC.inkSecondary),
+              style: sty(12.5, FontWeight.w700, SC.ink),
               children: [
                 TextSpan(text: label),
-                if (required)
-                  const TextSpan(text: ' *', style: TextStyle(color: _FC.errorText)),
+                if (required) TextSpan(text: ' *', style: sty(12.5, FontWeight.w800, SC.errorText)),
               ],
             ),
           ),
@@ -176,13 +189,16 @@ class _SantriFormScreenState extends State<SantriFormScreen> {
     IconData? icon,
     TextInputType? keyboard,
     List<TextInputFormatter>? formatters,
+    String? errorText,
+    TextCapitalization caps = TextCapitalization.none,
   }) {
     return TextField(
       controller: c,
       keyboardType: keyboard,
       inputFormatters: formatters,
-      style: const TextStyle(fontSize: 14, color: _FC.ink),
-      decoration: _dec(hint: hint, icon: icon),
+      textCapitalization: caps,
+      style: sty(14, FontWeight.w600, SC.ink),
+      decoration: _dec(hint: hint, icon: icon, errorText: errorText),
     );
   }
 
@@ -195,10 +211,10 @@ class _SantriFormScreenState extends State<SantriFormScreen> {
     return DropdownButtonFormField<String>(
       value: options.any((o) => o.value == value) ? value : options.first.value,
       isExpanded: true,
-      icon: const Icon(Icons.keyboard_arrow_down_rounded, color: _FC.inkSecondary),
-      dropdownColor: _FC.surface,
-      borderRadius: BorderRadius.circular(12),
-      style: const TextStyle(fontSize: 14, color: _FC.ink),
+      icon: const Icon(Icons.keyboard_arrow_down_rounded, color: SC.inkSecondary),
+      dropdownColor: SC.surface,
+      borderRadius: BorderRadius.circular(14),
+      style: sty(14, FontWeight.w600, SC.ink),
       decoration: _dec(icon: icon),
       items: [
         for (final o in options)
@@ -210,67 +226,94 @@ class _SantriFormScreenState extends State<SantriFormScreen> {
     );
   }
 
-  Widget _genderChip(String value, String label) {
+  Widget _genderCard(String value, String label, IconData icon) {
     final selected = _jk == value;
     return Expanded(
       child: GestureDetector(
         onTap: () => setState(() => _jk = value),
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          height: 46,
-          alignment: Alignment.center,
+          duration: const Duration(milliseconds: 160),
+          height: 52,
           decoration: BoxDecoration(
-            color: selected ? _FC.primary : _FC.surfaceDim,
-            borderRadius: BorderRadius.circular(12),
+            color: selected ? SC.primary : SC.background,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: selected ? SC.primary : SC.border),
           ),
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-              color: selected ? Colors.white : _FC.inkSecondary,
-            ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 19, color: selected ? SC.gold : SC.inkMuted),
+              const SizedBox(width: 7),
+              Text(label,
+                  style: sty(13, FontWeight.w700, selected ? Colors.white : SC.inkSecondary)),
+            ],
           ),
         ),
       ),
     );
   }
 
-  Widget _sectionTitle(String title, IconData icon) {
-    return Row(
-      children: [
-        Container(
-          width: 28,
-          height: 28,
-          decoration: const BoxDecoration(color: _FC.sage, shape: BoxShape.circle),
-          child: Icon(icon, size: 15, color: _FC.primary),
-        ),
-        const SizedBox(width: 10),
-        Text(title, style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: _FC.ink)),
-      ],
+  Widget _card({required String title, required String subtitle, required IconData icon, required List<Widget> children}) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: SC.surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: SC.border),
+        boxShadow: softShadow,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: SC.sage,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, size: 19, color: SC.primary),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title, style: sty(15, FontWeight.w800, SC.ink)),
+                    Text(subtitle, style: sty(11.5, FontWeight.w500, SC.inkSecondary)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          ...children,
+        ],
+      ),
     );
   }
 
-  Widget _divider() => const Padding(
-        padding: EdgeInsets.symmetric(vertical: 16),
-        child: Divider(height: 1, color: _FC.border),
-      );
-
-  Widget _errorBox(String msg) {
+  Widget _notice(String msg, {required bool error}) {
+    final fg = error ? SC.errorText : SC.pendingText;
     return Container(
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: _FC.errorBg, borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(
+        color: error ? SC.errorBg : SC.pendingBg,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: fg.withOpacity(0.2)),
+      ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Padding(
-            padding: EdgeInsets.only(top: 1),
-            child: Icon(Icons.error_outline, size: 16, color: _FC.errorText),
+          Padding(
+            padding: const EdgeInsets.only(top: 1),
+            child: Icon(error ? Icons.error_outline : Icons.info_outline, size: 17, color: fg),
           ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(msg, style: const TextStyle(fontSize: 12.5, color: _FC.errorText, height: 1.35)),
-          ),
+          const SizedBox(width: 9),
+          Expanded(child: Text(msg, style: sty(12.5, FontWeight.w600, fg, h: 1.4))),
         ],
       ),
     );
@@ -280,75 +323,71 @@ class _SantriFormScreenState extends State<SantriFormScreen> {
   // Sections
   // ---------------------------------------------------------------------
   Widget _hero() {
-    return Container(
-      clipBehavior: Clip.antiAlias,
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [_FC.primary, _FC.primaryGradientEnd],
-        ),
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: [
-          BoxShadow(color: _FC.primary.withOpacity(0.18), blurRadius: 12, offset: const Offset(0, 4)),
-        ],
-      ),
-      child: Stack(
+    final nama = _nama.text.trim();
+    final nis = _nis.text.trim();
+    final kelas = _kelasNama;
+    final top = MediaQuery.of(context).padding.top + 12;
+
+    return HeroShell(
+      top: top,
+      bottom: 22,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Positioned(
-            right: -24,
-            top: -24,
-            child: Container(
-              width: 120,
-              height: 120,
-              decoration: BoxDecoration(color: _FC.gold.withOpacity(0.10), shape: BoxShape.circle),
-            ),
+          Row(
+            children: [
+              const HeroBackButton(),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Santri Baru', style: sty(21, FontWeight.w800, Colors.white, h: 1.15)),
+                    const SizedBox(height: 2),
+                    Text('Isi data, pratinjau kartu tampil langsung',
+                        style: sty(12, FontWeight.w500, Colors.white.withOpacity(0.75))),
+                  ],
+                ),
+              ),
+            ],
           ),
-          Padding(
-            padding: const EdgeInsets.all(16),
+          const SizedBox(height: 18),
+          // Pratinjau kartu santri
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.white.withOpacity(0.18)),
+            ),
             child: Row(
               children: [
-                InkWell(
-                  onTap: () => Navigator.pop(context),
-                  customBorder: const CircleBorder(),
-                  child: Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.12),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(Icons.arrow_back_rounded, size: 20, color: Colors.white),
-                  ),
-                ),
-                const SizedBox(width: 12),
+                SantriAvatar(name: nama, gender: _jk, size: 56, onDark: true, badge: true),
+                const SizedBox(width: 14),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.12),
-                          borderRadius: BorderRadius.circular(999),
-                          border: Border.all(color: _FC.gold.withOpacity(0.5)),
-                        ),
-                        child: const Text(
-                          'PENDAFTARAN SANTRI',
-                          style: TextStyle(
-                            fontSize: 9.5,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 0.3,
-                            color: _FC.gold,
-                          ),
-                        ),
+                      Text(
+                        nama.isEmpty ? 'Nama santri' : nama,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: sty(17, FontWeight.w800,
+                            nama.isEmpty ? Colors.white.withOpacity(0.5) : Colors.white),
                       ),
-                      const SizedBox(height: 8),
-                      const Text('Tambah Santri',
-                          style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: Colors.white)),
-                      const SizedBox(height: 2),
-                      Text('Lengkapi data untuk mendaftarkan santri baru',
-                          style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.7))),
+                      const SizedBox(height: 6),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 4,
+                        children: [
+                          SPill(nis.isEmpty ? 'NIS belum diisi' : 'NIS $nis',
+                              icon: Icons.tag_rounded,
+                              bg: Colors.white.withOpacity(0.14),
+                              fg: Colors.white),
+                          if (kelas.isNotEmpty)
+                            SPill(kelas, icon: Icons.class_outlined, bg: SC.mint, fg: SC.primary),
+                        ],
+                      ),
                     ],
                   ),
                 ),
@@ -360,123 +399,150 @@ class _SantriFormScreenState extends State<SantriFormScreen> {
     );
   }
 
-  Widget _formCard() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: _FC.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _FC.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _sectionTitle('Data Diri', Icons.person),
-          const SizedBox(height: 14),
-          _labeled('NIS',
+  Widget _formCards() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _card(
+          title: 'Data diri',
+          subtitle: 'Identitas dasar santri',
+          icon: Icons.person_rounded,
+          children: [
+            _labeled(
+              'NIS',
               required: true,
-              _textField(_nis, hint: 'Nomor induk santri', icon: Icons.badge_outlined)),
-          const SizedBox(height: 12),
-          _labeled('Nama Lengkap',
-              required: true,
-              _textField(_nama, hint: 'Nama lengkap santri', icon: Icons.person_outline)),
-          const SizedBox(height: 12),
-          _labeled(
-            'Jenis Kelamin',
-            Row(
-              children: [
-                _genderChip('L', 'Laki-laki'),
-                const SizedBox(width: 10),
-                _genderChip('P', 'Perempuan'),
-              ],
-            ),
-          ),
-          _divider(),
-          _sectionTitle('Penempatan', Icons.meeting_room),
-          const SizedBox(height: 14),
-          _labeled(
-            'Kelas',
-            _dropdown(
-              value: _kelasId ?? '',
-              icon: Icons.class_outlined,
-              options: [
-                const _Opt('', 'Pilih kelas'),
-                for (final k in _kelas) _Opt(k['id'] as String, k['namaKelas'] as String),
-              ],
-              onChanged: (v) => setState(() => _kelasId = v.isEmpty ? null : v),
-            ),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                flex: 3,
-                child: _labeled('Asrama (opsional)', _textField(_asrama, hint: 'Nama asrama')),
+              _textField(
+                _nis,
+                hint: 'Nomor induk santri',
+                icon: Icons.badge_outlined,
+                errorText: _tried && _nis.text.trim().isEmpty ? 'NIS wajib diisi' : null,
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                flex: 2,
-                child: _labeled(
-                  'Tahun Masuk',
-                  _textField(
-                    _tahun,
-                    keyboard: TextInputType.number,
-                    formatters: [
-                      FilteringTextInputFormatter.digitsOnly,
-                      LengthLimitingTextInputFormatter(4),
-                    ],
+            ),
+            const SizedBox(height: 14),
+            _labeled(
+              'Nama lengkap',
+              required: true,
+              _textField(
+                _nama,
+                hint: 'Nama lengkap santri',
+                icon: Icons.person_outline,
+                caps: TextCapitalization.words,
+                errorText: _tried && _nama.text.trim().isEmpty ? 'Nama wajib diisi' : null,
+              ),
+            ),
+            const SizedBox(height: 14),
+            _labeled(
+              'Jenis kelamin',
+              Row(
+                children: [
+                  _genderCard('L', 'Laki-laki', Icons.male_rounded),
+                  const SizedBox(width: 10),
+                  _genderCard('P', 'Perempuan', Icons.female_rounded),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 14),
+        _card(
+          title: 'Penempatan',
+          subtitle: 'Kelas, asrama, dan wali',
+          icon: Icons.meeting_room_rounded,
+          children: [
+            _labeled(
+              'Kelas',
+              _dropdown(
+                value: _kelasId ?? '',
+                icon: Icons.class_outlined,
+                options: [
+                  const _Opt('', 'Pilih kelas'),
+                  for (final k in _kelas) _Opt(k['id'] as String, k['namaKelas'] as String),
+                ],
+                onChanged: (v) => setState(() => _kelasId = v.isEmpty ? null : v),
+              ),
+            ),
+            const SizedBox(height: 14),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  flex: 3,
+                  child: _labeled(
+                    'Asrama (opsional)',
+                    _textField(_asrama, hint: 'Nama asrama', icon: Icons.bed_outlined),
                   ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          _labeled(
-            'Wali Santri',
-            _dropdown(
-              value: _waliId ?? '',
-              icon: Icons.people_outline,
-              options: [
-                const _Opt('', 'Pilih wali'),
-                for (final w in _wali) _Opt(w['id'] as String, w['nama'] as String),
+                const SizedBox(width: 10),
+                Expanded(
+                  flex: 2,
+                  child: _labeled(
+                    'Tahun masuk',
+                    _textField(
+                      _tahun,
+                      keyboard: TextInputType.number,
+                      formatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                        LengthLimitingTextInputFormatter(4),
+                      ],
+                    ),
+                  ),
+                ),
               ],
-              onChanged: (v) => setState(() => _waliId = v.isEmpty ? null : v),
             ),
-          ),
-        ],
-      ),
+            const SizedBox(height: 14),
+            _labeled(
+              'Wali santri',
+              _dropdown(
+                value: _waliId ?? '',
+                icon: Icons.people_outline,
+                options: [
+                  const _Opt('', 'Pilih wali'),
+                  for (final w in _wali) _Opt(w['id'] as String, w['nama'] as String),
+                ],
+                onChanged: (v) => setState(() => _waliId = v.isEmpty ? null : v),
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 
   Widget _bottomBar() {
     return Container(
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
       decoration: const BoxDecoration(
-        color: _FC.surface,
-        border: Border(top: BorderSide(color: _FC.border)),
+        color: SC.surface,
+        border: Border(top: BorderSide(color: SC.border)),
       ),
-      child: SizedBox(
-        width: double.infinity,
-        height: 50,
-        child: FilledButton.icon(
-          onPressed: (_submitting || _loading) ? null : _submit,
-          style: FilledButton.styleFrom(
-            backgroundColor: _FC.primary,
-            disabledBackgroundColor: _FC.primary.withOpacity(0.5),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-          ),
-          icon: _submitting
-              ? const SizedBox(
-                  height: 18,
-                  width: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                )
-              : const Icon(Icons.check_rounded, size: 18, color: Colors.white),
-          label: Text(
-            _submitting ? 'Menyimpan...' : 'Simpan Santri',
-            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Colors.white),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+          child: SizedBox(
+            width: double.infinity,
+            height: 52,
+            child: FilledButton.icon(
+              onPressed: (_submitting || _loading) ? null : _submit,
+              style: FilledButton.styleFrom(
+                backgroundColor: SC.primary,
+                disabledBackgroundColor: SC.primary.withOpacity(0.5),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(999),
+                  side: BorderSide(color: SC.gold.withOpacity(0.6)),
+                ),
+              ),
+              icon: _submitting
+                  ? const SizedBox(
+                      height: 18,
+                      width: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    )
+                  : const Icon(Icons.check_rounded, size: 19, color: SC.gold),
+              label: Text(
+                _submitting ? 'Menyimpan...' : 'Simpan santri',
+                style: sty(14.5, FontWeight.w700, Colors.white),
+              ),
+            ),
           ),
         ),
       ),
@@ -488,41 +554,49 @@ class _SantriFormScreenState extends State<SantriFormScreen> {
   // ---------------------------------------------------------------------
   @override
   Widget build(BuildContext context) {
+    // Kalau error berasal dari gagal-muat kelas/wali, tampil sebagai peringatan.
+    final loadWarning = _error != null && _error!.startsWith('Daftar kelas');
+
     return Scaffold(
-      backgroundColor: _FC.background,
-      body: SafeArea(
-        child: Align(
-          alignment: Alignment.topCenter,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 480),
-            child: Column(
-              children: [
-                Expanded(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(12, 12, 12, 16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        _hero(),
-                        const SizedBox(height: 16),
-                        if (_loading)
-                          const Padding(
-                            padding: EdgeInsets.symmetric(vertical: 48),
-                            child: Center(child: CircularProgressIndicator(color: _FC.primary)),
-                          )
-                        else
-                          _formCard(),
-                        if (_error != null) ...[
-                          const SizedBox(height: 12),
-                          _errorBox(_error!),
-                        ],
-                      ],
-                    ),
+      backgroundColor: SC.background,
+      body: Align(
+        alignment: Alignment.topCenter,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 480),
+          child: Column(
+            children: [
+              Expanded(
+                child: SingleChildScrollView(
+                  keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _hero(),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 18, 16, 20),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            if (_error != null) ...[
+                              _notice(_error!, error: !loadWarning),
+                              const SizedBox(height: 14),
+                            ],
+                            if (_loading)
+                              const Padding(
+                                padding: EdgeInsets.symmetric(vertical: 48),
+                                child: Center(child: CircularProgressIndicator(color: SC.primary)),
+                              )
+                            else
+                              _formCards(),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                _bottomBar(),
-              ],
-            ),
+              ),
+              _bottomBar(),
+            ],
           ),
         ),
       ),
