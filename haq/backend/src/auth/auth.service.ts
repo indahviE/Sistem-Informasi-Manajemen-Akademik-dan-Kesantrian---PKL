@@ -207,10 +207,10 @@ export class AuthService {
     // Tepat saat mencapai batas, catat satu event peringatan.
     const jumlah = await this.hitungLoginGagal(email, ip);
     if (jumlah === MAX_LOGIN_GAGAL) {
-      await this.notifikasi.kirimKeSuperAdmin(
-        JenisNotifikasi.KEAMANAN,
-        `Login gagal ${MAX_LOGIN_GAGAL}x dalam ${JENDELA_MENIT} menit pada akun ${emailNorm}${ip ? ` dari IP ${ip}` : ''}. Login dari IP ini diblokir ${JENDELA_MENIT} menit.`,
-      );
+      // await this.notifikasi.kirimKeSuperAdmin(
+      //   JenisNotifikasi.KEAMANAN,
+      //   `Login gagal ${MAX_LOGIN_GAGAL}x dalam ${JENDELA_MENIT} menit pada akun ${emailNorm}${ip ? ` dari IP ${ip}` : ''}. Login dari IP ini diblokir ${JENDELA_MENIT} menit.`,
+      // );
       await this.audit.log({
         action: 'LOGIN_BRUTE_FORCE',
         entity: 'auth',

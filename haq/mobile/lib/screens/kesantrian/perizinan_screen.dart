@@ -97,66 +97,20 @@ class _PerizinanScreenState extends State<PerizinanScreen> {
         if (mounted) setState(() => _santris = ((s['items'] as List? ?? []) as List).cast<Map<String, dynamic>>());
       } catch (_) {}
     }
-    final alasan = TextEditingController();
-    String? santriId = _santris.isEmpty ? null : _santris.first['id'] as String;
-    String jenis = 'KELUAR';
 
-    final ok = await showDialog<bool>(
+    final result = await showDialog<Map<String, dynamic>>(
       context: context,
-      builder: (_) => StatefulBuilder(
-        builder: (ctx, setLocal) => TwFormDialog(
-          icon: Icons.assignment_turned_in_rounded,
-          title: 'Ajukan Perizinan',
-          fields: [
-            TwSelect(
-              value: santriId,
-              label: 'Santri',
-              options: [for (final s in _santris) DropdownOption(s['id'] as String, s['nama'] as String)],
-              onChanged: (v) => setLocal(() => santriId = v),
-            ),
-            TwSelect(
-              value: jenis,
-              label: 'Jenis',
-              options: const [
-                DropdownOption('KELUAR', 'Izin Keluar'),
-                DropdownOption('PULANG', 'Pulang'),
-              ],
-              onChanged: (v) => setLocal(() => jenis = v!),
-            ),
-            _PDialogField(controller: alasan, label: 'Alasan'),
-          ],
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              style: TextButton.styleFrom(foregroundColor: PColors.inkSecondary),
-              child: const Text('Batal'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              style: FilledButton.styleFrom(
-                backgroundColor: PColors.primary,
-                foregroundColor: PColors.gold,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9999)),
-              ),
-              child: const Text('Ajukan'),
-            ),
-          ],
-        ),
-      ),
+      barrierDismissible: false,
+      builder: (_) => _AjukanIzinDialog(santris: _santris),
     );
-    if (ok != true) return;
+    if (result == null) return;
+
     try {
       final api = AppScope.of(context).api;
-      final now = DateTime.now();
-      await api.post(ApiUrl.perizinan, {
-        'santriId': santriId,
-        'jenis': jenis,
-        'alasan': alasan.text.trim(),
-        'tanggalKeluar': '${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}',
-      });
+      await api.post(ApiUrl.perizinan, result);
       _load();
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(backgroundColor: PColors.primary, content: const Text('Perizinan diajukan.')),
+        SnackBar(backgroundColor: PColors.primary, content: const Text('Izin berhasil diajukan.')),
       );
     } on ApiException catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -378,6 +332,26 @@ class _PerizinanScreenState extends State<PerizinanScreen> {
     );
   }
 
+  Widget _buildAjukanButton() {
+    return SizedBox(
+      width: double.infinity,
+      height: 46,
+      child: FilledButton.icon(
+        onPressed: _add,
+        style: FilledButton.styleFrom(
+          backgroundColor: PColors.primary,
+          foregroundColor: PColors.gold,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9999)),
+        ),
+        icon: const Icon(Icons.add_circle_outline, size: 18),
+        label: const Text(
+          'Ajukan Perizinan',
+          style: TextStyle(fontFamily: 'Nunito', fontSize: 13.5, fontWeight: FontWeight.w700),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isWali = AppScope.of(context).user?.isWali == true;
@@ -385,16 +359,6 @@ class _PerizinanScreenState extends State<PerizinanScreen> {
 
     return Scaffold(
       backgroundColor: PColors.background,
-      floatingActionButton: isWali
-          ? null
-          : FloatingActionButton(
-              onPressed: _add,
-              tooltip: 'Ajukan Izin',
-              backgroundColor: PColors.primary,
-              foregroundColor: PColors.gold,
-              shape: const CircleBorder(),
-              child: const Icon(Icons.add),
-            ),
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 480),
@@ -407,13 +371,17 @@ class _PerizinanScreenState extends State<PerizinanScreen> {
                         color: PColors.primary,
                         onRefresh: _load,
                         child: ListView(
-                          padding: EdgeInsets.fromLTRB(16, 12, 16, isWali ? 24 : 96),
+                          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
                           children: [
                             if (isWali) ..._buildWaliHeader(),
                             _buildRiwayatHeader(),
                             const SizedBox(height: 10),
                             _buildFilterChips(),
                             const SizedBox(height: 12),
+                            if (!isWali) ...[
+                              _buildAjukanButton(),
+                              const SizedBox(height: 14),
+                            ],
                             if (riwayat.isEmpty)
                               Padding(
                                 padding: const EdgeInsets.symmetric(vertical: 24),
@@ -1193,10 +1161,17 @@ class _RiwayatTile extends StatelessWidget {
     }
 
     // Diajukan / status lain
+    final estKembali = (p['rencanaKembali'] ?? p['tenggatKembali'])?.toString();
+    final pendamping = p['pendamping']?.toString().trim();
     return [
       _PairRow(
         left: _KV('Tanggal Diajukan', _fmtTanggal((p['tanggalDiajukan'] ?? p['tanggalKeluar'])?.toString(), withJam: false)),
-        right: const _KV('Status', 'Menunggu persetujuan'),
+        right: _KV('Est. Kembali', (estKembali != null && estKembali.isNotEmpty) ? _fmtTanggal(estKembali) : '-'),
+      ),
+      const SizedBox(height: 6),
+      _PairRow(
+        left: const _KV('Status', 'Menunggu persetujuan'),
+        right: _KV('Diantar / Didampingi Oleh', (pendamping != null && pendamping.isNotEmpty) ? pendamping : '-'),
       ),
     ];
   }
@@ -1298,43 +1273,464 @@ class _ClosingCard extends StatelessWidget {
   }
 }
 
-class _PDialogField extends StatelessWidget {
-  const _PDialogField({
-    required this.controller,
-    required this.label,
-    this.keyboardType,
-  });
 
-  final TextEditingController controller;
-  final String label;
-  final TextInputType? keyboardType;
+// ===========================================================================
+// Dialog "Ajukan Izin Santri" — replikasi tampilan mockup: kartu santri
+// terpilih, toggle jenis izin, input alasan, tanggal/jam keluar & est.
+// kembali, tujuan (dengan counter karakter), pendamping opsional, dan
+// banner info verifikasi.
+// ===========================================================================
+class _AjukanIzinDialog extends StatefulWidget {
+  const _AjukanIzinDialog({required this.santris});
+  final List<Map<String, dynamic>> santris;
+
+  @override
+  State<_AjukanIzinDialog> createState() => _AjukanIzinDialogState();
+}
+
+class _AjukanIzinDialogState extends State<_AjukanIzinDialog> {
+  Map<String, dynamic>? _santri;
+  String _jenis = 'KELUAR';
+  final _alasanCtrl = TextEditingController();
+  DateTime _tanggalKeluar = DateTime.now();
+  TimeOfDay _jamKeluar = TimeOfDay.now();
+  TimeOfDay _estKembali = TimeOfDay(hour: (TimeOfDay.now().hour + 3) % 24, minute: TimeOfDay.now().minute);
+  final _tujuanCtrl = TextEditingController();
+  final _pendampingCtrl = TextEditingController();
+  bool _submitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _santri = widget.santris.isEmpty ? null : widget.santris.first;
+    _tujuanCtrl.addListener(() => setState(() {}));
+  }
+
+  @override
+  void dispose() {
+    _alasanCtrl.dispose();
+    _tujuanCtrl.dispose();
+    _pendampingCtrl.dispose();
+    super.dispose();
+  }
+
+  DateTime get _tanggalKeluarLengkap => DateTime(
+        _tanggalKeluar.year, _tanggalKeluar.month, _tanggalKeluar.day, _jamKeluar.hour, _jamKeluar.minute,
+      );
+
+  DateTime get _estKembaliLengkap => DateTime(
+        _tanggalKeluar.year, _tanggalKeluar.month, _tanggalKeluar.day, _estKembali.hour, _estKembali.minute,
+      );
+
+  String _fmtJam(TimeOfDay t) => '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')} WIB';
+
+  Future<void> _pilihTanggalKeluar() async {
+    final d = await showDatePicker(
+      context: context,
+      initialDate: _tanggalKeluar,
+      firstDate: DateTime.now().subtract(const Duration(days: 1)),
+      lastDate: DateTime.now().add(const Duration(days: 30)),
+    );
+    if (d == null) return;
+    final t = await showTimePicker(context: context, initialTime: _jamKeluar);
+    if (t == null) return;
+    setState(() {
+      _tanggalKeluar = d;
+      _jamKeluar = t;
+    });
+  }
+
+  Future<void> _pilihEstKembali() async {
+    final t = await showTimePicker(context: context, initialTime: _estKembali);
+    if (t == null) return;
+    setState(() => _estKembali = t);
+  }
+
+  void _gantiSantri() {
+    if (widget.santris.length <= 1) return;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: PColors.surface,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 12),
+            Text('Pilih Santri', style: PText.headlineSm),
+            const SizedBox(height: 4),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 360),
+              child: ListView(
+                shrinkWrap: true,
+                children: [
+                  for (final s in widget.santris)
+                    ListTile(
+                      leading: _initialsAvatar(s['nama']?.toString() ?? '-', size: 36),
+                      title: Text(s['nama']?.toString() ?? '-', style: PText.bodyMd),
+                      subtitle: Text('NIS: ${s['nis'] ?? '-'}', style: PText.bodySm),
+                      trailing: _santri?['id'] == s['id'] ? const Icon(Icons.check_circle_rounded, color: PColors.primary) : null,
+                      onTap: () {
+                        setState(() => _santri = s);
+                        Navigator.pop(ctx);
+                      },
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _initialsAvatar(String nama, {double size = 40}) {
+    final parts = nama.trim().split(RegExp(r'\s+')).where((e) => e.isNotEmpty).toList();
+    final initials = parts.isEmpty
+        ? '?'
+        : parts.length == 1
+            ? parts[0].substring(0, parts[0].length >= 2 ? 2 : 1).toUpperCase()
+            : (parts[0][0] + parts[1][0]).toUpperCase();
+    return Container(
+      width: size, height: size,
+      decoration: const BoxDecoration(color: PColors.primary, shape: BoxShape.circle),
+      alignment: Alignment.center,
+      child: Text(initials, style: TextStyle(fontFamily: 'Nunito', fontSize: size * 0.36, fontWeight: FontWeight.w800, color: Colors.white)),
+    );
+  }
+
+  void _submit() {
+    if (_santri == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Pilih santri terlebih dahulu.')));
+      return;
+    }
+    if (_alasanCtrl.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Alasan izin wajib diisi.')));
+      return;
+    }
+    if (_tujuanCtrl.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Tujuan izin wajib diisi.')));
+      return;
+    }
+    setState(() => _submitting = true);
+    Navigator.pop(context, {
+      'santriId': _santri!['id'],
+      'jenis': _jenis,
+      'alasan': _alasanCtrl.text.trim(),
+      'tanggalKeluar': _tanggalKeluarLengkap.toIso8601String(),
+      // NOTE: 'rencanaKembali' & 'pendamping' mengikuti nama field opsional
+      // yang sudah diasumsikan di komentar atas file ini. Kalau backend
+      // belum punya kolom ini, nilainya cukup diabaikan Prisma/DTO tanpa
+      // bikin request gagal — begitu kolomnya ditambahkan, langsung kepakai.
+      'rencanaKembali': _estKembaliLengkap.toIso8601String(),
+      'pendamping': _pendampingCtrl.text.trim().isEmpty ? null : _pendampingCtrl.text.trim(),
+      'catatan': 'Tujuan: ${_tujuanCtrl.text.trim()}',
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: TextField(
-        controller: controller,
-        keyboardType: keyboardType,
-        style: PText.bodyMd.copyWith(color: PColors.ink),
-        decoration: InputDecoration(
-          labelText: label,
-          labelStyle: PText.bodyMd,
-          filled: true,
-          fillColor: PColors.background,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: PColors.inputBorder),
+    final nama = _santri?['nama']?.toString() ?? 'Belum ada data santri';
+    final nis = _santri?['nis']?.toString() ?? '-';
+    final kamar = _santri?['asrama']?.toString();
+    // 'kelas' dari backend berupa Map {id, namaKelas}; ambil namanya saja.
+    final kelasRaw = _santri?['kelas'];
+    final kelas = kelasRaw is Map ? kelasRaw['namaKelas']?.toString() : kelasRaw?.toString();
+
+    return Dialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+      backgroundColor: Colors.transparent,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 420, maxHeight: 640),
+        child: Container(
+          decoration: BoxDecoration(color: PColors.surface, borderRadius: BorderRadius.circular(24)),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 20, 12, 0),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 44, height: 44,
+                      decoration: BoxDecoration(color: PColors.primary.withOpacity(0.10), shape: BoxShape.circle),
+                      child: const Icon(Icons.assignment_turned_in_rounded, color: PColors.primary),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Ajukan Izin Santri', style: PText.headlineSm),
+                          const SizedBox(height: 1),
+                          Text('Form Perizinan Resmi', style: PText.bodySm),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.close, size: 20),
+                      tooltip: 'Tutup',
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _requiredLabel('Pilih Santri'),
+                      const SizedBox(height: 6),
+                      InkWell(
+                        onTap: _gantiSantri,
+                        borderRadius: BorderRadius.circular(14),
+                        child: Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(color: PColors.background, borderRadius: BorderRadius.circular(14)),
+                          child: Row(
+                            children: [
+                              _initialsAvatar(nama, size: 38),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(nama, maxLines: 1, overflow: TextOverflow.ellipsis, style: PText.bodyMd.copyWith(color: PColors.ink, fontWeight: FontWeight.w700)),
+                                    const SizedBox(height: 3),
+                                    Wrap(spacing: 6, runSpacing: 4, children: [
+                                      Text('NIS: $nis', style: PText.bodySm),
+                                      if ((kelas ?? kamar) != null)
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                          decoration: BoxDecoration(color: PColors.surface, borderRadius: BorderRadius.circular(999)),
+                                          child: Text(
+                                            [if (kelas != null && kelas.isNotEmpty) 'Kelas $kelas', if (kamar != null && kamar.isNotEmpty) 'Kamar $kamar']
+                                                .join(' • '),
+                                            style: PText.bodySm.copyWith(fontSize: 10.5, fontWeight: FontWeight.w700),
+                                          ),
+                                        ),
+                                    ]),
+                                  ],
+                                ),
+                              ),
+                              if (widget.santris.length > 1)
+                                const Icon(Icons.unfold_more, size: 18, color: PColors.inkSecondary),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      _requiredLabel('Jenis Izin'),
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          Expanded(child: _jenisToggle('KELUAR', Icons.directions_walk, 'Izin Keluar')),
+                          const SizedBox(width: 8),
+                          Expanded(child: _jenisToggle('PULANG', Icons.home_outlined, 'Izin Pulang')),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      _requiredLabel('Alasan Izin'),
+                      const SizedBox(height: 6),
+                      TextField(
+                        controller: _alasanCtrl,
+                        maxLength: 100,
+                        style: PText.bodyMd.copyWith(color: PColors.ink),
+                        decoration: InputDecoration(
+                          counterText: '',
+                          filled: true,
+                          fillColor: PColors.background,
+                          hintText: 'Contoh: Kepentingan keluarga, berobat, dll.',
+                          hintStyle: PText.bodySm,
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                _requiredLabel('Tanggal & Jam Keluar'),
+                                const SizedBox(height: 6),
+                                _pickerField(
+                                  text: '${_tanggalKeluar.day} ${_bulanPendek[_tanggalKeluar.month - 1]} ${_tanggalKeluar.year}, ${_fmtJam(_jamKeluar)}',
+                                  icon: Icons.calendar_today_outlined,
+                                  onTap: _pilihTanggalKeluar,
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                _requiredLabel('Est. Kembali'),
+                                const SizedBox(height: 6),
+                                _pickerField(text: _fmtJam(_estKembali), icon: Icons.access_time, onTap: _pilihEstKembali),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          _requiredLabel('Tujuan'),
+                          const Spacer(),
+                          Text('${_tujuanCtrl.text.length}/100', style: PText.bodySm),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      TextField(
+                        controller: _tujuanCtrl,
+                        maxLength: 100,
+                        maxLines: 2,
+                        style: PText.bodyMd.copyWith(color: PColors.ink),
+                        decoration: InputDecoration(
+                          counterText: '',
+                          filled: true,
+                          fillColor: PColors.background,
+                          hintText: 'Contoh: Toko Buku & Apotek',
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Text.rich(
+                        TextSpan(text: 'Diantar / Didampingi Oleh ', style: PText.labelMd.copyWith(color: PColors.ink), children: [
+                          TextSpan(text: '(Opsional)', style: PText.bodySm),
+                        ]),
+                      ),
+                      const SizedBox(height: 6),
+                      TextField(
+                        controller: _pendampingCtrl,
+                        style: PText.bodyMd.copyWith(color: PColors.ink),
+                        decoration: InputDecoration(
+                          filled: true,
+                          fillColor: PColors.background,
+                          hintText: 'Nama penjemput / pendamping (misal: Ayah/Wali)',
+                          hintStyle: PText.bodySm,
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        decoration: BoxDecoration(color: PColors.background, borderRadius: BorderRadius.circular(12)),
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(color: PColors.goldSurface, borderRadius: BorderRadius.circular(999)),
+                              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                                const Icon(Icons.hourglass_bottom, size: 11, color: PColors.gold),
+                                const SizedBox(width: 3),
+                                Text('Diajukan', style: TextStyle(fontFamily: 'Nunito', fontSize: 10, fontWeight: FontWeight.w800, color: PColors.gold)),
+                              ]),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text('Izin akan diverifikasi oleh Kepala Pengasuhan / Kesantrian.', style: PText.bodySm.copyWith(fontSize: 11)),
+                            ),
+                            const Icon(Icons.verified_user_outlined, size: 16, color: PColors.inkSecondary),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+                child: Column(
+                  children: [
+                    SizedBox(
+                      width: double.infinity,
+                      height: 48,
+                      child: FilledButton.icon(
+                        onPressed: _submitting ? null : _submit,
+                        style: FilledButton.styleFrom(
+                          backgroundColor: PColors.primary,
+                          foregroundColor: PColors.gold,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+                        ),
+                        icon: const Icon(Icons.send, size: 16),
+                        label: const Text('Ajukan Izin', style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w700)),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: Text('Batal', style: PText.bodyMd.copyWith(color: PColors.ink, fontWeight: FontWeight.w700)),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: PColors.inputBorder),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: PColors.primary, width: 2),
-          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _requiredLabel(String text) {
+    return Text.rich(
+      TextSpan(text: text, style: PText.labelMd.copyWith(color: PColors.ink), children: [
+        TextSpan(text: ' *', style: TextStyle(color: PColors.errorText, fontWeight: FontWeight.w800)),
+      ]),
+    );
+  }
+
+  Widget _jenisToggle(String value, IconData icon, String label) {
+    final selected = _jenis == value;
+    return InkWell(
+      onTap: () => setState(() => _jenis = value),
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          color: selected ? PColors.primary : PColors.background,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        alignment: Alignment.center,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 16, color: selected ? Colors.white : PColors.inkSecondary),
+            const SizedBox(width: 6),
+            Text(label,
+                style: TextStyle(
+                    fontFamily: 'Nunito', fontSize: 13, fontWeight: FontWeight.w700,
+                    color: selected ? Colors.white : PColors.inkSecondary)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _pickerField({required String text, required IconData icon, required VoidCallback onTap}) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 13),
+        decoration: BoxDecoration(color: PColors.background, borderRadius: BorderRadius.circular(12)),
+        child: Row(
+          children: [
+            Expanded(child: Text(text, style: PText.bodySm.copyWith(color: PColors.ink, fontWeight: FontWeight.w600))),
+            Icon(icon, size: 16, color: PColors.inkSecondary),
+          ],
         ),
       ),
     );

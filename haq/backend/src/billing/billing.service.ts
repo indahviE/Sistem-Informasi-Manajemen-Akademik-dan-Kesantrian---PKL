@@ -186,9 +186,9 @@ export class BillingService {
     const daftarTenant = overdue.map((inv) => inv.tenant.namaPondok).slice(0, 3).join(', ');
     const sisa = overdue.length > 3 ? ` +${overdue.length - 3} lainnya` : '';
 
-    await this.notifikasi.kirimKeSuperAdmin(
-      JenisNotifikasi.TAGIHAN,
-      `${overdue.length} tagihan menunggak (${daftarTenant}${sisa}). Total tertunggak Rp ${totalTertunggak.toLocaleString('id-ID')}.`,
-    );
+    // await this.notifikasi.kirimKeSuperAdmin(
+    //   JenisNotifikasi.TAGIHAN,
+    //   `${overdue.length} tagihan menunggak (${daftarTenant}${sisa}). Total tertunggak Rp ${totalTertunggak.toLocaleString('id-ID')}.`,
+    // );
   }
 }

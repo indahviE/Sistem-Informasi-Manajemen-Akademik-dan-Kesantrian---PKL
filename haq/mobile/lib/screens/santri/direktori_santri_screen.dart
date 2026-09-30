@@ -164,8 +164,11 @@ class _DirektoriSantriScreenState extends State<DirektoriSantriScreen> {
     });
     try {
       final api = AppScope.of(context).api;
-      final data = await api.get(ApiUrl.santri);
-      final list = (data as List).map((e) {
+      final data = await api.get(ApiUrl.santri, query: {'perPage': '100'});
+      // Endpoint bisa mengembalikan List langsung, atau Map berpaginasi
+      // { items: [...], ... }. Tangani keduanya.
+      final rawList = data is List ? data : ((data as Map)['items'] as List? ?? []);
+      final list = rawList.map((e) {
         final m = (e as Map).cast<String, dynamic>();
         final asrama = (m['asrama'] as String?)?.trim();
         return _SantriItem(

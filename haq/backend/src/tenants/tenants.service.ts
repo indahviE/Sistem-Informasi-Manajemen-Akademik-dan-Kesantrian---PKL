@@ -121,12 +121,12 @@ export class TenantsService {
       ip,
     });
 
-    await this.notifikasi.kirimKeSuperAdmin(
-      JenisNotifikasi.TENANT_BARU,
-      autoApprove
-        ? `Tenant baru "${result.namaPondok}" (${result.kodeTenant}) mendaftar dan langsung diaktifkan otomatis.`
-        : `Tenant baru "${result.namaPondok}" (${result.kodeTenant}) mendaftar dan menunggu persetujuan.`,
-    );
+    // await this.notifikasi.kirimKeSuperAdmin(
+    //   JenisNotifikasi.TENANT_BARU,
+    //   autoApprove
+    //     ? `Tenant baru "${result.namaPondok}" (${result.kodeTenant}) mendaftar dan langsung diaktifkan otomatis.`
+    //     : `Tenant baru "${result.namaPondok}" (${result.kodeTenant}) mendaftar dan menunggu persetujuan.`,
+    // );
 
     return result;
   }
@@ -562,9 +562,9 @@ export class TenantsService {
       });
     }
 
-    await this.notifikasi.kirimKeSuperAdmin(
-      JenisNotifikasi.TENANT_BARU,
-      `${expired.length} pendaftaran tenant otomatis dibatalkan karena melewati masa tenggang ${graceDays} hari: ${expired.map((t) => t.namaPondok).join(', ')}.`,
-    );
+    // await this.notifikasi.kirimKeSuperAdmin(
+    //   JenisNotifikasi.TENANT_BARU,
+    //   `${expired.length} pendaftaran tenant otomatis dibatalkan karena melewati masa tenggang ${graceDays} hari: ${expired.map((t) => t.namaPondok).join(', ')}.`,
+    // );
   }
 }
