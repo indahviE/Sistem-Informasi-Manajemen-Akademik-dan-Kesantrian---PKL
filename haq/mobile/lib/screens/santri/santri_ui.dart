@@ -10,13 +10,42 @@ const String kFont = 'Nunito';
 class SC {
   SC._();
 
-  static const primary = Color(0xFF0F3A2E);
-  static const primaryEnd = Color(0xFF164E3D);
+  // Warna utama bisa diganti per pondok (lihat applyBrand). Bawaannya zamrud tua.
+  static const defaultPrimary = Color(0xFF0F3A2E);
+  static const _defaultPrimaryEnd = Color(0xFF164E3D);
+  static const _defaultMint = Color(0xFFD2E4DC);
+  static const _defaultSage = Color(0xFFE2ECE9);
+
+  static Color primary = defaultPrimary;
+  static Color primaryEnd = _defaultPrimaryEnd;
+
+  /// Warna pondok yang terlalu terang digelapkan supaya teks putih tetap terbaca.
+  static Color readable(Color c) =>
+      ThemeData.estimateBrightnessForColor(c) == Brightness.light
+          ? Color.lerp(c, Colors.black, 0.35)!
+          : c;
+
+  /// Panggil setiap kali warna pondok berubah. null = kembali ke bawaan.
+  /// Hanya warna utama dan turunannya yang ikut; emas dan netral tetap.
+  static void applyBrand(Color? brand) {
+    if (brand == null) {
+      primary = defaultPrimary;
+      primaryEnd = _defaultPrimaryEnd;
+      mint = _defaultMint;
+      sage = _defaultSage;
+      return;
+    }
+    final base = readable(brand);
+    primary = base;
+    primaryEnd = Color.lerp(base, Colors.white, 0.10)!;
+    mint = Color.lerp(base, Colors.white, 0.82)!;
+    sage = Color.lerp(base, Colors.white, 0.90)!;
+  }
   static const gold = Color(0xFFC5A059);
   static const goldDark = Color(0xFF8A6A2B);
   static const goldSurface = Color(0xFFFAF5EC);
-  static const mint = Color(0xFFD2E4DC);
-  static const sage = Color(0xFFE2ECE9);
+  static Color mint = _defaultMint;
+  static Color sage = _defaultSage;
 
   static const background = Color(0xFFFAF9F5);
   static const surface = Color(0xFFFFFFFF);
@@ -127,8 +156,8 @@ class HeroShell extends StatelessWidget {
       width: double.infinity,
       padding: EdgeInsets.fromLTRB(20, top, 20, bottom),
       clipBehavior: Clip.antiAlias,
-      decoration: const BoxDecoration(
-        borderRadius: BorderRadius.vertical(bottom: Radius.circular(32)),
+      decoration: BoxDecoration(
+        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(32)),
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,

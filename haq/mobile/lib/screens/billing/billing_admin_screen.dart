@@ -3,111 +3,33 @@ import 'package:flutter/services.dart';
 
 import '../../services/api_client.dart';
 import '../../services/app_scope.dart';
+import '../santri/santri_ui.dart';
 import '../ui_utils.dart';
 import 'billing_invoice_screen.dart';
 import 'paket_screen.dart';
 import 'langganan_screen.dart';
 
-/// ---------------------------------------------------------------------------
-/// Design tokens — mirrored 1:1 from DESIGN.md, the same source signup_screen
-/// .dart's `PColors`/`PText` are built from, so this page shares the exact
-/// same "Islamic Academic & Kesantrian Experience" identity (Deep Emerald
-/// Forest + Antique Gold on a warm ivory canvas) and the same Nunito type
-/// ramp as the signup flow.
-/// ---------------------------------------------------------------------------
-class _BC {
-  _BC._();
+// ===========================================================================
+// Konstanta periode paket (nilainya harus sama dengan yang diterima backend)
+// ===========================================================================
+const _paketPeriodeLabel = {
+  'HARIAN': 'Per Hari',
+  'BULANAN': 'Per Bulan',
+  'TAHUNAN': 'Per Tahun',
+};
 
-  static const primary = Color(0xFF00231A);
-  static const onPrimary = Color(0xFFFFFFFF);
-  static const primaryContainer = Color(0xFF0F3A2E);
-  static const onPrimaryContainer = Color(0xFF7AA494);
-  static const primaryFixed = Color(0xFFC0ECDA);
+const _paketPeriodeSuffix = {
+  'HARIAN': '/ hari',
+  'BULANAN': '/ bulan',
+  'TAHUNAN': '/ tahun',
+};
 
-  static const secondary = Color(0xFF775A19);
-  static const onSecondaryContainer = Color(0xFF785A1A);
-  static const secondaryContainer = Color(0xFFFED488);
-  static const secondaryFixed = Color(0xFFFFDEA5);
-  static const onSecondaryFixed = Color(0xFF261900);
+String _ribuan(String digits) =>
+    digits.replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (m) => '.');
 
-  static const background = Color(0xFFFAF9F5);
-  static const surfaceContainerLowest = Color(0xFFFFFFFF);
-  static const surfaceContainerLow = Color(0xFFF4F4F0);
-  static const surfaceContainer = Color(0xFFEFEEEA);
-  static const surfaceContainerHigh = Color(0xFFE9E8E4);
-
-  static const onSurface = Color(0xFF1B1C1A);
-  static const onSurfaceVariant = Color(0xFF414845);
-  static const outlineVariant = Color(0xFFC0C8C3);
-
-  static const error = Color(0xFFBA1A1A);
-  static const onErrorContainer = Color(0xFF93000A);
-  static const errorContainer = Color(0xFFFFDAD6);
-
-  static const successContainer = Color(0xFFC0ECDA);
-}
-
-class _BT {
-  _BT._();
-  static const _font = 'Nunito';
-
-  static const headlineLgMobile = TextStyle(
-    fontFamily: _font, fontSize: 22, fontWeight: FontWeight.w700, height: 28 / 22,
-    letterSpacing: -0.01, color: _BC.primary,
-  );
-  static const headlineSm = TextStyle(
-    fontFamily: _font, fontSize: 18, fontWeight: FontWeight.w700, height: 24 / 18, color: _BC.primary,
-  );
-  static const displayLgMobile = TextStyle(
-    fontFamily: _font, fontSize: 26, fontWeight: FontWeight.w800, height: 32 / 26, color: _BC.primary,
-  );
-  static const bodyMd = TextStyle(
-    fontFamily: _font, fontSize: 14, fontWeight: FontWeight.w400, height: 20 / 14, color: _BC.onSurfaceVariant,
-  );
-  static const bodySm = TextStyle(
-    fontFamily: _font, fontSize: 12, fontWeight: FontWeight.w400, height: 18 / 12, color: _BC.onSurfaceVariant,
-  );
-  static const labelLg = TextStyle(
-    fontFamily: _font, fontSize: 14, fontWeight: FontWeight.w700, height: 20 / 14, color: _BC.onSurface,
-  );
-  static const labelMd = TextStyle(
-    fontFamily: _font, fontSize: 12, fontWeight: FontWeight.w700, height: 16 / 12, color: _BC.onSurfaceVariant,
-  );
-  static const labelSm = TextStyle(
-    fontFamily: _font, fontSize: 10.5, fontWeight: FontWeight.w700, height: 14 / 10.5, color: _BC.onSurfaceVariant,
-  );
-  static const input = TextStyle(
-    fontFamily: _font, fontSize: 14, fontWeight: FontWeight.w600, color: _BC.onSurface,
-  );
-}
-
-/// Dekorasi field filled bertema hijau — dipakai oleh `_BcSelect` di bawah
-/// supaya dropdown-nya tidak jatuh ke style default Material (biru).
-InputDecoration _bcDecoration(String label) {
-  OutlineInputBorder border([Color? color]) => OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
-        borderSide: color == null ? BorderSide.none : BorderSide(color: color, width: 1.5),
-      );
-  return InputDecoration(
-    labelText: label,
-    labelStyle: _BT.bodySm,
-    floatingLabelStyle: _BT.bodySm.copyWith(color: _BC.primary, fontWeight: FontWeight.w700),
-    filled: true,
-    fillColor: _BC.surfaceContainerLow,
-    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-    border: border(),
-    enabledBorder: border(),
-    focusedBorder: border(_BC.primary),
-  );
-}
-
-/// -----------------------------------------------------------------------
-/// Field pilihan bertema hijau — pengganti `TwSelect`. Sama persis gaya &
-/// perilakunya dengan `_ThemedSelect` di paket_screen.dart (bottom sheet
-/// "Pilih" dengan titik & checkmark hijau di opsi terpilih), supaya dropdown
-/// Periode Tagihan / Pilih Pondok / Pilih Paket di halaman ini konsisten
-/// dengan halaman Paket — bukan lagi biru default Material.
-/// -----------------------------------------------------------------------
+// ===========================================================================
+// Field pilihan (bottom sheet) bergaya SC
+// ===========================================================================
 class _BcSelect<V> extends StatelessWidget {
   final String label;
   final V? value;
@@ -125,7 +47,7 @@ class _BcSelect<V> extends StatelessWidget {
     final picked = await showModalBottomSheet<V>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: _BC.surfaceContainerLowest,
+      backgroundColor: SC.surface,
       constraints: const BoxConstraints(maxWidth: 480),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -142,23 +64,22 @@ class _BcSelect<V> extends StatelessWidget {
                   width: 40,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: _BC.outlineVariant,
+                    color: SC.border,
                     borderRadius: BorderRadius.circular(999),
                   ),
                 ),
               ),
               const SizedBox(height: 14),
-              const Padding(
-                padding: EdgeInsets.only(left: 8),
-                child: Text('Pilih', style: _BT.headlineSm),
+              Padding(
+                padding: const EdgeInsets.only(left: 8),
+                child: Text(label, style: sty(16, FontWeight.w800, SC.ink)),
               ),
               const SizedBox(height: 8),
               Flexible(
                 child: ListView(
                   shrinkWrap: true,
                   children: [
-                    for (final o in options)
-                      _row(sheetCtx, o, selected: o.key == value),
+                    for (final o in options) _row(sheetCtx, o, selected: o.key == value),
                   ],
                 ),
               ),
@@ -175,14 +96,12 @@ class _BcSelect<V> extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 4),
       child: InkWell(
         onTap: () => Navigator.pop<V>(sheetCtx, o.key),
-        borderRadius: BorderRadius.circular(12),
-        splashColor: _BC.primaryContainer.withOpacity(0.08),
-        highlightColor: _BC.primaryContainer.withOpacity(0.06),
+        borderRadius: BorderRadius.circular(14),
         child: Ink(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
           decoration: BoxDecoration(
-            color: selected ? _BC.successContainer.withOpacity(0.5) : Colors.transparent,
-            borderRadius: BorderRadius.circular(12),
+            color: selected ? SC.sage : Colors.transparent,
+            borderRadius: BorderRadius.circular(14),
           ),
           child: Row(
             children: [
@@ -190,7 +109,7 @@ class _BcSelect<V> extends StatelessWidget {
                 width: 8,
                 height: 8,
                 decoration: BoxDecoration(
-                  color: selected ? _BC.primaryContainer : _BC.outlineVariant,
+                  color: selected ? SC.primary : SC.border,
                   shape: BoxShape.circle,
                 ),
               ),
@@ -200,16 +119,10 @@ class _BcSelect<V> extends StatelessWidget {
                   o.value,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontFamily: 'Nunito',
-                    fontSize: 15,
-                    fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
-                    color: selected ? _BC.primary : _BC.onSurface,
-                  ),
+                  style: sty(14.5, selected ? FontWeight.w800 : FontWeight.w600, SC.ink),
                 ),
               ),
-              if (selected)
-                Icon(Icons.check_rounded, size: 20, color: _BC.primaryContainer),
+              if (selected) Icon(Icons.check_rounded, size: 20, color: SC.primary),
             ],
           ),
         ),
@@ -223,49 +136,48 @@ class _BcSelect<V> extends StatelessWidget {
     for (final o in options) {
       if (o.key == value) current = o.value;
     }
-    return InkWell(
-      onTap: () => _open(context),
-      borderRadius: BorderRadius.circular(14),
-      splashColor: _BC.primaryContainer.withOpacity(0.06),
-      highlightColor: Colors.transparent,
-      child: InputDecorator(
-        isEmpty: current == null,
-        decoration: _bcDecoration(label).copyWith(
-          suffixIcon: Icon(Icons.keyboard_arrow_down_rounded, color: _BC.onSurfaceVariant),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 2, bottom: 7),
+          child: Text(label, style: sty(12.5, FontWeight.w700, SC.ink)),
         ),
-        child: Text(
-          current ?? '',
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: _BT.input,
+        InkWell(
+          onTap: () => _open(context),
+          borderRadius: BorderRadius.circular(14),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 15),
+            decoration: BoxDecoration(
+              color: SC.background,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: SC.border),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    current ?? 'Pilih...',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: current == null
+                        ? sty(14, FontWeight.w500, SC.inkMuted)
+                        : sty(14, FontWeight.w600, SC.ink),
+                  ),
+                ),
+                Icon(Icons.keyboard_arrow_down_rounded, color: SC.inkSecondary),
+              ],
+            ),
+          ),
         ),
-      ),
+      ],
     );
   }
 }
 
-/// Periode tagihan untuk dialog Tambah/Edit Paket — nilainya harus sama
-/// dengan yang diterima backend.
-const _paketPeriodeLabel = {
-  'HARIAN': 'Per Hari',
-  'BULANAN': 'Per Bulan',
-  'TAHUNAN': 'Per Tahun',
-};
-
-const _paketPeriodeSuffix = {
-  'HARIAN': '/ hari',
-  'BULANAN': '/ bulan',
-  'TAHUNAN': '/ tahun',
-};
-
-String _ribuan(String digits) =>
-    digits.replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (m) => '.');
-
-/// Dialog Tambah/Edit Paket — desainnya sama persis dengan
-/// `_PaketFormDialog` di paket_screen.dart (kartu rounded, header +
-/// subjudul, field filled, dan `_BcSelect` hijau untuk Periode Tagihan),
-/// supaya "Tambah Paket" konsisten baik dibuka dari overview Billing
-/// maupun dari halaman Kelola Paket.
+// ===========================================================================
+// Dialog Tambah / Edit Paket
+// ===========================================================================
 class _PaketFormDialog extends StatefulWidget {
   final Map<String, dynamic>? existing;
   const _PaketFormDialog({this.existing});
@@ -337,123 +249,48 @@ class _PaketFormDialogState extends State<_PaketFormDialog> {
     });
   }
 
-  /// Dekorasi bersama untuk semua field di dialog ini: filled, tanpa border
-  /// kotak, radius 14 — sama dengan `_bcDecoration` tapi mendukung errorText.
-  InputDecoration _decoration(
-    String label, {
-    String? prefixText,
-    bool alignHint = false,
-    String? errorText,
-  }) {
-    OutlineInputBorder border([Color? color, double width = 1.5]) => OutlineInputBorder(
+  InputDecoration _dec({String? hint, String? prefixText, String? errorText}) {
+    OutlineInputBorder b(Color c, [double w = 1]) => OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: color == null ? BorderSide.none : BorderSide(color: color, width: width),
+          borderSide: BorderSide(color: c, width: w),
         );
-
     return InputDecoration(
-      labelText: label,
-      labelStyle: _BT.bodySm,
-      floatingLabelStyle: _BT.bodySm.copyWith(color: _BC.primary, fontWeight: FontWeight.w700),
+      hintText: hint,
+      hintStyle: sty(13.5, FontWeight.w500, SC.inkMuted),
       prefixText: prefixText,
-      prefixStyle: _BT.input.copyWith(fontWeight: FontWeight.w700),
+      prefixStyle: sty(14, FontWeight.w700, SC.ink),
       errorText: errorText,
-      errorStyle: const TextStyle(fontFamily: 'Nunito', fontSize: 11, color: _BC.error),
+      errorStyle: sty(11.5, FontWeight.w600, SC.errorText),
       filled: true,
-      fillColor: _BC.surfaceContainerLow,
-      alignLabelWithHint: alignHint,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-      border: border(),
-      enabledBorder: border(),
-      focusedBorder: border(_BC.primary),
-      errorBorder: border(_BC.error, 1),
-      focusedErrorBorder: border(_BC.error),
+      fillColor: SC.background,
+      isDense: true,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 15),
+      border: b(SC.border),
+      enabledBorder: b(SC.border),
+      focusedBorder: b(SC.primary, 1.6),
+      errorBorder: b(SC.errorText.withValues(alpha: 0.6)),
+      focusedErrorBorder: b(SC.errorText, 1.6),
     );
   }
 
-  Widget _textField({
-    required TextEditingController controller,
-    required String label,
-    TextInputType? keyboardType,
-    List<TextInputFormatter>? formatters,
-    String? prefixText,
-    int maxLines = 1,
-    String? errorText,
-    ValueChanged<String>? onChanged,
-  }) {
-    return TextField(
-      controller: controller,
-      keyboardType: keyboardType,
-      inputFormatters: formatters,
-      maxLines: maxLines,
-      onChanged: onChanged,
-      style: _BT.input,
-      decoration: _decoration(
-        label,
-        prefixText: prefixText,
-        alignHint: maxLines > 1,
-        errorText: errorText,
-      ),
+  Widget _labeled(String label, Widget child) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 2, bottom: 7),
+          child: Text(label, style: sty(12.5, FontWeight.w700, SC.ink)),
+        ),
+        child,
+      ],
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final fields = <Widget>[
-      _textField(
-        controller: _nama,
-        label: 'Nama Paket',
-        errorText: _namaError,
-        onChanged: (_) {
-          if (_namaError != null) setState(() => _namaError = null);
-        },
-      ),
-      _BcSelect<String>(
-        label: 'Periode Tagihan',
-        value: _periode,
-        options: _paketPeriodeLabel.entries.map((e) => MapEntry(e.key, e.value)).toList(),
-        onChanged: (v) => setState(() => _periode = v),
-      ),
-      _textField(
-        controller: _harga,
-        label: 'Harga ${_paketPeriodeSuffix[_periode]}',
-        keyboardType: TextInputType.number,
-        formatters: [_ThousandsInputFormatter()],
-        prefixText: 'Rp ',
-      ),
-      _textField(
-        controller: _limit,
-        label: 'Limit Santri',
-        keyboardType: TextInputType.number,
-        formatters: [FilteringTextInputFormatter.digitsOnly],
-      ),
-      _textField(
-        controller: _fitur,
-        label: 'Daftar Fitur (satu fitur per baris)',
-        maxLines: 5,
-      ),
-      Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        decoration: BoxDecoration(
-          color: _BC.surfaceContainerLow,
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const Text('Paket Aktif', style: _BT.labelLg),
-            Switch(
-              value: _aktif,
-              activeColor: _BC.primaryContainer,
-              activeTrackColor: _BC.primaryContainer.withOpacity(0.35),
-              onChanged: (v) => setState(() => _aktif = v),
-            ),
-          ],
-        ),
-      ),
-    ];
-
     return Dialog(
-      backgroundColor: _BC.surfaceContainerLowest,
+      backgroundColor: SC.surface,
+      surfaceTintColor: Colors.transparent,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
       child: ConstrainedBox(
@@ -464,17 +301,131 @@ class _PaketFormDialogState extends State<_PaketFormDialog> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(_isEdit ? 'Edit Paket' : 'Tambah Paket', style: _BT.headlineSm),
-              const SizedBox(height: 4),
-              Text(
-                _isEdit ? 'Perbarui detail paket ini.' : 'Buat paket langganan baru untuk platform.',
-                style: _BT.bodySm,
+              Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: SC.sage,
+                      borderRadius: BorderRadius.circular(13),
+                    ),
+                    child: Icon(
+                      _isEdit ? Icons.edit_rounded : Icons.add_box_rounded,
+                      size: 20,
+                      color: SC.primary,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(_isEdit ? 'Edit paket' : 'Tambah paket',
+                            style: sty(16, FontWeight.w800, SC.ink)),
+                        Text(
+                          _isEdit
+                              ? 'Perbarui detail paket ini'
+                              : 'Buat paket langganan baru untuk platform',
+                          style: sty(11.5, FontWeight.w500, SC.inkSecondary),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 18),
-              for (int i = 0; i < fields.length; i++) ...[
-                fields[i],
-                if (i != fields.length - 1) const SizedBox(height: 12),
-              ],
+              _labeled(
+                'Nama paket',
+                TextField(
+                  controller: _nama,
+                  style: sty(14, FontWeight.w600, SC.ink),
+                  onChanged: (_) {
+                    if (_namaError != null) setState(() => _namaError = null);
+                  },
+                  decoration: _dec(hint: 'Contoh: Pro', errorText: _namaError),
+                ),
+              ),
+              const SizedBox(height: 14),
+              _BcSelect<String>(
+                label: 'Periode tagihan',
+                value: _periode,
+                options: _paketPeriodeLabel.entries.map((e) => MapEntry(e.key, e.value)).toList(),
+                onChanged: (v) => setState(() => _periode = v),
+              ),
+              const SizedBox(height: 14),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    flex: 3,
+                    child: _labeled(
+                      'Harga ${_paketPeriodeSuffix[_periode]}',
+                      TextField(
+                        controller: _harga,
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [_ThousandsInputFormatter()],
+                        style: sty(14, FontWeight.w600, SC.ink),
+                        decoration: _dec(prefixText: 'Rp '),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    flex: 2,
+                    child: _labeled(
+                      'Limit santri',
+                      TextField(
+                        controller: _limit,
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                        style: sty(14, FontWeight.w600, SC.ink),
+                        decoration: _dec(),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              _labeled(
+                'Daftar fitur',
+                TextField(
+                  controller: _fitur,
+                  maxLines: 5,
+                  minLines: 3,
+                  style: sty(14, FontWeight.w600, SC.ink),
+                  decoration: _dec(hint: 'Satu fitur per baris'),
+                ),
+              ),
+              const SizedBox(height: 14),
+              Container(
+                padding: const EdgeInsets.fromLTRB(14, 6, 8, 6),
+                decoration: BoxDecoration(
+                  color: SC.background,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: SC.border),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Paket aktif', style: sty(13.5, FontWeight.w800, SC.ink)),
+                          Text('Paket nonaktif tidak bisa dipilih pondok',
+                              style: sty(11, FontWeight.w500, SC.inkSecondary)),
+                        ],
+                      ),
+                    ),
+                    Switch(
+                      value: _aktif,
+                      activeThumbColor: SC.primary,
+                      activeTrackColor: SC.primary.withValues(alpha: 0.35),
+                      onChanged: (v) => setState(() => _aktif = v),
+                    ),
+                  ],
+                ),
+              ),
               const SizedBox(height: 22),
               Row(
                 children: [
@@ -482,12 +433,12 @@ class _PaketFormDialogState extends State<_PaketFormDialog> {
                     child: OutlinedButton(
                       onPressed: () => Navigator.pop(context),
                       style: OutlinedButton.styleFrom(
-                        foregroundColor: _BC.onSurfaceVariant,
-                        side: const BorderSide(color: _BC.outlineVariant),
+                        foregroundColor: SC.inkSecondary,
+                        side: BorderSide(color: SC.border),
+                        minimumSize: const Size(0, 48),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
                       ),
-                      child: const Text('Batal', style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w700, fontSize: 13)),
+                      child: Text('Batal', style: sty(13, FontWeight.w700, SC.inkSecondary)),
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -495,11 +446,14 @@ class _PaketFormDialogState extends State<_PaketFormDialog> {
                     child: FilledButton(
                       onPressed: _submit,
                       style: FilledButton.styleFrom(
-                        backgroundColor: _BC.primaryContainer,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        backgroundColor: SC.primary,
+                        minimumSize: const Size(0, 48),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(999),
+                          side: BorderSide(color: SC.gold.withValues(alpha: 0.6)),
+                        ),
                       ),
-                      child: const Text('Simpan', style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w700, fontSize: 13)),
+                      child: Text('Simpan', style: sty(13, FontWeight.w700, Colors.white)),
                     ),
                   ),
                 ],
@@ -514,6 +468,37 @@ class _PaketFormDialogState extends State<_PaketFormDialog> {
 
 /// Sub-halaman yang ditampilkan in-place di dalam body screen ini.
 enum _BillingView { overview, paket, langganan, invoice }
+
+/// Ringkasan angka yang dihitung dari data API (hanya tampilan, bukan logika baru).
+class _Stats {
+  const _Stats({
+    required this.mrr,
+    required this.berbayar,
+    required this.trial,
+    required this.totalTenant,
+    required this.progress,
+    required this.langgananAktif,
+    required this.overdue,
+    required this.overdueTenants,
+    required this.totalTertunda,
+    required this.totalFaktur,
+    required this.lunas,
+    required this.menunggu,
+  });
+
+  final num mrr;
+  final int berbayar;
+  final int trial;
+  final int totalTenant;
+  final double progress;
+  final int langgananAktif;
+  final List<Map<String, dynamic>> overdue;
+  final int overdueTenants;
+  final num totalTertunda;
+  final int totalFaktur;
+  final int lunas;
+  final int menunggu;
+}
 
 class BillingAdminScreen extends StatefulWidget {
   const BillingAdminScreen({super.key});
@@ -531,9 +516,8 @@ class _BillingAdminScreenState extends State<BillingAdminScreen> {
   String? _error;
   DateTime? _lastLoaded;
 
-  /// Halaman yang sedang tampil. Paket/Langganan TIDAK dibuka lewat
-  /// Navigator.push (yang akan menutupi seluruh ShellScreen, termasuk top bar
-  /// & bottom nav), melainkan menggantikan konten body ini secara in-place.
+  /// Paket/Langganan/Tagihan TIDAK dibuka lewat Navigator.push (yang akan
+  /// menutupi top bar & bottom nav shell), melainkan menggantikan body ini.
   _BillingView _view = _BillingView.overview;
 
   final GlobalKey _overdueKey = GlobalKey();
@@ -541,18 +525,11 @@ class _BillingAdminScreenState extends State<BillingAdminScreen> {
   @override
   void initState() {
     super.initState();
-    // Defer to a microtask: AppScope.of(context) reads an InheritedWidget,
-    // which Flutter disallows calling synchronously inside initState()
-    // (it must happen after initState completes, e.g. in didChangeDependencies,
-    // build, or — as here — a scheduled microtask/callback).
+    // AppScope.of(context) tidak boleh dipanggil sinkron di initState.
     Future.microtask(_load);
   }
 
-  /// [showSpinner] controls whether the whole page swaps to the full-page
-  /// loader. Pass false for refreshes triggered by an action the user just
-  /// took (save/delete/assign/mark-paid) or pull-to-refresh, so the
-  /// scroll view stays mounted — and the scroll position stays put —
-  /// instead of being torn down and rebuilt at the top.
+  /// [showSpinner] false = refresh senyap supaya posisi scroll tidak reset.
   Future<void> _load({bool showSpinner = true}) async {
     setState(() {
       if (showSpinner) _loading = true;
@@ -576,33 +553,31 @@ class _BillingAdminScreenState extends State<BillingAdminScreen> {
         _loading = false;
       });
     } on ApiException catch (e) {
-      if (mounted) setState(() {
-        _error = e.message;
-        _loading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _error = e.message;
+          _loading = false;
+        });
+      }
     } catch (e) {
-      if (mounted) setState(() {
-        _error = 'Gagal memuat data billing: $e';
-        _loading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _error = 'Gagal memuat data billing: $e';
+          _loading = false;
+        });
+      }
     }
   }
 
-  void _notAvailable() {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(const SnackBar(content: Text('Fitur ini akan segera tersedia.')));
-  }
+  void _notAvailable() => _showToast('Fitur ini akan segera tersedia.');
 
-  /// Kembali dari sub-halaman Paket/Langganan ke overview billing, sekaligus
-  /// refresh data di latar belakang (tanpa spinner) supaya metrik & katalog
-  /// mencerminkan perubahan yang baru dilakukan di sub-halaman.
   void _backToOverview() {
     setState(() => _view = _BillingView.overview);
     _load(showSpinner: false);
   }
 
   // ===========================================================================
-  // Small data-safety helpers
+  // Helper data
   // ===========================================================================
   dynamic _pick(Map<String, dynamic> map, List<String> keys) {
     for (final k in keys) {
@@ -623,8 +598,7 @@ class _BillingAdminScreenState extends State<BillingAdminScreen> {
     return fallback;
   }
 
-  String _rupiah(num v) =>
-      'Rp ${v.round().toString().replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (m) => '.')}';
+  String _rupiah(num v) => 'Rp ${_ribuan(v.round().toString())}';
 
   String _rupiahCompact(num v) {
     if (v < 1000000) return _rupiah(v);
@@ -653,7 +627,8 @@ class _BillingAdminScreenState extends State<BillingAdminScreen> {
   void _scrollToOverdue() {
     final ctx = _overdueKey.currentContext;
     if (ctx != null) {
-      Scrollable.ensureVisible(ctx, duration: const Duration(milliseconds: 350), curve: Curves.easeInOut);
+      Scrollable.ensureVisible(ctx,
+          duration: const Duration(milliseconds: 350), curve: Curves.easeInOut);
     }
   }
 
@@ -669,39 +644,115 @@ class _BillingAdminScreenState extends State<BillingAdminScreen> {
     return null;
   }
 
+  _Stats _computeStats() {
+    final aktifSubs = _subs.where((s) => (s as Map)['status'] == 'AKTIF').toList();
+
+    // Harga tiap paket dinormalisasi ke per bulan sesuai `periode`-nya.
+    num mrr = 0;
+    for (final s in aktifSubs) {
+      final pm = ((s as Map)['paket'] as Map?)?.cast<String, dynamic>() ?? <String, dynamic>{};
+      final hargaPaket = _num(pm, ['harga']);
+      final periode = (pm['periode'] as String?) ?? 'TAHUNAN';
+      switch (periode) {
+        case 'HARIAN':
+          mrr += hargaPaket * 30;
+          break;
+        case 'BULANAN':
+          mrr += hargaPaket;
+          break;
+        default:
+          mrr += hargaPaket / 12;
+      }
+    }
+
+    final tenantIdsBerbayar = aktifSubs
+        .map((s) => (((s as Map)['tenant'] as Map?)?['id']) ?? s['tenantId'])
+        .where((id) => id != null)
+        .toSet();
+    final tenantEligible =
+        _tenants.where((t) => t['status'] == 'PENDING' || t['status'] == 'AKTIF').toList();
+    final eligibleIds = tenantEligible.map((t) => t['id']).toSet();
+    final totalTenant = tenantEligible.length;
+    final berbayar = tenantIdsBerbayar.where(eligibleIds.contains).length;
+    final trial = totalTenant - berbayar < 0 ? 0 : totalTenant - berbayar;
+    final progress = totalTenant > 0 ? berbayar / totalTenant : 0.0;
+
+    final overdue = _invoices
+        .where((i) => (i as Map)['status'] != 'LUNAS')
+        .map((i) => (i as Map).cast<String, dynamic>())
+        .toList();
+    final overdueTenantIds = overdue
+        .map((i) => ((i['tenant'] as Map?)?['id']) ?? i['tenantId'])
+        .where((id) => id != null)
+        .toSet();
+    num totalTertunda = 0;
+    for (final i in overdue) {
+      totalTertunda += _num(i, ['jumlah']);
+    }
+
+    final totalFaktur = _invoices.length;
+    final lunas = _invoices.where((i) => (i as Map)['status'] == 'LUNAS').length;
+
+    return _Stats(
+      mrr: mrr,
+      berbayar: berbayar,
+      trial: trial,
+      totalTenant: totalTenant,
+      progress: progress,
+      langgananAktif: aktifSubs.length,
+      overdue: overdue,
+      overdueTenants: overdueTenantIds.length,
+      totalTertunda: totalTertunda,
+      totalFaktur: totalFaktur,
+      lunas: lunas,
+      menunggu: totalFaktur - lunas,
+    );
+  }
+
   // ===========================================================================
-  // Package add/edit dialog — reused for both create and edit. Uses the same
-  // rounded-card dialog design (with the green _BcSelect periode field) as
-  // PaketScreen's own _PaketFormDialog, so "Tambah Paket" looks identical
-  // whether it's opened from the Billing overview or from Kelola Paket.
+  // Notifikasi (snackbar mengambang, supaya tetap terlihat saat halaman digulir)
   // ===========================================================================
-  /// Show floating toast notification (success or error)
-  /// Mirip dengan paket_screen.dart: floating, rounded, solid background
   void _showToast(String message, {bool isError = false}) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).clearSnackBars();
-    ScaffoldMessenger.of(context).showSnackBar(
+    final w = MediaQuery.of(context).size.width;
+    final side = w > 480 ? (w - 480) / 2 + 16 : 16.0;
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.clearSnackBars();
+    messenger.showSnackBar(
       SnackBar(
         behavior: SnackBarBehavior.floating,
-        backgroundColor: isError ? _BC.error : _BC.primaryContainer,
+        backgroundColor: isError ? SC.errorBg : SC.primary,
         elevation: 6,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        width: 480,
+        margin: EdgeInsets.fromLTRB(side, 0, side, 16),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(
+            color: isError
+                ? SC.errorText.withValues(alpha: 0.25)
+                : SC.gold.withValues(alpha: 0.5),
+          ),
+        ),
         duration: Duration(seconds: isError ? 4 : 3),
         content: Row(
           children: [
-            Icon(isError ? Icons.error_outline : Icons.check_circle,
-                size: 20, color: Colors.white),
-            const SizedBox(width: 10),
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: isError ? Colors.white : SC.gold.withValues(alpha: 0.18),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                isError ? Icons.error_outline : Icons.check_rounded,
+                size: 18,
+                color: isError ? SC.errorText : SC.gold,
+              ),
+            ),
+            const SizedBox(width: 12),
             Expanded(
               child: Text(
                 message,
-                style: const TextStyle(
-                  fontFamily: 'Nunito',
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.white,
-                ),
+                style: sty(13, FontWeight.w700, isError ? SC.errorText : Colors.white),
               ),
             ),
           ],
@@ -710,10 +761,13 @@ class _BillingAdminScreenState extends State<BillingAdminScreen> {
     );
   }
 
+  // ===========================================================================
+  // Aksi (logika tidak diubah)
+  // ===========================================================================
   Future<void> _paketDialog({Map<String, dynamic>? existing}) async {
     final body = await showDialog<Map<String, dynamic>>(
       context: context,
-      barrierColor: Colors.black.withOpacity(0.45),
+      barrierColor: Colors.black.withValues(alpha: 0.45),
       builder: (_) => _PaketFormDialog(existing: existing),
     );
     if (body == null || !mounted) return;
@@ -733,9 +787,7 @@ class _BillingAdminScreenState extends State<BillingAdminScreen> {
     }
   }
 
-  /// Toggles a package's active state directly from the catalog card switch.
-  /// Optimistic UI: flips locally first, calls the API, and reverts with a
-  /// message if the backend rejects it.
+  /// Optimistic UI: balik lokal dulu, panggil API, kembalikan kalau ditolak.
   Future<void> _toggleAktif(Map<String, dynamic> p, bool value) async {
     setState(() => p['aktif'] = value);
     try {
@@ -754,19 +806,43 @@ class _BillingAdminScreenState extends State<BillingAdminScreen> {
   Future<void> _hapusPaket(Map<String, dynamic> p) async {
     final ok = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Hapus Paket'),
-        content: Text('Hapus paket "${p['nama']}"?'),
+      builder: (ctx) => AlertDialog(
+        backgroundColor: SC.surface,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+        icon: Container(
+          width: 52,
+          height: 52,
+          decoration: BoxDecoration(color: SC.errorBg, shape: BoxShape.circle),
+          child: Icon(Icons.delete_outline_rounded, color: SC.errorText, size: 26),
+        ),
+        title: Text('Hapus paket?',
+            textAlign: TextAlign.center, style: sty(17, FontWeight.w800, SC.ink)),
+        content: Text(
+          'Paket "${p['nama']}" akan dihapus dan tidak bisa dikembalikan.',
+          textAlign: TextAlign.center,
+          style: sty(13, FontWeight.w500, SC.inkSecondary, h: 1.45),
+        ),
+        actionsAlignment: MainAxisAlignment.center,
+        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            style: TextButton.styleFrom(foregroundColor: _BC.onSurfaceVariant),
-            child: const Text('Batal'),
+          OutlinedButton(
+            style: OutlinedButton.styleFrom(
+              side: BorderSide(color: SC.border),
+              padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+            ),
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('Batal', style: sty(13, FontWeight.w700, SC.inkSecondary)),
           ),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: _BC.error),
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Hapus'),
+            style: FilledButton.styleFrom(
+              backgroundColor: SC.errorText,
+              padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text('Ya, hapus', style: sty(13, FontWeight.w700, Colors.white)),
           ),
         ],
       ),
@@ -789,43 +865,85 @@ class _BillingAdminScreenState extends State<BillingAdminScreen> {
       context: context,
       builder: (_) => StatefulBuilder(
         builder: (ctx, setSt) => AlertDialog(
-          title: const Text('Assign Paket ke Pondok'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
+          backgroundColor: SC.surface,
+          surfaceTintColor: Colors.transparent,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          title: Row(
             children: [
-              _BcSelect<String>(
-                value: tenantId,
-                label: 'Pilih Pondok',
-                 options: [
-                  for (final t in _tenants)
-                    if (t['status'] == 'PENDING' || t['status'] == 'AKTIF')
-                      MapEntry(t['id'] as String, '${t['namaPondok']} (${t['kodeTenant']})'),
-                ],
-                onChanged: (v) => setSt(() => tenantId = v),
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: SC.sage,
+                  borderRadius: BorderRadius.circular(13),
+                ),
+                child: Icon(Icons.assignment_ind_rounded, size: 20, color: SC.primary),
               ),
-              const SizedBox(height: 10),
-              _BcSelect<String>(
-                value: paketId,
-                label: 'Pilih Paket',
-                options: [
-                  for (final p in _pakets) MapEntry(p['id'] as String, p['nama'] as String),
-                ],
-                onChanged: (v) => setSt(() => paketId = v),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Assign paket', style: sty(16, FontWeight.w800, SC.ink)),
+                    Text('Pasang paket langganan ke pondok',
+                        style: sty(11.5, FontWeight.w500, SC.inkSecondary)),
+                  ],
+                ),
               ),
             ],
           ),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _BcSelect<String>(
+                  value: tenantId,
+                  label: 'Pilih pondok',
+                  options: [
+                    for (final t in _tenants)
+                      if (t['status'] == 'PENDING' || t['status'] == 'AKTIF')
+                        MapEntry(t['id'] as String, '${t['namaPondok']} (${t['kodeTenant']})'),
+                  ],
+                  onChanged: (v) => setSt(() => tenantId = v),
+                ),
+                const SizedBox(height: 14),
+                _BcSelect<String>(
+                  value: paketId,
+                  label: 'Pilih paket',
+                  options: [
+                    for (final p in _pakets) MapEntry(p['id'] as String, p['nama'] as String),
+                  ],
+                  onChanged: (v) => setSt(() => paketId = v),
+                ),
+              ],
+            ),
+          ),
+          actionsPadding: const EdgeInsets.fromLTRB(20, 0, 20, 18),
           actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              style: TextButton.styleFrom(foregroundColor: _BC.onSurfaceVariant),
-              child: const Text('Batal'),
+            OutlinedButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: SC.inkSecondary,
+                side: BorderSide(color: SC.border),
+                padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+              ),
+              child: Text('Batal', style: sty(13, FontWeight.w700, SC.inkSecondary)),
             ),
             FilledButton(
-              style: FilledButton.styleFrom(backgroundColor: _BC.primaryContainer),
               onPressed: tenantId == null || paketId == null
                   ? null
-                  : () => Navigator.pop(context, true),
-              child: const Text('Assign'),
+                  : () => Navigator.pop(ctx, true),
+              style: FilledButton.styleFrom(
+                backgroundColor: SC.primary,
+                padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(999),
+                  side: BorderSide(color: SC.gold.withValues(alpha: 0.6)),
+                ),
+              ),
+              child: Text('Assign', style: sty(13, FontWeight.w700, Colors.white)),
             ),
           ],
         ),
@@ -837,12 +955,11 @@ class _BillingAdminScreenState extends State<BillingAdminScreen> {
           .api
           .post(ApiUrl.subscriptions, {'tenantId': tenantId, 'paketId': paketId});
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Langganan berhasil dibuat.')));
+      _showToast('Langganan berhasil dibuat');
       _load();
     } on ApiException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+      _showToast(e.message, isError: true);
     }
   }
 
@@ -852,21 +969,20 @@ class _BillingAdminScreenState extends State<BillingAdminScreen> {
           .api
           .patch('${ApiUrl.invoices}/${inv['id']}', {'status': 'LUNAS'});
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Invoice ditandai LUNAS.')));
+      _showToast('Invoice ditandai lunas');
       _load(showSpinner: false);
     } on ApiException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+      _showToast(e.message, isError: true);
     }
   }
 
   // ===========================================================================
+  // Build
+  // ===========================================================================
   @override
   Widget build(BuildContext context) {
-    // Sub-halaman Paket / Langganan dirender in-place (tanpa route baru),
-    // sehingga top bar & bottom nav milik shell tetap terlihat. Tombol back
-    // sistem/browser juga diarahkan kembali ke overview, bukan keluar dari tab.
+    // Sub-halaman dirender in-place supaya top bar & bottom nav shell tetap ada.
     if (_view == _BillingView.paket) {
       return WillPopScope(
         onWillPop: () async {
@@ -895,365 +1011,124 @@ class _BillingAdminScreenState extends State<BillingAdminScreen> {
       );
     }
 
+    final stats = _computeStats();
+    final loaded = !_loading && _error == null;
+
     return Scaffold(
-      backgroundColor: _BC.background,
-      body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 480),
-            child: _loading
-                ? loadingView()
-                : _error != null
-                    ? errorView(_error!, _load)
-                    : RefreshIndicator(
-                        onRefresh: () => _load(showSpinner: false),
-                        child: SingleChildScrollView(
-                          physics: const AlwaysScrollableScrollPhysics(),
-                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              _buildPageHeader(),
-                              const SizedBox(height: 18),
-                              _buildMetricGrid(),
-                              const SizedBox(height: 22),
-                              Container(key: _overdueKey, child: _buildOverdueSection()),
-                              const SizedBox(height: 24),
-                              _buildCatalogSection(),
-                              const SizedBox(height: 24),
-                              _buildQuickActionsSection(),
-                            ],
-                          ),
-                        ),
-                      ),
+      backgroundColor: SC.background,
+      body: Align(
+        alignment: Alignment.topCenter,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 480),
+          child: RefreshIndicator(
+            color: SC.primary,
+            onRefresh: () => _load(showSpinner: false),
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _hero(stats, loaded),
+                  ..._body(stats),
+                ],
+              ),
+            ),
           ),
         ),
       ),
     );
   }
 
-  // ---------------------------------------------------------------------
-  // 1. Page header — billing cycle + auto-invoice badge + title
-  // ---------------------------------------------------------------------
-  Widget _buildPageHeader() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Wrap(
-          crossAxisAlignment: WrapCrossAlignment.center,
-          spacing: 8,
-          runSpacing: 8,
+  List<Widget> _body(_Stats s) {
+    if (_loading) {
+      return [SizedBox(height: 320, child: loadingView())];
+    }
+    if (_error != null) {
+      return [SizedBox(height: 320, child: errorView(_error!, () => _load()))];
+    }
+    return [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16, 18, 16, 24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: _BC.surfaceContainerHigh,
-                borderRadius: BorderRadius.circular(999),
-                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 4, offset: const Offset(0, 1))],
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.date_range, size: 15, color: _BC.secondary),
-                  const SizedBox(width: 6),
-                  Text('Siklus Penagihan: Bulan Berjalan (${_bulanTahunSekarang()})', style: _BT.labelSm),
-                ],
-              ),
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: _BC.secondaryFixed.withOpacity(0.5),
-                borderRadius: BorderRadius.circular(999),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(width: 7, height: 7, decoration: const BoxDecoration(color: _BC.secondary, shape: BoxShape.circle)),
-                  const SizedBox(width: 6),
-                  Text('Auto-Invoice Aktif',
-                      style: _BT.labelSm.copyWith(color: _BC.onSecondaryFixed, fontWeight: FontWeight.w800)),
-                ],
-              ),
-            ),
+            _quickActions(s),
+            const SizedBox(height: 14),
+            _summaryCard(s),
+            const SizedBox(height: 22),
+            Container(key: _overdueKey, child: _overdueSection(s)),
+            const SizedBox(height: 22),
+            _catalogSection(),
           ],
         ),
-      ],
-    );
-  }
-
-  // ---------------------------------------------------------------------
-  // 2. Metric grid (2x2)
-  // ---------------------------------------------------------------------
-  Widget _buildMetricGrid() {
-    final aktifSubs = _subs.where((s) => (s as Map)['status'] == 'AKTIF').toList();
-
-    // Normalize every paket's price to a monthly figure based on its own
-    // billing `periode` (HARIAN/BULANAN/TAHUNAN), defaulting to TAHUNAN for
-    // packages created before this field existed.
-    num mrr = 0;
-    for (final s in aktifSubs) {
-      final pm = ((s as Map)['paket'] as Map?)?.cast<String, dynamic>() ?? {};
-      final hargaPaket = _num(pm, ['harga']);
-      final periode = (pm['periode'] as String?) ?? 'TAHUNAN';
-      switch (periode) {
-        case 'HARIAN':
-          mrr += hargaPaket * 30;
-          break;
-        case 'BULANAN':
-          mrr += hargaPaket;
-          break;
-        default: // TAHUNAN
-          mrr += hargaPaket / 12;
-      }
-    }
-
-    final tenantIdsBerbayar = aktifSubs
-        .map((s) => (((s as Map)['tenant'] as Map?)?['id']) ?? s['tenantId'])
-        .where((id) => id != null)
-        .toSet();
-        final tenantEligible = _tenants
-        .where((t) => t['status'] == 'PENDING' || t['status'] == 'AKTIF')
-        .toList();
-    final eligibleIds = tenantEligible.map((t) => t['id']).toSet();
-    final totalTenant = tenantEligible.length;
-    final berbayar = tenantIdsBerbayar.where(eligibleIds.contains).length;
-    final trial = (totalTenant - berbayar).clamp(0, totalTenant);
-    final progress = totalTenant > 0 ? berbayar / totalTenant : 0.0;
-
-    final overdueInvoices = _invoices.where((i) => (i as Map)['status'] != 'LUNAS').toList();
-    final overdueTenantIds = overdueInvoices
-        .map((i) => (((i as Map)['tenant'] as Map?)?['id']) ?? i['tenantId'])
-        .where((id) => id != null)
-        .toSet();
-    final totalTertunda =
-        overdueInvoices.fold<num>(0, (sum, i) => sum + _num((i as Map).cast<String, dynamic>(), ['jumlah']));
-        final adaTertunda = overdueInvoices.isNotEmpty;
-
-    final totalFaktur = _invoices.length;
-    final lunas = _invoices.where((i) => (i as Map)['status'] == 'LUNAS').length;
-    final menunggu = totalFaktur - lunas;
-
-    return GridView.count(
-      crossAxisCount: 2,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      mainAxisSpacing: 10,
-      crossAxisSpacing: 10,
-      childAspectRatio: 1.35,
-      children: [
-        _MetricCard(
-          label: 'MRR Platform',
-          icon: Icons.payments,
-          iconColor: _BC.primary,
-          iconBg: _BC.primary.withOpacity(0.10),
-          value: _rupiahCompact(mrr),
-          caption: 'Dari langganan aktif',
-        ),
-        _MetricCard(
-          label: 'Lisensi Tenant',
-          icon: Icons.verified,
-          iconColor: _BC.secondary,
-          iconBg: _BC.secondary.withOpacity(0.15),
-          value: '$berbayar / $trial',
-          caption: '$berbayar Berbayar • $trial Trial',
-          progress: progress,
-        ),
-          _MetricCard(
-          label: 'Tagihan Tertunda',
-          icon: adaTertunda ? Icons.pending_actions : Icons.check_circle_outline,
-          iconColor: adaTertunda ? _BC.error : _BC.primary,
-          iconBg: adaTertunda ? _BC.errorContainer : _BC.surfaceContainerHigh,
-          value: '${overdueTenantIds.length} Tenant',
-          caption: adaTertunda ? _rupiah(totalTertunda) : 'Tidak ada tunggakan',
-          warning: adaTertunda,
-          onTapCaption: adaTertunda ? _scrollToOverdue : null,
-          captionActionLabel: adaTertunda ? 'Tindak Sekarang' : null,
-        ),
-        _MetricCard(
-          label: 'Faktur Bulan Ini',
-          icon: Icons.receipt_long,
-          iconColor: _BC.primary,
-          iconBg: _BC.surfaceContainerHigh,
-          value: '$totalFaktur Faktur',
-          caption: '$lunas Lunas • $menunggu Menunggu',
-        ),
-      ],
-    );
-  }
-
-  // ---------------------------------------------------------------------
-  // 3. Tagihan Menunggak
-  // ---------------------------------------------------------------------
-  Widget _buildOverdueSection() {
-    final overdue = _invoices.where((i) => (i as Map)['status'] != 'LUNAS').toList().cast<Map<String, dynamic>>();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Row(
-              children: [
-                Text('Tagihan Menunggak', style: _BT.headlineSm),
-                if (overdue.isNotEmpty) ...[
-                  const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(color: _BC.errorContainer, borderRadius: BorderRadius.circular(999)),
-                    child: Row(mainAxisSize: MainAxisSize.min, children: [
-                      const Icon(Icons.warning_amber_rounded, size: 12, color: _BC.onErrorContainer),
-                      const SizedBox(width: 3),
-                      Text('${overdue.length} Overdue',
-                          style: const TextStyle(fontFamily: 'Nunito', fontSize: 10.5, fontWeight: FontWeight.w800, color: _BC.onErrorContainer)),
-                    ]),
-                  ),
-                ],
-              ],
-            ),
-          ],
-        ),
-        const SizedBox(height: 2),
-        Text('Masa tenggang penagihan telah habis atau mendekati batas isolasi sistem.', style: _BT.bodySm),
-        const SizedBox(height: 12),
-        if (overdue.isEmpty)
-          _EmptyCard(text: 'Tidak ada tagihan yang menunggak saat ini.')
-        else
-          Column(
-            children: [
-              for (final inv in overdue) _overdueCard(inv),
-            ],
-          ),
-      ],
-    );
-  }
-
-  Widget _overdueCard(Map<String, dynamic> inv) {
-    final t = (inv['tenant'] as Map?)?.cast<String, dynamic>() ?? {};
-    final tenantId = t['id'] as String?;
-    final paket = _paketFor(tenantId);
-    final namaPondok = (t['namaPondok'] as String?) ?? 'Tenant';
-    final kodeTenant = (t['kodeTenant'] as String?) ?? '-';
-    final namaPaket = (paket?['nama'] as String?) ?? 'Tanpa Paket';
-    final jumlah = _num(inv, ['jumlah']);
-    final noInvoice = (inv['noInvoice'] as String?) ?? '-';
-
-    final jatuhTempo = _pick(inv, ['jatuhTempo', 'dueDate', 'tanggalJatuhTempo']);
-    String badgeText = 'Belum Lunas';
-    if (jatuhTempo is String) {
-      final due = DateTime.tryParse(jatuhTempo);
-      if (due != null) {
-        final days = DateTime.now().difference(due).inDays;
-        if (days > 0) badgeText = 'Menunggak $days Hari';
-      }
-    }
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: _BC.surfaceContainerLowest,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 6, offset: const Offset(0, 2))],
       ),
+    ];
+  }
+
+  // ---------------------------------------------------------------------
+  // Hero
+  // ---------------------------------------------------------------------
+  Widget _hero(_Stats s, bool loaded) {
+    String ringkasan;
+    if (_error != null) {
+      ringkasan = 'Data tidak dapat dimuat';
+    } else if (!loaded) {
+      ringkasan = 'Memuat data...';
+    } else {
+      ringkasan = 'Siklus ${_bulanTahunSekarang()} • diperbarui ${_elapsed(_lastLoaded)}';
+    }
+    String v(String x) => loaded ? x : '–';
+    final adaTertunda = loaded && s.overdue.isNotEmpty;
+
+    return HeroShell(
+      top: 22,
+      bottom: 20,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(color: _BC.errorContainer.withOpacity(0.5), borderRadius: BorderRadius.circular(12)),
-                child: const Icon(Icons.block, color: _BC.error),
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: SC.gold.withValues(alpha: 0.55)),
+                ),
+                child: Icon(Icons.account_balance_wallet_rounded, size: 24, color: SC.gold),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(namaPondok, maxLines: 1, overflow: TextOverflow.ellipsis, style: _BT.headlineSm.copyWith(fontSize: 15)),
-                    const SizedBox(height: 2),
-                    Row(children: [
-                      Flexible(child: Text('@$kodeTenant', overflow: TextOverflow.ellipsis, style: _BT.labelSm)),
-                      const SizedBox(width: 6),
-                      Container(width: 3, height: 3, decoration: BoxDecoration(color: _BC.outlineVariant, shape: BoxShape.circle)),
-                      const SizedBox(width: 6),
-                      Flexible(child: Text(namaPaket, overflow: TextOverflow.ellipsis, style: _BT.labelSm.copyWith(fontWeight: FontWeight.w800))),
-                    ]),
+                    Text('Billing Platform',
+                        style: sty(22, FontWeight.w800, Colors.white, h: 1.15)),
+                    const SizedBox(height: 3),
+                    Text(
+                      ringkasan,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: sty(12.5, FontWeight.w500, Colors.white.withValues(alpha: 0.78)),
+                    ),
                   ],
                 ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-                decoration: BoxDecoration(color: _BC.errorContainer, borderRadius: BorderRadius.circular(999)),
-                child: Text(badgeText, style: const TextStyle(fontFamily: 'Nunito', fontSize: 10.5, fontWeight: FontWeight.w800, color: _BC.onErrorContainer)),
               ),
             ],
           ),
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            decoration: BoxDecoration(color: _BC.surfaceContainerLow, borderRadius: BorderRadius.circular(12)),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Faktur #$noInvoice', style: _BT.labelSm),
-                    Text(_rupiah(jumlah), style: const TextStyle(fontFamily: 'Nunito', fontSize: 16, fontWeight: FontWeight.w800, color: _BC.error)),
-                  ],
-                ),
-                InkWell(
-                  onTap: () => _tandaiLunas(inv),
-                  borderRadius: BorderRadius.circular(999),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    decoration: BoxDecoration(color: _BC.surfaceContainerLowest, borderRadius: BorderRadius.circular(999)),
-                    child: Row(mainAxisSize: MainAxisSize.min, children: [
-                      const Icon(Icons.check_circle_outline, size: 14, color: _BC.primary),
-                      const SizedBox(width: 4),
-                      Text('Tandai Lunas', style: _BT.labelSm.copyWith(color: _BC.primary, fontWeight: FontWeight.w800)),
-                    ]),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 18),
           Row(
             children: [
-              Expanded(
-                child: SizedBox(
-                  height: 42,
-                  child: FilledButton.icon(
-                    onPressed: _notAvailable,
-                    style: FilledButton.styleFrom(
-                      backgroundColor: _BC.primaryContainer,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-                    ),
-                    icon: const Icon(Icons.send, size: 16),
-                    label: const Text('Kirim Tagihan WA/Email', style: TextStyle(fontFamily: 'Nunito', fontSize: 12.5, fontWeight: FontWeight.w700)),
-                  ),
-                ),
-              ),
+              _glass(Icons.payments_outlined, v(_rupiahCompact(s.mrr)), 'MRR'),
               const SizedBox(width: 8),
-              SizedBox(
-                height: 42,
-                child: OutlinedButton.icon(
-                  onPressed: _notAvailable,
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: _BC.primary,
-                    backgroundColor: _BC.surfaceContainerHigh,
-                    side: BorderSide.none,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-                  ),
-                  icon: const Icon(Icons.description_outlined, size: 16),
-                  label: const Text('Faktur', style: TextStyle(fontFamily: 'Nunito', fontSize: 12.5, fontWeight: FontWeight.w700)),
-                ),
+              _glass(Icons.verified_outlined, v('${s.berbayar}/${s.totalTenant}'), 'Berbayar'),
+              const SizedBox(width: 8),
+              _glass(
+                adaTertunda ? Icons.pending_actions : Icons.check_circle_outline,
+                v('${s.overdueTenants}'),
+                'Menunggak',
+                onTap: adaTertunda ? _scrollToOverdue : null,
               ),
             ],
           ),
@@ -1262,11 +1137,529 @@ class _BillingAdminScreenState extends State<BillingAdminScreen> {
     );
   }
 
+  Widget _glass(IconData icon, String value, String label, {VoidCallback? onTap}) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.16)),
+          ),
+          child: Row(
+            children: [
+              Icon(icon, size: 18, color: SC.gold),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(value, style: sty(17, FontWeight.w800, Colors.white, h: 1.1)),
+                    ),
+                    Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: sty(10.5, FontWeight.w600, Colors.white.withValues(alpha: 0.7)),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   // ---------------------------------------------------------------------
-  // 4. Katalog Paket
+  // Akses cepat
   // ---------------------------------------------------------------------
-  Widget _buildCatalogSection() {
-    final pakets = List<Map<String, dynamic>>.from(_pakets.map((e) => (e as Map).cast<String, dynamic>()));
+  Widget _quickActions(_Stats s) {
+    return IntrinsicHeight(
+      child: Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _quickTile(
+          icon: Icons.category_rounded,
+          label: 'Paket',
+          caption: '${_pakets.length} paket',
+          bg: SC.sage,
+          fg: SC.primary,
+          onTap: () => setState(() => _view = _BillingView.paket),
+        ),
+        const SizedBox(width: 8),
+        _quickTile(
+          icon: Icons.workspace_premium_rounded,
+          label: 'Langganan',
+          caption: '${s.langgananAktif} aktif',
+          bg: SC.goldSurface,
+          fg: SC.goldDark,
+          onTap: () => setState(() => _view = _BillingView.langganan),
+        ),
+        const SizedBox(width: 8),
+        _quickTile(
+          icon: Icons.receipt_long_rounded,
+          label: 'Tagihan',
+          caption: '${s.totalFaktur} faktur',
+          bg: SC.pendingBg,
+          fg: SC.pendingText,
+          onTap: () => setState(() => _view = _BillingView.invoice),
+        ),
+      ],
+      ),
+    );
+  }
+
+  Widget _quickTile({
+    required IconData icon,
+    required String label,
+    required String caption,
+    required Color bg,
+    required Color fg,
+    required VoidCallback onTap,
+  }) {
+    return Expanded(
+      child: Container(
+        decoration: BoxDecoration(
+          color: SC.surface,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: SC.border),
+          boxShadow: softShadow,
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(18),
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 14, 12, 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: bg,
+                      borderRadius: BorderRadius.circular(13),
+                    ),
+                    child: Icon(icon, size: 21, color: fg),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(label, style: sty(13.5, FontWeight.w800, SC.ink)),
+                  const SizedBox(height: 1),
+                  Text(
+                    caption,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: sty(11, FontWeight.w600, SC.inkSecondary),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------------------
+  // Ringkasan lisensi & faktur
+  // ---------------------------------------------------------------------
+  Widget _summaryCard(_Stats s) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: SC.surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: SC.border),
+        boxShadow: softShadow,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: SC.sage,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(Icons.verified_rounded, size: 19, color: SC.primary),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Lisensi tenant', style: sty(15, FontWeight.w800, SC.ink)),
+                    Text('${s.berbayar} berbayar, ${s.trial} masih trial',
+                        style: sty(11.5, FontWeight.w500, SC.inkSecondary)),
+                  ],
+                ),
+              ),
+              Text('${s.berbayar}/${s.totalTenant}',
+                  style: sty(15, FontWeight.w800, SC.primary)),
+            ],
+          ),
+          const SizedBox(height: 14),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(999),
+            child: LinearProgressIndicator(
+              value: s.progress.clamp(0.0, 1.0),
+              minHeight: 8,
+              backgroundColor: SC.surfaceDim,
+              valueColor: AlwaysStoppedAnimation(SC.primary),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Divider(height: 1, thickness: 1, color: SC.border),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              _miniStat('${s.totalFaktur}', 'Faktur', SC.ink),
+              _miniDivider(),
+              _miniStat('${s.lunas}', 'Lunas', SC.primary),
+              _miniDivider(),
+              _miniStat('${s.menunggu}', 'Menunggu', s.menunggu > 0 ? SC.errorText : SC.ink),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _miniStat(String value, String label, Color color) {
+    return Expanded(
+      child: Column(
+        children: [
+          Text(value, style: sty(18, FontWeight.w800, color, h: 1.1)),
+          const SizedBox(height: 2),
+          Text(label, style: sty(11, FontWeight.w600, SC.inkSecondary)),
+        ],
+      ),
+    );
+  }
+
+  Widget _miniDivider() => Container(width: 1, height: 30, color: SC.border);
+
+  // ---------------------------------------------------------------------
+  // Judul seksi (gaya sama dengan daftar santri)
+  // ---------------------------------------------------------------------
+  Widget _sectionHeader(IconData icon, String title, {int? count, bool danger = false}) {
+    return Row(
+      children: [
+        Container(
+          width: 26,
+          height: 26,
+          decoration: BoxDecoration(
+            color: danger ? SC.errorBg : SC.sage,
+            borderRadius: BorderRadius.circular(9),
+          ),
+          child: Icon(icon, size: 14, color: danger ? SC.errorText : SC.primary),
+        ),
+        const SizedBox(width: 9),
+        Flexible(
+          child: Text(title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: sty(14, FontWeight.w800, SC.ink)),
+        ),
+        if (count != null) ...[
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+            decoration: BoxDecoration(
+              color: danger ? SC.errorBg : SC.goldSurface,
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(
+                color: danger
+                    ? SC.errorText.withValues(alpha: 0.3)
+                    : SC.gold.withValues(alpha: 0.4),
+              ),
+            ),
+            child: Text('$count',
+                style: sty(11, FontWeight.w800, danger ? SC.errorText : SC.goldDark)),
+          ),
+        ],
+        const SizedBox(width: 10),
+        Expanded(child: Divider(height: 1, thickness: 1, color: SC.border)),
+      ],
+    );
+  }
+
+  Widget _emptyCard(String text) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: SC.surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: SC.border),
+        boxShadow: softShadow,
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(color: SC.sage, shape: BoxShape.circle),
+            child: Icon(Icons.inbox_outlined, size: 18, color: SC.primary),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(text, style: sty(12.5, FontWeight.w600, SC.inkSecondary, h: 1.4)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------------------
+  // Tagihan menunggak
+  // ---------------------------------------------------------------------
+  Widget _overdueSection(_Stats s) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionHeader(
+          Icons.warning_amber_rounded,
+          'Tagihan menunggak',
+          count: s.overdue.isEmpty ? null : s.overdue.length,
+          danger: s.overdue.isNotEmpty,
+        ),
+        const SizedBox(height: 6),
+        Padding(
+          padding: const EdgeInsets.only(left: 2),
+          child: Text(
+            s.overdue.isEmpty
+                ? 'Semua tagihan pondok sudah lunas.'
+                : 'Total tertunda ${_rupiah(s.totalTertunda)} dari ${s.overdueTenants} pondok. Masa tenggang sudah habis atau hampir habis.',
+            style: sty(11.5, FontWeight.w500, SC.inkSecondary, h: 1.4),
+          ),
+        ),
+        const SizedBox(height: 12),
+        if (s.overdue.isEmpty)
+          _emptyCard('Tidak ada tagihan yang menunggak saat ini.')
+        else
+          for (final inv in s.overdue) _overdueCard(inv),
+      ],
+    );
+  }
+
+  Widget _overdueCard(Map<String, dynamic> inv) {
+    final t = (inv['tenant'] as Map?)?.cast<String, dynamic>() ?? <String, dynamic>{};
+    final tenantId = t['id'] as String?;
+    final paket = _paketFor(tenantId);
+    final namaPondok = (t['namaPondok'] as String?) ?? 'Tenant';
+    final kodeTenant = (t['kodeTenant'] as String?) ?? '-';
+    final namaPaket = (paket?['nama'] as String?) ?? 'Tanpa paket';
+    final jumlah = _num(inv, ['jumlah']);
+    final noInvoice = (inv['noInvoice'] as String?) ?? '-';
+
+    final jatuhTempo = _pick(inv, ['jatuhTempo', 'dueDate', 'tanggalJatuhTempo']);
+    String badgeText = 'Belum lunas';
+    if (jatuhTempo is String) {
+      final due = DateTime.tryParse(jatuhTempo);
+      if (due != null) {
+        final days = DateTime.now().difference(due).inDays;
+        if (days > 0) badgeText = 'Menunggak $days hari';
+      }
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: SC.surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: SC.border),
+        boxShadow: softShadow,
+      ),
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(width: 5, color: SC.errorText),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: SC.errorBg,
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: Icon(Icons.block_rounded, size: 22, color: SC.errorText),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(namaPondok,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: sty(14.5, FontWeight.w800, SC.ink)),
+                              const SizedBox(height: 3),
+                              Row(
+                                children: [
+                                  Flexible(
+                                    child: Text('@$kodeTenant',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: sty(11.5, FontWeight.w600, SC.inkSecondary)),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Container(
+                                    width: 3,
+                                    height: 3,
+                                    decoration:
+                                        BoxDecoration(color: SC.inkMuted, shape: BoxShape.circle),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Flexible(
+                                    child: Text(namaPaket,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: sty(11.5, FontWeight.w800, SC.goldDark)),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 7),
+                              SPill(badgeText,
+                                  icon: Icons.schedule_rounded,
+                                  bg: SC.errorBg,
+                                  fg: SC.errorText,
+                                  size: 10),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: SC.surfaceDim,
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('Faktur #$noInvoice',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: sty(11, FontWeight.w600, SC.inkSecondary)),
+                                const SizedBox(height: 1),
+                                Text(_rupiah(jumlah),
+                                    style: sty(17, FontWeight.w800, SC.errorText)),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          InkWell(
+                            onTap: () => _tandaiLunas(inv),
+                            borderRadius: BorderRadius.circular(999),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              decoration: BoxDecoration(
+                                color: SC.surface,
+                                borderRadius: BorderRadius.circular(999),
+                                border: Border.all(color: SC.primary.withValues(alpha: 0.35)),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.check_circle_outline, size: 15, color: SC.primary),
+                                  const SizedBox(width: 5),
+                                  Text('Tandai lunas',
+                                      style: sty(11.5, FontWeight.w800, SC.primary)),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: SizedBox(
+                            height: 44,
+                            child: FilledButton.icon(
+                              onPressed: _notAvailable,
+                              style: FilledButton.styleFrom(
+                                backgroundColor: SC.primary,
+                                padding: const EdgeInsets.symmetric(horizontal: 12),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(999),
+                                  side: BorderSide(color: SC.gold.withValues(alpha: 0.6)),
+                                ),
+                              ),
+                              icon: Icon(Icons.send_rounded, size: 16, color: SC.gold),
+                              label: Text(
+                                'Kirim tagihan WA/Email',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: sty(12.5, FontWeight.w700, Colors.white),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        SizedBox(
+                          height: 44,
+                          child: OutlinedButton.icon(
+                            onPressed: _notAvailable,
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: SC.primary,
+                              side: BorderSide(color: SC.border),
+                              padding: const EdgeInsets.symmetric(horizontal: 14),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(999)),
+                            ),
+                            icon: Icon(Icons.description_outlined, size: 16, color: SC.primary),
+                            label: Text('Faktur', style: sty(12.5, FontWeight.w700, SC.primary)),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------------------
+  // Katalog paket
+  // ---------------------------------------------------------------------
+  Widget _catalogSection() {
+    final pakets = List<Map<String, dynamic>>.from(
+        _pakets.map((e) => (e as Map).cast<String, dynamic>()));
     pakets.sort((a, b) => _num(a, ['harga']).compareTo(_num(b, ['harga'])));
 
     final paid = pakets.where((p) => _num(p, ['harga']) > 0).toList();
@@ -1276,231 +1669,80 @@ class _BillingAdminScreenState extends State<BillingAdminScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        _sectionHeader(Icons.inventory_2_rounded, 'Katalog paket', count: pakets.length),
+        const SizedBox(height: 6),
+        Padding(
+          padding: const EdgeInsets.only(left: 2),
+          child: Text('Tier dan fitur yang tersedia untuk pondok',
+              style: sty(11.5, FontWeight.w500, SC.inkSecondary)),
+        ),
+        const SizedBox(height: 12),
         Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Katalog Paket', style: _BT.headlineSm),
-                Text('Struktur tier dan fitur aktif platform', style: _BT.bodySm),
-              ],
-            ),
-            Row(
-              children: [
-                IconButton(
+            Expanded(
+              child: SizedBox(
+                height: 46,
+                child: OutlinedButton.icon(
                   onPressed: _assign,
-                  tooltip: 'Assign Paket ke Tenant',
-                  icon: const Icon(Icons.assignment_ind_outlined, color: _BC.primary),
-                ),
-                SizedBox(
-                  height: 40,
-                  child: FilledButton.icon(
-                    onPressed: () => _paketDialog(),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: _BC.primaryContainer,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-                    ),
-                    icon: const Icon(Icons.add, size: 18),
-                    label: const Text('Tambah Paket', style: TextStyle(fontFamily: 'Nunito', fontSize: 12.5, fontWeight: FontWeight.w700)),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: SC.primary,
+                    side: BorderSide(color: SC.border),
+                    backgroundColor: SC.surface,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
                   ),
+                  icon: Icon(Icons.assignment_ind_outlined, size: 18, color: SC.primary),
+                  label: Text('Assign ke pondok', style: sty(12.5, FontWeight.w700, SC.primary)),
                 ),
-              ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: SizedBox(
+                height: 46,
+                child: FilledButton.icon(
+                  onPressed: () => _paketDialog(),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: SC.primary,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(999),
+                      side: BorderSide(color: SC.gold.withValues(alpha: 0.6)),
+                    ),
+                  ),
+                  icon: Icon(Icons.add_rounded, size: 18, color: SC.gold),
+                  label: Text('Tambah paket', style: sty(12.5, FontWeight.w700, Colors.white)),
+                ),
+              ),
             ),
           ],
         ),
         const SizedBox(height: 14),
         if (pakets.isEmpty)
-          _EmptyCard(text: 'Belum ada paket. Tekan "Tambah Paket" untuk membuat.')
+          _emptyCard('Belum ada paket. Tekan "Tambah paket" untuk membuat.')
         else
-          Column(
-            children: [
-              for (final p in pakets)
-                _PaketTierCard(
-                  paket: p,
-                  isFree: _num(p, ['harga']) == 0,
-                  isEnterprise: p['id'] == enterpriseId,
-                  isPopular: p['id'] == popularId,
-                  subscriberCount: _subs.where((s) {
-                    final sm = (s as Map);
-                    final pid = (sm['paket'] as Map?)?['id'] ?? sm['paketId'];
-                    return pid == p['id'] && sm['status'] == 'AKTIF';
-                  }).length,
-                  rupiah: _rupiah,
-                  onEdit: () => _paketDialog(existing: p),
-                  onDelete: () => _hapusPaket(p),
-                  onToggleAktif: (v) => _toggleAktif(p, v),
-                ),
-            ],
-          ),
-      ],
-    );
-  }
-
-  // ---------------------------------------------------------------------
-  // 4b. Akses Cepat
-  // ---------------------------------------------------------------------
-  Widget _buildQuickActionsSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Akses Cepat',
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            color: _BC.primaryContainer,
-            fontFamily: 'Nunito',
-          ),
-        ),
-        const SizedBox(height: 12),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: [
-            _QuickActionBullet(
-              icon: Icons.category,
-              label: 'Paket',
-              color: _BC.primaryContainer,
-              onTap: () => setState(() => _view = _BillingView.paket),
+          for (final p in pakets)
+            _PaketTierCard(
+              paket: p,
+              isFree: _num(p, ['harga']) == 0,
+              isEnterprise: p['id'] == enterpriseId,
+              isPopular: p['id'] == popularId,
+              subscriberCount: _subs.where((s) {
+                final sm = (s as Map);
+                final pid = (sm['paket'] as Map?)?['id'] ?? sm['paketId'];
+                return pid == p['id'] && sm['status'] == 'AKTIF';
+              }).length,
+              rupiah: _rupiah,
+              onEdit: () => _paketDialog(existing: p),
+              onDelete: () => _hapusPaket(p),
+              onToggleAktif: (v) => _toggleAktif(p, v),
             ),
-            _QuickActionBullet(
-              icon: Icons.workspace_premium,
-              label: 'Langganan',
-              color: const Color(0xFFC5A059),
-              onTap: () => setState(() => _view = _BillingView.langganan),
-            ),
-            _QuickActionBullet(
-              icon: Icons.receipt,
-              label: 'Tagihan',
-              color: const Color(0xFFD4693F),
-              onTap: () => setState(() => _view = _BillingView.invoice),
-            ),
-          ],
-        ),
       ],
     );
   }
 }
 
-/// ---------------------------------------------------------------------------
-/// Reusable pieces
-/// ---------------------------------------------------------------------------
-
-class _MetricCard extends StatelessWidget {
-  final String label;
-  final IconData icon;
-  final Color iconColor;
-  final Color iconBg;
-  final String value;
-  final String caption;
-  final bool warning;
-  final double? progress;
-  final VoidCallback? onTapCaption;
-  final String? captionActionLabel;
-
-  const _MetricCard({
-    required this.label,
-    required this.icon,
-    required this.iconColor,
-    required this.iconBg,
-    required this.value,
-    required this.caption,
-    this.warning = false,
-    this.progress,
-    this.onTapCaption,
-    this.captionActionLabel,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: warning ? _BC.errorContainer.withOpacity(0.35) : _BC.surfaceContainerLowest,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 6, offset: const Offset(0, 2))],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: Text(label,
-                    maxLines: 1, overflow: TextOverflow.ellipsis,
-                    style: _BT.labelMd.copyWith(color: warning ? _BC.onErrorContainer : _BC.onSurfaceVariant)),
-              ),
-              Container(
-                width: 30, height: 30,
-                decoration: BoxDecoration(color: iconBg, shape: BoxShape.circle),
-                child: Icon(icon, size: 16, color: iconColor),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Text(value,
-              maxLines: 1, overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontFamily: 'Nunito', fontSize: 17, fontWeight: FontWeight.w800,
-                  color: warning ? _BC.error : _BC.primary)),
-          const SizedBox(height: 4),
-          if (onTapCaption != null)
-            InkWell(
-              onTap: onTapCaption,
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Text(captionActionLabel ?? caption,
-                    style: TextStyle(fontFamily: 'Nunito', fontSize: 10.5, fontWeight: FontWeight.w800, color: _BC.error)),
-                const SizedBox(width: 2),
-                Icon(Icons.arrow_downward, size: 11, color: _BC.error),
-              ]),
-            )
-          else
-            Text(caption,
-                maxLines: 1, overflow: TextOverflow.ellipsis,
-                style: _BT.labelSm.copyWith(color: warning ? _BC.onErrorContainer : _BC.onSurfaceVariant, fontWeight: FontWeight.w700)),
-          if (progress != null) ...[
-            const SizedBox(height: 6),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(999),
-              child: LinearProgressIndicator(
-                value: progress!.clamp(0, 1),
-                minHeight: 6,
-                backgroundColor: _BC.surfaceContainerHigh,
-                valueColor: const AlwaysStoppedAnimation(_BC.primaryContainer),
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _EmptyCard extends StatelessWidget {
-  final String text;
-  const _EmptyCard({required this.text});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: _BC.surfaceContainerLowest,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.inbox_outlined, size: 18, color: _BC.onSurfaceVariant),
-          const SizedBox(width: 8),
-          Expanded(child: Text(text, style: _BT.bodySm)),
-        ],
-      ),
-    );
-  }
-}
-
+// ===========================================================================
+// Kartu tier paket
+// ===========================================================================
 class _PaketTierCard extends StatelessWidget {
   final Map<String, dynamic> paket;
   final bool isFree;
@@ -1524,12 +1766,6 @@ class _PaketTierCard extends StatelessWidget {
     required this.onToggleAktif,
   });
 
-  static const _periodeSuffix = {
-    'HARIAN': '/ hari',
-    'BULANAN': '/ bulan',
-    'TAHUNAN': '/ tahun',
-  };
-
   @override
   Widget build(BuildContext context) {
     final nama = paket['nama'] as String? ?? 'Paket';
@@ -1539,174 +1775,181 @@ class _PaketTierCard extends StatelessWidget {
     final fitur = ((paket['fitur'] as List?)?.cast<String>()) ?? const <String>[];
     final aktif = (paket['aktif'] as bool?) ?? true;
 
-    final bg = isEnterprise ? _BC.secondaryContainer.withOpacity(0.25) : _BC.surfaceContainerLowest;
+    final accent = isEnterprise ? SC.goldDark : SC.primary;
+    final checkColor = isEnterprise ? SC.gold : SC.primary;
     final badgeBg = isFree
-        ? _BC.surfaceContainerHigh
+        ? SC.surfaceDim
         : isEnterprise
-            ? _BC.secondaryContainer
-            : isPopular
-                ? _BC.primary.withOpacity(0.10)
-                : _BC.secondaryFixed.withOpacity(0.6);
-    final badgeFg = isFree
-        ? _BC.onSurfaceVariant
-        : isEnterprise
-            ? _BC.onSecondaryContainer
-            : isPopular
-                ? _BC.primary
-                : _BC.onSecondaryFixed;
-    final priceColor = isEnterprise ? _BC.secondary : _BC.primary;
+            ? SC.gold.withValues(alpha: 0.22)
+            : SC.sage;
+    final badgeFg = isFree ? SC.inkSecondary : accent;
 
     return Container(
       clipBehavior: Clip.antiAlias,
-      margin: const EdgeInsets.only(bottom: 14),
-      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(isEnterprise ? 0.07 : 0.04), blurRadius: 8, offset: const Offset(0, 3))],
+        color: isEnterprise ? SC.goldSurface : SC.surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: isEnterprise ? SC.gold.withValues(alpha: 0.55) : SC.border,
+        ),
+        boxShadow: softShadow,
       ),
       child: Stack(
-        clipBehavior: Clip.none,
         children: [
           if (isEnterprise)
             Positioned(
-              right: -20, bottom: -20,
+              right: -18,
+              bottom: -18,
               child: Opacity(
-                opacity: 0.08,
-                child: Transform.rotate(angle: 0.785398, child: Icon(Icons.hotel_class, size: 130, color: _BC.secondary)),
+                opacity: 0.10,
+                child: Transform.rotate(
+                  angle: 0.785398,
+                  child: Icon(Icons.hotel_class, size: 120, color: SC.gold),
+                ),
               ),
             ),
-          if (isPopular)
-            Positioned(
-              top: -16, right: -16,
-              child: Container(
-                padding: const EdgeInsets.only(left: 14, right: 8, top: 14, bottom: 6),
-                decoration: BoxDecoration(color: _BC.primaryContainer, borderRadius: BorderRadius.circular(14)),
-                child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  const Icon(Icons.verified, size: 12, color: _BC.onPrimary),
-                  const SizedBox(width: 3),
-                  const Text('Populer', style: TextStyle(fontFamily: 'Nunito', fontSize: 10, fontWeight: FontWeight.w800, color: _BC.onPrimary)),
-                ]),
-              ),
-            ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                          decoration: BoxDecoration(color: badgeBg, borderRadius: BorderRadius.circular(999)),
-                          child: Row(mainAxisSize: MainAxisSize.min, children: [
-                            if (isEnterprise) ...[
-                              Icon(Icons.hotel_class, size: 13, color: badgeFg),
-                              const SizedBox(width: 4),
-                            ],
-                            Text(nama, style: TextStyle(fontFamily: 'Nunito', fontSize: 11.5, fontWeight: FontWeight.w800, color: badgeFg)),
-                          ]),
-                        ),
-                        const SizedBox(height: 8),
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.baseline,
-                          textBaseline: TextBaseline.alphabetic,
-                          children: [
-                            Text(harga == 0 ? 'Rp 0' : rupiah(harga),
-                                style: TextStyle(fontFamily: 'Nunito', fontSize: 24, fontWeight: FontWeight.w800, color: priceColor)),
-                            const SizedBox(width: 4),
-                            Text(harga == 0 ? '' : (_periodeSuffix[periode] ?? '/ tahun'), style: _BT.bodySm),
-                          ],
-                        ),
-                        if (limit != null) ...[
-                          const SizedBox(height: 3),
-                          Row(mainAxisSize: MainAxisSize.min, children: [
-                            Icon(Icons.groups, size: 13, color: isEnterprise ? _BC.secondary : _BC.secondary),
-                            const SizedBox(width: 3),
-                            Text('Maks $limit santri',
-                                style: TextStyle(fontFamily: 'Nunito', fontSize: 11.5, fontWeight: FontWeight.w700, color: _BC.secondary)),
-                          ]),
-                        ],
-                      ],
-                    ),
-                  ),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text('Pengguna Aktif', style: _BT.labelSm),
-                      Text('$subscriberCount Pondok',
-                          style: TextStyle(fontFamily: 'Nunito', fontSize: 13, fontWeight: FontWeight.w800, color: priceColor)),
-                    ],
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Container(height: 1, color: _BC.surfaceContainerHigh),
-              const SizedBox(height: 12),
-              if (fitur.isEmpty)
-                Text('Belum ada daftar fitur untuk paket ini.', style: _BT.bodySm)
-              else
-                Column(
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    for (final f in fitur)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 6),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Icon(Icons.check_circle, size: 17,
-                                color: isEnterprise ? _BC.secondary : _BC.primaryContainer),
-                            const SizedBox(width: 8),
-                            Expanded(child: Text(f, style: _BT.bodyMd.copyWith(color: _BC.onSurface))),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: 6,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 5),
+                                decoration: BoxDecoration(
+                                  color: badgeBg,
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    if (isEnterprise) ...[
+                                      Icon(Icons.hotel_class, size: 13, color: badgeFg),
+                                      const SizedBox(width: 4),
+                                    ],
+                                    Text(nama, style: sty(12, FontWeight.w800, badgeFg)),
+                                  ],
+                                ),
+                              ),
+                              if (isPopular)
+                                SPill('Populer',
+                                    icon: Icons.verified_rounded,
+                                    bg: SC.primary,
+                                    fg: Colors.white,
+                                    size: 10),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.baseline,
+                            textBaseline: TextBaseline.alphabetic,
+                            children: [
+                              Text(harga == 0 ? 'Rp 0' : rupiah(harga),
+                                  style: sty(24, FontWeight.w800, accent)),
+                              const SizedBox(width: 4),
+                              Text(harga == 0 ? '' : (_paketPeriodeSuffix[periode] ?? '/ tahun'),
+                                  style: sty(12, FontWeight.w600, SC.inkSecondary)),
+                            ],
+                          ),
+                          if (limit != null) ...[
+                            const SizedBox(height: 4),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.groups_rounded, size: 14, color: SC.goldDark),
+                                const SizedBox(width: 4),
+                                Text('Maks $limit santri',
+                                    style: sty(11.5, FontWeight.w700, SC.goldDark)),
+                              ],
+                            ),
                           ],
-                        ),
+                        ],
                       ),
+                    ),
+                    const SizedBox(width: 8),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text('Dipakai', style: sty(10.5, FontWeight.w600, SC.inkSecondary)),
+                        Text('$subscriberCount pondok', style: sty(13, FontWeight.w800, accent)),
+                      ],
+                    ),
                   ],
                 ),
-              const SizedBox(height: 8),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  GestureDetector(
-                    onLongPress: onDelete,
-                    child: OutlinedButton.icon(
+                const SizedBox(height: 14),
+                Divider(height: 1, thickness: 1, color: SC.border),
+                const SizedBox(height: 14),
+                if (fitur.isEmpty)
+                  Text('Belum ada daftar fitur untuk paket ini.',
+                      style: sty(12, FontWeight.w500, SC.inkSecondary))
+                else
+                  for (final f in fitur)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 7),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(Icons.check_circle_rounded, size: 17, color: checkColor),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(f, style: sty(13, FontWeight.w600, SC.ink, h: 1.35)),
+                          ),
+                        ],
+                      ),
+                    ),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    OutlinedButton.icon(
                       onPressed: onEdit,
                       style: OutlinedButton.styleFrom(
-                        foregroundColor: _BC.primary,
-                        backgroundColor: _BC.surfaceContainerHigh,
-                        side: BorderSide.none,
+                        foregroundColor: SC.primary,
+                        backgroundColor: SC.surface,
+                        side: BorderSide(color: SC.border),
+                        minimumSize: const Size(0, 40),
+                        padding: const EdgeInsets.symmetric(horizontal: 14),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                       ),
-                      icon: const Icon(Icons.edit_outlined, size: 15),
-                      label: const Text('Edit Paket', style: TextStyle(fontFamily: 'Nunito', fontSize: 12, fontWeight: FontWeight.w700)),
+                      icon: Icon(Icons.edit_outlined, size: 16, color: SC.primary),
+                      label: Text('Edit', style: sty(12.5, FontWeight.w700, SC.primary)),
                     ),
-                  ),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(aktif ? 'Aktif' : 'Nonaktif',
-                          style: TextStyle(fontFamily: 'Nunito', fontSize: 12, fontWeight: FontWeight.w700,
-                              color: aktif ? (isEnterprise ? _BC.secondary : _BC.primary) : _BC.onSurfaceVariant)),
-                      Switch(
-                        value: aktif,
-                        onChanged: onToggleAktif,
-                        activeColor: isEnterprise ? _BC.secondary : _BC.primaryContainer,
+                    const SizedBox(width: 6),
+                    IconButton(
+                      onPressed: onDelete,
+                      tooltip: 'Hapus paket',
+                      style: IconButton.styleFrom(
+                        backgroundColor: SC.errorBg,
+                        minimumSize: const Size(40, 40),
                       ),
-                    ],
-                  ),
-                ],
-              ),
-              Padding(
-                padding: const EdgeInsets.only(top: 2),
-                child: Text('Tahan lama tombol Edit untuk menghapus paket ini.',
-                    style: _BT.labelSm.copyWith(fontSize: 9.5)),
-              ),
-            ],
+                      icon: Icon(Icons.delete_outline_rounded, size: 18, color: SC.errorText),
+                    ),
+                    const Spacer(),
+                    Text(aktif ? 'Aktif' : 'Nonaktif',
+                        style: sty(12, FontWeight.w700,
+                            aktif ? accent : SC.inkSecondary)),
+                    Switch(
+                      value: aktif,
+                      onChanged: onToggleAktif,
+                      activeThumbColor: isEnterprise ? SC.gold : SC.primary,
+                      activeTrackColor:
+                          (isEnterprise ? SC.gold : SC.primary).withValues(alpha: 0.35),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -1714,58 +1957,7 @@ class _PaketTierCard extends StatelessWidget {
   }
 }
 
-/// Quick Action Bullet Widget
-class _QuickActionBullet extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final Color color;
-  final VoidCallback onTap;
-
-  const _QuickActionBullet({
-    required this.icon,
-    required this.label,
-    required this.color,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
-              shape: BoxShape.circle,
-              border: Border.all(color: color.withOpacity(0.3), width: 2),
-            ),
-            child: Icon(icon, color: color, size: 28),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: color,
-              fontFamily: 'Nunito',
-            ),
-            textAlign: TextAlign.center,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Live thousands-separator formatter for the harga field: as the user
-/// types digits, it re-inserts dots ("1500000" -> "1.500.000") so what
-/// they see while editing matches how prices are shown everywhere else
-/// on this page, and keeps the cursor at the end (simplest correct
-/// behaviour for a field that's always edited by typing/deleting digits
-/// at the end).
+/// Pemisah ribuan langsung saat mengetik harga ("1500000" -> "1.500.000").
 class _ThousandsInputFormatter extends TextInputFormatter {
   @override
   TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
@@ -1773,13 +1965,10 @@ class _ThousandsInputFormatter extends TextInputFormatter {
     if (digitsOnly.isEmpty) {
       return const TextEditingValue(text: '');
     }
-    final formatted = digitsOnly.replaceAllMapped(
-      RegExp(r'\B(?=(\d{3})+(?!\d))'),
-      (m) => '.',
-    );
+    final formatted = _ribuan(digitsOnly);
     return TextEditingValue(
       text: formatted,
       selection: TextSelection.collapsed(offset: formatted.length),
     );
-   }
-} 
+  }
+}
