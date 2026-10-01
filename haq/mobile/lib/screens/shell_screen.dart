@@ -41,6 +41,7 @@ import 'kesantrian/rekam_medis_screen.dart';
 import 'billing/billing_admin_screen.dart';
 import 'billing/billing_tenant_screen.dart';
 import 'branding/branding_screen.dart';
+import 'santri/santri_ui.dart' show SC;
 
 class ShellScreen extends StatefulWidget {
   const ShellScreen({super.key});
@@ -329,19 +330,19 @@ class _ShellScreenState extends State<ShellScreen> {
               data: Theme.of(context).copyWith(
                 navigationBarTheme: NavigationBarThemeData(
                   backgroundColor: PColors.surface,
-                  indicatorColor: PColors.mint,
+                  indicatorColor: SC.mint,
                   surfaceTintColor: Colors.transparent,
                   labelTextStyle: MaterialStateProperty.resolveWith((states) {
                     final selected = states.contains(MaterialState.selected);
                     return TextStyle(
                       fontSize: 11,
                       fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
-                      color: selected ? PColors.primary : PColors.inkSecondary,
+                      color: selected ? SC.primary : PColors.inkSecondary,
                     );
                   }),
                   iconTheme: MaterialStateProperty.resolveWith((states) {
                     final selected = states.contains(MaterialState.selected);
-                    return IconThemeData(color: selected ? PColors.primary : PColors.inkSecondary);
+                    return IconThemeData(color: selected ? SC.primary : PColors.inkSecondary);
                   }),
                 ),
               ),
@@ -438,17 +439,17 @@ class _ShellScreenState extends State<ShellScreen> {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
             decoration: BoxDecoration(
-              color: _activeExtra == m ? PColors.mint : Colors.transparent,
+              color: _activeExtra == m ? SC.mint : Colors.transparent,
               borderRadius: BorderRadius.circular(10),
             ),
             child: Row(
               children: [
-                Icon(m.icon, size: 20, color: _activeExtra == m ? PColors.primary : PColors.inkSecondary),
+                Icon(m.icon, size: 20, color: _activeExtra == m ? SC.primary : PColors.inkSecondary),
                 const SizedBox(width: 12),
                 Text(
                   m.label,
                   style: TextStyle(
-                    color: _activeExtra == m ? PColors.primary : PColors.ink,
+                    color: _activeExtra == m ? SC.primary : PColors.ink,
                     fontWeight: _activeExtra == m ? FontWeight.w700 : FontWeight.w500,
                     fontSize: 14,
                   ),
@@ -461,7 +462,7 @@ class _ShellScreenState extends State<ShellScreen> {
     );
   }
 
-  Color get _seed => AppScope.of(context).brandingColor ?? PColors.primary;
+  Color get _seed => SC.primary;
 
   String? get _namaPondok => AppScope.of(context).user?.tenantNama;
 
