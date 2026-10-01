@@ -5,6 +5,7 @@ import 'services/api_client.dart';
 import 'services/app_scope.dart';
 import 'services/auth_state.dart';
 import 'screens/gate_screen.dart';
+import 'screens/santri/santri_ui.dart' show SC;
 import 'theme/app_theme.dart';
 
 void main() async {
@@ -72,15 +73,17 @@ class _AppState extends State<App> {
     super.dispose();
   }
 
-  @override
+    @override
   Widget build(BuildContext context) {
-    final seed = widget.auth.brandingColor ?? Tw.primary;
+    // Satu sumber warna: set dulu sebelum widget lain dibangun, supaya tema
+    // Material dan komponen SC memakai warna pondok yang sama.
+    SC.applyBrand(widget.auth.brandingColor);
     return AppScope(
       auth: widget.auth,
       child: MaterialApp(
         title: 'SIM Pesantren',
         debugShowCheckedModeBanner: false,
-        theme: AppTheme.light(seed),
+        theme: AppTheme.light(SC.primary),
         home: const GateScreen(),
       ),
     );

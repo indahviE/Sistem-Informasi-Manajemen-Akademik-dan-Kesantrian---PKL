@@ -132,7 +132,7 @@ class AppTheme {
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
           minimumSize: const Size(0, 48),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          side: const BorderSide(color: Tw.primary, width: 1.5),
+          side: BorderSide(color: primary, width: 1.5),
           textStyle: GoogleFonts.nunito(fontWeight: FontWeight.w700, fontSize: 14),
           disabledForegroundColor: Tw.gray400,
         ),
@@ -223,7 +223,7 @@ class AppTheme {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         textColor: Tw.gray900,
       ),
-      progressIndicatorTheme: const ProgressIndicatorThemeData(color: Tw.primary),
+      progressIndicatorTheme: ProgressIndicatorThemeData(color: primary),
     );
   }
 }

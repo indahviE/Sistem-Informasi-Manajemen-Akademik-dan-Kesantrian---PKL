@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../services/app_scope.dart';
 import '../theme/app_theme.dart';
+import 'santri/santri_ui.dart' show SC;
 
 /// Menampilkan logo yang bisa berupa URL biasa atau data URI base64.
 Widget brandLogo(String? logo, {double width = 44, double height = 44, double radius = 12, IconData fallback = Icons.school_rounded}) {
@@ -120,8 +121,8 @@ Widget twBadge(BuildContext context, String text, {Color? color, Color? soft}) {
   );
 }
 
-Widget loadingView() => const Center(
-      child: CircularProgressIndicator(color: Tw.primary, strokeWidth: 2.5),
+Widget loadingView() => Center(
+      child: CircularProgressIndicator(color: SC.primary, strokeWidth: 2.5),
     );
 
 Widget errorView(String message, VoidCallback onRetry) {
