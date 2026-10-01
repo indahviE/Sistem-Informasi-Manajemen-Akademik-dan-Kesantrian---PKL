@@ -541,7 +541,7 @@ class _SantriListScreenState extends State<SantriListScreen> {
           decoration: InputDecoration(
             hintText: 'Cari nama atau NIS',
             hintStyle: sty(14, FontWeight.w500, SC.inkMuted),
-            prefixIcon: const Icon(Icons.search_rounded, size: 21, color: SC.primary),
+            prefixIcon: Icon(Icons.search_rounded, size: 21, color: SC.primary),
             suffixIcon: _search.text.isEmpty
                 ? null
                 : IconButton(
@@ -563,7 +563,7 @@ class _SantriListScreenState extends State<SantriListScreen> {
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(999),
-              borderSide: const BorderSide(color: SC.primary, width: 1.4),
+              borderSide: BorderSide(color: SC.primary, width: 1.4),
             ),
           ),
         ),

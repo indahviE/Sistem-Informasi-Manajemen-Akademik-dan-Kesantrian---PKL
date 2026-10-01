@@ -1070,7 +1070,7 @@ class _FormScreenState extends State<_FormScreen> {
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
-        borderSide: const BorderSide(color: SC.primary, width: 1.5),
+        borderSide: BorderSide(color: SC.primary, width: 1.5),
       ),
       errorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),

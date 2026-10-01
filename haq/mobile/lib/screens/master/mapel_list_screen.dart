@@ -450,7 +450,7 @@ class _MapelListScreenState extends State<MapelListScreen> {
               shape: BoxShape.circle,
               border: Border.all(color: SC.gold.withOpacity(0.5), width: 1.5),
             ),
-            child: const Icon(Icons.menu_book_outlined, size: 36, color: SC.primary),
+            child: Icon(Icons.menu_book_outlined, size: 36, color: SC.primary),
           ),
           const SizedBox(height: 18),
           Text('Belum ada mata pelajaran',
@@ -473,7 +473,7 @@ class _MapelListScreenState extends State<MapelListScreen> {
             width: 26,
             height: 26,
             decoration: BoxDecoration(color: SC.sage, borderRadius: BorderRadius.circular(9)),
-            child: const Icon(Icons.menu_book_rounded, size: 14, color: SC.primary),
+            child: Icon(Icons.menu_book_rounded, size: 14, color: SC.primary),
           ),
           const SizedBox(width: 9),
           Text('Daftar Mata Pelajaran', style: sty(14, FontWeight.w800, SC.ink)),
@@ -694,7 +694,7 @@ class _MapelFormScreenState extends State<_MapelFormScreen> {
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
-        borderSide: const BorderSide(color: SC.primary, width: 1.5),
+        borderSide: BorderSide(color: SC.primary, width: 1.5),
       ),
       errorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
@@ -896,7 +896,7 @@ class _MapelFormScreenState extends State<_MapelFormScreen> {
                       padding: const EdgeInsets.only(left: 2, bottom: 10),
                       child: Row(
                         children: [
-                          const Icon(Icons.visibility_outlined, size: 15, color: SC.primary),
+                          Icon(Icons.visibility_outlined, size: 15, color: SC.primary),
                           const SizedBox(width: 6),
                           Text('Pratinjau', style: sty(12.5, FontWeight.w800, SC.ink)),
                           const SizedBox(width: 8),

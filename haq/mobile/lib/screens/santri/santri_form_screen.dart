@@ -580,8 +580,8 @@ class _SantriFormScreenState extends State<SantriFormScreen> {
                               const SizedBox(height: 14),
                             ],
                             if (_loading)
-                              const Padding(
-                                padding: EdgeInsets.symmetric(vertical: 48),
+                              Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 48),
                                 child: Center(child: CircularProgressIndicator(color: SC.primary)),
                               )
                             else
