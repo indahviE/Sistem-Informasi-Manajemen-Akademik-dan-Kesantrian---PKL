@@ -122,7 +122,8 @@ class ApiClient {
     try {
       final d = jsonDecode(res.body);
       if (d is Map && d['message'] != null) {
-        message = d['message'].toString();
+        final m = d['message'];
+        message = m is List ? m.join('\n') : m.toString();
       }
     } catch (_) {}
     return ApiException(res.statusCode, message);

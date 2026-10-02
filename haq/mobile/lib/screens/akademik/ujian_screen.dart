@@ -329,13 +329,11 @@ class _UjianScreenState extends State<UjianScreen> {
           child: Stack(
             children: [
               Positioned.fill(
-                child: _loading
+                    child: _loading
                     ? loadingView()
                     : _error != null
                         ? errorView(_error!, _load)
-                        : _ujian.isEmpty
-                            ? emptyView('Belum ada ujian. Buat ujian untuk mulai menilai.')
-                            : RefreshIndicator(onRefresh: _load, child: _buildList()),
+                        : RefreshIndicator(onRefresh: _load, child: _buildList()),
               ),
               Positioned(
                 right: 12,
@@ -454,7 +452,9 @@ class _UjianScreenState extends State<UjianScreen> {
         ),
         const SizedBox(height: 10),
 
-        if (list.isEmpty)
+         if (all.isEmpty)
+          _emptyState()
+        else if (list.isEmpty)
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 32),
             child: Center(
@@ -552,6 +552,37 @@ class _UjianScreenState extends State<UjianScreen> {
       ),
     );
   }
+
+    Widget _emptyState() => Container(
+        padding: const EdgeInsets.fromLTRB(20, 28, 20, 24),
+        decoration: _cardDeco(),
+        child: Column(
+          children: [
+            Container(
+              width: 56,
+              height: 56,
+              decoration: const BoxDecoration(color: _C.chipGray, shape: BoxShape.circle),
+              child: const Icon(Icons.assignment_outlined, size: 26, color: _C.ink2),
+            ),
+            const SizedBox(height: 12),
+            const Text('Belum ada ujian',
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _C.ink)),
+            const SizedBox(height: 4),
+            const Text(
+              'Buat ujian pertama untuk mulai menilai santri, mengunci nilai, dan menjadwalkan remedial.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 12.5, height: 1.4, color: _C.ink2),
+            ),
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              style: _primaryBtn(h: 44),
+              onPressed: _addUjian,
+              icon: const Icon(Icons.add, size: 18),
+              label: const Text('Buat Ujian Pertama'),
+            ),
+          ],
+        ),
+      );
 
   Widget _listChip(String label, bool selected, VoidCallback onTap, {int? count}) {
     return Padding(
@@ -741,6 +772,10 @@ class _UjianScreenState extends State<UjianScreen> {
                       ),
                     ),
                     const SizedBox(width: 8),
+                    if (u['dikunciPada'] != null) ...[
+                      const Icon(Icons.lock_outline, size: 16, color: _C.goldText),
+                      const SizedBox(width: 6),
+                    ],
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       decoration:

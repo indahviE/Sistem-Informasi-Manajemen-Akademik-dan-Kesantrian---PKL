@@ -103,6 +103,11 @@ String _grade(double n, double kkm) {
   return '';
 }
 
+double? _nilaiNum(Map<String, dynamic> n) =>
+    n['nilai'] is num ? (n['nilai'] as num).toDouble() : null;
+
+String _kehadiranOf(Map<String, dynamic> n) => '${n['status'] ?? 'HADIR'}'.toUpperCase();
+
 void _snack(BuildContext context, String msg) =>
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
 
@@ -169,6 +174,7 @@ class _UjianDetailScreenState extends State<UjianDetailScreen> {
   String? _error;
   String _tab = 'ALL'; // ALL | OK | BAD
   String _query = '';
+  bool _busyKunci = false;
 
   @override
   void initState() {
@@ -223,6 +229,7 @@ class _UjianDetailScreenState extends State<UjianDetailScreen> {
 
   String get _kkmText =>
       _kkm == _kkm.roundToDouble() ? _kkm.toStringAsFixed(0) : _kkm.toStringAsFixed(1);
+        bool get _terkunci => _ujian['dikunciPada'] != null;
 
   // Buka halaman Input Nilai, lalu muat ulang data setelah kembali.
   Future<void> _openInput() async {
@@ -240,6 +247,146 @@ class _UjianDetailScreenState extends State<UjianDetailScreen> {
     if (mounted) _load();
   }
 
+    Future<void> _kunci() async {
+    if (_busyKunci) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('Kunci Nilai Ujian?'),
+        content: const Text(
+            'Setelah dikunci, nilai dan remedial tidak bisa diubah. Untuk mengubahnya, kunci harus dibuka dengan alasan yang dicatat.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Batal')),
+          FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('Kunci')),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+
+    setState(() => _busyKunci = true);
+    try {
+      final res = await AppScope.of(context)
+          .api
+          .post('${ApiUrl.ujian}/${widget.ujian['id']}/kunci');
+      await _load();
+      if (!mounted) return;
+      final r = res is Map ? res['ringkasan'] : null;
+      if (r is Map) {
+        await _tampilRingkasan(Map<String, dynamic>.from(r));
+      } else {
+        _snack(context, 'Nilai ujian dikunci.');
+      }
+    } on ApiException catch (e) {
+      if (mounted) _snack(context, e.message);
+    } finally {
+      if (mounted) setState(() => _busyKunci = false);
+    }
+  }
+
+  Future<void> _bukaKunci() async {
+    if (_busyKunci) return;
+    final alasan = await showDialog<String>(
+      context: context,
+      builder: (_) => const _AlasanDialog(),
+    );
+    if (alasan == null || !mounted) return;
+
+    setState(() => _busyKunci = true);
+    try {
+      await AppScope.of(context)
+          .api
+          .post('${ApiUrl.ujian}/${widget.ujian['id']}/buka-kunci', {'alasan': alasan});
+      await _load();
+      if (mounted) _snack(context, 'Kunci dibuka. Setiap perubahan nilai akan tercatat.');
+    } on ApiException catch (e) {
+      if (mounted) _snack(context, e.message);
+    } finally {
+      if (mounted) setState(() => _busyKunci = false);
+    }
+  }
+
+  Future<void> _tampilRingkasan(Map<String, dynamic> r) {
+    Widget row(String l, dynamic v) => Padding(
+          padding: const EdgeInsets.symmetric(vertical: 3),
+          child: Row(children: [
+            Expanded(child: Text(l, style: const TextStyle(fontSize: 13))),
+            Text('$v', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+          ]),
+        );
+    return showDialog<void>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('Nilai Dikunci'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            row('Tuntas langsung', r['tuntasLangsung']),
+            row('Di bawah KKM', r['dibawahKkm']),
+            row('   • Ikut remedial', r['ikutRemedial']),
+            row('   • Tanpa remedial', r['tanpaRemedial']),
+            row('Perlu ujian susulan', r['perluSusulan']),
+          ],
+        ),
+        actions: [TextButton(onPressed: () => Navigator.pop(c), child: const Text('Tutup'))],
+      ),
+    );
+  }
+
+  Widget _kunciBanner() {
+    final locked = _terkunci;
+    final tgl = _fmtTgl(_ujian['dikunciPada']);
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: locked ? _C.goldSoft : Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: locked ? _C.goldBorder : _C.border),
+      ),
+      child: Row(
+        children: [
+          Icon(locked ? Icons.lock_outline : Icons.lock_open_outlined,
+              size: 20, color: locked ? _C.goldText : _C.ink2),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(locked ? 'Nilai dikunci' : 'Nilai masih terbuka',
+                    style: const TextStyle(
+                        fontSize: 13, fontWeight: FontWeight.w700, color: _C.ink)),
+                const SizedBox(height: 2),
+                Text(
+                  locked
+                      ? (tgl.isEmpty
+                          ? 'Tidak bisa diubah kecuali kunci dibuka.'
+                          : 'Dikunci $tgl. Tidak bisa diubah kecuali kunci dibuka.')
+                      : 'Kunci setelah semua nilai dan remedial selesai.',
+                  style: const TextStyle(fontSize: 11.5, color: _C.ink2, height: 1.3),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          _busyKunci
+              ? const SizedBox(
+                  width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+              : FilledButton(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: locked ? _C.chipGray : _C.emerald,
+                    foregroundColor: locked ? _C.ink : Colors.white,
+                    minimumSize: const Size(0, 36),
+                    padding: const EdgeInsets.symmetric(horizontal: 14),
+                    shape: const StadiumBorder(),
+                    textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+                  ),
+                  onPressed: locked ? _bukaKunci : _kunci,
+                  child: Text(locked ? 'Buka Kunci' : 'Kunci'),
+                ),
+        ],
+      ),
+    );
+  }
+
   List<Map<String, dynamic>> get _nilais =>
       ((_data?['nilais'] as List?) ?? []).whereType<Map<String, dynamic>>().toList();
 
@@ -249,11 +396,12 @@ class _UjianDetailScreenState extends State<UjianDetailScreen> {
         .where((r) => '${r['status']}'.toUpperCase() == 'TUNTAS')
         .map((r) => r['santriId'] ?? (r['santri'] as Map?)?['id'])
         .toSet();
-    return _nilais
-        .where((n) =>
-            (n['nilai'] as num) < _kkm &&
-            !tuntas.contains(n['santriId'] ?? (n['santri'] as Map?)?['id']))
-        .length;
+    return _nilais.where((n) {
+      final v = _nilaiNum(n);
+      return v != null &&
+          v < _kkm &&
+          !tuntas.contains(n['santriId'] ?? (n['santri'] as Map?)?['id']);
+    }).length;
   }
 
   // ───────────────────────────── BUILD ─────────────────────────────
@@ -361,30 +509,35 @@ class _UjianDetailScreenState extends State<UjianDetailScreen> {
   Widget _buildContent() {
     final u = _ujian;
     final all = _nilais;
-    final tuntas = all.where((n) => (n['nilai'] as num) >= _kkm).length;
-    final belum = all.length - tuntas;
+    final dinilai = all.where((n) => _nilaiNum(n) != null).toList();
+    final susulan = all.length - dinilai.length;
+    final tuntas = dinilai.where((n) => _nilaiNum(n)! >= _kkm).length;
+    final belum = dinilai.length - tuntas;
     final remedial = _remedialAktif;
 
     Map<String, dynamic>? top;
-    if (all.isNotEmpty) {
-      top = all.reduce((a, b) => (a['nilai'] as num) >= (b['nilai'] as num) ? a : b);
+    if (dinilai.isNotEmpty) {
+      top = dinilai.reduce((a, b) => _nilaiNum(a)! >= _nilaiNum(b)! ? a : b);
     }
 
     final q = _query.trim().toLowerCase();
     final list = all.where((n) {
-      final v = (n['nilai'] as num).toDouble();
-      if (_tab == 'OK' && v < _kkm) return false;
-      if (_tab == 'BAD' && v >= _kkm) return false;
+      final v = _nilaiNum(n);
+      if (_tab == 'OK' && (v == null || v < _kkm)) return false;
+      if (_tab == 'BAD' && (v == null || v >= _kkm)) return false;
+      if (_tab == 'SUS' && v != null) return false;
       if (q.isEmpty) return true;
       final s = n['santri'] as Map<String, dynamic>;
       return '${s['nama']} ${s['nis']}'.toLowerCase().contains(q);
     }).toList()
-      ..sort((a, b) => (b['nilai'] as num).compareTo(a['nilai'] as num));
+      ..sort((a, b) => (_nilaiNum(b) ?? -1).compareTo(_nilaiNum(a) ?? -1));
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(12, 12, 12, 20),
       children: [
-        _hero(u, all),
+      _hero(u, all),
+        const SizedBox(height: 12),
+        _kunciBanner(),
         const SizedBox(height: 16),
         Row(
           children: [
@@ -426,6 +579,7 @@ class _UjianDetailScreenState extends State<UjianDetailScreen> {
               _tabChip('Semua', all.length, 'ALL'),
               _tabChip('Tuntas', tuntas, 'OK'),
               _tabChip('Belum Tuntas', belum, 'BAD', countColor: _C.badFg),
+               if (susulan > 0) _tabChip('Susulan', susulan, 'SUS'),
             ],
           ),
         ),
@@ -487,13 +641,15 @@ class _UjianDetailScreenState extends State<UjianDetailScreen> {
   Widget _hero(Map<String, dynamic> u, List<Map<String, dynamic>> all) {
     final st = _jenisStyle(_jenisOf(u));
 
-    double? avg;
+        double? avg;
     Map<String, dynamic>? top, low;
-    if (all.isNotEmpty) {
-      avg = all.fold<double>(0, (a, n) => a + (n['nilai'] as num).toDouble()) / all.length;
-      top = all.reduce((a, b) => (a['nilai'] as num) >= (b['nilai'] as num) ? a : b);
-      low = all.reduce((a, b) => (a['nilai'] as num) <= (b['nilai'] as num) ? a : b);
+    final dinilai = all.where((n) => _nilaiNum(n) != null).toList();
+    if (dinilai.isNotEmpty) {
+      avg = dinilai.fold<double>(0, (a, n) => a + _nilaiNum(n)!) / dinilai.length;
+      top = dinilai.reduce((a, b) => _nilaiNum(a)! >= _nilaiNum(b)! ? a : b);
+      low = dinilai.reduce((a, b) => _nilaiNum(a)! <= _nilaiNum(b)! ? a : b);
     }
+
     String nm(Map<String, dynamic>? n) =>
         n == null ? '-' : ((n['santri'] as Map<String, dynamic>)['nama'] as String);
 
@@ -648,7 +804,9 @@ class _UjianDetailScreenState extends State<UjianDetailScreen> {
   // ── Kartu nilai santri ──
   Widget _nilaiTile(Map<String, dynamic> n, {required bool isTop}) {
     final santri = n['santri'] as Map<String, dynamic>;
-    final v = (n['nilai'] as num).toDouble();
+    final nv = _nilaiNum(n);
+    if (nv == null) return _susulanTile(n, santri);
+    final v = nv;
     final ok = v >= _kkm;
     final cat = '${n['catatan'] ?? ''}'.trim();
 
@@ -753,6 +911,55 @@ class _UjianDetailScreenState extends State<UjianDetailScreen> {
     );
   }
 
+    Widget _susulanTile(Map<String, dynamic> n, Map<String, dynamic> santri) {
+    final label = switch (_kehadiranOf(n)) {
+      'SAKIT' => 'Sakit',
+      'IZIN' => 'Izin',
+      'ALPA' => 'Alpa',
+      _ => 'Belum ada nilai',
+    };
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(10),
+      decoration: _cardDeco(),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration:
+                BoxDecoration(color: _C.chipGray, borderRadius: BorderRadius.circular(10)),
+            child: const Icon(Icons.event_busy_outlined, size: 18, color: _C.ink2),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(santri['nama'] as String,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                              fontWeight: FontWeight.w700, fontSize: 13.5, color: _C.ink)),
+                    ),
+                    const SizedBox(width: 6),
+                    _pill('Susulan • $label', _C.warnBg, _C.warnFg, bd: _C.warnBd, fs: 10),
+                  ],
+                ),
+                const SizedBox(height: 3),
+                Text('NIS: ${santri['nis']}',
+                    style: const TextStyle(fontSize: 11.5, color: _C.ink2)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   // ── Bar tombol bawah ──
   Widget _bottomBar() {
     final remedial = _remedialAktif;
@@ -817,6 +1024,64 @@ class _UjianDetailScreenState extends State<UjianDetailScreen> {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _AlasanDialog extends StatefulWidget {
+  const _AlasanDialog();
+
+  @override
+  State<_AlasanDialog> createState() => _AlasanDialogState();
+}
+
+class _AlasanDialogState extends State<_AlasanDialog> {
+  final _c = TextEditingController();
+  String? _err;
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  void _ok() {
+    final t = _c.text.trim();
+    if (t.length < 10) {
+      setState(() => _err = 'Alasan minimal 10 karakter.');
+      return;
+    }
+    Navigator.pop(context, t);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Buka Kunci Nilai'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Alasan akan dicatat di log aktivitas beserta nama Anda.',
+              style: TextStyle(fontSize: 12.5)),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _c,
+            minLines: 2,
+            maxLines: 4,
+            maxLength: 500,
+            decoration: InputDecoration(
+              hintText: 'Contoh: Salah ketik nilai santri B',
+              errorText: _err,
+              border: const OutlineInputBorder(),
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Batal')),
+        FilledButton(onPressed: _ok, child: const Text('Buka Kunci')),
+      ],
     );
   }
 }

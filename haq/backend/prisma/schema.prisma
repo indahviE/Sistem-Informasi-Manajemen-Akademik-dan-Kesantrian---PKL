@@ -727,6 +727,10 @@ model Ujian {
   tanggal     DateTime?
   durasiMenit Int?
   kkm         Float      @default(75)
+  dibuatOleh  String?
+  periode     String?
+  dikunciPada DateTime?
+  dikunciOleh String?
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
 
@@ -740,13 +744,22 @@ model Ujian {
   @@map("ujians")
 }
 
+enum StatusKehadiranUjian {   
+  HADIR
+  SAKIT
+  IZIN
+  ALPA
+}
+
 model NilaiUjian {
   id        String   @id @default(cuid())
   tenantId  String
   ujianId   String
   santriId  String
-  nilai     Float
+  nilai     Float?
+  status    StatusKehadiranUjian @default(HADIR)
   catatan   String?
+  inputOleh String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
