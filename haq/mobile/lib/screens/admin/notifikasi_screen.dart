@@ -18,6 +18,7 @@
 import 'package:flutter/material.dart';
 import '../../services/api_client.dart';
 import '../../services/app_scope.dart';
+import '../santri/santri_ui.dart';
 import '../ui_utils.dart';
 
 // ---------------------------------------------------------------------------
@@ -26,12 +27,12 @@ import '../ui_utils.dart';
 class _NC {
   _NC._();
 
-  static const primary = Color(0xFF0F3A2E);
-  static const primaryEnd = Color(0xFF164E3D);
+  static Color get primary => SC.primary;
+  static Color get primaryEnd => SC.primaryEnd;
   static const gold = Color(0xFFC5A059);
   static const goldLight = Color(0xFFF9D77E);
-  static const mint = Color(0xFFD2E4DC);
-  static const sage = Color(0xFFE2ECE9);
+  static Color get mint => SC.mint;
+  static Color get sage => SC.sage;
   static const background = Color(0xFFFAF9F5);
   static const surface = Color(0xFFFFFFFF);
   static const surfaceDim = Color(0xFFF5F4EE);
@@ -307,7 +308,7 @@ class _NotifikasiAdminScreenState extends State<NotifikasiAdminScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
+        gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [_NC.primary, _NC.primaryEnd],
@@ -725,8 +726,8 @@ class _AllClearFooter extends StatelessWidget {
           Container(
             width: 40,
             height: 40,
-            decoration: const BoxDecoration(color: _NC.mint, shape: BoxShape.circle),
-            child: const Icon(Icons.check_circle_outline, color: _NC.primary),
+            decoration: BoxDecoration(color: _NC.mint, shape: BoxShape.circle),
+            child: Icon(Icons.check_circle_outline, color: _NC.primary),
           ),
           const SizedBox(width: 12),
           const Expanded(

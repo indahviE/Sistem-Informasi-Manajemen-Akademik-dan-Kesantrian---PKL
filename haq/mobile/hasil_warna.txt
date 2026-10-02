@@ -1,0 +1,557 @@
+﻿lib\main.dart:23: color: const Color(0xFFFEE2E2),
+lib\main.dart:28: style: const TextStyle(color: Color(0xFFB91C1C), fontSize: 11),
+lib\screens\dashboard_screen.dart:22: static const primary = Color(0xFF0F3A2E);
+lib\screens\dashboard_screen.dart:23: static const primaryContainer = Color(0xFF1B4D3E);
+lib\screens\dashboard_screen.dart:24: static const primaryGradientEnd = Color(0xFF164E3D);
+lib\screens\dashboard_screen.dart:26: static const gold = Color(0xFFC5A059);
+lib\screens\dashboard_screen.dart:27: static const goldSurface = Color(0xFFFAF5EC);
+lib\screens\dashboard_screen.dart:28: static const goldBorder = Color(0xFFE7D2A7);
+lib\screens\dashboard_screen.dart:30: static const mint = Color(0xFFD2E4DC);
+lib\screens\dashboard_screen.dart:31: static const sage = Color(0xFFE2ECE9);
+lib\screens\dashboard_screen.dart:33: static const background = Color(0xFFFAF9F5);
+lib\screens\dashboard_screen.dart:34: static const surface = Color(0xFFFFFFFF);
+lib\screens\dashboard_screen.dart:35: static const surfaceDim = Color(0xFFF5F4EE);
+lib\screens\dashboard_screen.dart:37: static const ink = Color(0xFF0F172A);
+lib\screens\dashboard_screen.dart:38: static const inkSecondary = Color(0xFF475569);
+lib\screens\dashboard_screen.dart:40: static const border = Color(0xFFEAE6DC);
+lib\screens\dashboard_screen.dart:42: static const successBg = Color(0xFFE8F5E9);
+lib\screens\dashboard_screen.dart:43: static const successText = Color(0xFF1B5E20);
+lib\screens\dashboard_screen.dart:45: static const pendingBg = Color(0xFFFFF8E1);
+lib\screens\dashboard_screen.dart:46: static const pendingText = Color(0xFFB78103);
+lib\screens\dashboard_screen.dart:48: static const errorBg = Color(0xFFFEE2E2);
+lib\screens\dashboard_screen.dart:49: static const errorText = Color(0xFF991B1B);
+lib\screens\dashboard_screen.dart:53: static const goldDark = Color(0xFF7A5B10);
+lib\screens\dashboard_screen.dart:940: iconBg: Color(0xFFFEE2E2),
+lib\screens\dashboard_screen.dart:2895: side: const BorderSide(color: Color(0xFFF1B8B8)),
+lib\screens\dashboard_screen.dart:2961: final statusBg = isSuspended ? const Color(0xFFFEE2E2) : (isPending ? _WC.pendingBg : _WC.successBg);
+lib\screens\dashboard_screen.dart:3062: border: filled ? null : Border.all(color: const Color(0xFFF1B8B8)),
+lib\screens\signup_screen.dart:33: static const primary = Color(0xFF0F3A2E);
+lib\screens\signup_screen.dart:34: static const primaryShade = Color(0xFF114232);
+lib\screens\signup_screen.dart:35: static const primaryContainer = Color(0xFF1B4D3E);
+lib\screens\signup_screen.dart:36: static const primaryGradientEnd = Color(0xFF164E3D);
+lib\screens\signup_screen.dart:39: static const gold = Color(0xFFC5A059);
+lib\screens\signup_screen.dart:40: static const goldSurface = Color(0xFFFAF5EC);
+lib\screens\signup_screen.dart:41: static const goldBorder = Color(0xFFE7D2A7);
+lib\screens\signup_screen.dart:44: static const mint = Color(0xFFD2E4DC);
+lib\screens\signup_screen.dart:45: static const sage = Color(0xFFE2ECE9);
+lib\screens\signup_screen.dart:48: static const background = Color(0xFFFAF9F5);
+lib\screens\signup_screen.dart:49: static const surface = Color(0xFFFFFFFF);
+lib\screens\signup_screen.dart:50: static const surfaceDim = Color(0xFFF5F4EE);
+lib\screens\signup_screen.dart:53: static const ink = Color(0xFF0F172A);
+lib\screens\signup_screen.dart:54: static const inkSecondary = Color(0xFF475569);
+lib\screens\signup_screen.dart:57: static const border = Color(0xFFEAE6DC);
+lib\screens\signup_screen.dart:58: static const inputBorder = Color(0xFFE2E8F0);
+lib\screens\signup_screen.dart:61: static const successBg = Color(0xFFE8F5E9);
+lib\screens\signup_screen.dart:62: static const successText = Color(0xFF1B5E20);
+lib\screens\signup_screen.dart:63: static const successBorder = Color(0xFFC8E6C9);
+lib\screens\signup_screen.dart:65: static const pendingBg = Color(0xFFFFF8E1);
+lib\screens\signup_screen.dart:66: static const pendingText = Color(0xFFB78103);
+lib\screens\signup_screen.dart:67: static const pendingBorder = Color(0xFFFFE082);
+lib\screens\signup_screen.dart:69: static const errorBg = Color(0xFFFEE2E2);
+lib\screens\signup_screen.dart:70: static const errorText = Color(0xFF991B1B);
+lib\screens\signup_screen.dart:71: static const errorBorder = Color(0xFFFECACA);
+lib\screens\signup_screen.dart:73: static const infoBg = Color(0xFFE0F2FE);
+lib\screens\signup_screen.dart:74: static const infoText = Color(0xFF0369A1);
+lib\screens\signup_screen.dart:75: static const infoBorder = Color(0xFFBAE6FD);
+lib\screens\admin\admin_header.dart:184: color: const Color(0xFFE53935),
+lib\screens\admin\notifikasi_screen.dart:29: static const primary = Color(0xFF0F3A2E);
+lib\screens\admin\notifikasi_screen.dart:30: static const primaryEnd = Color(0xFF164E3D);
+lib\screens\admin\notifikasi_screen.dart:31: static const gold = Color(0xFFC5A059);
+lib\screens\admin\notifikasi_screen.dart:32: static const goldLight = Color(0xFFF9D77E);
+lib\screens\admin\notifikasi_screen.dart:33: static const mint = Color(0xFFD2E4DC);
+lib\screens\admin\notifikasi_screen.dart:34: static const sage = Color(0xFFE2ECE9);
+lib\screens\admin\notifikasi_screen.dart:35: static const background = Color(0xFFFAF9F5);
+lib\screens\admin\notifikasi_screen.dart:36: static const surface = Color(0xFFFFFFFF);
+lib\screens\admin\notifikasi_screen.dart:37: static const surfaceDim = Color(0xFFF5F4EE);
+lib\screens\admin\notifikasi_screen.dart:38: static const ink = Color(0xFF0F172A);
+lib\screens\admin\notifikasi_screen.dart:39: static const inkSecondary = Color(0xFF475569);
+lib\screens\admin\notifikasi_screen.dart:40: static const border = Color(0xFFEAE6DC);
+lib\screens\admin\notifikasi_screen.dart:41: static const errorBg = Color(0xFFFEE2E2);
+lib\screens\admin\notifikasi_screen.dart:42: static const errorText = Color(0xFF991B1B);
+lib\screens\admin\notifikasi_screen.dart:43: static const dot = Color(0xFFB91C1C);
+lib\screens\admin\notifikasi_screen.dart:620: return (icon: Icons.gavel, bg: const Color(0xFFFFE9B8), fg: const Color(0xFF7A5B10));
+lib\screens\admin\notifikasi_screen.dart:622: return (icon: Icons.family_restroom, bg: const Color(0xFFFAF5EC), fg: _NC.gold);
+lib\screens\admin\pengaturan_admin_screen.dart:30: static const primary = Color(0xFF0F3A2E);
+lib\screens\admin\pengaturan_admin_screen.dart:31: static const primarySoft = Color(0xFF1B4D3E);
+lib\screens\admin\pengaturan_admin_screen.dart:32: static const mint = Color(0xFFD2E4DC);
+lib\screens\admin\pengaturan_admin_screen.dart:33: static const gold = Color(0xFFF9D77E); // emas terang khusus tombol upgrade (sesuai screen.png)
+lib\screens\admin\pengaturan_admin_screen.dart:34: static const goldDark = Color(0xFF7A5B10);
+lib\screens\admin\pengaturan_admin_screen.dart:35: static const background = Color(0xFFFAF9F5);
+lib\screens\admin\pengaturan_admin_screen.dart:37: static const surfaceDim = Color(0xFFF5F4EE);
+lib\screens\admin\pengaturan_admin_screen.dart:38: static const line = Color(0xFFEAE6DC);
+lib\screens\admin\pengaturan_admin_screen.dart:39: static const inkSecondary = Color(0xFF475569);
+lib\screens\admin\pengaturan_admin_screen.dart:40: static const sage = Color(0xFFE2ECE9);
+lib\screens\admin\pengaturan_admin_screen.dart:41: static const errorBg = Color(0xFFFEE2E2);
+lib\screens\admin\pengaturan_admin_screen.dart:42: static const errorText = Color(0xFF991B1B);
+lib\screens\admin\pengaturan_admin_screen.dart:438: color: value ? _AC.primary : const Color(0xFFDAD8CF),
+lib\screens\akademik\absensi_screen.dart:10: static const primary = Color(0xFF0F3A2E);
+lib\screens\akademik\absensi_screen.dart:11: static const primaryGradientEnd = Color(0xFF164E3D);
+lib\screens\akademik\absensi_screen.dart:12: static const gold = Color(0xFFC5A059);
+lib\screens\akademik\absensi_screen.dart:13: static const goldSurface = Color(0xFFFAF5EC);
+lib\screens\akademik\absensi_screen.dart:14: static const goldDark = Color(0xFF7A5B10);
+lib\screens\akademik\absensi_screen.dart:15: static const mint = Color(0xFFD2E4DC);
+lib\screens\akademik\absensi_screen.dart:16: static const sage = Color(0xFFE2ECE9);
+lib\screens\akademik\absensi_screen.dart:18: static const background = Color(0xFFFAF9F5);
+lib\screens\akademik\absensi_screen.dart:19: static const surface = Color(0xFFFFFFFF);
+lib\screens\akademik\absensi_screen.dart:20: static const surfaceDim = Color(0xFFF5F4EE);
+lib\screens\akademik\absensi_screen.dart:22: static const ink = Color(0xFF0F172A);
+lib\screens\akademik\absensi_screen.dart:23: static const inkSecondary = Color(0xFF475569);
+lib\screens\akademik\absensi_screen.dart:24: static const border = Color(0xFFEAE6DC);
+lib\screens\akademik\absensi_screen.dart:26: static const errorBg = Color(0xFFFEE2E2);
+lib\screens\akademik\absensi_screen.dart:27: static const errorText = Color(0xFF991B1B);
+lib\screens\akademik\absensi_screen.dart:40: _StatusStyle('HADIR', 'Hadir', Color(0xFFD2E4DC), Color(0xFF0F3A2E), Color(0xFF0F3A2E)),
+lib\screens\akademik\absensi_screen.dart:41: _StatusStyle('IZIN', 'Izin', Color(0xFFF3E2B8), Color(0xFF7A5B10), Color(0xFFB78103)),
+lib\screens\akademik\absensi_screen.dart:42: _StatusStyle('SAKIT', 'Sakit', Color(0xFFE6E4DB), Color(0xFF0F172A), Color(0xFF94A3B8)),
+lib\screens\akademik\absensi_screen.dart:43: _StatusStyle('ALPA', 'Alpa', Color(0xFFFEE2E2), Color(0xFF991B1B), Color(0xFF991B1B)),
+lib\screens\akademik\nilai_screen.dart:11: static const primary = Color(0xFF0F3A2E);
+lib\screens\akademik\nilai_screen.dart:12: static const primaryGradientEnd = Color(0xFF164E3D);
+lib\screens\akademik\nilai_screen.dart:13: static const gold = Color(0xFFC5A059);
+lib\screens\akademik\nilai_screen.dart:14: static const goldSurface = Color(0xFFFAF5EC);
+lib\screens\akademik\nilai_screen.dart:15: static const goldDark = Color(0xFF7A5B10);
+lib\screens\akademik\nilai_screen.dart:16: static const mint = Color(0xFFD2E4DC);
+lib\screens\akademik\nilai_screen.dart:17: static const sage = Color(0xFFE2ECE9);
+lib\screens\akademik\nilai_screen.dart:19: static const background = Color(0xFFFAF9F5);
+lib\screens\akademik\nilai_screen.dart:20: static const surface = Color(0xFFFFFFFF);
+lib\screens\akademik\nilai_screen.dart:21: static const surfaceDim = Color(0xFFF5F4EE);
+lib\screens\akademik\nilai_screen.dart:23: static const ink = Color(0xFF0F172A);
+lib\screens\akademik\nilai_screen.dart:24: static const inkSecondary = Color(0xFF475569);
+lib\screens\akademik\nilai_screen.dart:25: static const border = Color(0xFFEAE6DC);
+lib\screens\akademik\nilai_screen.dart:27: static const errorBg = Color(0xFFFEE2E2);
+lib\screens\akademik\nilai_screen.dart:28: static const errorText = Color(0xFF991B1B);
+lib\screens\akademik\nilai_screen.dart:41: return const _Predikat('Mumtaz / A', Color(0xFFD2E4DC), Color(0xFF0F3A2E), Icons.workspace_premium_outlined);
+lib\screens\akademik\nilai_screen.dart:44: return const _Predikat('Jayyid Jiddan / B+', Color(0xFFFCD98B), Color(0xFF7A5B10), Icons.star_outline_rounded);
+lib\screens\akademik\nilai_screen.dart:47: return const _Predikat('Jayyid / B', Color(0xFFE6E4DB), Color(0xFF475569), Icons.check_circle_outline);
+lib\screens\akademik\nilai_screen.dart:50: return const _Predikat('Maqbul / C', Color(0xFFF3E2B8), Color(0xFF7A5B10), Icons.remove_circle_outline);
+lib\screens\akademik\nilai_screen.dart:52: return const _Predikat('Rasib / D', Color(0xFFFEE2E2), Color(0xFF991B1B), Icons.error_outline);
+lib\screens\akademik\nilai_screen.dart:492: decoration: BoxDecoration(color: const Color(0xFFFCD98B), borderRadius: BorderRadius.circular(999)),
+lib\screens\akademik\tahfidz_screen.dart:14: static const canvas = Color(0xFFFAF9F5);
+lib\screens\akademik\tahfidz_screen.dart:15: static const surface = Color(0xFFFFFFFF);
+lib\screens\akademik\tahfidz_screen.dart:16: static const primary = Color(0xFF0F3A2E);
+lib\screens\akademik\tahfidz_screen.dart:17: static const primaryContainer = Color(0xFF1B4D3E);
+lib\screens\akademik\tahfidz_screen.dart:18: static const onPrimaryContainer = Color(0xFF7AA494);
+lib\screens\akademik\tahfidz_screen.dart:19: static const tertiaryFixed = Color(0xFFD5E7DF);
+lib\screens\akademik\tahfidz_screen.dart:20: static const tertiaryFixedDim = Color(0xFFB9CAC3);
+lib\screens\akademik\tahfidz_screen.dart:21: static const secondary = Color(0xFF775A19);
+lib\screens\akademik\tahfidz_screen.dart:22: static const secondaryContainer = Color(0xFFFED488);
+lib\screens\akademik\tahfidz_screen.dart:23: static const secondaryFixed = Color(0xFFFFDEA5);
+lib\screens\akademik\tahfidz_screen.dart:24: static const onSecondaryFixed = Color(0xFF261900);
+lib\screens\akademik\tahfidz_screen.dart:25: static const container = Color(0xFFEAEDFF);
+lib\screens\akademik\tahfidz_screen.dart:26: static const surfaceVariant = Color(0xFFDAE2FD);
+lib\screens\akademik\tahfidz_screen.dart:27: static const outline = Color(0xFF717975);
+lib\screens\akademik\tahfidz_screen.dart:28: static const outlineVariant = Color(0xFFC0C8C3);
+lib\screens\akademik\tahfidz_screen.dart:29: static const onSurface = Color(0xFF131B2E);
+lib\screens\akademik\tahfidz_screen.dart:30: static const onSurfaceVariant = Color(0xFF414845);
+lib\screens\akademik\tahfidz_screen.dart:31: static const error = Color(0xFFBA1A1A);
+lib\screens\akademik\tahfidz_screen.dart:32: static const errorContainer = Color(0xFFFFDAD6);
+lib\screens\akademik\tahfidz_screen.dart:33: static const onErrorContainer = Color(0xFF93000A);
+lib\screens\akademik\ujian_detail_screen.dart:12: static const emerald = Color(0xFF0F3A2E);
+lib\screens\akademik\ujian_detail_screen.dart:13: static const emeraldMid = Color(0xFF164E3D);
+lib\screens\akademik\ujian_detail_screen.dart:14: static const gold = Color(0xFFC5A059);
+lib\screens\akademik\ujian_detail_screen.dart:15: static const goldSoft = Color(0xFFFAF5EC);
+lib\screens\akademik\ujian_detail_screen.dart:16: static const goldBorder = Color(0xFFE7D2A7);
+lib\screens\akademik\ujian_detail_screen.dart:17: static const sage = Color(0xFFE2ECE9);
+lib\screens\akademik\ujian_detail_screen.dart:18: static const ivory = Color(0xFFFAF9F5);
+lib\screens\akademik\ujian_detail_screen.dart:19: static const border = Color(0xFFEAE6DC);
+lib\screens\akademik\ujian_detail_screen.dart:20: static const inputBorder = Color(0xFFE2E8F0);
+lib\screens\akademik\ujian_detail_screen.dart:21: static const ink = Color(0xFF0F172A);
+lib\screens\akademik\ujian_detail_screen.dart:22: static const ink2 = Color(0xFF475569);
+lib\screens\akademik\ujian_detail_screen.dart:23: static const goldText = Color(0xFF775A19);
+lib\screens\akademik\ujian_detail_screen.dart:24: static const chipGray = Color(0xFFEFEEEA);
+lib\screens\akademik\ujian_detail_screen.dart:25: static const trackGray = Color(0xFFE3E2DF);
+lib\screens\akademik\ujian_detail_screen.dart:26: static const fieldFill = Color(0xFFF5F4EE);
+lib\screens\akademik\ujian_detail_screen.dart:28: static const okBg = Color(0xFFE8F5E9);
+lib\screens\akademik\ujian_detail_screen.dart:29: static const okFg = Color(0xFF1B5E20);
+lib\screens\akademik\ujian_detail_screen.dart:30: static const okBd = Color(0xFFC8E6C9);
+lib\screens\akademik\ujian_detail_screen.dart:31: static const warnBg = Color(0xFFFFF8E1);
+lib\screens\akademik\ujian_detail_screen.dart:32: static const warnFg = Color(0xFFB78103);
+lib\screens\akademik\ujian_detail_screen.dart:33: static const warnBd = Color(0xFFFFE082);
+lib\screens\akademik\ujian_detail_screen.dart:34: static const badBg = Color(0xFFFEE2E2);
+lib\screens\akademik\ujian_detail_screen.dart:35: static const badFg = Color(0xFF991B1B);
+lib\screens\akademik\ujian_detail_screen.dart:36: static const badBd = Color(0xFFFECACA);
+lib\screens\akademik\ujian_detail_screen.dart:77: const goldIconBg = Color(0xFFFDEFD3);
+lib\screens\akademik\ujian_detail_screen.dart:83: return const _JenisStyle(Color(0xFFFED488), _C.goldText, 'UTS', 'UJIAN TENGAH SEMESTER',
+lib\screens\akademik\ujian_detail_screen.dart:86: return const _JenisStyle(Color(0xFFFFE6B0), _C.goldText, 'TES TAHFIDZ', 'TES TAHFIDZ',
+lib\screens\akademik\ujian_detail_screen.dart:89: return const _JenisStyle(_C.trackGray, Color(0xFF414845), 'LAINNYA', 'PENILAIAN LAINNYA',
+lib\screens\akademik\ujian_detail_screen.dart:92: return const _JenisStyle(_C.trackGray, Color(0xFF414845), 'ULANGAN', 'ULANGAN HARIAN',
+lib\screens\akademik\ujian_detail_screen.dart:145: const _heroGold = Color(0xFFE9C176);
+lib\screens\akademik\ujian_detail_screen.dart:146: const _heroGoldLight = Color(0xFFFED488);
+lib\screens\akademik\ujian_detail_screen.dart:147: const _heroMint = Color(0xFFA4D0BF);
+lib\screens\akademik\ujian_detail_screen.dart:662: bg = const Color(0xFFFDEFD3);
+lib\screens\akademik\ujian_input_screen.dart:13: static const emerald = Color(0xFF0F3A2E);
+lib\screens\akademik\ujian_input_screen.dart:14: static const gold = Color(0xFFC5A059);
+lib\screens\akademik\ujian_input_screen.dart:15: static const goldSoft = Color(0xFFFAF5EC);
+lib\screens\akademik\ujian_input_screen.dart:16: static const goldChip = Color(0xFFFDEFD3);
+lib\screens\akademik\ujian_input_screen.dart:17: static const goldBorder = Color(0xFFE7D2A7);
+lib\screens\akademik\ujian_input_screen.dart:18: static const goldText = Color(0xFF775A19);
+lib\screens\akademik\ujian_input_screen.dart:19: static const ivory = Color(0xFFFAF9F5);
+lib\screens\akademik\ujian_input_screen.dart:20: static const border = Color(0xFFEAE6DC);
+lib\screens\akademik\ujian_input_screen.dart:21: static const ink = Color(0xFF0F172A);
+lib\screens\akademik\ujian_input_screen.dart:22: static const ink2 = Color(0xFF475569);
+lib\screens\akademik\ujian_input_screen.dart:23: static const chipGray = Color(0xFFEFEEEA);
+lib\screens\akademik\ujian_input_screen.dart:24: static const fieldFill = Color(0xFFF5F4EE);
+lib\screens\akademik\ujian_input_screen.dart:26: static const okBg = Color(0xFFE8F5E9);
+lib\screens\akademik\ujian_input_screen.dart:27: static const okFg = Color(0xFF1B5E20);
+lib\screens\akademik\ujian_input_screen.dart:28: static const okBd = Color(0xFFC8E6C9);
+lib\screens\akademik\ujian_input_screen.dart:29: static const badBg = Color(0xFFFEE2E2);
+lib\screens\akademik\ujian_input_screen.dart:30: static const badFg = Color(0xFF991B1B);
+lib\screens\akademik\ujian_input_screen.dart:31: static const badBd = Color(0xFFFECACA);
+lib\screens\akademik\ujian_input_screen.dart:32: static const badField = Color(0xFFFFF5F5);
+lib\screens\akademik\ujian_remedial_screen.dart:15: static const emerald = Color(0xFF0F3A2E);
+lib\screens\akademik\ujian_remedial_screen.dart:16: static const gold = Color(0xFFC5A059);
+lib\screens\akademik\ujian_remedial_screen.dart:17: static const goldSoft = Color(0xFFFAF5EC);
+lib\screens\akademik\ujian_remedial_screen.dart:18: static const goldChip = Color(0xFFFDEFD3);
+lib\screens\akademik\ujian_remedial_screen.dart:19: static const goldBorder = Color(0xFFE7D2A7);
+lib\screens\akademik\ujian_remedial_screen.dart:20: static const goldText = Color(0xFF775A19);
+lib\screens\akademik\ujian_remedial_screen.dart:21: static const ivory = Color(0xFFFAF9F5);
+lib\screens\akademik\ujian_remedial_screen.dart:22: static const border = Color(0xFFEAE6DC);
+lib\screens\akademik\ujian_remedial_screen.dart:23: static const ink = Color(0xFF0F172A);
+lib\screens\akademik\ujian_remedial_screen.dart:24: static const ink2 = Color(0xFF475569);
+lib\screens\akademik\ujian_remedial_screen.dart:25: static const chipGray = Color(0xFFEFEEEA);
+lib\screens\akademik\ujian_remedial_screen.dart:26: static const fieldFill = Color(0xFFF5F4EE);
+lib\screens\akademik\ujian_remedial_screen.dart:28: static const okBg = Color(0xFFE8F5E9);
+lib\screens\akademik\ujian_remedial_screen.dart:29: static const okFg = Color(0xFF1B5E20);
+lib\screens\akademik\ujian_remedial_screen.dart:30: static const okBd = Color(0xFFC8E6C9);
+lib\screens\akademik\ujian_remedial_screen.dart:31: static const badBg = Color(0xFFFEE2E2);
+lib\screens\akademik\ujian_remedial_screen.dart:32: static const badFg = Color(0xFF991B1B);
+lib\screens\akademik\ujian_remedial_screen.dart:33: static const badBd = Color(0xFFFECACA);
+lib\screens\akademik\ujian_remedial_screen.dart:34: static const badField = Color(0xFFFFF5F5);
+lib\screens\akademik\ujian_remedial_screen.dart:629: _pill('KKM: $_kkmText', const Color(0xFFFED488), _C.goldText,
+lib\screens\akademik\ujian_remedial_screen.dart:1273: color: tuntas ? const Color(0xFFCDE8DC) : _C.chipGray,
+lib\screens\akademik\ujian_screen.dart:13: static const emerald = Color(0xFF0F3A2E);
+lib\screens\akademik\ujian_screen.dart:14: static const emeraldMid = Color(0xFF164E3D);
+lib\screens\akademik\ujian_screen.dart:15: static const gold = Color(0xFFC5A059);
+lib\screens\akademik\ujian_screen.dart:16: static const goldSoft = Color(0xFFFAF5EC);
+lib\screens\akademik\ujian_screen.dart:17: static const goldBorder = Color(0xFFE7D2A7);
+lib\screens\akademik\ujian_screen.dart:18: static const sage = Color(0xFFE2ECE9);
+lib\screens\akademik\ujian_screen.dart:19: static const ivory = Color(0xFFFAF9F5);
+lib\screens\akademik\ujian_screen.dart:20: static const border = Color(0xFFEAE6DC);
+lib\screens\akademik\ujian_screen.dart:21: static const inputBorder = Color(0xFFE2E8F0);
+lib\screens\akademik\ujian_screen.dart:22: static const ink = Color(0xFF0F172A);
+lib\screens\akademik\ujian_screen.dart:23: static const ink2 = Color(0xFF475569);
+lib\screens\akademik\ujian_screen.dart:24: static const goldText = Color(0xFF775A19);
+lib\screens\akademik\ujian_screen.dart:25: static const chipGray = Color(0xFFEFEEEA);
+lib\screens\akademik\ujian_screen.dart:26: static const trackGray = Color(0xFFE3E2DF);
+lib\screens\akademik\ujian_screen.dart:27: static const fieldFill = Color(0xFFF5F4EE);
+lib\screens\akademik\ujian_screen.dart:29: static const okBg = Color(0xFFE8F5E9);
+lib\screens\akademik\ujian_screen.dart:30: static const okFg = Color(0xFF1B5E20);
+lib\screens\akademik\ujian_screen.dart:31: static const okBd = Color(0xFFC8E6C9);
+lib\screens\akademik\ujian_screen.dart:32: static const warnBg = Color(0xFFFFF8E1);
+lib\screens\akademik\ujian_screen.dart:33: static const warnFg = Color(0xFFB78103);
+lib\screens\akademik\ujian_screen.dart:34: static const warnBd = Color(0xFFFFE082);
+lib\screens\akademik\ujian_screen.dart:35: static const badBg = Color(0xFFFEE2E2);
+lib\screens\akademik\ujian_screen.dart:36: static const badFg = Color(0xFF991B1B);
+lib\screens\akademik\ujian_screen.dart:37: static const badBd = Color(0xFFFECACA);
+lib\screens\akademik\ujian_screen.dart:76: const goldIconBg = Color(0xFFFDEFD3);
+lib\screens\akademik\ujian_screen.dart:82: return const _JenisStyle(Color(0xFFFED488), _C.goldText, 'UTS', 'UJIAN TENGAH SEMESTER',
+lib\screens\akademik\ujian_screen.dart:85: return const _JenisStyle(Color(0xFFFFE6B0), _C.goldText, 'TES TAHFIDZ', 'TES TAHFIDZ',
+lib\screens\akademik\ujian_screen.dart:88: return const _JenisStyle(_C.trackGray, Color(0xFF414845), 'LAINNYA', 'PENILAIAN LAINNYA',
+lib\screens\akademik\ujian_screen.dart:91: return const _JenisStyle(_C.trackGray, Color(0xFF414845), 'ULANGAN', 'ULANGAN HARIAN',
+lib\screens\akademik\ujian_screen.dart:408: iconBg: const Color(0xFFFCEBC4),
+lib\screens\akademik\ujian_screen.dart:434: _pill(_filters.firstWhere((f) => f[0] == _filter)[1], const Color(0xFFFCEBC4),
+lib\screens\akademik\ujian_screen.dart:504: color: Color(0xFFA4D0BF),
+lib\screens\akademik\ujian_screen.dart:795: complete ? _C.emerald : const Color(0xFF3E6658)),
+lib\screens\akademik\ujian_screen.dart:1023: color: const Color(0xFFFFF3D6),
+lib\screens\akademik\ujian_screen.dart:1367: color: const Color(0xFFF1F1EC),
+lib\screens\akademik\ujian_screen.dart:1493: _pill('Opsional', const Color(0xFFFCEBC4), _C.goldText),
+lib\screens\billing\billing_invoice_screen.dart:15: static const primary = Color(0xFF00231A);
+lib\screens\billing\billing_invoice_screen.dart:16: static const onPrimary = Color(0xFFFFFFFF);
+lib\screens\billing\billing_invoice_screen.dart:17: static const primaryContainer = Color(0xFF0F3A2E);
+lib\screens\billing\billing_invoice_screen.dart:18: static const onPrimaryContainerFixedVariant = Color(0xFF254E41);
+lib\screens\billing\billing_invoice_screen.dart:19: static const primaryFixed = Color(0xFFC0ECDA);
+lib\screens\billing\billing_invoice_screen.dart:21: static const secondary = Color(0xFF775A19);
+lib\screens\billing\billing_invoice_screen.dart:22: static const onSecondaryContainer = Color(0xFF785A1A);
+lib\screens\billing\billing_invoice_screen.dart:23: static const secondaryContainer = Color(0xFFFED488);
+lib\screens\billing\billing_invoice_screen.dart:24: static const secondaryFixed = Color(0xFFFFDEA5);
+lib\screens\billing\billing_invoice_screen.dart:25: static const secondaryFixedDim = Color(0xFFE9C176);
+lib\screens\billing\billing_invoice_screen.dart:26: static const onSecondaryFixed = Color(0xFF261900);
+lib\screens\billing\billing_invoice_screen.dart:28: static const background = Color(0xFFFAF9F5);
+lib\screens\billing\billing_invoice_screen.dart:29: static const surfaceContainerLowest = Color(0xFFFFFFFF);
+lib\screens\billing\billing_invoice_screen.dart:30: static const surfaceContainerLow = Color(0xFFF4F4F0);
+lib\screens\billing\billing_invoice_screen.dart:31: static const surfaceContainer = Color(0xFFEFEEEA);
+lib\screens\billing\billing_invoice_screen.dart:32: static const surfaceContainerHigh = Color(0xFFE9E8E4);
+lib\screens\billing\billing_invoice_screen.dart:33: static const surfaceTint = Color(0xFF3E6658);
+lib\screens\billing\billing_invoice_screen.dart:35: static const onSurface = Color(0xFF1B1C1A);
+lib\screens\billing\billing_invoice_screen.dart:36: static const onSurfaceVariant = Color(0xFF414845);
+lib\screens\billing\billing_invoice_screen.dart:37: static const outline = Color(0xFF717975);
+lib\screens\billing\billing_invoice_screen.dart:38: static const outlineVariant = Color(0xFFC0C8C3);
+lib\screens\billing\billing_invoice_screen.dart:40: static const error = Color(0xFFBA1A1A);
+lib\screens\billing\billing_invoice_screen.dart:41: static const errorContainer = Color(0xFFFFDAD6);
+lib\screens\billing\billing_invoice_screen.dart:42: static const onErrorContainer = Color(0xFF93000A);
+lib\screens\billing\billing_invoice_screen.dart:393: const borderColor = Color(0xFFE9E8E4);
+lib\screens\billing\langganan_screen.dart:14: static const primary = Color(0xFF00231A);
+lib\screens\billing\langganan_screen.dart:15: static const onPrimary = Color(0xFFFFFFFF);
+lib\screens\billing\langganan_screen.dart:16: static const primaryContainer = Color(0xFF0F3A2E);
+lib\screens\billing\langganan_screen.dart:18: static const secondary = Color(0xFF775A19);
+lib\screens\billing\langganan_screen.dart:19: static const secondaryContainer = Color(0xFFFED488);
+lib\screens\billing\langganan_screen.dart:20: static const secondaryFixed = Color(0xFFFFDEA5);
+lib\screens\billing\langganan_screen.dart:21: static const onSecondaryFixed = Color(0xFF261900);
+lib\screens\billing\langganan_screen.dart:23: static const background = Color(0xFFFAF9F5);
+lib\screens\billing\langganan_screen.dart:24: static const surfaceContainerLowest = Color(0xFFFFFFFF);
+lib\screens\billing\langganan_screen.dart:25: static const surfaceContainerLow = Color(0xFFF4F4F0);
+lib\screens\billing\langganan_screen.dart:26: static const surfaceContainerHigh = Color(0xFFE9E8E4);
+lib\screens\billing\langganan_screen.dart:28: static const onSurface = Color(0xFF1B1C1A);
+lib\screens\billing\langganan_screen.dart:29: static const onSurfaceVariant = Color(0xFF414845);
+lib\screens\billing\langganan_screen.dart:30: static const outlineVariant = Color(0xFFC0C8C3);
+lib\screens\billing\langganan_screen.dart:32: static const error = Color(0xFFBA1A1A);
+lib\screens\billing\langganan_screen.dart:33: static const errorContainer = Color(0xFFFFDAD6);
+lib\screens\billing\langganan_screen.dart:34: static const onErrorContainer = Color(0xFF93000A);
+lib\screens\billing\langganan_screen.dart:36: static const successContainer = Color(0xFFC0ECDA);
+lib\screens\billing\langganan_screen.dart:37: static const onSuccessContainer = Color(0xFF0F3A2E);
+lib\screens\billing\langganan_screen.dart:39: static const pendingContainer = Color(0xFFFFF3D6);
+lib\screens\billing\langganan_screen.dart:40: static const onPendingContainer = Color(0xFF8A5B00);
+lib\screens\billing\langganan_screen.dart:70: const Color _searchBorder = Color(0xFFEAE6DC);
+lib\screens\billing\paket_screen.dart:16: static const primary = Color(0xFF00231A);
+lib\screens\billing\paket_screen.dart:17: static const onPrimary = Color(0xFFFFFFFF);
+lib\screens\billing\paket_screen.dart:18: static const primaryContainer = Color(0xFF0F3A2E);
+lib\screens\billing\paket_screen.dart:20: static const secondary = Color(0xFF775A19);
+lib\screens\billing\paket_screen.dart:21: static const onSecondaryContainer = Color(0xFF785A1A);
+lib\screens\billing\paket_screen.dart:22: static const secondaryContainer = Color(0xFFFED488);
+lib\screens\billing\paket_screen.dart:23: static const secondaryFixed = Color(0xFFFFDEA5);
+lib\screens\billing\paket_screen.dart:24: static const onSecondaryFixed = Color(0xFF261900);
+lib\screens\billing\paket_screen.dart:26: static const background = Color(0xFFFAF9F5);
+lib\screens\billing\paket_screen.dart:27: static const surfaceContainerLowest = Color(0xFFFFFFFF);
+lib\screens\billing\paket_screen.dart:28: static const surfaceContainerLow = Color(0xFFF4F4F0);
+lib\screens\billing\paket_screen.dart:29: static const surfaceContainer = Color(0xFFEFEEEA);
+lib\screens\billing\paket_screen.dart:30: static const surfaceContainerHigh = Color(0xFFE9E8E4);
+lib\screens\billing\paket_screen.dart:32: static const onSurface = Color(0xFF1B1C1A);
+lib\screens\billing\paket_screen.dart:33: static const onSurfaceVariant = Color(0xFF414845);
+lib\screens\billing\paket_screen.dart:34: static const outlineVariant = Color(0xFFC0C8C3);
+lib\screens\billing\paket_screen.dart:36: static const error = Color(0xFFBA1A1A);
+lib\screens\billing\paket_screen.dart:37: static const errorContainer = Color(0xFFFFDAD6);
+lib\screens\billing\paket_screen.dart:38: static const onErrorContainer = Color(0xFF93000A);
+lib\screens\billing\paket_screen.dart:40: static const successContainer = Color(0xFFC0ECDA);
+lib\screens\billing\paket_screen.dart:41: static const onSuccessContainer = Color(0xFF0F3A2E);
+lib\screens\billing\paket_screen.dart:74: const Color _searchBorder = Color(0xFFEAE6DC);
+lib\screens\branding\branding_screen.dart:26: Color(0xFF059669),
+lib\screens\branding\branding_screen.dart:27: Color(0xFF0EA5E9),
+lib\screens\branding\branding_screen.dart:28: Color(0xFF6366F1),
+lib\screens\branding\branding_screen.dart:29: Color(0xFF8B5CF6),
+lib\screens\branding\branding_screen.dart:30: Color(0xFFF59E0B),
+lib\screens\branding\branding_screen.dart:31: Color(0xFFDC2626),
+lib\screens\branding\branding_screen.dart:32: Color(0xFF0D9488),
+lib\screens\branding\branding_screen.dart:33: Color(0xFFDB2777),
+lib\screens\kesantrian\keadaan_darurat_screen.dart:11: static const primary = Color(0xFF0F3A2E);
+lib\screens\kesantrian\keadaan_darurat_screen.dart:12: static const primaryEnd = Color(0xFF164E3D);
+lib\screens\kesantrian\keadaan_darurat_screen.dart:14: static const gold = Color(0xFFC5A059);
+lib\screens\kesantrian\keadaan_darurat_screen.dart:15: static const goldSurface = Color(0xFFFAF5EC);
+lib\screens\kesantrian\keadaan_darurat_screen.dart:16: static const goldBorder = Color(0xFFE7D2A7);
+lib\screens\kesantrian\keadaan_darurat_screen.dart:17: static const goldDark = Color(0xFF7A5B10);
+lib\screens\kesantrian\keadaan_darurat_screen.dart:19: static const mint = Color(0xFFD2E4DC);
+lib\screens\kesantrian\keadaan_darurat_screen.dart:20: static const sage = Color(0xFFE2ECE9);
+lib\screens\kesantrian\keadaan_darurat_screen.dart:22: static const background = Color(0xFFFAF9F5);
+lib\screens\kesantrian\keadaan_darurat_screen.dart:23: static const surface = Color(0xFFFFFFFF);
+lib\screens\kesantrian\keadaan_darurat_screen.dart:24: static const surfaceDim = Color(0xFFF5F4EE);
+lib\screens\kesantrian\keadaan_darurat_screen.dart:25: static const surfaceContainer = Color(0xFFEFEEEA);
+lib\screens\kesantrian\keadaan_darurat_screen.dart:27: static const ink = Color(0xFF0F172A);
+lib\screens\kesantrian\keadaan_darurat_screen.dart:28: static const inkSecondary = Color(0xFF475569);
+lib\screens\kesantrian\keadaan_darurat_screen.dart:29: static const border = Color(0xFFEAE6DC);
+lib\screens\kesantrian\keadaan_darurat_screen.dart:30: static const inputBorder = Color(0xFFE2E8F0);
+lib\screens\kesantrian\keadaan_darurat_screen.dart:32: static const danger = Color(0xFFB91C1C);
+lib\screens\kesantrian\keadaan_darurat_screen.dart:33: static const errorBg = Color(0xFFFEE2E2);
+lib\screens\kesantrian\keadaan_darurat_screen.dart:34: static const errorText = Color(0xFF991B1B);
+lib\screens\kesantrian\keadaan_darurat_screen.dart:36: static const amberBg = Color(0xFFFDE9B8);
+lib\screens\kesantrian\keadaan_darurat_screen.dart:37: static const pendingBg = Color(0xFFFFF8E1);
+lib\screens\kesantrian\keadaan_darurat_screen.dart:38: static const pendingText = Color(0xFFB78103);
+lib\screens\kesantrian\keadaan_darurat_screen.dart:40: static const successBg = Color(0xFFD8F0E2);
+lib\screens\kesantrian\keadaan_darurat_screen.dart:41: static const successText = Color(0xFF1B5E20);
+lib\screens\kesantrian\konseling_screen.dart:10: static const primary = Color(0xFF0F3A2E);
+lib\screens\kesantrian\konseling_screen.dart:11: static const primaryGradientEnd = Color(0xFF164E3D);
+lib\screens\kesantrian\konseling_screen.dart:12: static const gold = Color(0xFFC5A059);
+lib\screens\kesantrian\konseling_screen.dart:13: static const goldDark = Color(0xFF7A5B10);
+lib\screens\kesantrian\konseling_screen.dart:14: static const sage = Color(0xFFE2ECE9);
+lib\screens\kesantrian\konseling_screen.dart:16: static const background = Color(0xFFFAF9F5);
+lib\screens\kesantrian\konseling_screen.dart:17: static const surface = Color(0xFFFFFFFF);
+lib\screens\kesantrian\konseling_screen.dart:18: static const surfaceDim = Color(0xFFF5F4EE);
+lib\screens\kesantrian\konseling_screen.dart:19: static const surfaceContainer = Color(0xFFEFEEEA);
+lib\screens\kesantrian\konseling_screen.dart:21: static const ink = Color(0xFF0F172A);
+lib\screens\kesantrian\konseling_screen.dart:22: static const inkSecondary = Color(0xFF475569);
+lib\screens\kesantrian\konseling_screen.dart:23: static const border = Color(0xFFEAE6DC);
+lib\screens\kesantrian\konseling_screen.dart:24: static const inputBorder = Color(0xFFE2E8F0);
+lib\screens\kesantrian\konseling_screen.dart:26: static const errorBg = Color(0xFFFEE2E2);
+lib\screens\kesantrian\konseling_screen.dart:27: static const errorText = Color(0xFF991B1B);
+lib\screens\kesantrian\konseling_screen.dart:30: static const noticeBg = Color(0xFFE5E9E3);
+lib\screens\kesantrian\konseling_screen.dart:33: static const rahasiaBg = Color(0xFFFDE2E1);
+lib\screens\kesantrian\konseling_screen.dart:34: static const tindakBg = Color(0xFFFCE3A0);
+lib\screens\kesantrian\konseling_screen.dart:35: static const tindakFg = Color(0xFF7A5B10);
+lib\screens\kesantrian\konseling_screen.dart:36: static const selesaiBg = Color(0xFFC9EBD7);
+lib\screens\kesantrian\konseling_screen.dart:37: static const selesaiFg = Color(0xFF1B5E20);
+lib\screens\kesantrian\konseling_screen.dart:38: static const umumBg = Color(0xFFECEBE6);
+lib\screens\kesantrian\konseling_screen.dart:40: static const amber = Color(0xFFB78103);
+lib\screens\kesantrian\konseling_screen.dart:138: errorBorder: b(const Color(0xFFDC2626), 1.5),
+lib\screens\kesantrian\konseling_screen.dart:139: focusedErrorBorder: b(const Color(0xFFDC2626), 1.5),
+lib\screens\kesantrian\konseling_screen.dart:858: static const _tindakBgTint = Color(0xFFFDEBC8);
+lib\screens\kesantrian\konseling_screen.dart:1062: style: const TextStyle(fontSize: 13, color: Color(0xFFE9C46A))),
+lib\screens\kesantrian\konseling_screen.dart:1077: const Color(0xFFF3C969), _KC.tindakFg)
+lib\screens\kesantrian\konseling_screen.dart:1401: static const _red = Color(0xFFDC2626);
+lib\screens\kesantrian\konseling_screen.dart:1402: static const _errFill = Color(0xFFFEE7E7);
+lib\screens\kesantrian\konseling_screen.dart:1403: static const _mint = Color(0xFFDDF1E8);
+lib\screens\kesantrian\konseling_screen.dart:1404: static const _mintBtn = Color(0xFFE6F4EF);
+lib\screens\kesantrian\konseling_screen.dart:1970: color: const Color(0xFFFDEBC8), borderRadius: BorderRadius.circular(999)),
+lib\screens\kesantrian\konseling_screen.dart:1973: fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF9A6B00))),
+lib\screens\kesantrian\konseling_screen.dart:2079: decoration: BoxDecoration(color: const Color(0xFFD5EBE2), borderRadius: BorderRadius.circular(12)),
+lib\screens\kesantrian\pembinaan_karakter_screen.dart:10: static const primary = Color(0xFF0F3A2E);
+lib\screens\kesantrian\pembinaan_karakter_screen.dart:11: static const primaryGradientEnd = Color(0xFF164E3D);
+lib\screens\kesantrian\pembinaan_karakter_screen.dart:12: static const gold = Color(0xFFC5A059);
+lib\screens\kesantrian\pembinaan_karakter_screen.dart:13: static const goldDark = Color(0xFF7A5B10);
+lib\screens\kesantrian\pembinaan_karakter_screen.dart:14: static const goldTop = Color(0xFFFED488);
+lib\screens\kesantrian\pembinaan_karakter_screen.dart:15: static const sage = Color(0xFFE2ECE9);
+lib\screens\kesantrian\pembinaan_karakter_screen.dart:16: static const mint = Color(0xFFDDF1E8);
+lib\screens\kesantrian\pembinaan_karakter_screen.dart:17: static const avatarBg = Color(0xFFD5EBE2);
+lib\screens\kesantrian\pembinaan_karakter_screen.dart:19: static const background = Color(0xFFFAF9F5);
+lib\screens\kesantrian\pembinaan_karakter_screen.dart:20: static const surface = Color(0xFFFFFFFF);
+lib\screens\kesantrian\pembinaan_karakter_screen.dart:21: static const surfaceDim = Color(0xFFF5F4EE);
+lib\screens\kesantrian\pembinaan_karakter_screen.dart:22: static const surfaceLow = Color(0xFFF4F4F0);
+lib\screens\kesantrian\pembinaan_karakter_screen.dart:23: static const surfaceContainer = Color(0xFFEFEEEA);
+lib\screens\kesantrian\pembinaan_karakter_screen.dart:24: static const chipBg = Color(0xFFECEBE6);
+lib\screens\kesantrian\pembinaan_karakter_screen.dart:26: static const ink = Color(0xFF0F172A);
+lib\screens\kesantrian\pembinaan_karakter_screen.dart:27: static const inkSecondary = Color(0xFF475569);
+lib\screens\kesantrian\pembinaan_karakter_screen.dart:28: static const border = Color(0xFFEAE6DC);
+lib\screens\kesantrian\pembinaan_karakter_screen.dart:29: static const inputBorder = Color(0xFFE2E8F0);
+lib\screens\kesantrian\pembinaan_karakter_screen.dart:31: static const errorBg = Color(0xFFFEE2E2);
+lib\screens\kesantrian\pembinaan_karakter_screen.dart:32: static const errorText = Color(0xFF991B1B);
+lib\screens\kesantrian\pembinaan_karakter_screen.dart:33: static const errorFill = Color(0xFFFCEAE6);
+lib\screens\kesantrian\pembinaan_karakter_screen.dart:34: static const red = Color(0xFFDC2626);
+lib\screens\kesantrian\pembinaan_karakter_screen.dart:36: static const amber = Color(0xFFB78103);
+lib\screens\kesantrian\pembinaan_karakter_screen.dart:37: static const cancelBg = Color(0xFFE3E2DF);
+lib\screens\kesantrian\pembinaan_karakter_screen.dart:656: const Icon(Icons.chevron_right_rounded, size: 21, color: Color(0xFFC0C8C3)),
+lib\screens\kesantrian\pembinaan_karakter_screen.dart:729: decoration: const BoxDecoration(color: Color(0xFFE9E8E4), shape: BoxShape.circle),
+lib\screens\kesantrian\pembinaan_karakter_screen.dart:850: Widget _divider() => const Divider(height: 1, thickness: 1, color: Color(0xFFF0EFEA));
+lib\screens\kesantrian\pembinaan_karakter_screen.dart:951: fontSize: 26, fontWeight: FontWeight.w800, color: Color(0xFFF3D690))),
+lib\screens\kesantrian\pembinaan_karakter_screen.dart:963: color: Color(0xFFF3D690))),
+lib\screens\kesantrian\pembinaan_karakter_screen.dart:985: color: Color(0xFFF3D690), shape: BoxShape.circle),
+lib\screens\kesantrian\pembinaan_karakter_screen.dart:1566: decoration: BoxDecoration(color: const Color(0xFFFDEBC8), borderRadius: BorderRadius.circular(999)),
+lib\screens\kesantrian\pembinaan_karakter_screen.dart:1568: style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF9A6B00))),
+lib\screens\kesantrian\pembinaan_karakter_screen.dart:1671: decoration: BoxDecoration(color: const Color(0xFFBFEBD8), borderRadius: BorderRadius.circular(14)),
+lib\screens\kesantrian\pembinaan_karakter_screen.dart:1727: BoxDecoration(color: const Color(0xFFBFEBD8), borderRadius: BorderRadius.circular(999)),
+lib\screens\master\kelas_list_screen.dart:10: static const primary = Color(0xFF0F3A2E);
+lib\screens\master\kelas_list_screen.dart:11: static const gold = Color(0xFFC5A059);
+lib\screens\master\kelas_list_screen.dart:12: static const goldSurface = Color(0xFFFAF5EC);
+lib\screens\master\kelas_list_screen.dart:13: static const mint = Color(0xFFD2E4DC);
+lib\screens\master\kelas_list_screen.dart:14: static const sage = Color(0xFFE2ECE9);
+lib\screens\master\kelas_list_screen.dart:16: static const background = Color(0xFFFAF9F5);
+lib\screens\master\kelas_list_screen.dart:17: static const surface = Color(0xFFFFFFFF);
+lib\screens\master\kelas_list_screen.dart:18: static const surfaceDim = Color(0xFFF5F4EE);
+lib\screens\master\kelas_list_screen.dart:20: static const ink = Color(0xFF0F172A);
+lib\screens\master\kelas_list_screen.dart:21: static const inkSecondary = Color(0xFF475569);
+lib\screens\master\kelas_list_screen.dart:22: static const border = Color(0xFFEAE6DC);
+lib\screens\master\kelas_list_screen.dart:24: static const errorText = Color(0xFF991B1B);
+lib\screens\ppdb\ppdb_list_screen.dart:25: return const _StatusStyle(Color(0xFF0369A1), Color(0xFFE0F2FE), 'Tes');
+lib\screens\ppdb\ppdb_list_screen.dart:31: return const _StatusStyle(Color(0xFF4338CA), Color(0xFFE0E7FF), 'Waiting List');
+lib\screens\ppdb\ppdb_list_screen.dart:1555: fg: const Color(0xFF0369A1),
+lib\screens\ppdb\ppdb_list_screen.dart:1556: bg: const Color(0xFFE0F2FE),
+lib\screens\ppdb\ppdb_list_screen.dart:1565: fg: const Color(0xFF4338CA),
+lib\screens\ppdb\ppdb_list_screen.dart:1566: bg: const Color(0xFFE0E7FF),
+lib\screens\santri\direktori_santri_screen.dart:21: static const primary = Color(0xFF00231A);
+lib\screens\santri\direktori_santri_screen.dart:22: static const onPrimary = Color(0xFFFFFFFF);
+lib\screens\santri\direktori_santri_screen.dart:23: static const primaryContainer = Color(0xFF0F3A2E);
+lib\screens\santri\direktori_santri_screen.dart:24: static const onPrimaryContainer = Color(0xFF7AA494);
+lib\screens\santri\direktori_santri_screen.dart:25: static const primaryFixed = Color(0xFFC0ECDA);
+lib\screens\santri\direktori_santri_screen.dart:26: static const primaryFixedDim = Color(0xFFA4D0BF);
+lib\screens\santri\direktori_santri_screen.dart:27: static const onPrimaryFixedVariant = Color(0xFF254E41);
+lib\screens\santri\direktori_santri_screen.dart:29: static const secondary = Color(0xFF775A19);
+lib\screens\santri\direktori_santri_screen.dart:30: static const onSecondary = Color(0xFFFFFFFF);
+lib\screens\santri\direktori_santri_screen.dart:31: static const onSecondaryContainer = Color(0xFF785A19);
+lib\screens\santri\direktori_santri_screen.dart:32: static const secondaryFixed = Color(0xFFFFDEA3);
+lib\screens\santri\direktori_santri_screen.dart:33: static const secondaryFixedDim = Color(0xFFE8C176);
+lib\screens\santri\direktori_santri_screen.dart:34: static const onSecondaryFixed = Color(0xFF261900);
+lib\screens\santri\direktori_santri_screen.dart:36: static const background = Color(0xFFFBF9F5);
+lib\screens\santri\direktori_santri_screen.dart:37: static const surfaceContainerLowest = Color(0xFFFFFFFF);
+lib\screens\santri\direktori_santri_screen.dart:38: static const surfaceContainerLow = Color(0xFFF5F3F0);
+lib\screens\santri\direktori_santri_screen.dart:39: static const surfaceContainer = Color(0xFFEFEEEA);
+lib\screens\santri\direktori_santri_screen.dart:40: static const surfaceContainerHigh = Color(0xFFE9E8E4);
+lib\screens\santri\direktori_santri_screen.dart:41: static const surfaceContainerHighest = Color(0xFFE4E2DF);
+lib\screens\santri\direktori_santri_screen.dart:43: static const onSurface = Color(0xFF1B1C1A);
+lib\screens\santri\direktori_santri_screen.dart:44: static const onSurfaceVariant = Color(0xFF414845);
+lib\screens\santri\direktori_santri_screen.dart:45: static const outlineVariant = Color(0xFFC0C8C3);
+lib\screens\santri\direktori_santri_screen.dart:47: static const error = Color(0xFFBA1A1A);
+lib\screens\santri\direktori_santri_screen.dart:48: static const onErrorContainer = Color(0xFF93000A);
+lib\screens\santri\direktori_santri_screen.dart:49: static const errorContainer = Color(0xFFFFDAD6);
+lib\screens\super_admin\audit_log_screen.dart:169: const Color _border = Color(0xFFEAE6DC);
+lib\screens\super_admin\audit_log_screen.dart:170: const Color _warnBg = Color(0xFFFFF8E1);
+lib\screens\super_admin\audit_log_screen.dart:171: const Color _warnFg = Color(0xFFB78103);
+lib\screens\super_admin\audit_log_screen.dart:172: const Color _okBg = Color(0xFFE8F5E9);
+lib\screens\super_admin\audit_log_screen.dart:173: const Color _okFg = Color(0xFF1B5E20);
+lib\screens\super_admin\notifikasi_superadmin_screen.dart:37: static const primary = Color(0xFF0F3A2E);
+lib\screens\super_admin\notifikasi_superadmin_screen.dart:38: static const primaryGradientEnd = Color(0xFF164E3D);
+lib\screens\super_admin\notifikasi_superadmin_screen.dart:40: static const gold = Color(0xFFC5A059);
+lib\screens\super_admin\notifikasi_superadmin_screen.dart:41: static const goldSurface = Color(0xFFFAF5EC);
+lib\screens\super_admin\notifikasi_superadmin_screen.dart:42: static const goldBorder = Color(0xFFE7D2A7);
+lib\screens\super_admin\notifikasi_superadmin_screen.dart:44: static const mint = Color(0xFFD2E4DC);
+lib\screens\super_admin\notifikasi_superadmin_screen.dart:45: static const sage = Color(0xFFE2ECE9);
+lib\screens\super_admin\notifikasi_superadmin_screen.dart:47: static const background = Color(0xFFFAF9F5);
+lib\screens\super_admin\notifikasi_superadmin_screen.dart:48: static const surface = Color(0xFFFFFFFF);
+lib\screens\super_admin\notifikasi_superadmin_screen.dart:49: static const surfaceDim = Color(0xFFF5F4EE);
+lib\screens\super_admin\notifikasi_superadmin_screen.dart:51: static const ink = Color(0xFF0F172A);
+lib\screens\super_admin\notifikasi_superadmin_screen.dart:52: static const inkSecondary = Color(0xFF475569);
+lib\screens\super_admin\notifikasi_superadmin_screen.dart:54: static const border = Color(0xFFEAE6DC);
+lib\screens\super_admin\notifikasi_superadmin_screen.dart:56: static const successBg = Color(0xFFE8F5E9);
+lib\screens\super_admin\notifikasi_superadmin_screen.dart:57: static const successText = Color(0xFF1B5E20);
+lib\screens\super_admin\notifikasi_superadmin_screen.dart:59: static const errorText = Color(0xFF991B1B);
+lib\screens\super_admin\notifikasi_superadmin_screen.dart:629: return const Color(0xFF2563EB);
+lib\screens\super_admin\notifikasi_superadmin_screen.dart:631: return const Color(0xFFD97706);
+lib\screens\super_admin\notifikasi_superadmin_screen.dart:633: return const Color(0xFFDC2626);
+lib\screens\super_admin\notifikasi_superadmin_screen.dart:635: return const Color(0xFF0D9488);
+lib\screens\super_admin\super_admin_header.dart:170: color: const Color(0xFFE53935),
+lib\screens\super_admin\tenants_screen.dart:24: static const primary = Color(0xFF0F3A2E);
+lib\screens\super_admin\tenants_screen.dart:25: static const primaryDark = Color(0xFF0A261E);
+lib\screens\super_admin\tenants_screen.dart:26: static const primaryContainer = Color(0xFF1B4D3E);
+lib\screens\super_admin\tenants_screen.dart:27: static const primaryFixed = Color(0xFFC0ECDA);
+lib\screens\super_admin\tenants_screen.dart:29: static const gold = Color(0xFFC5A059);
+lib\screens\super_admin\tenants_screen.dart:30: static const goldSurface = Color(0xFFFAF5EC);
+lib\screens\super_admin\tenants_screen.dart:31: static const goldBorder = Color(0xFFE7D2A7);
+lib\screens\super_admin\tenants_screen.dart:32: static const goldDark = Color(0xFF785A1A);
+lib\screens\super_admin\tenants_screen.dart:34: static const mint = Color(0xFFD2E4DC);
+lib\screens\super_admin\tenants_screen.dart:35: static const sage = Color(0xFFE2ECE9);
+lib\screens\super_admin\tenants_screen.dart:37: static const background = Color(0xFFFAF9F5);
+lib\screens\super_admin\tenants_screen.dart:38: static const surface = Color(0xFFFFFFFF);
+lib\screens\super_admin\tenants_screen.dart:39: static const surfaceDim = Color(0xFFF5F4EE);
+lib\screens\super_admin\tenants_screen.dart:40: static const surfaceContainerHigh = Color(0xFFE9E8E4);
+lib\screens\super_admin\tenants_screen.dart:42: static const ink = Color(0xFF0F172A);
+lib\screens\super_admin\tenants_screen.dart:43: static const inkSecondary = Color(0xFF475569);
+lib\screens\super_admin\tenants_screen.dart:44: static const outline = Color(0xFF717975);
+lib\screens\super_admin\tenants_screen.dart:46: static const border = Color(0xFFEAE6DC);
+lib\screens\super_admin\tenants_screen.dart:47: static const inputBorder = Color(0xFFE2E8F0);
+lib\screens\super_admin\tenants_screen.dart:49: static const successBg = Color(0xFFECFDF5);
+lib\screens\super_admin\tenants_screen.dart:50: static const successText = Color(0xFF047857);
+lib\screens\super_admin\tenants_screen.dart:51: static const successBorder = Color(0xFFA7F3D0);
+lib\screens\super_admin\tenants_screen.dart:53: static const pendingBg = Color(0xFFFEF3C7);
+lib\screens\super_admin\tenants_screen.dart:54: static const pendingText = Color(0xFF92400E);
+lib\screens\super_admin\tenants_screen.dart:55: static const pendingBorder = Color(0xFFFCD34D);
+lib\screens\super_admin\tenants_screen.dart:56: static const pendingSoftBg = Color(0xFFFFFBEB);
+lib\screens\super_admin\tenants_screen.dart:58: static const errorBg = Color(0xFFFEE2E2);
+lib\screens\super_admin\tenants_screen.dart:59: static const errorText = Color(0xFFB91C1C);
+lib\screens\super_admin\tenants_screen.dart:60: static const errorBorder = Color(0xFFFECACA);
+lib\screens\super_admin\tenants_screen.dart:61: static const errorSoftBg = Color(0xFFFEF2F2);
+lib\theme\app_theme.dart:8: static const primary = Color(0xFF2A85FF); // biru Core
+lib\theme\app_theme.dart:9: static const primaryDark = Color(0xFF1A6FE0);
+lib\theme\app_theme.dart:10: static const primaryLight = Color(0xFFB1E5FC); // baby blue
+lib\theme\app_theme.dart:11: static const primarySoft = Color(0xFFE8F1FF);
+lib\theme\app_theme.dart:13: static const purple = Color(0xFF8E59FF);
+lib\theme\app_theme.dart:14: static const purpleSoft = Color(0xFFCABDFF);
+lib\theme\app_theme.dart:16: static const gray50 = Color(0xFFF4F4F4); // bgLight
+lib\theme\app_theme.dart:17: static const gray100 = Color(0xFFEFEFEF); // highlight
+lib\theme\app_theme.dart:18: static const gray200 = Color(0xFFE5E7EB);
+lib\theme\app_theme.dart:19: static const gray400 = Color(0xFF9A9FA5); // textGrey
+lib\theme\app_theme.dart:20: static const gray500 = Color(0xFF6F767E); // textLight
+lib\theme\app_theme.dart:21: static const gray600 = Color(0xFF5A6068);
+lib\theme\app_theme.dart:22: static const gray700 = Color(0xFF52565C);
+lib\theme\app_theme.dart:23: static const gray800 = Color(0xFF4A4E54);
+lib\theme\app_theme.dart:24: static const gray900 = Color(0xFF272B30); // title
+lib\theme\app_theme.dart:26: static const white = Color(0xFFFFFFFF);
+lib\theme\app_theme.dart:27: static const red = Color(0xFFFF6A55);
+lib\theme\app_theme.dart:28: static const redSoft = Color(0xFFFFE7E4); // mistyrose
+lib\theme\app_theme.dart:29: static const amber = Color(0xFFF5A623);
+lib\theme\app_theme.dart:30: static const amberSoft = Color(0xFFFFD88D); // pale yellow
+lib\theme\app_theme.dart:31: static const teal = Color(0xFF83BF6E); // success green
+lib\theme\app_theme.dart:32: static const tealSoft = Color(0xFFB5E4CA); // mint
+lib\theme\app_theme.dart:33: static const sky = Color(0xFF2A85FF);
+lib\theme\app_theme.dart:34: static const skySoft = Color(0xFFB1E5FC);
+lib\theme\app_theme.dart:35: static const indigo = Color(0xFF8E59FF);
+lib\theme\app_theme.dart:36: static const indigoSoft = Color(0xFFCABDFF); // lavender
+lib\theme\app_theme.dart:37: static const violet = Color(0xFF8E59FF);
+lib\theme\app_theme.dart:38: static const violetSoft = Color(0xFFCABDFF);
+lib\theme\app_theme.dart:39: static const peach = Color(0xFFFFBC99);
+lib\theme\app_theme.dart:40: static const peachSoft = Color(0xFFFFE7E4);
+lib\theme\app_theme.dart:42: static const sidebar = Color(0xFF101014);
+lib\theme\app_theme.dart:43: static const sidebarDark = Color(0xFF0C0C0E);
+lib\theme\app_theme.dart:88: color: Color(0xFFFCFCFC),

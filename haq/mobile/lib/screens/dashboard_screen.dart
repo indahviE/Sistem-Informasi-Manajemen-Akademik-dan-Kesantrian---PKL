@@ -7,6 +7,7 @@ import 'ui_utils.dart';
 import 'super_admin/tenants_screen.dart'; // TODO: sesuaikan path bila struktur foldernya beda
 import 'billing/billing_admin_screen.dart'; // TODO: sesuaikan nama class/path bila beda (asumsi: BillingAdminScreen)
 import 'santri/santri_form_screen.dart';
+import 'santri/santri_ui.dart';
 
 /// ---------------------------------------------------------------------------
 /// Palet warna dashboard — mirrored 1:1 dari signup_screen.dart's `PColors`
@@ -51,6 +52,15 @@ class _WC {
   // Cokelat emas tua — dipakai untuk tombol aksi "Plot Wali" & teks
   // "Input Langsung" seperti di screen.png.
   static const goldDark = Color(0xFF7A5B10);
+}
+
+/// Warna utama tenant (ikut tema pondok). Dipakai bagian Admin Lembaga saja.
+class _TC {
+  _TC._();
+  static Color get primary => SC.primary;
+  static Color get primaryEnd => SC.primaryEnd;
+  static Color get mint => SC.mint;
+  static Color get sage => SC.sage;
 }
 
 /// Saklar SEMENTARA untuk melihat beranda Ustadz saat backend belum
@@ -1319,7 +1329,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final actionLabel = _pick(item, ['aksi', 'actionLabel']) ?? 'Lihat';
 
     // Warna tombol aksi bergantian seperti screen.png: merah, cokelat emas, hijau tua.
-    const accents = [_WC.errorText, _WC.goldDark, _WC.primary];
+    final accents = [_WC.errorText, _WC.goldDark, _TC.primary];
     final accent = accents[index % accents.length];
 
     return Container(
