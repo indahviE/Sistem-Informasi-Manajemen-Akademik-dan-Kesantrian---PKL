@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import '../../services/api_client.dart';
 import '../../services/app_scope.dart';
 import '../signup_screen.dart'; // reuse PColors & PText (sama seperti ppdb_form_screen)
-import '../santri/santri_ui.dart' show SC;
 import '../ui_utils.dart';
 
 // ============================================================================
@@ -21,15 +20,15 @@ class _StatusStyle {
 _StatusStyle _statusStyle(String status) {
   switch (status) {
     case 'DIAJUKAN':
-      return _StatusStyle(PColors.pendingText, PColors.pendingBg, 'Diajukan');
+      return const _StatusStyle(PColors.pendingText, PColors.pendingBg, 'Diajukan');
     case 'TES':
-      return _StatusStyle(Color(0xFF0369A1), Color(0xFFE0F2FE), 'Tes');
+      return const _StatusStyle(Color(0xFF0369A1), Color(0xFFE0F2FE), 'Tes');
     case 'DITERIMA':
-      return _StatusStyle(PColors.successText, PColors.successBg, 'Diterima');
+      return const _StatusStyle(PColors.successText, PColors.successBg, 'Diterima');
     case 'DITOLAK':
-      return _StatusStyle(PColors.errorText, PColors.errorBg, 'Ditolak');
+      return const _StatusStyle(PColors.errorText, PColors.errorBg, 'Ditolak');
     case 'WAITING_LIST':
-      return _StatusStyle(Color(0xFF4338CA), Color(0xFFE0E7FF), 'Waiting List');
+      return const _StatusStyle(Color(0xFF4338CA), Color(0xFFE0E7FF), 'Waiting List');
     default:
       return _StatusStyle(PColors.inkSecondary, PColors.surfaceDim, status);
   }
@@ -117,20 +116,20 @@ class _PpdbListScreenState extends State<PpdbListScreen> {
       color: PColors.background,
       child: Center(
         child: ConstrainedBox(
-          constraints: BoxConstraints(maxWidth: 480),
+          constraints: const BoxConstraints(maxWidth: 480),
           child: RefreshIndicator(
-            color: SC.primary,
+            color: PColors.primary,
             onRefresh: _load,
             child: ListView(
-              physics: AlwaysScrollableScrollPhysics(),
-              padding: EdgeInsets.only(bottom: 24),
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.only(bottom: 24),
               children: [
                 _ListHero(
                   total: _loading || _error != null ? null : _items.length,
                   counts: _counts,
                 ),
                 Padding(
-                  padding: EdgeInsets.fromLTRB(16, 16, 16, 4),
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
                   child: SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
                     child: Row(
@@ -140,7 +139,7 @@ class _PpdbListScreenState extends State<PpdbListScreen> {
                     ),
                   ),
                 ),
-                SizedBox(height: 8),
+                const SizedBox(height: 8),
                 ..._buildBody(),
               ],
             ),
@@ -158,12 +157,12 @@ class _PpdbListScreenState extends State<PpdbListScreen> {
       return [SizedBox(height: 320, child: errorView(_error!, _load))];
     }
     if (_items.isEmpty) {
-      return [_EmptyState()];
+      return [const _EmptyState()];
     }
     return [
       for (final raw in _items)
         Padding(
-          padding: EdgeInsets.fromLTRB(16, 0, 16, 10),
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
           child: _PendaftarCard(
             p: raw as Map<String, dynamic>,
             onTap: () => _openDetail(raw),
@@ -175,25 +174,25 @@ class _PpdbListScreenState extends State<PpdbListScreen> {
   Widget _chip(String value, String label) {
     final active = _filter == value;
     return Padding(
-      padding: EdgeInsets.only(right: 8),
+      padding: const EdgeInsets.only(right: 8),
       child: GestureDetector(
         onTap: () {
           setState(() => _filter = value);
           _load();
         },
         child: Container(
-          padding: EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
           decoration: BoxDecoration(
-            color: active ? SC.primary : PColors.surface,
+            color: active ? PColors.primary : PColors.surface,
             borderRadius: BorderRadius.circular(9999),
-            border: Border.all(color: active ? SC.primary : PColors.border),
+            border: Border.all(color: active ? PColors.primary : PColors.border),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               if (active) ...[
-                Icon(Icons.check, size: 14, color: Colors.white),
-                SizedBox(width: 5),
+                const Icon(Icons.check, size: 14, color: Colors.white),
+                const SizedBox(width: 5),
               ],
               Text(
                 label,
@@ -275,17 +274,17 @@ class _ListHero extends StatelessWidget {
       children: [
         // ---------- Hero gradient (sudut bawah membulat) ----------
         Padding(
-          padding: EdgeInsets.only(bottom: 38),
+          padding: const EdgeInsets.only(bottom: 38),
           child: Container(
             width: double.infinity,
-            padding: EdgeInsets.fromLTRB(20, 20, 20, 58),
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 58),
             clipBehavior: Clip.antiAlias,
-            decoration: BoxDecoration(
+            decoration: const BoxDecoration(
               borderRadius: BorderRadius.vertical(bottom: Radius.circular(32)),
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
-                colors: [SC.primary, SC.primaryEnd],
+                colors: [PColors.primary, PColors.primaryGradientEnd],
               ),
             ),
             child: Stack(
@@ -336,10 +335,10 @@ class _ListHero extends StatelessWidget {
                             borderRadius: BorderRadius.circular(15),
                             border: Border.all(color: Colors.white.withOpacity(0.28)),
                           ),
-                          child: Icon(Icons.app_registration,
+                          child: const Icon(Icons.app_registration,
                               size: 22, color: Colors.white),
                         ),
-                        SizedBox(width: 12),
+                        const SizedBox(width: 12),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -354,8 +353,8 @@ class _ListHero extends StatelessWidget {
                                   color: Colors.white.withOpacity(0.75),
                                 ),
                               ),
-                              SizedBox(height: 2),
-                              Text(
+                              const SizedBox(height: 2),
+                              const Text(
                                 'Data Pendaftar',
                                 style: TextStyle(
                                   fontFamily: 'Nunito',
@@ -369,7 +368,7 @@ class _ListHero extends StatelessWidget {
                         ),
                       ],
                     ),
-                    SizedBox(height: 12),
+                    const SizedBox(height: 12),
                     Text(
                       total == null
                           ? 'Memuat data pendaftar...'
@@ -394,14 +393,14 @@ class _ListHero extends StatelessWidget {
           right: 16,
           bottom: 0,
           child: Container(
-            padding: EdgeInsets.symmetric(vertical: 14),
+            padding: const EdgeInsets.symmetric(vertical: 14),
             decoration: BoxDecoration(
               color: PColors.surface,
               borderRadius: BorderRadius.circular(20),
               border: Border.all(color: PColors.border),
-              boxShadow: [
+              boxShadow: const [
                 BoxShadow(
-                  color: SC.primary.withOpacity(0.10),
+                  color: Color(0x1A0F3A2E),
                   blurRadius: 18,
                   offset: Offset(0, 8),
                 ),
@@ -414,16 +413,16 @@ class _ListHero extends StatelessWidget {
                     icon: Icons.groups_2_outlined,
                     label: 'Total',
                     value: totalAll?.toString() ?? '–',
-                    color: SC.primary,
+                    color: PColors.primary,
                   ),
-                  _StatDivider(),
+                  const _StatDivider(),
                   _StatCell(
                     icon: Icons.hourglass_top_rounded,
                     label: 'Diajukan',
                     value: c == null ? '–' : '${c['DIAJUKAN'] ?? 0}',
                     color: PColors.pendingText,
                   ),
-                  _StatDivider(),
+                  const _StatDivider(),
                   _StatCell(
                     icon: Icons.check_circle_outline,
                     label: 'Diterima',
@@ -463,7 +462,7 @@ class _StatCell extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(icon, size: 16, color: color),
-              SizedBox(width: 5),
+              const SizedBox(width: 5),
               Text(
                 value,
                 style: TextStyle(
@@ -475,7 +474,7 @@ class _StatCell extends StatelessWidget {
               ),
             ],
           ),
-          SizedBox(height: 2),
+          const SizedBox(height: 2),
           Text(label, style: PText.bodySm),
         ],
       ),
@@ -512,13 +511,13 @@ class _PendaftarCard extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: EdgeInsets.all(14),
+        padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
           color: PColors.surface,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: PColors.border),
-          boxShadow: [
-            BoxShadow(color: SC.primary.withOpacity(0.04), blurRadius: 6, offset: Offset(0, 2)),
+          boxShadow: const [
+            BoxShadow(color: Color(0x0A0F3A2E), blurRadius: 6, offset: Offset(0, 2)),
           ],
         ),
         child: Row(
@@ -527,18 +526,18 @@ class _PendaftarCard extends StatelessWidget {
               width: 44,
               height: 44,
               alignment: Alignment.center,
-              decoration: BoxDecoration(color: SC.sage, shape: BoxShape.circle),
+              decoration: const BoxDecoration(color: PColors.sage, shape: BoxShape.circle),
               child: Text(
                 inisial,
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: 'Nunito',
                   fontSize: 17,
                   fontWeight: FontWeight.w800,
-                  color: SC.primary,
+                  color: PColors.primary,
                 ),
               ),
             ),
-            SizedBox(width: 12),
+            const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -549,7 +548,7 @@ class _PendaftarCard extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: PText.labelLg,
                   ),
-                  SizedBox(height: 3),
+                  const SizedBox(height: 3),
                   Text(
                     '${p['noPendaftaran'] ?? 'Belum ada nomor'} • ${p['jalur'] ?? 'Reguler'}',
                     maxLines: 1,
@@ -559,10 +558,10 @@ class _PendaftarCard extends StatelessWidget {
                 ],
               ),
             ),
-            SizedBox(width: 8),
+            const SizedBox(width: 8),
             _StatusPill(label: st.label, fg: st.fg, bg: st.bg),
-            SizedBox(width: 4),
-            Icon(Icons.chevron_right, color: PColors.inkSecondary, size: 20),
+            const SizedBox(width: 4),
+            const Icon(Icons.chevron_right, color: PColors.inkSecondary, size: 20),
           ],
         ),
       ),
@@ -580,7 +579,7 @@ class _StatusPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(9999)),
       child: Text(
         label,
@@ -601,18 +600,18 @@ class _EmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.fromLTRB(16, 40, 16, 0),
+      padding: const EdgeInsets.fromLTRB(16, 40, 16, 0),
       child: Column(
         children: [
           Container(
             width: 72,
             height: 72,
-            decoration: BoxDecoration(color: SC.sage, shape: BoxShape.circle),
-            child: Icon(Icons.inbox_outlined, size: 32, color: SC.primary),
+            decoration: const BoxDecoration(color: PColors.sage, shape: BoxShape.circle),
+            child: const Icon(Icons.inbox_outlined, size: 32, color: PColors.primary),
           ),
-          SizedBox(height: 14),
+          const SizedBox(height: 14),
           Text('Belum ada pendaftar.', style: PText.labelLg),
-          SizedBox(height: 4),
+          const SizedBox(height: 4),
           Text(
             'Pendaftar baru akan muncul di sini setelah mengisi formulir PPDB.',
             textAlign: TextAlign.center,
@@ -662,7 +661,7 @@ class _PendaftarDetailState extends State<_PendaftarDetail> {
       final raw = res is List ? res : (res is Map ? (res['items'] ?? res['data']) : null);
       if (!mounted) return;
       setState(() {
-        _kelas = (raw is List ? raw : [])
+        _kelas = (raw is List ? raw : const [])
             .whereType<Map>()
             .map((e) => Map<String, dynamic>.from(e))
             .toList();
@@ -800,10 +799,10 @@ class _PendaftarDetailState extends State<_PendaftarDetail> {
       ..showSnackBar(
         SnackBar(
           behavior: SnackBarBehavior.floating,
-          backgroundColor: error ? PColors.errorBg : SC.primary,
+          backgroundColor: error ? PColors.errorBg : PColors.primary,
           elevation: 6,
           margin: EdgeInsets.fromLTRB(side, 0, side, 24),
-          padding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           duration: Duration(seconds: error ? 4 : 3),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
@@ -828,7 +827,7 @@ class _PendaftarDetailState extends State<_PendaftarDetail> {
                   color: error ? PColors.errorText : PColors.gold,
                 ),
               ),
-              SizedBox(width: 12),
+              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -838,7 +837,7 @@ class _PendaftarDetailState extends State<_PendaftarDetail> {
                         style: TextStyle(
                             fontSize: 13.5, fontWeight: FontWeight.w800, color: fg)),
                     if (subtitle != null) ...[
-                      SizedBox(height: 2),
+                      const SizedBox(height: 2),
                       Text(subtitle,
                           style: TextStyle(fontSize: 11.5, color: fg.withOpacity(0.75))),
                     ],
@@ -868,7 +867,7 @@ class _PendaftarDetailState extends State<_PendaftarDetail> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: Text(
+            child: const Text(
               'Batal',
               style: TextStyle(
                 fontFamily: 'Nunito',
@@ -879,13 +878,13 @@ class _PendaftarDetailState extends State<_PendaftarDetail> {
           ),
           FilledButton(
             style: FilledButton.styleFrom(
-              backgroundColor: bahaya ? PColors.errorText : SC.primary,
+              backgroundColor: bahaya ? PColors.errorText : PColors.primary,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9999)),
             ),
             onPressed: () => Navigator.pop(ctx, true),
             child: Text(
               label,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: 'Nunito',
                 fontWeight: FontWeight.w700,
                 color: Colors.white,
@@ -918,15 +917,15 @@ class _PendaftarDetailState extends State<_PendaftarDetail> {
                 '${_p['nama']} akan dinyatakan diterima dan data santri dibuat otomatis.',
                 style: PText.bodyMd,
               ),
-              SizedBox(height: 16),
+              const SizedBox(height: 16),
               Text('Tempatkan di kelas', style: PText.labelLg),
-              SizedBox(height: 8),
+              const SizedBox(height: 8),
               DropdownButtonFormField<String?>(
                 value: pilihan,
                 isExpanded: true,
                 decoration: _fieldDecoration('Kelas', icon: Icons.class_outlined),
                 items: [
-                  DropdownMenuItem<String?>(
+                  const DropdownMenuItem<String?>(
                     value: null,
                     child: Text('Belum ditempatkan (isi nanti)'),
                   ),
@@ -939,7 +938,7 @@ class _PendaftarDetailState extends State<_PendaftarDetail> {
                 onChanged: (v) => setD(() => pilihan = v),
               ),
               if (_kelasRekomendasiId != null) ...[
-                SizedBox(height: 8),
+                const SizedBox(height: 8),
                 Text('Terpilih otomatis dari rekomendasi placement test.',
                     style: PText.bodySm),
               ],
@@ -948,7 +947,7 @@ class _PendaftarDetailState extends State<_PendaftarDetail> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: Text('Batal',
+              child: const Text('Batal',
                   style: TextStyle(
                       fontFamily: 'Nunito',
                       fontWeight: FontWeight.w700,
@@ -956,11 +955,11 @@ class _PendaftarDetailState extends State<_PendaftarDetail> {
             ),
             FilledButton(
               style: FilledButton.styleFrom(
-                backgroundColor: SC.primary,
+                backgroundColor: PColors.primary,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9999)),
               ),
               onPressed: () => Navigator.pop(ctx, {'kelasId': pilihan}),
-              child: Text('Ya, Terima',
+              child: const Text('Ya, Terima',
                   style: TextStyle(
                       fontFamily: 'Nunito',
                       fontWeight: FontWeight.w700,
@@ -1012,15 +1011,15 @@ class _PendaftarDetailState extends State<_PendaftarDetail> {
     required List<Widget> children,
   }) {
     return Padding(
-      padding: EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.only(bottom: 14),
       child: Container(
-        padding: EdgeInsets.all(16),
+        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: PColors.surface,
           borderRadius: BorderRadius.circular(18),
           border: Border.all(color: PColors.border),
-          boxShadow: [
-            BoxShadow(color: SC.primary.withOpacity(0.04), blurRadius: 6, offset: Offset(0, 2)),
+          boxShadow: const [
+            BoxShadow(color: Color(0x0A0F3A2E), blurRadius: 6, offset: Offset(0, 2)),
           ],
         ),
         child: Column(
@@ -1033,21 +1032,21 @@ class _PendaftarDetailState extends State<_PendaftarDetail> {
                     width: 34,
                     height: 34,
                     decoration: BoxDecoration(
-                      color: SC.sage,
+                      color: PColors.sage,
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: Icon(icon, size: 18, color: SC.primary),
+                    child: Icon(icon, size: 18, color: PColors.primary),
                   ),
-                  SizedBox(width: 10),
+                  const SizedBox(width: 10),
                 ],
                 Expanded(child: Text(title, style: PText.headlineSm)),
               ],
             ),
             if (subtitle != null) ...[
-              SizedBox(height: 6),
+              const SizedBox(height: 6),
               Text(subtitle, style: PText.bodySm),
             ],
-            SizedBox(height: 14),
+            const SizedBox(height: 14),
             ...children,
           ],
         ),
@@ -1057,12 +1056,12 @@ class _PendaftarDetailState extends State<_PendaftarDetail> {
 
   Widget _infoRow(IconData icon, String label, String value) {
     return Padding(
-      padding: EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.only(bottom: 12),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(icon, size: 18, color: PColors.inkSecondary),
-          SizedBox(width: 10),
+          const SizedBox(width: 10),
           SizedBox(width: 92, child: Text(label, style: PText.bodySm)),
           Expanded(
             child: Text(
@@ -1088,19 +1087,19 @@ class _PendaftarDetailState extends State<_PendaftarDetail> {
       prefixIcon: icon == null ? null : Icon(icon, size: 20, color: PColors.inkSecondary),
       filled: true,
       fillColor: PColors.background,
-      contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       border: border(PColors.inputBorder),
       enabledBorder: border(PColors.inputBorder),
-      focusedBorder: border(SC.primary, 2),
+      focusedBorder: border(PColors.primary, 2),
     );
   }
 
   Widget _subJudul(String text) {
     return Padding(
-      padding: EdgeInsets.only(bottom: 8, top: 4),
+      padding: const EdgeInsets.only(bottom: 8, top: 4),
       child: Text(
         text.toUpperCase(),
-        style: TextStyle(
+        style: const TextStyle(
           fontFamily: 'Nunito',
           fontSize: 10.5,
           fontWeight: FontWeight.w800,
@@ -1115,8 +1114,8 @@ class _PendaftarDetailState extends State<_PendaftarDetail> {
     final nama = await showModalBottomSheet<String>(
       context: context,
       backgroundColor: PColors.surface,
-      constraints: BoxConstraints(maxWidth: 480),
-      shape: RoundedRectangleBorder(
+      constraints: const BoxConstraints(maxWidth: 480),
+      shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (ctx) => SafeArea(
@@ -1125,7 +1124,7 @@ class _PendaftarDetailState extends State<_PendaftarDetail> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Padding(
-              padding: EdgeInsets.fromLTRB(20, 18, 20, 8),
+              padding: const EdgeInsets.fromLTRB(20, 18, 20, 8),
               child: Text('Pilih Rekomendasi Kelas', style: PText.headlineSm),
             ),
             Flexible(
@@ -1136,14 +1135,14 @@ class _PendaftarDetailState extends State<_PendaftarDetail> {
                     ListTile(
                       title: Text('${k['namaKelas']}', style: PText.labelLg),
                       trailing: (k['namaKelas']?.toString() ?? '') == _testHasil.text.trim()
-                          ? Icon(Icons.check_circle, color: SC.primary, size: 20)
+                          ? const Icon(Icons.check_circle, color: PColors.primary, size: 20)
                           : null,
                       onTap: () => Navigator.pop(ctx, k['namaKelas']?.toString() ?? ''),
                     ),
                 ],
               ),
             ),
-            SizedBox(height: 8),
+            const SizedBox(height: 8),
           ],
         ),
       ),
@@ -1156,10 +1155,10 @@ class _PendaftarDetailState extends State<_PendaftarDetail> {
     final hasil = (ujian['hasil'] as String? ?? '').trim();
     final catatan = (ujian['catatan'] as String? ?? '').trim();
     return Container(
-      margin: EdgeInsets.only(bottom: 16),
-      padding: EdgeInsets.all(14),
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: SC.sage,
+        color: PColors.sage,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: PColors.border),
       ),
@@ -1170,33 +1169,33 @@ class _PendaftarDetailState extends State<_PendaftarDetail> {
             children: [
               Text(
                 nilai,
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: 'Nunito',
                   fontSize: 30,
                   fontWeight: FontWeight.w800,
-                  color: SC.primary,
+                  color: PColors.primary,
                 ),
               ),
               Text('Nilai', style: PText.bodySm),
             ],
           ),
-          SizedBox(width: 16),
+          const SizedBox(width: 16),
           Container(width: 1, height: 44, color: PColors.border),
-          SizedBox(width: 16),
+          const SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('Rekomendasi Kelas', style: PText.bodySm),
-                SizedBox(height: 2),
+                const SizedBox(height: 2),
                 Text(
                   hasil.isEmpty ? '—' : hasil,
                   style: PText.labelLg,
                 ),
                 if (catatan.isNotEmpty) ...[
-                  SizedBox(height: 8),
+                  const SizedBox(height: 8),
                   Text('Catatan Tes', style: PText.bodySm),
-                  SizedBox(height: 2),
+                  const SizedBox(height: 2),
                   Text(catatan, style: PText.bodyMd.copyWith(color: PColors.ink)),
                 ],
               ],
@@ -1208,7 +1207,7 @@ class _PendaftarDetailState extends State<_PendaftarDetail> {
   }
 
   ButtonStyle get _pillFilled => FilledButton.styleFrom(
-        backgroundColor: SC.primary,
+        backgroundColor: PColors.primary,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9999)),
       );
 
@@ -1228,27 +1227,27 @@ class _PendaftarDetailState extends State<_PendaftarDetail> {
     return Scaffold(
       backgroundColor: PColors.background,
       appBar: PreferredSize(
-        preferredSize: Size.fromHeight(72),
+        preferredSize: const Size.fromHeight(72),
         child: Container(
           color: PColors.background,
           child: SafeArea(
             bottom: false,
             child: Center(
               child: ConstrainedBox(
-                constraints: BoxConstraints(maxWidth: 480),
+                constraints: const BoxConstraints(maxWidth: 480),
                 child: Padding(
-                  padding: EdgeInsets.fromLTRB(16, 12, 16, 4),
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
                   child: Row(
                     children: [
                       Material(
                         color: PColors.surface,
-                        shape: CircleBorder(
+                        shape: const CircleBorder(
                           side: BorderSide(color: PColors.border),
                         ),
                         child: InkWell(
-                          customBorder: CircleBorder(),
+                          customBorder: const CircleBorder(),
                           onTap: () => Navigator.of(context).maybePop(),
-                          child: SizedBox(
+                          child: const SizedBox(
                             width: 42,
                             height: 42,
                             child: Icon(Icons.arrow_back_rounded,
@@ -1256,13 +1255,13 @@ class _PendaftarDetailState extends State<_PendaftarDetail> {
                           ),
                         ),
                       ),
-                      SizedBox(width: 12),
+                      const SizedBox(width: 12),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Text(
+                            const Text(
                               'Detail Pendaftar',
                               style: TextStyle(
                                 fontFamily: 'Nunito',
@@ -1271,7 +1270,7 @@ class _PendaftarDetailState extends State<_PendaftarDetail> {
                                 color: PColors.ink,
                               ),
                             ),
-                            SizedBox(height: 1),
+                            const SizedBox(height: 1),
                             Text('Data & tindak lanjut seleksi', style: PText.bodySm),
                           ],
                         ),
@@ -1286,20 +1285,20 @@ class _PendaftarDetailState extends State<_PendaftarDetail> {
       ),
       body: Center(
         child: ConstrainedBox(
-          constraints: BoxConstraints(maxWidth: 480),
+          constraints: const BoxConstraints(maxWidth: 480),
           child: ListView(
-            padding: EdgeInsets.fromLTRB(16, 16, 16, 28),
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
             children: [
               // ---------- Header identitas ----------
               Container(
-                padding: EdgeInsets.all(18),
+                padding: const EdgeInsets.all(18),
                 clipBehavior: Clip.antiAlias,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(22),
-                  gradient: LinearGradient(
+                  gradient: const LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
-                    colors: [SC.primary, SC.primaryEnd],
+                    colors: [PColors.primary, PColors.primaryGradientEnd],
                   ),
                 ),
                 child: Stack(
@@ -1337,7 +1336,7 @@ class _PendaftarDetailState extends State<_PendaftarDetail> {
                           ),
                           child: Text(
                             inisial,
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontFamily: 'Nunito',
                               fontSize: 24,
                               fontWeight: FontWeight.w800,
@@ -1345,7 +1344,7 @@ class _PendaftarDetailState extends State<_PendaftarDetail> {
                             ),
                           ),
                         ),
-                        SizedBox(width: 14),
+                        const SizedBox(width: 14),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1354,14 +1353,14 @@ class _PendaftarDetailState extends State<_PendaftarDetail> {
                                 nama,
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
+                                style: const TextStyle(
                                   fontFamily: 'Nunito',
                                   fontSize: 18,
                                   fontWeight: FontWeight.w800,
                                   color: Colors.white,
                                 ),
                               ),
-                              SizedBox(height: 3),
+                              const SizedBox(height: 3),
                               Text(
                                 _p['noPendaftaran'] == null
                                     ? 'Nomor pendaftaran belum tersedia'
@@ -1372,7 +1371,7 @@ class _PendaftarDetailState extends State<_PendaftarDetail> {
                                   color: Colors.white.withOpacity(0.85),
                                 ),
                               ),
-                              SizedBox(height: 8),
+                              const SizedBox(height: 8),
                               _StatusPill(label: st.label, fg: st.fg, bg: st.bg),
                             ],
                           ),
@@ -1382,7 +1381,7 @@ class _PendaftarDetailState extends State<_PendaftarDetail> {
                   ],
                 ),
               ),
-              SizedBox(height: 14),
+              const SizedBox(height: 14),
 
               // ---------- Tahapan seleksi ----------
               _card(
@@ -1434,8 +1433,8 @@ class _PendaftarDetailState extends State<_PendaftarDetail> {
                       height: 48,
                       child: OutlinedButton.icon(
                         onPressed: () => setState(() => _editingTest = true),
-                        icon: Icon(Icons.edit_outlined, size: 16),
-                        label: Text(
+                        icon: const Icon(Icons.edit_outlined, size: 16),
+                        label: const Text(
                           'Ubah Hasil Tes',
                           style: TextStyle(
                               fontFamily: 'Nunito',
@@ -1443,8 +1442,8 @@ class _PendaftarDetailState extends State<_PendaftarDetail> {
                               fontWeight: FontWeight.w700),
                         ),
                         style: OutlinedButton.styleFrom(
-                          foregroundColor: SC.primary,
-                          side: BorderSide(color: PColors.border),
+                          foregroundColor: PColors.primary,
+                          side: const BorderSide(color: PColors.border),
                           shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(9999)),
                         ),
@@ -1459,7 +1458,7 @@ class _PendaftarDetailState extends State<_PendaftarDetail> {
                       decoration:
                           _fieldDecoration('Nilai (0-100)', icon: Icons.grade_outlined),
                     ),
-                    SizedBox(height: 12),
+                    const SizedBox(height: 12),
                     InkWell(
                       borderRadius: BorderRadius.circular(12),
                       onTap: _kelas.isEmpty ? null : _pilihKelasRekomendasi,
@@ -1469,7 +1468,7 @@ class _PendaftarDetailState extends State<_PendaftarDetail> {
                           _kelas.isEmpty ? 'Belum ada kelas' : 'Rekomendasi Kelas',
                           icon: Icons.class_outlined,
                         ).copyWith(
-                          suffixIcon: Icon(Icons.unfold_more_rounded,
+                          suffixIcon: const Icon(Icons.unfold_more_rounded,
                               size: 20, color: PColors.inkSecondary),
                         ),
                         child: Text(
@@ -1478,13 +1477,13 @@ class _PendaftarDetailState extends State<_PendaftarDetail> {
                         ),
                       ),
                     ),
-                    SizedBox(height: 12),
+                    const SizedBox(height: 12),
                     TextField(
                       controller: _testCatatan,
                       style: PText.bodyMd.copyWith(color: PColors.ink),
                       decoration: _fieldDecoration('Catatan Tes', icon: Icons.notes),
                     ),
-                    SizedBox(height: 16),
+                    const SizedBox(height: 16),
                     Row(
                       children: [
                         Expanded(
@@ -1494,7 +1493,7 @@ class _PendaftarDetailState extends State<_PendaftarDetail> {
                               style: _pillFilled,
                               onPressed: _saving ? null : _simpanTest,
                               child: _saving
-                                  ? SizedBox(
+                                  ? const SizedBox(
                                       width: 18,
                                       height: 18,
                                       child: CircularProgressIndicator(
@@ -1504,7 +1503,7 @@ class _PendaftarDetailState extends State<_PendaftarDetail> {
                                       _editingTest
                                           ? 'Simpan Perubahan'
                                           : 'Simpan Hasil Tes',
-                                      style: TextStyle(
+                                      style: const TextStyle(
                                         fontFamily: 'Nunito',
                                         fontSize: 14,
                                         fontWeight: FontWeight.w700,
@@ -1515,7 +1514,7 @@ class _PendaftarDetailState extends State<_PendaftarDetail> {
                           ),
                         ),
                         if (_editingTest) ...[
-                          SizedBox(width: 8),
+                          const SizedBox(width: 8),
                           OutlinedButton(
                             onPressed: _saving
                                 ? null
@@ -1525,12 +1524,12 @@ class _PendaftarDetailState extends State<_PendaftarDetail> {
                                     }),
                             style: OutlinedButton.styleFrom(
                               foregroundColor: PColors.inkSecondary,
-                              side: BorderSide(color: PColors.border),
-                              minimumSize: Size(0, 48),
+                              side: const BorderSide(color: PColors.border),
+                              minimumSize: const Size(0, 48),
                               shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(9999)),
                             ),
-                            child: Text('Batal',
+                            child: const Text('Batal',
                                 style: TextStyle(
                                     fontFamily: 'Nunito', fontWeight: FontWeight.w700)),
                           ),
@@ -1553,24 +1552,24 @@ class _PendaftarDetailState extends State<_PendaftarDetail> {
                     icon: Icons.event_note_outlined,
                     title: 'Jadwalkan Tes',
                     desc: 'Pindahkan ke tahap tes masuk. Belum diterima atau ditolak.',
-                    fg: Color(0xFF0369A1),
-                    bg: Color(0xFFE0F2FE),
+                    fg: const Color(0xFF0369A1),
+                    bg: const Color(0xFFE0F2FE),
                     current: status == 'TES',
                     onTap: (_saving || status == 'TES') ? null : () => _aksi('TES'),
                   ),
-                  SizedBox(height: 8),
+                  const SizedBox(height: 8),
                   _AksiTile(
                     icon: Icons.hourglass_bottom_rounded,
                     title: 'Masukkan ke Waiting List',
                     desc: 'Masuk daftar tunggu, bisa diterima nanti jika kuota tersedia.',
-                    fg: Color(0xFF4338CA),
-                    bg: Color(0xFFE0E7FF),
+                    fg: const Color(0xFF4338CA),
+                    bg: const Color(0xFFE0E7FF),
                     current: status == 'WAITING_LIST',
                     onTap: (_saving || status == 'WAITING_LIST')
                         ? null
                         : () => _aksi('WAITING_LIST'),
                   ),
-                  SizedBox(height: 14),
+                  const SizedBox(height: 14),
                   _subJudul('Keputusan akhir'),
                   _AksiTile(
                     icon: Icons.verified_outlined,
@@ -1583,7 +1582,7 @@ class _PendaftarDetailState extends State<_PendaftarDetail> {
                         ? null
                         : _terima,
                   ),
-                  SizedBox(height: 8),
+                  const SizedBox(height: 8),
                   _AksiTile(
                     icon: Icons.cancel_outlined,
                     title: 'Tolak Pendaftaran',
@@ -1646,7 +1645,7 @@ class _AksiTile extends StatelessWidget {
           borderRadius: BorderRadius.circular(14),
           onTap: onTap,
           child: Container(
-            padding: EdgeInsets.all(12),
+            padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: current ? bg : PColors.surface,
               borderRadius: BorderRadius.circular(14),
@@ -1660,22 +1659,22 @@ class _AksiTile extends StatelessWidget {
                   decoration: BoxDecoration(color: bg, shape: BoxShape.circle),
                   child: Icon(icon, size: 20, color: fg),
                 ),
-                SizedBox(width: 12),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(title, style: PText.labelLg),
-                      SizedBox(height: 2),
+                      const SizedBox(height: 2),
                       Text(desc, style: PText.bodySm),
                     ],
                   ),
                 ),
-                SizedBox(width: 8),
+                const SizedBox(width: 8),
                 if (current)
                   _StatusPill(label: 'Saat ini', fg: fg, bg: Colors.white)
                 else
-                  Icon(Icons.chevron_right, color: PColors.inkSecondary, size: 20),
+                  const Icon(Icons.chevron_right, color: PColors.inkSecondary, size: 20),
               ],
             ),
           ),
@@ -1718,8 +1717,8 @@ class _TahapanSeleksi extends StatelessWidget {
           return Expanded(
             child: Container(
               height: 2,
-              margin: EdgeInsets.only(bottom: 22, left: 4, right: 4),
-              color: done ? SC.primary : PColors.border,
+              margin: const EdgeInsets.only(bottom: 22, left: 4, right: 4),
+              color: done ? PColors.primary : PColors.border,
             ),
           );
         }
@@ -1730,7 +1729,7 @@ class _TahapanSeleksi extends StatelessWidget {
         final circleColor = isFinal
             ? st.fg
             : (active || done)
-                ? SC.primary
+                ? PColors.primary
                 : PColors.surfaceDim;
         return Column(
           children: [
@@ -1742,7 +1741,7 @@ class _TahapanSeleksi extends StatelessWidget {
               child: isFinal
                   ? Icon(finalIcon(), size: 17, color: Colors.white)
                   : done
-                      ? Icon(Icons.check, size: 17, color: Colors.white)
+                      ? const Icon(Icons.check, size: 17, color: Colors.white)
                       : Text(
                           '${idx + 1}',
                           style: TextStyle(
@@ -1753,7 +1752,7 @@ class _TahapanSeleksi extends StatelessWidget {
                           ),
                         ),
             ),
-            SizedBox(height: 6),
+            const SizedBox(height: 6),
             SizedBox(
               width: 76,
               child: Text(

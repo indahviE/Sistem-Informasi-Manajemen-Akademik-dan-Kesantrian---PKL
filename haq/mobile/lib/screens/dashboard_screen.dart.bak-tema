@@ -317,7 +317,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   // Restyle: gradient emerald `_WC` + pill emas, mengikuti screen.png.
   // =========================================================================
   Widget _heroHeader(String role) {
-    debugPrint('SC.primary = ${SC.primary}');
     // Fallback berlapis: data dashboard -> data user login -> teks netral.
     final namaPengguna = _pick(_data!, ['namaPengguna', 'nama', 'userName']) ??
         AppScope.of(context).user?.nama ??
@@ -330,14 +329,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return Container(
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        gradient: LinearGradient(
+        gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [_TC.primary, _TC.primaryEnd],
+          colors: [_WC.primary, _WC.primaryGradientEnd],
         ),
         borderRadius: BorderRadius.circular(18),
         boxShadow: [
-          BoxShadow(color: _TC.primary.withOpacity(0.18), blurRadius: 12, offset: Offset(0, 4)),
+          BoxShadow(color: _WC.primary.withOpacity(0.18), blurRadius: 12, offset: const Offset(0, 4)),
         ],
       ),
       child: Stack(
@@ -349,7 +348,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             child: Opacity(opacity: 0.06, child: _RubElHizb(size: 130, color: Colors.white)),
           ),
           Padding(
-            padding: EdgeInsets.all(16),
+            padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -359,7 +358,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   runSpacing: 6,
                   children: [
                     Container(
-                      padding: EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                       decoration: BoxDecoration(
                         color: Colors.white.withOpacity(0.12),
                         borderRadius: BorderRadius.circular(999),
@@ -371,12 +370,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           Container(
                             width: 6,
                             height: 6,
-                            decoration: BoxDecoration(color: _WC.gold, shape: BoxShape.circle),
+                            decoration: const BoxDecoration(color: _WC.gold, shape: BoxShape.circle),
                           ),
-                          SizedBox(width: 6),
+                          const SizedBox(width: 6),
                           Text(
                             _roleLabel(role),
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontSize: 10,
                               fontWeight: FontWeight.w700,
                               color: _WC.gold,
@@ -392,22 +391,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ),
                   ],
                 ),
-                SizedBox(height: 10),
+                const SizedBox(height: 10),
                 Text(
                   'Halo, $namaPengguna',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.w700,
                     height: 1.25,
                     color: Colors.white,
                   ),
                 ),
-                SizedBox(height: 3),
+                const SizedBox(height: 3),
                 Text(
                   semester,
                   style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.7)),
                 ),
-                SizedBox(height: 12),
+                const SizedBox(height: 12),
                 Row(
                   children: [
                     Expanded(
@@ -417,10 +416,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             width: 16,
                             height: 16,
                             child: _syncing
-                                ? CircularProgressIndicator(strokeWidth: 2, color: _WC.gold)
-                                : Icon(Icons.sync, size: 16, color: _WC.gold),
+                                ? const CircularProgressIndicator(strokeWidth: 2, color: _WC.gold)
+                                : const Icon(Icons.sync, size: 16, color: _WC.gold),
                           ),
-                          SizedBox(width: 6),
+                          const SizedBox(width: 6),
                           Flexible(
                             child: Text(
                               'Data diperbarui: ${_elapsed(_lastLoaded)}',
@@ -431,19 +430,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         ],
                       ),
                     ),
-                    SizedBox(width: 8),
+                    const SizedBox(width: 8),
                     InkWell(
                       onTap: _syncing ? null : _load,
                       borderRadius: BorderRadius.circular(999),
                       child: Container(
-                        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                         decoration: BoxDecoration(
-                          color: _TC.mint,
+                          color: _WC.mint,
                           borderRadius: BorderRadius.circular(999),
                         ),
-                        child: Text(
+                        child: const Text(
                           'Perbarui',
-                          style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: _TC.primary),
+                          style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: _WC.primary),
                         ),
                       ),
                     ),
@@ -1149,15 +1148,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
       children: [
         // ---- 2. Ringkasan angka pondok ----
         _SectionLabel(title: 'Master Data Terdata', trailing: 'Cakupan Lembaga Sendiri', trailingAsPill: true),
-        SizedBox(height: 10),
+        const SizedBox(height: 10),
         _TwoColGrid(
           children: [
             _MetricCard(
               label: 'Santri Aktif',
               value: _fmtInt(santriAktif),
               icon: Icons.school,
-              iconColor: _TC.primary,
-              iconBg: _TC.sage,
+              iconColor: _WC.primary,
+              iconBg: _WC.sage,
               caption: (santriPutra > 0 || santriPutri > 0)
                   ? '${_fmtInt(santriPutra)} Putra • ${_fmtInt(santriPutri)} Putri'
                   : 'Data santri aktif pondok',
@@ -1176,8 +1175,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
               label: 'Kelas & Halaqah',
               value: '${_fmtInt(totalKelas)} Rombel',
               icon: Icons.menu_book,
-              iconColor: _TC.primary,
-              iconBg: _TC.sage,
+              iconColor: _WC.primary,
+              iconBg: _WC.sage,
               caption: (kelasTahfidz > 0 || kelasDiniyah > 0)
                   ? '${_fmtInt(kelasTahfidz)} Tahfidz • ${_fmtInt(kelasDiniyah)} Diniyah'
                   : 'Rombongan belajar aktif',
@@ -1194,19 +1193,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ],
         ),
-        SizedBox(height: 20),
+        const SizedBox(height: 20),
 
         // ---- 3. Tindakan cepat ----
         _SectionLabel(title: 'Tindakan Data Master', trailing: 'Input Langsung', trailingColor: _WC.goldDark),
-        SizedBox(height: 10),
+        const SizedBox(height: 10),
         _TwoColGrid(
           children: [
             _QuickAction(
               title: 'Santri Baru',
               subtitle: 'Entri biodata & berkas santri',
               icon: Icons.person_add,
-              iconBg: _TC.sage,
-              iconColor: _TC.primary,
+              iconBg: _WC.sage,
+              iconColor: _WC.primary,
               tag: 'Auto-NIS',
               onTap: _bukaSantriBaru,
             ),
@@ -1222,8 +1221,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
               title: 'Rombel & Halaqah',
               subtitle: 'Plotting santri & wali kelas',
               icon: Icons.meeting_room,
-              iconBg: _TC.sage,
-              iconColor: _TC.primary,
+              iconBg: _WC.sage,
+              iconColor: _WC.primary,
               onTap: _notAvailable,
             ),
             _QuickAction(
@@ -1236,30 +1235,30 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ],
         ),
-        SizedBox(height: 20),
+        const SizedBox(height: 20),
 
         // ---- 4. Audit kelengkapan data ----
         _buildAuditCard(),
-        SizedBox(height: 20),
+        const SizedBox(height: 20),
 
         // ---- 5. Kelola akademik & KBM ----
         _buildAcademicCard(),
-        SizedBox(height: 20),
+        const SizedBox(height: 20),
 
         // ---- 6. Log aktivitas ----
         _buildLogCard(),
-        SizedBox(height: 16),
+        const SizedBox(height: 16),
 
         // ---- Catatan batas akses ----
         Container(
-          padding: EdgeInsets.all(14),
+          padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
             color: _WC.surfaceDim,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(color: _WC.border),
           ),
           child: RichText(
-            text: TextSpan(
+            text: const TextSpan(
               style: TextStyle(fontSize: 11.5, color: _WC.inkSecondary, height: 1.5, fontStyle: FontStyle.italic),
               children: [
                 TextSpan(
@@ -1279,7 +1278,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildAuditCard() {
-    final items = ((_data!['auditKelengkapan'] as List?) ?? []).cast<Map<String, dynamic>>();
+    final items = ((_data!['auditKelengkapan'] as List?) ?? const []).cast<Map<String, dynamic>>();
     return _Card(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1287,7 +1286,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Expanded(
+              const Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -1300,19 +1299,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
               ),
               if (items.isNotEmpty) ...[
-                SizedBox(width: 8),
+                const SizedBox(width: 8),
                 Container(
-                  padding: EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(color: _WC.errorBg, borderRadius: BorderRadius.circular(999)),
                   child: Text('${items.length} Tindakan',
-                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: _WC.errorText)),
+                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: _WC.errorText)),
                 ),
               ],
             ],
           ),
-          SizedBox(height: 12),
+          const SizedBox(height: 12),
           if (items.isEmpty)
-            _EmptyRow(text: 'Semua data wajib sudah lengkap.', icon: Icons.check_circle_outline)
+            const _EmptyRow(text: 'Semua data wajib sudah lengkap.', icon: Icons.check_circle_outline)
           else
             Column(
               children: [
@@ -1334,8 +1333,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final accent = accents[index % accents.length];
 
     return Container(
-      margin: EdgeInsets.only(bottom: 8),
-      padding: EdgeInsets.all(10),
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: _WC.surfaceDim,
         borderRadius: BorderRadius.circular(12),
@@ -1344,29 +1343,29 @@ class _DashboardScreenState extends State<DashboardScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: EdgeInsets.only(top: 1),
+            padding: const EdgeInsets.only(top: 1),
             child: Icon(Icons.error_outline, size: 18, color: accent),
           ),
-          SizedBox(width: 8),
+          const SizedBox(width: 8),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: _WC.ink)),
+                Text(title, style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: _WC.ink)),
                 if (subtitle.isNotEmpty)
-                  Text(subtitle, style: TextStyle(fontSize: 11.5, color: _WC.inkSecondary)),
+                  Text(subtitle, style: const TextStyle(fontSize: 11.5, color: _WC.inkSecondary)),
               ],
             ),
           ),
-          SizedBox(width: 8),
+          const SizedBox(width: 8),
           InkWell(
             onTap: _notAvailable,
             borderRadius: BorderRadius.circular(999),
             child: Container(
-              padding: EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
               decoration: BoxDecoration(color: accent, borderRadius: BorderRadius.circular(999)),
               child: Text(actionLabel,
-                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.white)),
+                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.white)),
             ),
           ),
         ],
@@ -1387,7 +1386,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Expanded(
+              const Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -1402,14 +1401,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
               Container(
                 width: 34,
                 height: 34,
-                decoration: BoxDecoration(color: _TC.sage, shape: BoxShape.circle),
-                child: Icon(Icons.library_books, size: 18, color: _TC.primary),
+                decoration: const BoxDecoration(color: _WC.sage, shape: BoxShape.circle),
+                child: const Icon(Icons.library_books, size: 18, color: _WC.primary),
               ),
             ],
           ),
-          SizedBox(height: 12),
+          const SizedBox(height: 12),
           Container(
-            padding: EdgeInsets.all(12),
+            padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(color: _WC.surfaceDim, borderRadius: BorderRadius.circular(12)),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1417,42 +1416,42 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Expanded(
+                    const Expanded(
                       child: Text('Kepatuhan Rekap Absensi Harian',
                           style: TextStyle(fontSize: 12, color: _WC.ink)),
                     ),
                     Text(
                       pct != null ? '${_fmtInt(terisi!)} / ${_fmtInt(total!)} Rombel (${(pct * 100).round()}%)' : 'Belum ada data',
-                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _TC.primary),
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _WC.primary),
                     ),
                   ],
                 ),
-                SizedBox(height: 8),
+                const SizedBox(height: 8),
                 ClipRRect(
                   borderRadius: BorderRadius.circular(999),
                   child: LinearProgressIndicator(
                     value: pct ?? 0,
                     minHeight: 8,
                     backgroundColor: _WC.border,
-                    valueColor: AlwaysStoppedAnimation(_TC.primary),
+                    valueColor: const AlwaysStoppedAnimation(_WC.primary),
                   ),
                 ),
               ],
             ),
           ),
-          SizedBox(height: 10),
+          const SizedBox(height: 10),
           _academicShortcut(
             icon: Icons.fact_check,
             label: 'Input Rekap Absensi Terpusat',
             onTap: _notAvailable,
           ),
-          SizedBox(height: 8),
+          const SizedBox(height: 8),
           _academicShortcut(
             icon: Icons.upload_file,
             label: 'Unggah Nilai Kolektif (Excel/CSV)',
             onTap: _notAvailable,
           ),
-          SizedBox(height: 8),
+          const SizedBox(height: 8),
           _academicShortcut(
             icon: Icons.auto_stories,
             label: 'Katalog Mata Pelajaran & Kitab Turats',
@@ -1469,7 +1468,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       borderRadius: BorderRadius.circular(999),
       child: Container(
         height: 48,
-        padding: EdgeInsets.symmetric(horizontal: 14),
+        padding: const EdgeInsets.symmetric(horizontal: 14),
         decoration: BoxDecoration(
           color: _WC.surfaceDim,
           borderRadius: BorderRadius.circular(999),
@@ -1481,18 +1480,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
             Expanded(
               child: Row(
                 children: [
-                  Icon(icon, size: 18, color: _TC.primary),
-                  SizedBox(width: 10),
+                  Icon(icon, size: 18, color: _WC.primary),
+                  const SizedBox(width: 10),
                   Expanded(
                     child: Text(label,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: _WC.ink)),
+                        style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: _WC.ink)),
                   ),
                 ],
               ),
             ),
-            Icon(Icons.chevron_right, size: 18, color: _WC.inkSecondary),
+            const Icon(Icons.chevron_right, size: 18, color: _WC.inkSecondary),
           ],
         ),
       ),
@@ -1500,7 +1499,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildLogCard() {
-    final logs = ((_data!['logAktivitas'] as List?) ?? []).cast<Map<String, dynamic>>();
+    final logs = ((_data!['logAktivitas'] as List?) ?? const []).cast<Map<String, dynamic>>();
     return _Card(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1508,17 +1507,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Expanded(
+              const Expanded(
                 child: Text('Log Aktivitas Data Master',
                     style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _WC.ink)),
               ),
-              Text('Internal Ma\'had',
+              const Text('Internal Ma\'had',
                   style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: _WC.inkSecondary)),
             ],
           ),
-          SizedBox(height: 10),
+          const SizedBox(height: 10),
           if (logs.isEmpty)
-            _EmptyRow(text: 'Belum ada aktivitas tercatat.')
+            const _EmptyRow(text: 'Belum ada aktivitas tercatat.')
           else
             Column(
               children: [
@@ -1535,27 +1534,27 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final actor = _pick(log, ['oleh', 'actor']) ?? 'Admin Lembaga';
     final time = _pick(log, ['waktu', 'time']) ?? '';
     return Padding(
-      padding: EdgeInsets.symmetric(vertical: 6),
+      padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
             width: 28,
             height: 28,
-            margin: EdgeInsets.only(top: 2),
-            decoration: BoxDecoration(color: _TC.sage, shape: BoxShape.circle),
-            child: Icon(Icons.person_add, size: 14, color: _TC.primary),
+            margin: const EdgeInsets.only(top: 2),
+            decoration: const BoxDecoration(color: _WC.sage, shape: BoxShape.circle),
+            child: const Icon(Icons.person_add, size: 14, color: _WC.primary),
           ),
-          SizedBox(width: 10),
+          const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(message, style: TextStyle(fontSize: 12.5, color: _WC.ink, height: 1.3)),
-                SizedBox(height: 2),
+                Text(message, style: const TextStyle(fontSize: 12.5, color: _WC.ink, height: 1.3)),
+                const SizedBox(height: 2),
                 Text(
                   time.isNotEmpty ? '$actor • $time' : actor,
-                  style: TextStyle(fontSize: 11, color: _WC.inkSecondary),
+                  style: const TextStyle(fontSize: 11, color: _WC.inkSecondary),
                 ),
               ],
             ),
@@ -2067,7 +2066,7 @@ class _QuickAction extends StatelessWidget {
   final String? tag;
   final VoidCallback onTap;
 
-  _QuickAction({
+  const _QuickAction({
     required this.title,
     required this.subtitle,
     required this.icon,
@@ -2086,7 +2085,7 @@ class _QuickAction extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(16),
         child: Container(
-          padding: EdgeInsets.all(12),
+          padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
             border: Border.all(color: _WC.border),
@@ -2105,20 +2104,20 @@ class _QuickAction extends StatelessWidget {
                   ),
                   if (tag != null)
                     Container(
-                      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(color: _TC.mint, borderRadius: BorderRadius.circular(999)),
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(color: _WC.mint, borderRadius: BorderRadius.circular(999)),
                       child: Text(tag!,
-                          style: TextStyle(fontSize: 9.5, color: _TC.primary, fontWeight: FontWeight.w700)),
+                          style: const TextStyle(fontSize: 9.5, color: _WC.primary, fontWeight: FontWeight.w700)),
                     ),
                 ],
               ),
-              SizedBox(height: 8),
-              Text(title, style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: _WC.ink)),
-              SizedBox(height: 1),
+              const SizedBox(height: 8),
+              Text(title, style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: _WC.ink)),
+              const SizedBox(height: 1),
               Text(subtitle,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 10.5, color: _WC.inkSecondary)),
+                  style: const TextStyle(fontSize: 10.5, color: _WC.inkSecondary)),
             ],
           ),
         ),
