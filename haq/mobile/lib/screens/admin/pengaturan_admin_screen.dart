@@ -17,6 +17,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../services/api_client.dart';
 import '../../services/app_scope.dart';
+import '../santri/santri_ui.dart';
 import '../super_admin/pengaturan_dialogs.dart';
 
 // ============================================================================
@@ -27,9 +28,9 @@ import '../super_admin/pengaturan_dialogs.dart';
 
 class _AC {
   // Nilai disamakan dengan _WC di dashboard_screen.dart.
-  static const primary = Color(0xFF0F3A2E);
-  static const primarySoft = Color(0xFF1B4D3E);
-  static const mint = Color(0xFFD2E4DC);
+  static Color get primary => SC.primary;
+  static Color get primarySoft => SC.primaryEnd;
+  static Color get mint => SC.mint;
   static const gold = Color(0xFFF9D77E); // emas terang khusus tombol upgrade (sesuai screen.png)
   static const goldDark = Color(0xFF7A5B10);
   static const background = Color(0xFFFAF9F5);
@@ -37,7 +38,7 @@ class _AC {
   static const surfaceDim = Color(0xFFF5F4EE);
   static const line = Color(0xFFEAE6DC);
   static const inkSecondary = Color(0xFF475569);
-  static const sage = Color(0xFFE2ECE9);
+  static Color get sage => SC.sage;
   static const errorBg = Color(0xFFFEE2E2);
   static const errorText = Color(0xFF991B1B);
 }
@@ -279,7 +280,7 @@ class _PengaturanAdminScreenState extends State<PengaturanAdminScreen> {
 
   Widget _buildBody() {
     if (_loading) {
-      return const Center(child: CircularProgressIndicator(color: _AC.primary));
+      return Center(child: CircularProgressIndicator(color: _AC.primary));
     }
     if (_error != null) {
       return _LoadErrorState(message: _error!, onRetry: _load);
@@ -476,7 +477,7 @@ class _TitleRow extends StatelessWidget {
           child: InkWell(
             customBorder: const CircleBorder(),
             onTap: onBack,
-            child: const SizedBox(
+            child: SizedBox(
               width: 40,
               height: 40,
               child: Icon(Icons.arrow_back, size: 20, color: _AC.primary),
@@ -506,7 +507,7 @@ class _TitleRow extends StatelessWidget {
               Container(
                 width: 6,
                 height: 6,
-                decoration: const BoxDecoration(color: _AC.primary, shape: BoxShape.circle),
+                decoration: BoxDecoration(color: _AC.primary, shape: BoxShape.circle),
               ),
               const SizedBox(width: 6),
               Text('Admin Aktif', style: _t(11, FontWeight.w800, _AC.primary)),
@@ -559,7 +560,7 @@ class _ProfileCard extends StatelessWidget {
                 width: 64,
                 height: 64,
                 alignment: Alignment.center,
-                decoration: const BoxDecoration(color: _AC.primary, shape: BoxShape.circle),
+                decoration: BoxDecoration(color: _AC.primary, shape: BoxShape.circle),
                 child: Text(_inisial, style: _t(26, FontWeight.w800, _AC.gold)),
               ),
               const SizedBox(width: 14),
@@ -700,7 +701,7 @@ class _PaketCard extends StatelessWidget {
       width: double.infinity,
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
+        gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [_AC.primary, _AC.primarySoft],
@@ -950,12 +951,12 @@ class _PaketCard extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Row(
             children: [
-              const Icon(Icons.rocket_launch_outlined, size: 19, color: _AC.primary),
+              Icon(Icons.rocket_launch_outlined, size: 19, color: _AC.primary),
               const SizedBox(width: 10),
               Expanded(
                 child: Text('Ajukan Upgrade Kuota Santri', style: _t(14, FontWeight.w800, _AC.primary)),
               ),
-              const Icon(Icons.arrow_forward_rounded, size: 19, color: _AC.primary),
+              Icon(Icons.arrow_forward_rounded, size: 19, color: _AC.primary),
             ],
           ),
         ),
@@ -982,7 +983,7 @@ class _NotifCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(Icons.notifications_none, size: 22, color: _AC.primary),
+              Icon(Icons.notifications_none, size: 22, color: _AC.primary),
               const SizedBox(width: 8),
               Expanded(
                 child: Text('Notifikasi & Peringatan Admin', style: _t(16, FontWeight.w800, _AC.primary)),
@@ -1083,7 +1084,7 @@ class _PanduanCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(Icons.info_outline, size: 21, color: _AC.primary),
+              Icon(Icons.info_outline, size: 21, color: _AC.primary),
               const SizedBox(width: 8),
               Expanded(
                 child: Text('Panduan & Bantuan', style: _t(16, FontWeight.w800, _AC.primary)),
