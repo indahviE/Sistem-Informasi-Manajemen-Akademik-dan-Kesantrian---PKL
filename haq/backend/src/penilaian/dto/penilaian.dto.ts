@@ -1,4 +1,16 @@
-import { IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, Max, Min } from 'class-validator';
+import {
+  IsEnum,
+  IsInt,
+  IsNotEmpty,
+  IsNumber,
+  IsOptional,
+  IsString,
+  Max,
+  MaxLength,
+  Min,
+  MinLength,
+} from 'class-validator';
+import { StatusKehadiranUjian } from '@prisma/client';
 
 export class CreateUjianDto {
   @IsString()
@@ -71,14 +83,28 @@ export class InputNilaiUjianDto {
   @IsNotEmpty()
   santriId: string;
 
+  // Wajib diisi jika status HADIR (default). Untuk SAKIT/IZIN/ALPA nilai diabaikan (disimpan kosong).
+  @IsOptional()
   @IsNumber()
   @Min(0)
   @Max(100)
-  nilai: number;
+  nilai?: number;
+
+  @IsOptional()
+  @IsEnum(StatusKehadiranUjian, { message: 'Status kehadiran harus HADIR, SAKIT, IZIN, atau ALPA' })
+  status?: StatusKehadiranUjian;
 
   @IsOptional()
   @IsString()
   catatan?: string;
+}
+
+export class BukaKunciDto {
+  @IsString()
+  @IsNotEmpty({ message: 'Alasan buka kunci wajib diisi' })
+  @MinLength(10, { message: 'Alasan buka kunci minimal 10 karakter' })
+  @MaxLength(500)
+  alasan: string;
 }
 
 export class CreateRemedialDto {

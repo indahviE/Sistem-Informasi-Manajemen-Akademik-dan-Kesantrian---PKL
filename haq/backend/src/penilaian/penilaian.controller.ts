@@ -7,6 +7,7 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser, RequestUser, TenantId } from '../common/decorators/current-user.decorator';
 import { Role } from '@prisma/client';
 import {
+  BukaKunciDto,
   CreateKelulusanDto,
   CreateRemedialDto,
   CreateUjianDto,
@@ -41,20 +42,43 @@ export class PenilaianController {
 
   @Roles(...WRITE)
   @Post('ujian')
-  createUjian(@TenantId() tenantId: string, @Body() dto: CreateUjianDto) {
-    return this.penilaianService.createUjian(tenantId, dto);
+  createUjian(@TenantId() tenantId: string, @Body() dto: CreateUjianDto, @CurrentUser() user: RequestUser) {
+    return this.penilaianService.createUjian(tenantId, dto, user);
   }
 
   @Roles(...WRITE)
   @Patch('ujian/:id')
-  updateUjian(@TenantId() tenantId: string, @Param('id') id: string, @Body() dto: UpdateUjianDto) {
-    return this.penilaianService.updateUjian(tenantId, id, dto);
+  updateUjian(
+    @TenantId() tenantId: string,
+    @Param('id') id: string,
+    @Body() dto: UpdateUjianDto,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return this.penilaianService.updateUjian(tenantId, id, dto, user);
   }
 
   @Roles(...WRITE)
   @Delete('ujian/:id')
-  removeUjian(@TenantId() tenantId: string, @Param('id') id: string) {
-    return this.penilaianService.removeUjian(tenantId, id);
+  removeUjian(@TenantId() tenantId: string, @Param('id') id: string, @CurrentUser() user: RequestUser) {
+    return this.penilaianService.removeUjian(tenantId, id, user);
+  }
+
+  // ===== Kunci Nilai =====
+  @Roles(...WRITE)
+  @Post('ujian/:id/kunci')
+  kunciUjian(@TenantId() tenantId: string, @Param('id') id: string, @CurrentUser() user: RequestUser) {
+    return this.penilaianService.kunciUjian(tenantId, id, user);
+  }
+
+  @Roles(...WRITE)
+  @Post('ujian/:id/buka-kunci')
+  bukaKunciUjian(
+    @TenantId() tenantId: string,
+    @Param('id') id: string,
+    @Body() dto: BukaKunciDto,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return this.penilaianService.bukaKunciUjian(tenantId, id, dto, user);
   }
 
   // ===== Nilai Ujian =====
@@ -66,8 +90,13 @@ export class PenilaianController {
 
   @Roles(...WRITE)
   @Post('ujian/:id/nilai')
-  inputNilaiUjian(@TenantId() tenantId: string, @Param('id') id: string, @Body() dto: InputNilaiUjianDto) {
-    return this.penilaianService.inputNilaiUjian(tenantId, id, dto);
+  inputNilaiUjian(
+    @TenantId() tenantId: string,
+    @Param('id') id: string,
+    @Body() dto: InputNilaiUjianDto,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return this.penilaianService.inputNilaiUjian(tenantId, id, dto, user);
   }
 
   @Roles(...WRITE)
@@ -83,11 +112,16 @@ export class PenilaianController {
 
   @Roles(...WRITE)
   @Delete('ujian/:id/nilai/:nilaiId')
-  removeNilaiUjian(@TenantId() tenantId: string, @Param('id') id: string, @Param('nilaiId') nilaiId: string) {
-    return this.penilaianService.removeNilaiUjian(tenantId, id, nilaiId);
+  removeNilaiUjian(
+    @TenantId() tenantId: string,
+    @Param('id') id: string,
+    @Param('nilaiId') nilaiId: string,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return this.penilaianService.removeNilaiUjian(tenantId, id, nilaiId, user);
   }
 
-    // ===== Remedial per Ujian =====
+  // ===== Remedial per Ujian =====
   @Roles(...PENGELOLA)
   @Get('ujian/:id/remedial')
   listRemedialUjian(@TenantId() tenantId: string, @Param('id') id: string) {
@@ -96,8 +130,13 @@ export class PenilaianController {
 
   @Roles(...WRITE)
   @Post('ujian/:id/remedial')
-  simpanRemedialUjian(@TenantId() tenantId: string, @Param('id') id: string, @Body() dto: SimpanRemedialDto) {
-    return this.penilaianService.simpanRemedialUjian(tenantId, id, dto);
+  simpanRemedialUjian(
+    @TenantId() tenantId: string,
+    @Param('id') id: string,
+    @Body() dto: SimpanRemedialDto,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return this.penilaianService.simpanRemedialUjian(tenantId, id, dto, user);
   }
 
   // ===== Remedial =====
