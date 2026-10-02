@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../services/api_client.dart';
 import '../../services/app_scope.dart';
@@ -1301,6 +1302,7 @@ class _SetoranSheetState extends State<_SetoranSheet> {
   late int _juzAktif;
   late int _halMulai;
   late int _halSelesai;
+  late int _halAwalAktif; // saran halaman mulai untuk juz aktif
   String _jenis = 'ZIYADAH';
   String? _kualitas;
 
@@ -1329,6 +1331,7 @@ class _SetoranSheetState extends State<_SetoranSheet> {
     _juzAktif = _juz;
     _halMulai = (hal + 1).clamp(1, 20).toInt();
     _halSelesai = _halMulai;
+    _halAwalAktif = _halMulai;
     _halMulaiCtrl = TextEditingController(text: '$_halMulai');
     _halSelesaiCtrl = TextEditingController(text: '$_halSelesai');
   }
@@ -1339,6 +1342,20 @@ class _SetoranSheetState extends State<_SetoranSheet> {
     _halMulaiCtrl.dispose();
     _halSelesaiCtrl.dispose();
     super.dispose();
+  }
+
+  /// Ganti juz: halaman direset (juz aktif → saran awal, juz lain → 1).
+  /// Juz yang lebih lama dari juz aktif otomatis jadi Muroja'ah.
+  void _gantiJuz(int v) {
+    setState(() {
+      _juz = v;
+      final h = v == _juzAktif ? _halAwalAktif : 1;
+      _halMulai = h;
+      _halSelesai = h;
+      _halMulaiCtrl.text = '$h';
+      _halSelesaiCtrl.text = '$h';
+      if (v < _juzAktif) _jenis = 'MURAJAAH';
+    });
   }
 
   void _setHalMulai(int v) {
@@ -1360,6 +1377,11 @@ class _SetoranSheetState extends State<_SetoranSheet> {
   }
 
   Future<void> _simpan() async {
+    if (_jenis == 'ZIYADAH' && _juz < _juzAktif) {
+      setState(() => _error =
+          "Ziyadah tidak bisa di Juz $_juz karena juz aktif adalah Juz $_juzAktif. Gunakan Muroja'ah untuk mengulang juz lama.");
+      return;
+    }
     if (_kualitas == null) {
       setState(() => _error = 'Pilih kualitas setoran dulu.');
       return;
@@ -1507,8 +1529,15 @@ class _SetoranSheetState extends State<_SetoranSheet> {
                         style: _t(13, FontWeight.w600, _C.onSurface)),
                   ),
               ],
-              onChanged: _saving ? null : (v) => setState(() => _juz = v ?? _juz),
+              onChanged: _saving ? null : (v) { if (v != null) _gantiJuz(v); },
             ),
+            if (_jenis == 'ZIYADAH' && _juz < _juzAktif) ...[
+              const SizedBox(height: 6),
+              Text(
+                "Juz $_juz sudah lewat (juz aktif: Juz $_juzAktif). Pilih Muroja'ah untuk mengulang.",
+                style: _t(11.5, FontWeight.w500, _C.error),
+              ),
+            ],
             const SizedBox(height: 14),
 
             // --- Halaman mulai & selesai (bisa diketik manual + tombol +/-) ---
@@ -1558,11 +1587,19 @@ class _SetoranSheetState extends State<_SetoranSheet> {
                     ],
                   ),
                   const SizedBox(height: 4),
+                  // Font Amiri dibundel sebagai aset (lihat pubspec.yaml), bukan
+                  // diunduh via google_fonts, supaya glyph Arab selalu tersedia
+                  // di Flutter web.
                   Directionality(
                     textDirection: TextDirection.rtl,
                     child: Text('الجزء ${_angkaArab(_juz)}',
-                        style: GoogleFonts.amiri(
-                            fontSize: 26, fontWeight: FontWeight.w700, color: _C.primary, height: 1.8)),
+                        style: const TextStyle(
+                          fontFamily: 'Amiri',
+                          fontSize: 26,
+                          fontWeight: FontWeight.w700,
+                          color: _C.primary,
+                          height: 1.8,
+                        )),
                   ),
                   Text('Juz $_juz • Halaman $_rentangTeks dari 20', style: _t(13, FontWeight.w600, _C.onSurface)),
                   const SizedBox(height: 2),
@@ -1669,8 +1706,10 @@ class _SetoranSheetState extends State<_SetoranSheet> {
   }
 
   /// Stepper halaman: tombol +/- di kiri-kanan, angka di tengah bisa DIKETIK
-  /// manual (tap lalu ganti angkanya). Nilai divalidasi & di-clamp ke 1..20
-  /// saat fokus keluar dari field (onTapOutside) atau saat menekan Enter/Done.
+  /// manual (tap lalu ganti angkanya). Hanya angka 0-9 yang diterima (huruf &
+  /// hasil paste non-angka disaring), maksimal 2 digit. Nilai divalidasi &
+  /// di-clamp ke 1..20 saat fokus keluar dari field (onTapOutside) atau saat
+  /// menekan Enter/Done.
   Widget _stepper({
     required String label,
     required TextEditingController controller,
@@ -1703,6 +1742,10 @@ class _SetoranSheetState extends State<_SetoranSheet> {
                     textAlign: TextAlign.center,
                     keyboardType: TextInputType.number,
                     enabled: !_saving,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.digitsOnly, // hanya 0-9
+                      LengthLimitingTextInputFormatter(2), // maks 2 digit
+                    ],
                     style: _t(18, FontWeight.w700, _C.primary),
                     decoration: const InputDecoration(
                       border: InputBorder.none,
