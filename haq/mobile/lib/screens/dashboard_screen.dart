@@ -79,6 +79,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   // Filter untuk section "Direktori Tenant Platform" di dashboard Super Admin.
   String _tenantFilter = 'semua'; // semua | aktif | pending | suspended
 
+  // Daftar ujian (GET ApiUrl.ujian) — dipakai section "Ujian Terdekat" di beranda ustadz.
+  List<Map<String, dynamic>> _ujianList = [];
+
   @override
   void initState() {
     super.initState();
@@ -116,6 +119,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         _data = res as Map<String, dynamic>;
         _lastLoaded = DateTime.now();
       });
+      _loadUjian();
     } on ApiException catch (e) {
       if (mounted) setState(() => _error = 'ApiException: ${e.message}');
     } catch (e) {
@@ -123,6 +127,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
     } finally {
       if (mounted) setState(() => _syncing = false);
     }
+  }
+
+  /// Ambil daftar ujian untuk beranda ustadz. Gagal = diam-diam diabaikan
+  /// (section Ujian cukup tampil kosong), supaya dashboard tidak ikut error.
+  Future<void> _loadUjian() async {
+    final role = (_data?['role'] ?? '').toString();
+    if (role == 'WALI_SANTRI' || role == 'SUPER_ADMIN' || !_isUstadzUser(role)) return;
+    try {
+      final res = await AppScope.of(context).api.get(ApiUrl.ujian);
+      final items = res is List ? res : ((res as Map<String, dynamic>)['data'] as List? ?? []);
+      if (!mounted) return;
+      setState(() => _ujianList = items.whereType<Map<String, dynamic>>().toList());
+    } catch (_) {}
   }
 
   void _notAvailable() {
@@ -1555,15 +1572,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   // =========================================================================
-  // USTADZ / GURU / MUSYRIF — mengikuti desain beranda ustadz (screen.png)
+  // USTADZ / GURU — beranda ustadz (screen.png), disesuaikan dengan PRD Fase 1.
+  //
+  // PRD belum punya jadwal mengajar, jurnal, tugas penilaian, maupun
+  // pengumuman, jadi bagian itu TIDAK ditampilkan. Yang dipakai hanya yang
+  // bisa dihitung dari tabel Ustadz, Kelas, Santri, dan Absensi.
   //
   // Field yang dibaca dari GET /api/dashboard (semua null-safe):
   //   tanggalHijriah: String
-  //   jadwalHariIni: [{ jamMulai, jamSelesai, mapel, materi, kelas, ruang,
-  //                     status: BERLANGSUNG | SELESAI | BELUM }]
-  //   ringkasan: { kehadiranPersen, kehadiranKet, absensiBelum,
-  //                absensiBelumKet, nilaiBelum, nilaiBelumKet, jurnalBelum }
-  //   pengumuman: [{ judul, ringkas, waktu, baru: bool }]
+  //   tagline: String (opsional)
+  //   kelasDiampu: [{ namaKelas, mapel, tingkat, jumlahSantri,
+  //                   absensiHariIniTerisi: bool }]
+  //   ringkasan: { kehadiranPersen, kehadiranKet }
+  // Ujian TIDAK dari /api/dashboard: diambil terpisah lewat GET ApiUrl.ujian
+  // (endpoint yang sama dengan ujian_screen.dart), lalu disaring 3 terdekat.
+  // Tap kartu => _goto('Ujian').
   //
   // App bar atas (SIMPesantren + pill Ustadz + lonceng + foto) dan bottom nav
   // (Beranda, Absensi, Nilai, Tahfidz, Lainnya) milik shell utama, bukan file ini.
@@ -1572,66 +1595,66 @@ class _DashboardScreenState extends State<DashboardScreen> {
   /// Deteksi akun ustadz. API saat ini mengirim role 'TENANT' untuk semua akun
   /// lembaga, jadi pembeda dicari berlapis. Akun admin TIDAK ikut terdeteksi.
   ///  1. saklar preview (testing)
-  ///  2. role / field jabatan dari API mengandung USTADZ/GURU/MUSYRIF/ASATIDZ
-  ///  3. backend mengirim `jadwalHariIni` (payload khusus ustadz)
-bool _isUstadzUser(String role) {
-  if (kPreviewUstadz) return true;
+  ///  2. role / field jabatan dari API mengandung USTADZ/GURU/ASATIDZ/PENGAJAR
+  ///  3. backend mengirim `kelasDiampu` (payload khusus ustadz)
+  bool _isUstadzUser(String role) {
+    if (kPreviewUstadz) return true;
 
-  bool musyrif(String v) => v.toUpperCase().contains('MUSYRIF');
+    bool musyrif(String v) => v.toUpperCase().contains('MUSYRIF');
 
-  bool cocok(String v) {
-    final up = v.toUpperCase();
-    if (up.contains('ADMIN') ||
-        up.contains('MUDIR') ||
-        up.contains('PIMPINAN') ||
-        up.contains('MUSYRIF')) {
-      return false;
+    bool cocok(String v) {
+      final up = v.toUpperCase();
+      if (up.contains('ADMIN') ||
+          up.contains('MUDIR') ||
+          up.contains('PIMPINAN') ||
+          up.contains('MUSYRIF')) {
+        return false;
+      }
+      return up.contains('USTAD') ||
+          up.contains('GURU') ||
+          up.contains('ASATIDZ') ||
+          up.contains('PENGAJAR');
     }
-    return up.contains('USTAD') ||
-        up.contains('GURU') ||
-        up.contains('ASATIDZ') ||
-        up.contains('PENGAJAR');
-  }
 
-  // Kumpulkan semua nilai role/jabatan dari respons dashboard.
-  final fields = <String>[role];
-  for (final k in const ['jabatan', 'peran', 'tipeUser', 'jenisUser', 'subRole', 'roleDetail', 'posisi']) {
-    final v = _data?[k];
-    if (v is String) fields.add(v);
-  }
+    // Kumpulkan semua nilai role/jabatan dari respons dashboard.
+    final fields = <String>[role];
+    for (final k in const ['jabatan', 'peran', 'tipeUser', 'jenisUser', 'subRole', 'roleDetail', 'posisi']) {
+      final v = _data?[k];
+      if (v is String) fields.add(v);
+    }
 
-  // Kumpulkan juga dari data login (UserData) tanpa crash kalau field tidak ada.
-  final dynamic user = AppScope.of(context).user;
-  if (user != null) {
-    final getters = <dynamic Function()>[
-      () => user.role,
-      () => user.jabatan,
-      () => user.peran,
-      () => user.tipe,
-      () => user.userRole,
-    ];
-    for (final g in getters) {
-      try {
-        final v = g();
-        if (v is String) fields.add(v);
-      } catch (_) {
-        // field tidak ada di UserData — abaikan
+    // Kumpulkan juga dari data login (UserData) tanpa crash kalau field tidak ada.
+    final dynamic user = AppScope.of(context).user;
+    if (user != null) {
+      final getters = <dynamic Function()>[
+        () => user.role,
+        () => user.jabatan,
+        () => user.peran,
+        () => user.tipe,
+        () => user.userRole,
+      ];
+      for (final g in getters) {
+        try {
+          final v = g();
+          if (v is String) fields.add(v);
+        } catch (_) {
+          // field tidak ada di UserData — abaikan
+        }
       }
     }
+
+    // 1. Musyrif dicek PALING DULU, supaya tidak ikut terdeteksi lewat jalur lain
+    //    (termasuk kelasDiampu).
+    if (fields.any(musyrif)) return false;
+
+    // 2. Role/jabatan yang jelas menunjukkan ustadz/guru.
+    if (fields.any(cocok)) return true;
+
+    // 3. Payload khusus ustadz dari backend.
+    if (_data?.containsKey('kelasDiampu') == true) return true;
+
+    return false;
   }
-
-  // 1. Musyrif dicek PALING DULU, supaya tidak ikut terdeteksi lewat jalur lain
-  //    (termasuk jadwalHariIni).
-  if (fields.any(musyrif)) return false;
-
-  // 2. Role/jabatan yang jelas menunjukkan ustadz/guru.
-  if (fields.any(cocok)) return true;
-
-  // 3. Payload khusus ustadz dari backend.
-  if (_data?.containsKey('jadwalHariIni') == true) return true;
-
-  return false;
-}
 
   /// Navigasi ke tab/menu lain lewat shell; fallback snackbar kalau shell
   /// tidak memasang `onNavigate`.
@@ -1644,8 +1667,23 @@ bool _isUstadzUser(String role) {
     }
   }
 
-  List<Map<String, dynamic>> _ustadzJadwal() =>
-      ((_data!['jadwalHariIni'] as List?) ?? const []).cast<Map<String, dynamic>>();
+  List<Map<String, dynamic>> _ustadzKelas() =>
+      ((_data!['kelasDiampu'] as List?) ?? const []).cast<Map<String, dynamic>>();
+
+  /// Maksimal 3 ujian yang tanggalnya hari ini atau sesudahnya, paling dekat dulu.
+  List<Map<String, dynamic>> _ustadzUjian() {
+    final now = DateTime.now();
+    final start = DateTime(now.year, now.month, now.day);
+    final hasil = <MapEntry<DateTime, Map<String, dynamic>>>[];
+    for (final u in _ujianList) {
+      final d = DateTime.tryParse('${u['tanggal'] ?? ''}')?.toLocal();
+      if (d == null) continue;
+      if (DateTime(d.year, d.month, d.day).isBefore(start)) continue;
+      hasil.add(MapEntry(d, u));
+    }
+    hasil.sort((a, b) => a.key.compareTo(b.key));
+    return hasil.take(3).map((e) => e.value).toList();
+  }
 
   Widget _ustadzHeroHeader() {
     final nama = _pick(_data!, ['namaPengguna', 'nama', 'userName']) ??
@@ -1655,11 +1693,12 @@ bool _isUstadzUser(String role) {
     final tenantNama = AppScope.of(context).user?.tenantNama;
     final namaPondok = _pick(_data!, ['namaPondok', 'namaLembaga', 'tenantNama']) ??
         ((tenantNama != null && tenantNama.isNotEmpty) ? tenantNama : 'Lembaga Anda');
+    final tagline = _pick(_data!, ['tagline']) ?? 'TAQARRUB & KHIDMAH';
     final hijriah = _pick(_data!, ['tanggalHijriah']);
     final tanggal = _formatIndoDate(DateTime.now()) + (hijriah != null ? ' • $hijriah' : '');
 
-    final jadwal = _ustadzJadwal();
-    final selesai = jadwal.where((j) => '${j['status']}'.toUpperCase() == 'SELESAI').length;
+    final kelas = _ustadzKelas();
+    final belumAbsen = kelas.where((k) => k['absensiHariIniTerisi'] != true).length;
 
     return Container(
       clipBehavior: Clip.antiAlias,
@@ -1697,7 +1736,7 @@ bool _isUstadzUser(String role) {
                     const SizedBox(width: 6),
                     Flexible(
                       child: Text(
-                        'TAQARRUB & KHIDMAH • ${namaPondok.toUpperCase()}',
+                        '$tagline • ${namaPondok.toUpperCase()}',
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                           fontSize: 9.5,
@@ -1749,7 +1788,7 @@ bool _isUstadzUser(String role) {
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
-                        'Hari ini Anda mengajar ${jadwal.length} kelas',
+                        kelas.isEmpty ? 'Belum ada kelas yang Anda ampu' : 'Anda mengampu ${kelas.length} kelas',
                         style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: Colors.white),
                       ),
                     ),
@@ -1761,7 +1800,9 @@ bool _isUstadzUser(String role) {
                         borderRadius: BorderRadius.circular(999),
                       ),
                       child: Text(
-                        jadwal.isEmpty ? 'Tidak Ada Jadwal' : '$selesai/${jadwal.length} Selesai',
+                        kelas.isEmpty
+                            ? 'Tidak Ada Kelas'
+                            : (belumAbsen == 0 ? 'Absensi Lengkap' : '$belumAbsen Belum Absen'),
                         style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.white),
                       ),
                     ),
@@ -1798,14 +1839,12 @@ bool _isUstadzUser(String role) {
   }
 
   Widget _ustadzBody() {
-    final jadwal = _ustadzJadwal();
+    final kelas = _ustadzKelas();
+    final ujian = _ustadzUjian();
     final r = (_data!['ringkasan'] as Map?)?.cast<String, dynamic>() ?? <String, dynamic>{};
-    final pengumuman = ((_data!['pengumuman'] as List?) ?? const []).cast<Map<String, dynamic>>();
 
     final hadir = r.containsKey('kehadiranPersen') ? _num(r, ['kehadiranPersen']).round() : null;
-    final absensiBelum = _num(r, ['absensiBelum']).round();
-    final nilaiBelum = _num(r, ['nilaiBelum']).round();
-    final jurnalBelum = _num(r, ['jurnalBelum']).round();
+    final absensiBelum = kelas.where((k) => k['absensiHariIniTerisi'] != true).length;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1826,36 +1865,30 @@ bool _isUstadzUser(String role) {
             Expanded(
               child: _UQuickTile(icon: Icons.auto_stories_outlined, label: 'Tahfidz', onTap: () => _goto('Tahfidz')),
             ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _UQuickTile(icon: Icons.history_edu_outlined, label: 'Jurnal', onTap: () => _goto('Jurnal')),
-            ),
           ],
         ),
         const SizedBox(height: 22),
 
-        // ---- Jadwal Hari Ini ----
+        // ---- Kelas yang Diampu ----
         _ustadzSection(
-          'Jadwal Hari Ini',
-          badge: _UPill(label: '${jadwal.length} Kelas', bg: _WC.sage, fg: _WC.primary),
-          trailing: 'Lihat Semua',
-          onTap: () => _goto('Jadwal'),
+          'Kelas yang Diampu',
+          badge: _UPill(label: '${kelas.length} Kelas', bg: _WC.sage, fg: _WC.primary),
         ),
         const SizedBox(height: 10),
-        if (jadwal.isEmpty)
+        if (kelas.isEmpty)
           const _Card(
-            child: _EmptyRow(text: 'Tidak ada jadwal mengajar hari ini.', icon: Icons.event_available_outlined),
+            child: _EmptyRow(text: 'Belum ada kelas yang Anda ampu.', icon: Icons.meeting_room_outlined),
           )
         else
-          for (final j in jadwal)
+          for (final k in kelas)
             Padding(
               padding: const EdgeInsets.only(bottom: 10),
-              child: _UJadwalCard(jadwal: j, onMulaiAbsensi: () => _goto('Absensi')),
+              child: _UKelasCard(kelas: k, onAbsensi: () => _goto('Absensi')),
             ),
         const SizedBox(height: 12),
 
         // ---- Ringkasan ----
-        _ustadzSection('Ringkasan', trailing: 'Status Tugas Pengajar'),
+        _ustadzSection('Ringkasan', trailing: 'Hari Ini'),
         const SizedBox(height: 10),
         _TwoColGrid(
           children: [
@@ -1874,50 +1907,28 @@ bool _isUstadzUser(String role) {
               tagFg: _WC.pendingText,
               value: '$absensiBelum',
               unit: 'Kelas',
-              caption: absensiBelum > 0
-                  ? (_pick(r, ['absensiBelumKet']) ?? 'Menunggu verifikasi')
-                  : 'Semua sudah terisi',
+              caption: absensiBelum > 0 ? 'Belum diisi hari ini' : 'Semua sudah terisi',
               captionColor: absensiBelum > 0 ? _WC.errorText : _WC.successText,
-            ),
-            _USummaryCard(
-              label: 'Nilai Belum',
-              icon: Icons.rate_review_outlined,
-              iconBg: _WC.sage,
-              iconFg: _WC.primary,
-              value: '$nilaiBelum',
-              unit: 'Berkas',
-              caption: _pick(r, ['nilaiBelumKet']) ??
-                  (nilaiBelum > 0 ? 'Tugas perlu dinilai' : 'Semua sudah dinilai'),
-            ),
-            _USummaryCard(
-              label: 'Jurnal Belum',
-              tag: jurnalBelum > 0 ? 'Tertunda' : null,
-              tagBg: _WC.pendingBg,
-              tagFg: _WC.pendingText,
-              value: '$jurnalBelum',
-              unit: 'Jurnal',
-              caption: jurnalBelum > 0 ? 'Perlu diisi hari ini' : 'Semua sudah diisi',
-              captionColor: jurnalBelum > 0 ? _WC.errorText : _WC.successText,
             ),
           ],
         ),
         const SizedBox(height: 22),
 
-        // ---- Pengumuman Terbaru ----
-        _ustadzSection('Pengumuman Terbaru', trailing: 'Semua', onTap: () => _goto('Pengumuman')),
+        // ---- Ujian Terdekat (menggantikan Pengumuman Terbaru) ----
+        _ustadzSection(
+          'Ujian Terdekat',
+          badge: ujian.isEmpty ? null : _UPill(label: '${ujian.length} Ujian', bg: _WC.sage, fg: _WC.primary),
+          trailing: 'Semua',
+          onTap: () => _goto('Ujian'),
+        ),
         const SizedBox(height: 10),
-        if (pengumuman.isEmpty)
-          const _Card(child: _EmptyRow(text: 'Belum ada pengumuman.', icon: Icons.campaign_outlined))
+        if (ujian.isEmpty)
+          const _Card(child: _EmptyRow(text: 'Belum ada ujian terjadwal.', icon: Icons.quiz_outlined))
         else
-          for (final p in pengumuman)
+          for (final u in ujian)
             Padding(
               padding: const EdgeInsets.only(bottom: 10),
-              child: _UPengumumanCard(
-                judul: _pick(p, ['judul', 'title']) ?? '-',
-                ringkas: _pick(p, ['ringkas', 'isi']) ?? '',
-                waktu: _pick(p, ['waktu', 'time']) ?? '',
-                baru: p['baru'] == true,
-              ),
+              child: _UUjianCard(ujian: u, onTap: () => _goto('Ujian')),
             ),
       ],
     );
@@ -2270,10 +2281,12 @@ class _UQuickTile extends StatelessWidget {
   }
 }
 
-class _UJadwalCard extends StatelessWidget {
-  final Map<String, dynamic> jadwal;
-  final VoidCallback onMulaiAbsensi;
-  const _UJadwalCard({required this.jadwal, required this.onMulaiAbsensi});
+/// Kartu satu kelas yang diampu ustadz: nama kelas, mapel, tingkat, jumlah
+/// santri, dan status absensi hari ini.
+class _UKelasCard extends StatelessWidget {
+  final Map<String, dynamic> kelas;
+  final VoidCallback onAbsensi;
+  const _UKelasCard({required this.kelas, required this.onAbsensi});
 
   Widget _chip(IconData icon, String label) {
     return Container(
@@ -2297,119 +2310,231 @@ class _UJadwalCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     String? s(String k) {
-      final v = jadwal[k];
+      final v = kelas[k];
       return (v is String && v.trim().isNotEmpty) ? v : null;
     }
 
-    final status = (s('status') ?? 'BELUM').toUpperCase();
-    final berlangsung = status == 'BERLANGSUNG';
-    final selesai = status == 'SELESAI';
+    final nama = s('namaKelas') ?? '-';
+    final mapel = s('mapel');
+    final tingkat = s('tingkat');
+    final jumlah = kelas['jumlahSantri'];
+    final terisi = kelas['absensiHariIniTerisi'] == true;
 
-    final jam = [s('jamMulai'), s('jamSelesai')].whereType<String>().join(' - ');
-    final mapel = s('mapel') ?? '-';
-    final materi = s('materi');
-    final kelas = s('kelas');
-    final ruang = s('ruang');
-
-    final Widget pill = berlangsung
-        ? const _UPill(label: 'Berlangsung', bg: _WC.successBg, fg: _WC.successText, dot: _WC.successText)
-        : selesai
-            ? const _UPill(label: 'Selesai', bg: _WC.successBg, fg: _WC.successText)
-            : const _UPill(label: 'Belum', bg: _WC.surfaceDim, fg: _WC.inkSecondary, dot: _WC.inkSecondary);
-
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        decoration: BoxDecoration(
-          color: _WC.surface,
-          border: Border.all(color: _WC.border),
-        ),
-        child: IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: _WC.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _WC.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
             children: [
-              if (berlangsung) Container(width: 4, color: _WC.primary),
               Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.all(14),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                child: Text(nama,
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _WC.ink)),
+              ),
+              terisi
+                  ? const _UPill(label: 'Absensi Terisi', bg: _WC.successBg, fg: _WC.successText)
+                  : const _UPill(label: 'Belum Absen', bg: _WC.pendingBg, fg: _WC.pendingText, dot: _WC.pendingText),
+            ],
+          ),
+          if (mapel != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text(mapel,
+                  style: const TextStyle(fontSize: 11.5, fontStyle: FontStyle.italic, color: _WC.inkSecondary)),
+            ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    if (tingkat != null) _chip(Icons.layers_outlined, tingkat),
+                    if (jumlah != null) _chip(Icons.groups_2_outlined, '$jumlah santri'),
+                  ],
+                ),
+              ),
+              if (!terisi) ...[
+                const SizedBox(width: 8),
+                FilledButton(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: _WC.primary,
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+                  ),
+                  onPressed: onAbsensi,
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Row(
-                        children: [
-                          const Icon(Icons.schedule_rounded, size: 14, color: _WC.ink),
-                          const SizedBox(width: 5),
-                          Expanded(
-                            child: Text(
-                              jam.isEmpty ? '-' : '$jam WIB',
-                              style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: _WC.ink),
-                            ),
-                          ),
-                          pill,
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(mapel,
-                                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _WC.ink)),
-                                if (materi != null)
-                                  Padding(
-                                    padding: const EdgeInsets.only(top: 2),
-                                    child: Text(
-                                      materi,
-                                      style: const TextStyle(
-                                        fontSize: 11.5,
-                                        fontStyle: FontStyle.italic,
-                                        color: _WC.inkSecondary,
-                                      ),
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          ),
-                          if (berlangsung) ...[
-                            const SizedBox(width: 8),
-                            FilledButton(
-                              style: FilledButton.styleFrom(
-                                backgroundColor: _WC.primary,
-                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-                              ),
-                              onPressed: onMulaiAbsensi,
-                              child: const Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text('Mulai Absensi',
-                                      style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: Colors.white)),
-                                  SizedBox(width: 6),
-                                  Icon(Icons.arrow_forward, size: 14, color: Colors.white),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                      if (kelas != null || ruang != null) ...[
-                        const SizedBox(height: 10),
-                        Wrap(
-                          spacing: 6,
-                          runSpacing: 6,
-                          children: [
-                            if (kelas != null) _chip(Icons.groups_2_outlined, kelas),
-                            if (ruang != null) _chip(Icons.meeting_room_outlined, ruang),
-                          ],
-                        ),
-                      ],
+                      Text('Isi Absensi',
+                          style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: Colors.white)),
+                      SizedBox(width: 6),
+                      Icon(Icons.arrow_forward, size: 14, color: Colors.white),
                     ],
                   ),
                 ),
+              ],
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Kartu satu ujian di beranda ustadz. Field mengikuti response GET ujian
+/// (lihat ujian_screen.dart): nama, jenis, tanggal, mapel.namaMapel,
+/// kelas.namaKelas, _count.nilais, totalSantri, dikunciPada.
+class _UUjianCard extends StatelessWidget {
+  final Map<String, dynamic> ujian;
+  final VoidCallback onTap;
+  const _UUjianCard({required this.ujian, required this.onTap});
+
+  static const _bulan = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+
+  String _jenisLabel(String j) {
+    switch (j) {
+      case 'UTS':
+        return 'UTS';
+      case 'UAS':
+        return 'UAS';
+      case 'TES_TAHFIDZ':
+        return 'TES TAHFIDZ';
+      case 'LAINNYA':
+        return 'LAINNYA';
+      default:
+        return 'ULANGAN';
+    }
+  }
+
+  String? _nested(String key, String sub) {
+    final v = ujian[key];
+    if (v is Map && v[sub] != null && '${v[sub]}'.trim().isNotEmpty) return '${v[sub]}';
+    return null;
+  }
+
+  Widget _chip(IconData icon, String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: _WC.surfaceDim,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: _WC.border),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: _WC.inkSecondary),
+          const SizedBox(width: 4),
+          Text(label, style: const TextStyle(fontSize: 10.5, color: _WC.inkSecondary)),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final nama = '${ujian['nama'] ?? 'Ujian'}';
+    final jenis = _jenisLabel('${ujian['jenis'] ?? 'ULANGAN'}');
+    final mapel = _nested('mapel', 'namaMapel');
+    final kelas = _nested('kelas', 'namaKelas');
+    final terkunci = ujian['dikunciPada'] != null;
+
+    final d = DateTime.tryParse('${ujian['tanggal'] ?? ''}')?.toLocal();
+    String tanggal = '-';
+    String? sisa;
+    Color sisaBg = _WC.sage;
+    Color sisaFg = _WC.primary;
+    if (d != null) {
+      final jam = '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
+      tanggal = '${d.day} ${_bulan[d.month - 1]} ${d.year} • $jam WIB';
+      final now = DateTime.now();
+      final diff = DateTime(d.year, d.month, d.day)
+          .difference(DateTime(now.year, now.month, now.day))
+          .inDays;
+      if (diff == 0) {
+        sisa = 'Hari ini';
+        sisaBg = _WC.pendingBg;
+        sisaFg = _WC.pendingText;
+      } else if (diff == 1) {
+        sisa = 'Besok';
+        sisaBg = _WC.pendingBg;
+        sisaFg = _WC.pendingText;
+      } else if (diff > 1) {
+        sisa = '$diff hari lagi';
+      }
+    }
+
+    final nilai = (ujian['_count'] is Map ? ujian['_count']['nilais'] : null) as int? ?? 0;
+    final totalRaw = ujian['totalSantri'] ??
+        (ujian['kelas'] is Map ? ujian['kelas']['jumlahSantri'] : null);
+    final total = totalRaw is int && totalRaw > 0 ? totalRaw : null;
+    final progresText = total != null ? '$nilai/$total dinilai' : (nilai > 0 ? '$nilai dinilai' : 'Belum ada nilai');
+
+    return Material(
+      color: _WC.surface,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: _WC.border),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(color: _WC.goldSurface, borderRadius: BorderRadius.circular(12)),
+                child: const Icon(Icons.quiz_outlined, size: 20, color: _WC.gold),
               ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(tanggal,
+                              style: const TextStyle(fontSize: 10.5, color: _WC.inkSecondary)),
+                        ),
+                        if (sisa != null) _UPill(label: sisa, bg: sisaBg, fg: sisaFg),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      nama,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: _WC.ink, height: 1.3),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: [
+                        _chip(Icons.label_outline, jenis),
+                        if (mapel != null) _chip(Icons.menu_book_outlined, mapel),
+                        if (kelas != null) _chip(Icons.groups_2_outlined, kelas),
+                        _chip(terkunci ? Icons.lock_outline : Icons.assignment_turned_in_outlined, progresText),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 4),
+              const Icon(Icons.chevron_right, size: 18, color: _WC.inkSecondary),
             ],
           ),
         ),
@@ -2494,74 +2619,6 @@ class _USummaryCard extends StatelessWidget {
               fontSize: 10.5,
               fontWeight: captionColor != null ? FontWeight.w600 : FontWeight.w400,
               color: captionColor ?? _WC.inkSecondary,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _UPengumumanCard extends StatelessWidget {
-  final String judul;
-  final String ringkas;
-  final String waktu;
-  final bool baru;
-  const _UPengumumanCard({
-    required this.judul,
-    required this.ringkas,
-    required this.waktu,
-    required this.baru,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: _WC.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _WC.border),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(color: _WC.sage, borderRadius: BorderRadius.circular(12)),
-            child: const Icon(Icons.campaign_outlined, size: 20, color: _WC.primary),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(waktu, style: const TextStyle(fontSize: 10.5, color: _WC.inkSecondary)),
-                    ),
-                    if (baru) const _UPill(label: 'Baru', bg: _WC.pendingBg, fg: _WC.pendingText),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  judul,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: _WC.ink, height: 1.3),
-                ),
-                if (ringkas.isNotEmpty) ...[
-                  const SizedBox(height: 3),
-                  Text(
-                    ringkas,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 11.5, color: _WC.inkSecondary),
-                  ),
-                ],
-              ],
             ),
           ),
         ],
