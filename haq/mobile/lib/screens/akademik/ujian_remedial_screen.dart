@@ -285,6 +285,7 @@ class _UjianRemedialScreenState extends State<UjianRemedialScreen> {
 
   String get _kkmText =>
       _kkm == _kkm.roundToDouble() ? _kkm.toStringAsFixed(0) : _kkm.toStringAsFixed(1);
+        bool get _terkunci => _ujian['dikunciPada'] != null;
 
   List<Map<String, dynamic>> get _nilais => _listOf(_data?['nilais']);
 
@@ -425,6 +426,10 @@ class _UjianRemedialScreenState extends State<UjianRemedialScreen> {
   Future<void> _save() async {
     final r = _selected;
     if (r == null) return;
+    if (_terkunci) {
+      _msg('Nilai ujian dikunci. Buka kunci di halaman Detail Ujian untuk mengubah.');
+      return;
+    }
 
     final ket = _ketCtrl.text.trim();
     if (ket.isEmpty) {
@@ -556,6 +561,7 @@ class _UjianRemedialScreenState extends State<UjianRemedialScreen> {
       children: [
         _titleBlock(),
         const SizedBox(height: 14),
+        if (_terkunci) ...[_kunciInfo(), const SizedBox(height: 14)],
         _jadwalCard(rows),
         const SizedBox(height: 14),
         SingleChildScrollView(
@@ -1009,9 +1015,9 @@ class _UjianRemedialScreenState extends State<UjianRemedialScreen> {
                 Row(
                   children: [
                     Expanded(
-                      child: _btn('Jadwalkan Ulang',
+                          child: _btn('Jadwalkan Ulang',
                           icon: Icons.calendar_month_outlined,
-                          onTap: _saving ? null : _pickJadwal),
+                          onTap: (_saving || _terkunci) ? null : _pickJadwal),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
@@ -1019,7 +1025,7 @@ class _UjianRemedialScreenState extends State<UjianRemedialScreen> {
                           primary: true,
                           icon: Icons.check_circle_outline,
                           loading: _saving,
-                          onTap: _saving ? null : _save),
+                          onTap: (_saving || _terkunci) ? null : _save),
                     ),
                   ],
                 ),
@@ -1320,6 +1326,27 @@ class _UjianRemedialScreenState extends State<UjianRemedialScreen> {
         return null;
     }
   }
+
+    Widget _kunciInfo() => Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: _C.goldSoft,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: _C.goldBorder),
+        ),
+        child: const Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.lock_outline, size: 18, color: _C.goldText),
+            SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                  'Nilai ujian ini sudah dikunci. Buka kunci di halaman Detail Ujian (alasan wajib diisi) jika perlu perbaikan.',
+                  style: TextStyle(fontSize: 12, height: 1.35, color: _C.goldText)),
+            ),
+          ],
+        ),
+      );
 
   // ── Komponen kecil ──
   Widget _smallBtn(String label, IconData icon,

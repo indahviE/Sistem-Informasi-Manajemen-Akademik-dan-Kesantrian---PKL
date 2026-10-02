@@ -94,6 +94,19 @@ String _initials(String nama) {
   return (parts.first[0] + parts[1][0]).toUpperCase();
 }
 
+String _labelKehadiran(String s) {
+  switch (s.toUpperCase()) {
+    case 'SAKIT':
+      return 'Sakit';
+    case 'IZIN':
+      return 'Izin';
+    case 'ALPA':
+      return 'Alpa';
+    default:
+      return 'Susulan';
+  }
+}
+
 List<Map<String, dynamic>> _listOf(dynamic v) =>
     ((v as List?) ?? []).whereType<Map<String, dynamic>>().toList();
 
@@ -121,6 +134,7 @@ class _UjianInputScreenState extends State<UjianInputScreen> {
   final _nilaiCtrl = TextEditingController();
   final _catCtrl = TextEditingController();
   bool _savingNilai = false;
+  String _kehadiran = 'HADIR';
 
   final _step2Key = GlobalKey();
 
@@ -191,6 +205,7 @@ class _UjianInputScreenState extends State<UjianInputScreen> {
 
   String get _kkmText =>
       _kkm == _kkm.roundToDouble() ? _kkm.toStringAsFixed(0) : _kkm.toStringAsFixed(1);
+        bool get _terkunci => _ujian['dikunciPada'] != null;
 
   /// Daftar santri di kelas ujian ini.
   List<Map<String, dynamic>> get _santris {
@@ -230,13 +245,19 @@ class _UjianInputScreenState extends State<UjianInputScreen> {
 
   // ───────────────────────────── AKSI ─────────────────────────────
 
-  void _select(Map<String, dynamic> s) {
+    void _select(Map<String, dynamic> s) {
+    if (_terkunci) {
+      _msg('Nilai ujian dikunci. Buka kunci di halaman Detail Ujian untuk mengubah.');
+      return;
+    }
     final existing = _nilaiOf(s['id']);
     setState(() {
       _selected = s;
+      _kehadiran = '${existing?['status'] ?? 'HADIR'}'.toUpperCase();
       _nilaiCtrl.text = existing == null ? '' : _fmtNum(existing['nilai']);
       _catCtrl.text = '${existing?['catatan'] ?? ''}';
     });
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final c = _step2Key.currentContext;
       if (c != null) {
@@ -247,18 +268,24 @@ class _UjianInputScreenState extends State<UjianInputScreen> {
   }
 
   void _clearSelection() {
-    setState(() {
+      setState(() {
       _selected = null;
+      _kehadiran = 'HADIR';
       _nilaiCtrl.clear();
       _catCtrl.clear();
     });
   }
 
   Future<void> _saveNilai() async {
-    final s = _selected;
-    final v = _nilaiVal;
+        final s = _selected;
     if (s == null) return;
-    if (v == null) {
+    if (_terkunci) {
+      _msg('Nilai ujian dikunci. Buka kunci di halaman Detail Ujian untuk mengubah.');
+      return;
+    }
+    final hadir = _kehadiran == 'HADIR';
+    final v = _nilaiVal;
+    if (hadir && v == null) {
       _msg('Masukkan nilai antara 0 – 100.');
       return;
     }
@@ -266,14 +293,17 @@ class _UjianInputScreenState extends State<UjianInputScreen> {
     try {
       await AppScope.of(context).api.post('${ApiUrl.ujian}/$_id/nilai', {
         'santriId': s['id'],
-        'nilai': v,
+        'status': _kehadiran,
+        if (hadir) 'nilai': v,
         'catatan': _catCtrl.text.trim(),
       });
       await _load(silent: true);
       if (!mounted) return;
-      _msg(v >= _kkm
-          ? 'Nilai ${s['nama']} tersimpan.'
-          : 'Nilai ${s['nama']} tersimpan (belum tuntas).');
+      _msg(!hadir
+          ? '${s['nama']} dicatat ${_labelKehadiran(_kehadiran).toLowerCase()} (jalur susulan).'
+          : ((v ?? 0) >= _kkm
+              ? 'Nilai ${s['nama']} tersimpan.'
+              : 'Nilai ${s['nama']} tersimpan (belum tuntas).'));
       _clearSelection();
     } on ApiException catch (e) {
       if (mounted) _msg(e.message);
@@ -359,6 +389,7 @@ class _UjianInputScreenState extends State<UjianInputScreen> {
       children: [
         _flowHeader(),
         const SizedBox(height: 12),
+        if (_terkunci) ...[_kunciInfo(), const SizedBox(height: 12)],
         _step1(),
         if (_selected != null) ...[
           const SizedBox(height: 12),
@@ -550,11 +581,16 @@ class _UjianInputScreenState extends State<UjianInputScreen> {
     final kelas = '${s['kelas']?['namaKelas'] ?? _kelasNama}';
 
     Widget status;
-    if (n != null) {
-      final v = (n['nilai'] as num).toDouble();
-      status = v >= _kkm
-          ? _pill('Dinilai ${_fmtNum(v)}', _C.okBg, _C.okFg, bd: _C.okBd, fs: 10)
-          : _pill('Dinilai ${_fmtNum(v)}', _C.badBg, _C.badFg, bd: _C.badBd, fs: 10);
+      if (n != null) {
+      final v = n['nilai'] is num ? (n['nilai'] as num).toDouble() : null;
+      if (v == null) {
+        status = _pill(_labelKehadiran('${n['status']}'), _C.goldChip, _C.goldText,
+            bd: _C.goldBorder, fs: 10);
+      } else {
+        status = v >= _kkm
+            ? _pill('Dinilai ${_fmtNum(v)}', _C.okBg, _C.okFg, bd: _C.okBd, fs: 10)
+            : _pill('Dinilai ${_fmtNum(v)}', _C.badBg, _C.badFg, bd: _C.badBd, fs: 10);
+      }
     } else if (sel) {
       status = _pill('Belum Dinilai', _C.goldChip, _C.goldText, fs: 10);
     } else {
@@ -629,6 +665,7 @@ class _UjianInputScreenState extends State<UjianInputScreen> {
     final hasText = _nilaiCtrl.text.trim().isNotEmpty;
     final below = v != null && v < _kkm;
     final ok = v != null && v >= _kkm;
+    final hadir = _kehadiran == 'HADIR';
 
     return Container(
       key: _step2Key,
@@ -641,116 +678,125 @@ class _UjianInputScreenState extends State<UjianInputScreen> {
               trailing: _pill('${s['nama']}', _C.chipGray, _C.ink2,
                   fs: 10, icon: Icons.person_outline)),
           const SizedBox(height: 16),
-          Row(
-            children: [
-              const Expanded(
-                child: Text('Nilai Capaian Santri (Skala 0-100)',
-                    style: TextStyle(fontSize: 12, color: _C.ink2)),
-              ),
-              if (below) _pill('Belum Tuntas', _C.badBg, _C.badFg, bd: _C.badBd, fs: 10),
-              if (ok)
-                _pill('Tuntas (${_grade(v, _kkm)})', _C.okBg, _C.okFg, bd: _C.okBd, fs: 10),
-            ],
-          ),
+          const Text('Kehadiran saat ujian',
+              style: TextStyle(fontSize: 12, color: _C.ink2)),
           const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            decoration: BoxDecoration(
-              color: below ? _C.badField : _C.fieldFill,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: below ? _C.badBd : Colors.transparent),
-            ),
-            child: Row(
+          _kehadiranPicker(),
+          const SizedBox(height: 14),
+          if (!hadir)
+            _infoSusulan()
+          else ...[
+            Row(
               children: [
-                Expanded(
-                  child: TextField(
-                    controller: _nilaiCtrl,
-                    onChanged: (_) => setState(() {}),
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    inputFormatters: [
-                      FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
-                      LengthLimitingTextInputFormatter(5),
-                    ],
-                    style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w800,
-                        color: below ? _C.badFg : (ok ? _C.okFg : _C.ink)),
-                    decoration: const InputDecoration(
-                      hintText: '0',
-                      hintStyle: TextStyle(color: _C.ink2),
-                      border: InputBorder.none,
-                      contentPadding: EdgeInsets.symmetric(vertical: 14),
-                    ),
-                  ),
+                const Expanded(
+                  child: Text('Nilai Capaian Santri (Skala 0-100)',
+                      style: TextStyle(fontSize: 12, color: _C.ink2)),
                 ),
-                Text('KKM: $_kkmText',
-                    style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: below ? _C.badFg : _C.ink2)),
-                if (below) ...[
-                  const SizedBox(width: 4),
-                  const Icon(Icons.warning_amber_rounded, size: 18, color: _C.badFg),
-                ],
-                if (ok) ...[
-                  const SizedBox(width: 4),
-                  const Icon(Icons.check_circle_outline, size: 18, color: _C.okFg),
-                ],
+                if (below) _pill('Belum Tuntas', _C.badBg, _C.badFg, bd: _C.badBd, fs: 10),
+                if (ok)
+                  _pill('Tuntas (${_grade(v, _kkm)})', _C.okBg, _C.okFg, bd: _C.okBd, fs: 10),
               ],
             ),
-          ),
-          if (hasText && v == null)
-            const Padding(
-              padding: EdgeInsets.only(top: 6),
-              child: Text('Nilai harus antara 0 sampai 100.',
-                  style: TextStyle(fontSize: 11.5, color: _C.badFg)),
-            ),
-          if (below) ...[
-            const SizedBox(height: 10),
+            const SizedBox(height: 8),
             Container(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.symmetric(horizontal: 14),
               decoration: BoxDecoration(
-                color: _C.badBg,
+                color: below ? _C.badField : _C.fieldFill,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: _C.badBd),
+                border: Border.all(color: below ? _C.badBd : Colors.transparent),
               ),
               child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(Icons.warning_amber_rounded, size: 16, color: _C.badFg),
-                  const SizedBox(width: 8),
                   Expanded(
-                    child: Text.rich(
-                      TextSpan(
-                        style: const TextStyle(fontSize: 12, color: _C.badFg, height: 1.35),
-                        children: [
-                          const TextSpan(text: 'Nilai '),
-                          TextSpan(
-                              text: _fmtNum(v),
-                              style: const TextStyle(fontWeight: FontWeight.w800)),
-                          TextSpan(
-                              text:
-                                  ' di bawah batas KKM ($_kkmText). Santri akan masuk daftar remedial.'),
-                        ],
+                    child: TextField(
+                      controller: _nilaiCtrl,
+                      onChanged: (_) => setState(() {}),
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
+                        LengthLimitingTextInputFormatter(5),
+                      ],
+                      style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w800,
+                          color: below ? _C.badFg : (ok ? _C.okFg : _C.ink)),
+                      decoration: const InputDecoration(
+                        hintText: '0',
+                        hintStyle: TextStyle(color: _C.ink2),
+                        border: InputBorder.none,
+                        contentPadding: EdgeInsets.symmetric(vertical: 14),
                       ),
                     ),
                   ),
+                  Text('KKM: $_kkmText',
+                      style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: below ? _C.badFg : _C.ink2)),
+                  if (below) ...[
+                    const SizedBox(width: 4),
+                    const Icon(Icons.warning_amber_rounded, size: 18, color: _C.badFg),
+                  ],
+                  if (ok) ...[
+                    const SizedBox(width: 4),
+                    const Icon(Icons.check_circle_outline, size: 18, color: _C.okFg),
+                  ],
                 ],
               ),
             ),
-          ],
-          const SizedBox(height: 14),
-          const Text('Pilihan Cepat Nilai Preset:',
-              style: TextStyle(fontSize: 12, color: _C.ink2)),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              for (final p in (<int>{..._presets, _kkm.round()}.toList()..sort()))
-                _presetChip(p, v),
+            if (hasText && v == null)
+              const Padding(
+                padding: EdgeInsets.only(top: 6),
+                child: Text('Nilai harus antara 0 sampai 100.',
+                    style: TextStyle(fontSize: 11.5, color: _C.badFg)),
+              ),
+            if (below) ...[
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: _C.badBg,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: _C.badBd),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(Icons.warning_amber_rounded, size: 16, color: _C.badFg),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text.rich(
+                        TextSpan(
+                          style: const TextStyle(fontSize: 12, color: _C.badFg, height: 1.35),
+                          children: [
+                            const TextSpan(text: 'Nilai '),
+                            TextSpan(
+                                text: _fmtNum(v),
+                                style: const TextStyle(fontWeight: FontWeight.w800)),
+                            TextSpan(
+                                text:
+                                    ' di bawah batas KKM ($_kkmText). Santri akan masuk daftar remedial.'),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ],
-          ),
+            const SizedBox(height: 14),
+            const Text('Pilihan Cepat Nilai Preset:',
+                style: TextStyle(fontSize: 12, color: _C.ink2)),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final p in (<int>{..._presets, _kkm.round()}.toList()..sort()))
+                  _presetChip(p, v),
+              ],
+            ),
+          ],
           const SizedBox(height: 14),
           const Text('Catatan Penguji / Evaluasi (Opsional)',
               style: TextStyle(fontSize: 12, color: _C.ink2)),
@@ -777,6 +823,80 @@ class _UjianInputScreenState extends State<UjianInputScreen> {
     );
   }
 
+    Widget _kehadiranPicker() {
+    const opsi = [
+      ['HADIR', 'Hadir'],
+      ['SAKIT', 'Sakit'],
+      ['IZIN', 'Izin'],
+      ['ALPA', 'Alpa'],
+    ];
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        for (final o in opsi)
+          GestureDetector(
+            onTap: _savingNilai ? null : () => setState(() => _kehadiran = o[0]),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: BoxDecoration(
+                color: _kehadiran == o[0] ? _C.emerald : _C.chipGray,
+                borderRadius: BorderRadius.circular(99),
+              ),
+              child: Text(o[1],
+                  style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: _kehadiran == o[0] ? FontWeight.w700 : FontWeight.w500,
+                      color: _kehadiran == o[0] ? Colors.white : _C.ink)),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _infoSusulan() => Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: _C.goldSoft,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: _C.goldBorder),
+        ),
+        child: const Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.info_outline, size: 16, color: _C.goldText),
+            SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                  'Santri tidak ikut ujian. Nilai dikosongkan dan santri masuk jalur ujian susulan, bukan remedial.',
+                  style: TextStyle(fontSize: 12, height: 1.35, color: _C.goldText)),
+            ),
+          ],
+        ),
+      );
+
+  Widget _kunciInfo() => Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: _C.goldSoft,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: _C.goldBorder),
+        ),
+        child: const Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.lock_outline, size: 18, color: _C.goldText),
+            SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                  'Nilai ujian ini sudah dikunci. Buka kunci di halaman Detail Ujian (alasan wajib diisi) jika perlu perbaikan.',
+                  style: TextStyle(fontSize: 12, height: 1.35, color: _C.goldText)),
+            ),
+          ],
+        ),
+      );
+
+  
   Widget _presetChip(int p, double? current) {
     final sel = current != null && current == p.toDouble();
     final isKkm = p == _kkm.round();
