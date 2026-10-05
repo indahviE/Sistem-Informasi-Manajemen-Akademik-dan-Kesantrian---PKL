@@ -3,18 +3,22 @@ import 'package:flutter/services.dart';
 import '../../services/api_client.dart';
 import '../../services/app_scope.dart';
 import '../ui_utils.dart';
+import '../santri/santri_ui.dart' show SC;
 
 /// Palet sama dengan `_AC` di absensi_screen.dart.
+/// Warna utama (primary, mint, sage) ikut tema pondok yang diatur admin.
 class _NC {
   _NC._();
 
-  static const primary = Color(0xFF0F3A2E);
-  static const primaryGradientEnd = Color(0xFF164E3D);
+  // Ikut tema pondok (diatur admin).
+  static Color get primary => SC.primary;
+  static Color get primaryGradientEnd => SC.primaryEnd;
+  static Color get mint => SC.mint;
+  static Color get sage => SC.sage;
+
   static const gold = Color(0xFFC5A059);
   static const goldSurface = Color(0xFFFAF5EC);
   static const goldDark = Color(0xFF7A5B10);
-  static const mint = Color(0xFFD2E4DC);
-  static const sage = Color(0xFFE2ECE9);
 
   static const background = Color(0xFFFAF9F5);
   static const surface = Color(0xFFFFFFFF);
@@ -323,7 +327,7 @@ class _NilaiScreenState extends State<NilaiScreen> {
                             color: _NC.ink,
                           )),
                       trailing: it.key == selectedId
-                          ? const Icon(Icons.check_circle, color: _NC.primary, size: 20)
+                          ? Icon(Icons.check_circle, color: _NC.primary, size: 20)
                           : null,
                       onTap: () {
                         Navigator.pop(ctx);
@@ -578,7 +582,7 @@ class _NilaiScreenState extends State<NilaiScreen> {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
+        gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [_NC.primary, _NC.primaryGradientEnd],
@@ -910,9 +914,9 @@ class _NilaiScreenState extends State<NilaiScreen> {
                   width: 46,
                   height: 46,
                   alignment: Alignment.center,
-                  decoration: const BoxDecoration(color: _NC.sage, shape: BoxShape.circle),
+                  decoration: BoxDecoration(color: _NC.sage, shape: BoxShape.circle),
                   child: Text(((r['nilai'] as num?) ?? 0).toStringAsFixed(0),
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _NC.primary)),
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _NC.primary)),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -977,8 +981,8 @@ class _NilaiScreenState extends State<NilaiScreen> {
                           ],
                           const SizedBox(height: 14),
                           if (_loadingSantri)
-                            const Padding(
-                              padding: EdgeInsets.all(24),
+                            Padding(
+                              padding: const EdgeInsets.all(24),
                               child: Center(child: CircularProgressIndicator(color: _NC.primary)),
                             )
                           else if (total == 0)

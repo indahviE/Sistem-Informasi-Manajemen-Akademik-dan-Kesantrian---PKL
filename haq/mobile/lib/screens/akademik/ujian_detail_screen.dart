@@ -5,12 +5,15 @@ import 'ujian_input_screen.dart';
 import 'ujian_remedial_screen.dart';
 import '../../services/app_scope.dart';
 import '../ui_utils.dart';
+import '../santri/santri_ui.dart' show SC;
 
 // Halaman Detail Ujian (mandiri: tidak bergantung pada file ujian lain).
 
 class _C {
-  static const emerald = Color(0xFF0F3A2E);
-  static const emeraldMid = Color(0xFF164E3D);
+  // Ikut tema pondok (diatur admin).
+  static Color get emerald => SC.primary;
+  static Color get emeraldMid => SC.primaryEnd;
+
   static const gold = Color(0xFFC5A059);
   static const goldSoft = Color(0xFFFAF5EC);
   static const goldBorder = Color(0xFFE7D2A7);
@@ -77,7 +80,7 @@ _JenisStyle _jenisStyle(String j) {
   const goldIconBg = Color(0xFFFDEFD3);
   switch (j) {
     case 'UAS':
-      return const _JenisStyle(_C.emerald, Colors.white, 'UAS', 'UJIAN AKHIR SEMESTER',
+      return _JenisStyle(_C.emerald, Colors.white, 'UAS', 'UJIAN AKHIR SEMESTER',
           Icons.menu_book_outlined, _C.chipGray, _C.ink);
     case 'UTS':
       return const _JenisStyle(Color(0xFFFED488), _C.goldText, 'UTS', 'UJIAN TENGAH SEMESTER',
@@ -568,7 +571,7 @@ class _UjianDetailScreenState extends State<UjianDetailScreen> {
                 borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
             focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: _C.emerald, width: 2)),
+                borderSide: BorderSide(color: _C.emerald, width: 2)),
           ),
         ),
         const SizedBox(height: 10),
@@ -665,7 +668,7 @@ class _UjianDetailScreenState extends State<UjianDetailScreen> {
       clipBehavior: Clip.antiAlias,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
+        gradient: LinearGradient(
             colors: [_C.emerald, _C.emeraldMid],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight),

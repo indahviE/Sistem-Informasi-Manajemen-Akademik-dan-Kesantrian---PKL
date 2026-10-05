@@ -39,6 +39,7 @@ class AuthState extends ChangeNotifier {
         _user = null;
       }
     }
+    if (_user != null) await _loadBranding(); // BARU: muat warna pondok saat app dibuka ulang
     _initialized = true;
     notifyListeners();
   }
@@ -70,7 +71,10 @@ class AuthState extends ChangeNotifier {
         _brandingColor = Color(int.parse(hex.replaceFirst('#', 'FF'), radix: 16));
       }
       if (logo != null && logo.isNotEmpty) _brandingLogo = logo;
-    } catch (_) {}
+    } catch (e) {
+      // UBAH (sementara, untuk cek): tampilkan error kalau server menolak
+      debugPrint('Gagal muat branding: $e');
+    }
   }
 
   Future<void> refreshBranding() async {

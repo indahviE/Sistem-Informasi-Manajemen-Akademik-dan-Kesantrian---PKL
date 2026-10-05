@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../services/api_client.dart';
 import '../../services/app_scope.dart';
 import '../ui_utils.dart';
+import '../santri/santri_ui.dart' show SC;
 
 // ---------------------------------------------------------------------------
 // Token desain SIMPesantren Ustadz (DESIGN.md referensi Stitch)
@@ -14,10 +15,13 @@ import '../ui_utils.dart';
 class _C {
   static const canvas = Color(0xFFFAF9F5);
   static const surface = Color(0xFFFFFFFF);
-  static const primary = Color(0xFF0F3A2E);
-  static const primaryContainer = Color(0xFF1B4D3E);
-  static const onPrimaryContainer = Color(0xFF7AA494);
-  static const tertiaryFixed = Color(0xFFD5E7DF);
+
+  // Ikut tema pondok (diatur admin).
+  static Color get primary => SC.primary;
+  static Color get primaryContainer => SC.primaryEnd;
+  static Color get onPrimaryContainer => Color.lerp(SC.primary, Colors.white, 0.5)!;
+  static Color get tertiaryFixed => SC.mint;
+
   static const tertiaryFixedDim = Color(0xFFB9CAC3);
   static const secondary = Color(0xFF775A19);
   static const secondaryContainer = Color(0xFFFED488);
@@ -497,7 +501,7 @@ class _TahfidzScreenState extends State<TahfidzScreen> {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.menu_book_outlined, size: 14, color: _C.primary),
+                          Icon(Icons.menu_book_outlined, size: 14, color: _C.primary),
                           const SizedBox(width: 6),
                           Text('Bimbingan Halaqah Tahfidz', style: _lb(11, FontWeight.w600, _C.primary)),
                         ],
@@ -715,7 +719,7 @@ class _TahfidzScreenState extends State<TahfidzScreen> {
         enabledBorder: border,
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: _C.primary),
+          borderSide: BorderSide(color: _C.primary),
         ),
       ),
     );
@@ -771,7 +775,7 @@ class _TahfidzScreenState extends State<TahfidzScreen> {
               children: [
                 Text('Urutkan: ${_urut == 'nama' ? 'Nama' : 'Progres'}',
                     style: _lb(11, FontWeight.w600, _C.primary)),
-                const Icon(Icons.expand_more, size: 16, color: _C.primary),
+                Icon(Icons.expand_more, size: 16, color: _C.primary),
               ],
             ),
           ),
@@ -1169,7 +1173,7 @@ class _SantriCard extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text("Mutaba'ah", style: _lb(11, FontWeight.w500, _C.primary)),
-                        const Icon(Icons.chevron_right, size: 14, color: _C.primary),
+                        Icon(Icons.chevron_right, size: 14, color: _C.primary),
                       ],
                     ),
                   ),
@@ -1189,11 +1193,11 @@ class _SantriCard extends StatelessWidget {
                             text: kualitas.isEmpty ? '-' : kualitas,
                             style: _lb(11, FontWeight.w700, _C.primary)),
                         if (t != null)
-                        TextSpan(
-                          text: t['jenis'] == 'MURAJAAH'
-                              ? " • Muroja'ah • Juz ${t['juz']} hal. ${_rentang(t)}"
-                              : ' • Juz ${t['juz']} hal. ${_rentang(t)}',
-                        ),
+                          TextSpan(
+                            text: t['jenis'] == 'MURAJAAH'
+                                ? " • Muroja'ah • Juz ${t['juz']} hal. ${_rentang(t)}"
+                                : ' • Juz ${t['juz']} hal. ${_rentang(t)}',
+                          ),
                       ],
                     ),
                     maxLines: 1,
@@ -1494,7 +1498,7 @@ class _SetoranSheetState extends State<_SetoranSheet> {
                           ),
                         ),
                         selected: _jenis == j[0],
-                        // Warna lebih tegas (hijau tua solid) supaya jelas dibedakan
+                        // Warna lebih tegas (warna tema solid) supaya jelas dibedakan
                         // dari warna tidak-terpilih, tidak pucat seperti sebelumnya.
                         selectedColor: _C.primaryContainer,
                         backgroundColor: _C.surface,
@@ -1593,7 +1597,7 @@ class _SetoranSheetState extends State<_SetoranSheet> {
                   Directionality(
                     textDirection: TextDirection.rtl,
                     child: Text('الجزء ${_angkaArab(_juz)}',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontFamily: 'Amiri',
                           fontSize: 26,
                           fontWeight: FontWeight.w700,
@@ -1614,7 +1618,7 @@ class _SetoranSheetState extends State<_SetoranSheet> {
               decoration: BoxDecoration(color: _C.container.withOpacity(0.6), borderRadius: BorderRadius.circular(12)),
               child: Row(
                 children: [
-                  const Icon(Icons.calendar_month_outlined, size: 18, color: _C.primary),
+                  Icon(Icons.calendar_month_outlined, size: 18, color: _C.primary),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(_tglLengkap(DateTime.now()), style: _t(13, FontWeight.w500, _C.onSurface)),
@@ -1787,7 +1791,7 @@ class _SetoranSheetState extends State<_SetoranSheet> {
       enabledBorder: b,
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: _C.primary),
+        borderSide: BorderSide(color: _C.primary),
       ),
     );
   }

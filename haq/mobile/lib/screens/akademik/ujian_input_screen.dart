@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import '../../services/api_client.dart';
 import '../../services/app_scope.dart';
 import '../ui_utils.dart';
+import '../santri/santri_ui.dart' show SC;
 
 // Halaman Input Nilai (mandiri: tidak bergantung pada file ujian lain).
 //
@@ -10,7 +11,9 @@ import '../ui_utils.dart';
 // Remedial dikerjakan di halaman tersendiri.
 
 class _C {
-  static const emerald = Color(0xFF0F3A2E);
+  // Ikut tema pondok (diatur admin).
+  static Color get emerald => SC.primary;
+
   static const gold = Color(0xFFC5A059);
   static const goldSoft = Color(0xFFFAF5EC);
   static const goldChip = Color(0xFFFDEFD3);
@@ -519,7 +522,7 @@ class _UjianInputScreenState extends State<UjianInputScreen> {
                   borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
               focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: _C.emerald, width: 2)),
+                  borderSide: BorderSide(color: _C.emerald, width: 2)),
             ),
           ),
           const SizedBox(height: 10),
@@ -535,7 +538,7 @@ class _UjianInputScreenState extends State<UjianInputScreen> {
                 child: TextButton(
                   onPressed: () => setState(() => _showAll = true),
                   child: Text('Tampilkan semua (${filtered.length})',
-                      style: const TextStyle(
+                      style: TextStyle(
                           fontSize: 12.5, fontWeight: FontWeight.w700, color: _C.emerald)),
                 ),
               ),
@@ -637,7 +640,7 @@ class _UjianInputScreenState extends State<UjianInputScreen> {
                         ),
                         if (sel) ...[
                           const SizedBox(width: 4),
-                          const Icon(Icons.verified_outlined, size: 15, color: _C.emerald),
+                          Icon(Icons.verified_outlined, size: 15, color: _C.emerald),
                         ],
                       ],
                     ),
@@ -938,7 +941,7 @@ class _UjianInputScreenState extends State<UjianInputScreen> {
               borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
           focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: _C.emerald, width: 2)),
+              borderSide: BorderSide(color: _C.emerald, width: 2)),
         ),
       );
 

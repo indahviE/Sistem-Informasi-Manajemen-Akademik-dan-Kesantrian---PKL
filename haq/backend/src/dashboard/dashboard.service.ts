@@ -57,9 +57,11 @@ export class DashboardService {
     }
 
     const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
-    const tomorrowStart = new Date(todayStart);
-    tomorrowStart.setDate(tomorrowStart.getDate() + 1);
+  todayStart.setHours(0, 0, 0, 0);
+  const tomorrowStart = new Date(todayStart);
+  tomorrowStart.setDate(tomorrowStart.getDate() + 1);
+
+const jumlahMapel = await this.prisma.mataPelajaran.count({ where: { tenantId } });
 
     const absensiHariIni = await this.prisma.absensi.findMany({
       where: {
@@ -67,8 +69,18 @@ export class DashboardService {
         kelasId: { in: kelasList.map((k) => k.id) },
         tanggal: { gte: todayStart, lt: tomorrowStart },
       },
-      select: { kelasId: true, status: true },
+      select: { kelasId: true, mapelId: true, status: true },
     });
+
+    // kelasId -> kumpulan mapelId berbeda yang sudah direkap hari ini
+    const mapelTerisiPerKelas = new Map<string, Set<string>>();
+    for (const a of absensiHariIni) {
+      if (!a.mapelId) continue;
+      if (!mapelTerisiPerKelas.has(a.kelasId)) {
+        mapelTerisiPerKelas.set(a.kelasId, new Set());
+      }
+      mapelTerisiPerKelas.get(a.kelasId)!.add(a.mapelId);
+    }
 
     const kelasTerisi = new Set(absensiHariIni.map((a) => a.kelasId));
 
@@ -79,6 +91,8 @@ export class DashboardService {
       tingkat: k.tingkat,
       jumlahSantri: k._count.santris,
       absensiHariIniTerisi: kelasTerisi.has(k.id),
+      jumlahMapel,
+      mapelTerisiHariIni: mapelTerisiPerKelas.get(k.id)?.size ?? 0,
     }));
 
     const total = absensiHariIni.length;

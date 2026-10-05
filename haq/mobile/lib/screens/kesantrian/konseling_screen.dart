@@ -2,13 +2,16 @@ import 'package:flutter/material.dart';
 import '../../services/api_client.dart';
 import '../../services/app_scope.dart';
 import '../ui_utils.dart';
+import '../santri/santri_ui.dart' show SC;
 
 /// Palet sama dengan `_NC` di nilai_screen.dart (+ token status kesantrian dari DESIGN.md).
 class _KC {
   _KC._();
 
-  static const primary = Color(0xFF0F3A2E);
-  static const primaryGradientEnd = Color(0xFF164E3D);
+  // Ikut tema pondok (diatur admin).
+  static Color get primary => SC.primary;
+  static Color get primaryGradientEnd => SC.primaryEnd;
+
   static const gold = Color(0xFFC5A059);
   static const goldDark = Color(0xFF7A5B10);
   static const sage = Color(0xFFE2ECE9);
@@ -1017,7 +1020,7 @@ class _DetailSheet extends StatelessWidget {
                     margin: const EdgeInsets.only(bottom: 12),
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(20),
-                      gradient: const LinearGradient(
+                      gradient: LinearGradient(
                         colors: [_KC.primary, _KC.primaryGradientEnd],
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
@@ -1039,7 +1042,7 @@ class _DetailSheet extends StatelessWidget {
                                 border: Border.all(color: Colors.white24, width: 2),
                               ),
                               child: Text(_initials(nama),
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                       fontSize: 24, fontWeight: FontWeight.w800, color: _KC.primary)),
                             ),
                             const SizedBox(width: 14),
@@ -1216,7 +1219,7 @@ class _DetailSheet extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(color: _KC.surfaceContainer, borderRadius: BorderRadius.circular(12)),
-                    child: const Row(
+                    child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Icon(Icons.verified_outlined, size: 18, color: _KC.primary),
@@ -1546,7 +1549,7 @@ class _FormSheetState extends State<_FormSheet> {
                       subtitle: Text(u['jenis'] == 'MUSYRIF' ? 'Musyrif' : 'Guru',
                           style: const TextStyle(fontSize: 12, color: _KC.inkSecondary)),
                       trailing: u['id'] == _konselorId
-                          ? const Icon(Icons.check_circle, color: _KC.primary, size: 20)
+                          ? Icon(Icons.check_circle, color: _KC.primary, size: 20)
                           : null,
                       onTap: () => Navigator.pop(ctx, u['id'] as String),
                     ),
@@ -1922,7 +1925,7 @@ class _FormSheetState extends State<_FormSheet> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                       decoration: BoxDecoration(color: _mint, borderRadius: BorderRadius.circular(14)),
-                      child: const Row(
+                      child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Padding(
@@ -2077,7 +2080,7 @@ class _FormSheetState extends State<_FormSheet> {
                             width: 46,
                             height: 46,
                             decoration: BoxDecoration(color: const Color(0xFFD5EBE2), borderRadius: BorderRadius.circular(12)),
-                            child: const Icon(Icons.admin_panel_settings_outlined, size: 24, color: _KC.primary),
+                            child: Icon(Icons.admin_panel_settings_outlined, size: 24, color: _KC.primary),
                           ),
                           const SizedBox(width: 14),
                           const Expanded(

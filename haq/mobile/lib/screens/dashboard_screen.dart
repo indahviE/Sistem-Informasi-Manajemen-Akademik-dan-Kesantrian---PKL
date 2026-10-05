@@ -1682,6 +1682,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
   List<Map<String, dynamic>> _ustadzKelas() =>
       ((_data!['kelasDiampu'] as List?) ?? const []).cast<Map<String, dynamic>>();
 
+      /// Kelas dianggap "sudah ada rekap" kalau minimal 1 mapel terisi hari ini.
+      /// Fallback ke field lama kalau backend belum mengirim mapelTerisiHariIni.
+      bool _kelasSudahDirekap(Map<String, dynamic> k) {
+        final n = k['mapelTerisiHariIni'];
+        if (n is num) return n > 0;
+        return k['absensiHariIniTerisi'] == true;
+      }
+
   /// Maksimal 3 ujian yang tanggalnya hari ini atau sesudahnya, paling dekat dulu.
   List<Map<String, dynamic>> _ustadzUjian() {
     final now = DateTime.now();
@@ -1730,22 +1738,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final tanggal = _formatIndoDate(DateTime.now()) + (hijriah != null ? ' • $hijriah' : '');
 
     final kelas = _ustadzKelas();
-    final belumAbsen = kelas.where((k) => k['absensiHariIniTerisi'] != true).length;
+    final belumAbsen = kelas.where((k) => !_kelasSudahDirekap(k)).length;
 
     return Container(
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [_WC.primary, _WC.primaryGradientEnd],
-        ),
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: [
-          BoxShadow(color: _WC.primary.withOpacity(0.18), blurRadius: 12, offset: const Offset(0, 4)),
-        ],
+      gradient: LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [_TC.primary, _TC.primaryEnd],
       ),
-      child: Stack(
+      borderRadius: BorderRadius.circular(18),
+      boxShadow: [
+        BoxShadow(color: _TC.primary.withOpacity(0.18), blurRadius: 12, offset: const Offset(0, 4)),
+      ],
+    ),
+          child: Stack(
         clipBehavior: Clip.none,
         children: [
           Positioned(
@@ -1815,7 +1823,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         color: Colors.white.withOpacity(0.12),
                         borderRadius: BorderRadius.circular(10),
                       ),
-                      child: const Icon(Icons.menu_book_outlined, size: 18, color: _WC.mint),
+                      child: Icon(Icons.menu_book_outlined, size: 18, color: _TC.mint),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
@@ -1833,8 +1841,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       ),
                       child: Text(
                         kelas.isEmpty
-                            ? 'Tidak Ada Kelas'
-                            : (belumAbsen == 0 ? 'Absensi Lengkap' : '$belumAbsen Belum Absen'),
+                          ? 'Tidak Ada Kelas'
+                          : (belumAbsen == 0 ? 'Semua Ada Rekap' : '$belumAbsen Belum Ada Rekap'),
                         style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.white),
                       ),
                     ),
@@ -1876,7 +1884,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final r = (_data!['ringkasan'] as Map?)?.cast<String, dynamic>() ?? <String, dynamic>{};
 
     final hadir = r.containsKey('kehadiranPersen') ? _num(r, ['kehadiranPersen']).round() : null;
-    final absensiBelum = kelas.where((k) => k['absensiHariIniTerisi'] != true).length;
+    final absensiBelum = kelas.where((k) => !_kelasSudahDirekap(k)).length;
     final nilaiBelumList = _ujianBelumDinilai();
     final nilaiBelum = nilaiBelumList.length;
 
@@ -1906,7 +1914,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         // ---- Kelas yang Diampu ----
         _ustadzSection(
           'Kelas yang Diampu',
-          badge: _UPill(label: '${kelas.length} Kelas', bg: _WC.sage, fg: _WC.primary),
+          badge: _UPill(label: '${kelas.length} Kelas', bg: _TC.sage, fg: _TC.primary),
         ),
         const SizedBox(height: 10),
         if (kelas.isEmpty)
@@ -1941,14 +1949,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
               tagFg: _WC.pendingText,
               value: '$absensiBelum',
               unit: 'Kelas',
-              caption: absensiBelum > 0 ? 'Belum diisi hari ini' : 'Semua sudah terisi',
+              caption: absensiBelum > 0 ? 'Belum ada rekap hari ini' : 'Semua kelas ada rekap',
               captionColor: absensiBelum > 0 ? _WC.errorText : _WC.successText,
             ),
             _USummaryCard(
-              label: 'Nilai Belum',
-              icon: Icons.rate_review_outlined,
-              iconBg: _WC.sage,
-              iconFg: _WC.primary,
+            label: 'Nilai Belum',
+            icon: Icons.rate_review_outlined,
+            iconBg: _TC.sage,
+            iconFg: _TC.primary,
               value: '$nilaiBelum',
               unit: 'Ujian',
               caption: nilaiBelum == 0
@@ -1965,7 +1973,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         // ---- Ujian Terdekat (menggantikan Pengumuman Terbaru) ----
         _ustadzSection(
           'Ujian Terdekat',
-          badge: ujian.isEmpty ? null : _UPill(label: '${ujian.length} Ujian', bg: _WC.sage, fg: _WC.primary),
+          badge: ujian.isEmpty ? null : _UPill(label: '${ujian.length} Ujian', bg: _TC.sage, fg: _TC.primary),
           trailing: 'Semua',
           onTap: () => _goto('Ujian & Remedial'),
         ),
@@ -2313,8 +2321,8 @@ class _UQuickTile extends StatelessWidget {
               Container(
                 width: 42,
                 height: 42,
-                decoration: BoxDecoration(color: _WC.sage, borderRadius: BorderRadius.circular(12)),
-                child: Icon(icon, size: 21, color: _WC.primary),
+                decoration: BoxDecoration(color: _TC.sage, borderRadius: BorderRadius.circular(12)),
+                child: Icon(icon, size: 21, color: _TC.primary),
               ),
               const SizedBox(height: 6),
               Text(label,
@@ -2367,7 +2375,12 @@ class _UKelasCard extends StatelessWidget {
     final mapel = s('mapel');
     final tingkat = s('tingkat');
     final jumlah = kelas['jumlahSantri'];
-    final terisi = kelas['absensiHariIniTerisi'] == true;
+    final jumlahMapel =
+        kelas['jumlahMapel'] is num ? (kelas['jumlahMapel'] as num).toInt() : null;
+    final mapelTerisi =
+        kelas['mapelTerisiHariIni'] is num ? (kelas['mapelTerisiHariIni'] as num).toInt() : null;
+    final terisi =
+    mapelTerisi != null ? mapelTerisi > 0 : kelas['absensiHariIniTerisi'] == true;
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(16),
@@ -2382,7 +2395,7 @@ class _UKelasCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // Garis aksen kiri: hanya untuk kelas yang belum diabsen.
-              Container(width: 4, color: terisi ? Colors.transparent : _WC.primary),
+              Container(width: 4, color: terisi ? Colors.transparent : _TC.primary),
               Expanded(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(12, 14, 14, 14),
@@ -2430,46 +2443,44 @@ class _UKelasCard extends StatelessWidget {
                             children: [
                               terisi
                                   ? const _UPill(
-                                      label: 'Absensi Terisi',
+                                      label: 'Sudah Ada Rekap',
                                       bg: _WC.successBg,
                                       fg: _WC.successText,
                                       dot: _WC.successText,
                                     )
                                   : const _UPill(
-                                      label: 'Belum Absen',
+                                      label: 'Belum Ada Rekap',
                                       bg: _WC.pendingBg,
                                       fg: _WC.pendingText,
                                       dot: _WC.pendingText,
                                     ),
-                              if (!terisi) ...[
-                                const SizedBox(height: 10),
-                                FilledButton(
-                                  style: FilledButton.styleFrom(
-                                    backgroundColor: _WC.primary,
-                                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                                    minimumSize: Size.zero,
-                                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-                                  ),
-                                  onPressed: onAbsensi,
-                                  child: const Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Text(
-                                        'Isi Absensi',
-                                        style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: Colors.white),
-                                      ),
-                                      SizedBox(width: 6),
-                                      Icon(Icons.arrow_forward, size: 14, color: Colors.white),
-                                    ],
-                                  ),
+                              const SizedBox(height: 10),
+                              FilledButton(
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: _TC.primary,
+                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                                  minimumSize: Size.zero,
+                                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
                                 ),
-                              ],
+                                onPressed: onAbsensi,
+                                child: const Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      'Isi Absensi',
+                                      style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: Colors.white),
+                                    ),
+                                    SizedBox(width: 6),
+                                    Icon(Icons.arrow_forward, size: 14, color: Colors.white),
+                                  ],
+                                ),
+                              ),
                             ],
                           ),
                         ],
                       ),
-                      if (tingkat != null || jumlah != null) ...[
+                      if (tingkat != null || jumlah != null || jumlahMapel != null) ...[
                         const SizedBox(height: 10),
                         Wrap(
                           spacing: 6,
@@ -2477,6 +2488,13 @@ class _UKelasCard extends StatelessWidget {
                           children: [
                             if (tingkat != null) _chip(Icons.layers_outlined, tingkat),
                             if (jumlah != null) _chip(Icons.groups_2_outlined, '$jumlah santri'),
+                            if (jumlahMapel != null)
+                              _chip(
+                                Icons.menu_book_outlined,
+                                mapelTerisi != null
+                                    ? '$jumlahMapel mapel • $mapelTerisi terisi'
+                                    : '$jumlahMapel mapel',
+                              ),
                           ],
                         ),
                       ],
@@ -2553,8 +2571,8 @@ class _UUjianCard extends StatelessWidget {
     final d = DateTime.tryParse('${ujian['tanggal'] ?? ''}')?.toLocal();
     String tanggal = '-';
     String? sisa;
-    Color sisaBg = _WC.sage;
-    Color sisaFg = _WC.primary;
+    Color sisaBg = _TC.sage;
+    Color sisaFg = _TC.primary;
     if (d != null) {
       final jam = '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
       tanggal = '${d.day} ${_bulan[d.month - 1]} ${d.year} • $jam WIB';
@@ -2654,8 +2672,8 @@ class _USummaryCard extends StatelessWidget {
   final String caption;
   final Color? captionColor;
   final IconData? icon;
-  final Color iconBg;
-  final Color iconFg;
+  final Color? iconBg;
+  final Color? iconFg;
   final String? tag;
   final Color tagBg;
   final Color tagFg;
@@ -2666,8 +2684,8 @@ class _USummaryCard extends StatelessWidget {
     this.unit,
     this.captionColor,
     this.icon,
-    this.iconBg = _WC.sage,
-    this.iconFg = _WC.primary,
+    this.iconBg,
+    this.iconFg,
     this.tag,
     this.tagBg = _WC.pendingBg,
     this.tagFg = _WC.pendingText,
@@ -2695,8 +2713,8 @@ class _USummaryCard extends StatelessWidget {
                 Container(
                   width: 28,
                   height: 28,
-                  decoration: BoxDecoration(color: iconBg, borderRadius: BorderRadius.circular(8)),
-                  child: Icon(icon, size: 15, color: iconFg),
+                  decoration: BoxDecoration(color: iconBg ?? _TC.sage, borderRadius: BorderRadius.circular(8)),
+                  child: Icon(icon, size: 15, color: iconFg ?? _TC.primary),
                 )
               else if (tag != null)
                 _UPill(label: tag!, bg: tagBg, fg: tagFg, dot: tagFg),

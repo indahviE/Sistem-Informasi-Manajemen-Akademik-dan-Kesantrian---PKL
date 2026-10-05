@@ -2,14 +2,15 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../services/api_client.dart';
 import '../../services/app_scope.dart';
+import '../santri/santri_ui.dart' show SC;
 
 /// Palet layar Keadaan Darurat — sama dengan layar redesain lain
 /// (beranda ustadz, absensi, konseling): zamrud + emas + gading.
 class _DC {
   _DC._();
 
-  static const primary = Color(0xFF0F3A2E);
-  static const primaryEnd = Color(0xFF164E3D);
+  static Color get primary => SC.primary;
+  static Color get primaryEnd => SC.primaryEnd;
 
   static const gold = Color(0xFFC5A059);
   static const goldSurface = Color(0xFFFAF5EC);
@@ -215,7 +216,7 @@ class _KeadaanDaruratScreenState extends State<KeadaanDaruratScreen> {
     final bisaLapor = user?.isWali != true;
 
     final konten = _loading
-        ? const Center(child: CircularProgressIndicator(color: _DC.primary, strokeWidth: 2.5))
+        ? Center(child: CircularProgressIndicator(color: _DC.primary, strokeWidth: 2.5))
         : _error != null
             ? _errorView()
             : RefreshIndicator(
@@ -323,7 +324,7 @@ class _KeadaanDaruratScreenState extends State<KeadaanDaruratScreen> {
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(24),
-        gradient: const LinearGradient(
+        gradient: LinearGradient(
           colors: [_DC.primary, _DC.primaryEnd],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
@@ -367,11 +368,11 @@ class _KeadaanDaruratScreenState extends State<KeadaanDaruratScreen> {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.calendar_today_outlined, size: 13, color: _DC.primary),
+                        Icon(Icons.calendar_today_outlined, size: 13, color: _DC.primary),
                         const SizedBox(width: 6),
                         Text(
                           _tgl(DateTime.now()),
-                          style: const TextStyle(
+                          style: TextStyle(
                               color: _DC.primary, fontSize: 12, fontWeight: FontWeight.w800),
                         ),
                       ],
@@ -597,7 +598,7 @@ class _KeadaanDaruratScreenState extends State<KeadaanDaruratScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Row(
+                    Row(
                       children: [
                         Icon(Icons.verified_user_outlined, size: 15, color: _DC.primary),
                         SizedBox(width: 6),
@@ -667,7 +668,7 @@ class _KeadaanDaruratScreenState extends State<KeadaanDaruratScreen> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(open ? 'Sembunyikan' : 'Detail Penanganan',
-                          style: const TextStyle(
+                          style: TextStyle(
                               color: _DC.primary, fontSize: 13, fontWeight: FontWeight.w800)),
                       Icon(open ? Icons.expand_less_rounded : Icons.chevron_right_rounded,
                           size: 20, color: _DC.primary),
@@ -731,7 +732,7 @@ class _KeadaanDaruratScreenState extends State<KeadaanDaruratScreen> {
             width: 84,
             height: 84,
             decoration: const BoxDecoration(color: _DC.sage, shape: BoxShape.circle),
-            child: const Icon(Icons.verified_user_outlined, size: 40, color: _DC.primary),
+            child: Icon(Icons.verified_user_outlined, size: 40, color: _DC.primary),
           ),
           const SizedBox(height: 14),
           Text(msg,
@@ -1100,8 +1101,8 @@ class _LaporSheetState extends State<_LaporSheet> {
               decoration: _dec('Cari nama atau NIS, atau biarkan kosong', icon: Icons.person_search_outlined),
             ),
             if (_mencari)
-              const Padding(
-                padding: EdgeInsets.only(top: 10),
+              Padding(
+                padding: const EdgeInsets.only(top: 10),
                 child: LinearProgressIndicator(color: _DC.primary, minHeight: 2),
               ),
             if (_hasil.isNotEmpty) _hasilCari(),
@@ -1229,7 +1230,7 @@ class _LaporSheetState extends State<_LaporSheet> {
             width: 40,
             height: 40,
             decoration: const BoxDecoration(color: _DC.sage, shape: BoxShape.circle),
-            child: const Icon(Icons.school_outlined, size: 20, color: _DC.primary),
+            child: Icon(Icons.school_outlined, size: 20, color: _DC.primary),
           ),
           const SizedBox(width: 12),
           Expanded(
