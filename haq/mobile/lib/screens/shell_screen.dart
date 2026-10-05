@@ -33,6 +33,7 @@ import 'super_admin/audit_log_screen.dart';
 import 'super_admin/pengaturan_screen.dart';
 import 'super_admin/super_admin_header.dart';
 import 'admin/admin_header.dart';
+import 'master/ustadz/ustadz_header.dart';
 import 'admin/pengaturan_admin_screen.dart';
 import 'wali/wali_screen.dart';
 import 'ppdb/ppdb_list_screen.dart';
@@ -134,7 +135,7 @@ class _ShellScreenState extends State<ShellScreen> {
       return m;
     }
 
-    m.add(_MenuItem('Dashboard', Icons.dashboard, (_) => const DashboardScreen()));
+    m.add(_MenuItem('Dashboard', Icons.dashboard, (_) => DashboardScreen(onNavigate: _goToMenu)));
 
     if (!user.isWali) {
       m.add(_MenuItem('Santri', Icons.groups, (_) => const SantriListScreen()));
@@ -260,6 +261,13 @@ class _ShellScreenState extends State<ShellScreen> {
                   onNotifikasi: () => setState(() => _notifikasiOpen = true),
                   onLogout: _logout,
                 )
+                : user.isUstadz
+                  ? UstadzHeader(
+                      subtitle: title == 'Dashboard' ? 'Beranda' : title,
+                      nama: user.nama,
+                      email: user.email,
+                      onLogout: _logout,
+                    )
               : AppBar(
         title: _appBarTitle(user, title),
         actions: [

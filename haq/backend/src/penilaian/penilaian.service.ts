@@ -120,18 +120,53 @@ export class PenilaianService {
   }
 
   // ===== UJIAN =====
-  async findAllUjian(tenantId: string, kelasId?: string) {
-    const list = await this.prisma.ujian.findMany({
-      where: { tenantId, ...(kelasId ? { kelasId } : {}) },
-      include: {
-        mapel: { select: { id: true, namaMapel: true } },
-        kelas: { select: { id: true, namaKelas: true } },
-        _count: { select: { nilais: true } },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
-    return list.map((u) => ({ ...u, terkunci: !!u.dikunciPada }));
-  }
+  async findAllUjian(
+  tenantId: string,
+  kelasId?: string,
+  user?: RequestUser,
+  hanyaSaya = false,
+) {
+  const actor = this.actor(user);
+
+  const list = await this.prisma.ujian.findMany({
+    where: {
+      tenantId,
+      ...(kelasId ? { kelasId } : {}),
+      // filter per ustadz: hanya aktif kalau dashboard minta ?saya=true
+      ...(hanyaSaya && actor.id
+        ? { OR: [{ dibuatOleh: actor.id }, { dibuatOleh: null }] }
+        : {}),
+    },
+    include: {
+      mapel: { select: { id: true, namaMapel: true } },
+      kelas: { select: { id: true, namaKelas: true } },
+      _count: { select: { nilais: true } },
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+
+  // jumlah santri aktif per kelas
+  const kelasIds = [...new Set(list.map((u) => u.kelasId).filter(Boolean))] as string[];
+  const grup = kelasIds.length
+    ? await this.prisma.santri.groupBy({
+        by: ['kelasId'],
+        where: { tenantId, status: SantriStatus.AKTIF, kelasId: { in: kelasIds } },
+        _count: { _all: true },
+      })
+    : [];
+  const perKelas = new Map(grup.map((g) => [g.kelasId, g._count._all]));
+
+  // ujian "Semua kelas" (kelasId kosong) = seluruh santri aktif di pondok
+  const totalSemua = list.some((u) => !u.kelasId)
+    ? await this.prisma.santri.count({ where: { tenantId, status: SantriStatus.AKTIF } })
+    : 0;
+
+  return list.map((u) => ({
+    ...u,
+    terkunci: !!u.dikunciPada,
+    totalSantri: u.kelasId ? perKelas.get(u.kelasId) ?? 0 : totalSemua,
+  }));
+}
 
   async getUjian(tenantId: string, id: string) {
     const ujian = await this.prisma.ujian.findFirst({

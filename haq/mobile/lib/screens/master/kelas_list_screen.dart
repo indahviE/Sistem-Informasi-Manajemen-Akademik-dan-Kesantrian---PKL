@@ -1,17 +1,18 @@
 import 'package:flutter/material.dart';
 import '../../services/api_client.dart';
 import '../../services/app_scope.dart';
+import '../santri/santri_ui.dart';
 import '../ui_utils.dart';
 
 /// Palet sama persis dengan `_WC` di dashboard_screen.dart.
 class _KC {
   _KC._();
 
-  static const primary = Color(0xFF0F3A2E);
+  static Color get primary => SC.primary;
   static const gold = Color(0xFFC5A059);
   static const goldSurface = Color(0xFFFAF5EC);
-  static const mint = Color(0xFFD2E4DC);
-  static const sage = Color(0xFFE2ECE9);
+  static Color get mint => SC.mint;
+  static Color get sage => SC.sage;
 
   static const background = Color(0xFFFAF9F5);
   static const surface = Color(0xFFFFFFFF);
@@ -219,7 +220,7 @@ class _KelasListScreenState extends State<KelasListScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
             decoration: BoxDecoration(color: _KC.sage, borderRadius: BorderRadius.circular(999)),
             child: Text('${_items.length} Kelas',
-                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: _KC.primary)),
+                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: _KC.primary)),
           ),
         ],
       ),
@@ -262,7 +263,7 @@ class _KelasListScreenState extends State<KelasListScreen> {
             width: 42,
             height: 42,
             decoration: BoxDecoration(color: _KC.sage, borderRadius: BorderRadius.circular(12)),
-            child: const Icon(Icons.class_, size: 20, color: _KC.primary),
+            child: Icon(Icons.class_, size: 20, color: _KC.primary),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -284,7 +285,7 @@ class _KelasListScreenState extends State<KelasListScreen> {
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                         decoration: BoxDecoration(color: _KC.mint, borderRadius: BorderRadius.circular(999)),
                         child: Text('Tingkat $tingkat',
-                            style: const TextStyle(
+                            style: TextStyle(
                                 fontSize: 10, fontWeight: FontWeight.w700, color: _KC.primary)),
                       ),
                     Row(
@@ -395,8 +396,8 @@ class _KelasFormDialogState extends State<_KelasFormDialog> {
           Container(
             width: 34,
             height: 34,
-            decoration: const BoxDecoration(color: _KC.sage, shape: BoxShape.circle),
-            child: const Icon(Icons.meeting_room_rounded, size: 17, color: _KC.primary),
+            decoration: BoxDecoration(color: _KC.sage, shape: BoxShape.circle),
+            child: Icon(Icons.meeting_room_rounded, size: 17, color: _KC.primary),
           ),
           const SizedBox(width: 10),
           Text(isEdit ? 'Edit Kelas' : 'Tambah Kelas',
@@ -450,7 +451,7 @@ class _KelasFormDialogState extends State<_KelasFormDialog> {
         ),
         FilledButton(
           style: FilledButton.styleFrom(
-            backgroundColor: const Color.fromRGBO(15, 58, 46, 1),
+            backgroundColor: _KC.primary,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
           ),
           onPressed: _submit,

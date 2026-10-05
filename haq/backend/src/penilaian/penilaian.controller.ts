@@ -30,8 +30,13 @@ export class PenilaianController {
   // ===== Ujian =====
   @Roles(...PENGELOLA)
   @Get('ujian')
-  findAllUjian(@TenantId() tenantId: string, @Query('kelasId') kelasId?: string) {
-    return this.penilaianService.findAllUjian(tenantId, kelasId);
+  findAllUjian(
+    @TenantId() tenantId: string,
+    @CurrentUser() user: RequestUser,
+    @Query('kelasId') kelasId?: string,
+    @Query('saya') saya?: string,
+  ) {
+    return this.penilaianService.findAllUjian(tenantId, kelasId, user, saya === 'true');
   }
 
   @Roles(...PENGELOLA)

@@ -18,7 +18,86 @@ export class DashboardService {
     if (user.role === Role.WALI_SANTRI) {
       return this.waliDashboard(user.userId, user.tenantId);
     }
+    if (user.role === Role.USTADZ) {
+    const payload = await this.ustadzDashboard(user.userId, user.tenantId);
+    if (payload) return payload;
+  }
     return this.tenantDashboard(user.tenantId);
+  }
+
+    // [BARU] Beranda Ustadz (GURU)
+  private async ustadzDashboard(userId: string, tenantId: string | undefined) {
+    // Jangan pernah query tanpa tenantId (where undefined = tanpa filter).
+    if (!tenantId) return null;
+
+    const ustadz = await this.prisma.ustadz.findFirst({
+      where: { userId, tenantId },
+      select: { id: true, nama: true, jenis: true },
+    });
+    if (!ustadz || ustadz.jenis !== 'GURU') return null;
+
+    const kelasList = await this.prisma.kelas.findMany({
+      where: { tenantId, waliKelasId: ustadz.id },
+      orderBy: { namaKelas: 'asc' },
+      select: {
+        id: true,
+        namaKelas: true,
+        tingkat: true,
+        _count: { select: { santris: { where: { status: 'AKTIF' } } } },
+      },
+    });
+
+    if (kelasList.length === 0) {
+      return {
+        role: 'USTADZ',
+        namaPengguna: ustadz.nama,
+        kelasDiampu: [],
+        ringkasan: { kehadiranKet: 'Belum ada kelas yang Anda ampu' },
+      };
+    }
+
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const tomorrowStart = new Date(todayStart);
+    tomorrowStart.setDate(tomorrowStart.getDate() + 1);
+
+    const absensiHariIni = await this.prisma.absensi.findMany({
+      where: {
+        tenantId,
+        kelasId: { in: kelasList.map((k) => k.id) },
+        tanggal: { gte: todayStart, lt: tomorrowStart },
+      },
+      select: { kelasId: true, status: true },
+    });
+
+    const kelasTerisi = new Set(absensiHariIni.map((a) => a.kelasId));
+
+    const kelasDiampu = kelasList.map((k) => ({
+      id: k.id,
+      namaKelas: k.namaKelas,
+      mapel: null as string | null,
+      tingkat: k.tingkat,
+      jumlahSantri: k._count.santris,
+      absensiHariIniTerisi: kelasTerisi.has(k.id),
+    }));
+
+    const total = absensiHariIni.length;
+    const hadir = absensiHariIni.filter((a) => a.status === 'HADIR').length;
+
+    const ringkasan =
+      total > 0
+        ? {
+            kehadiranPersen: Math.round((hadir / total) * 100),
+            kehadiranKet: `${hadir} dari ${total} data absensi hari ini`,
+          }
+        : { kehadiranKet: 'Belum ada absensi hari ini' };
+
+    return {
+      role: 'USTADZ',
+      namaPengguna: ustadz.nama,
+      kelasDiampu,
+      ringkasan,
+    };
   }
 
   private async superAdminDashboard() {

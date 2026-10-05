@@ -89,9 +89,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   // Filter untuk section "Direktori Tenant Platform" di dashboard Super Admin.
   String _tenantFilter = 'semua'; // semua | aktif | pending | suspended
 
-  // Daftar ujian (GET ApiUrl.ujian) — dipakai section "Ujian Terdekat" di beranda ustadz.
-  List<Map<String, dynamic>> _ujianList = [];
-
   @override
   void initState() {
     super.initState();
@@ -129,7 +126,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
         _data = res as Map<String, dynamic>;
         _lastLoaded = DateTime.now();
       });
-      _loadUjian();
     } on ApiException catch (e) {
       if (mounted) setState(() => _error = 'ApiException: ${e.message}');
     } catch (e) {
@@ -137,19 +133,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     } finally {
       if (mounted) setState(() => _syncing = false);
     }
-  }
-
-  /// Ambil daftar ujian untuk beranda ustadz. Gagal = diam-diam diabaikan
-  /// (section Ujian cukup tampil kosong), supaya dashboard tidak ikut error.
-  Future<void> _loadUjian() async {
-    final role = (_data?['role'] ?? '').toString();
-    if (role == 'WALI_SANTRI' || role == 'SUPER_ADMIN' || !_isUstadzUser(role)) return;
-    try {
-      final res = await AppScope.of(context).api.get('${ApiUrl.ujian}?saya=true');
-      final items = res is List ? res : ((res as Map<String, dynamic>)['data'] as List? ?? []);
-      if (!mounted) return;
-      setState(() => _ujianList = items.whereType<Map<String, dynamic>>().toList());
-    } catch (_) {}
   }
 
   void _notAvailable() {
@@ -334,7 +317,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   // Restyle: gradient emerald `_WC` + pill emas, mengikuti screen.png.
   // =========================================================================
   Widget _heroHeader(String role) {
-    debugPrint('SC.primary = ${SC.primary}');
     // Fallback berlapis: data dashboard -> data user login -> teks netral.
     final namaPengguna = _pick(_data!, ['namaPengguna', 'nama', 'userName']) ??
         AppScope.of(context).user?.nama ??
@@ -347,14 +329,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return Container(
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        gradient: LinearGradient(
+        gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [_TC.primary, _TC.primaryEnd],
+          colors: [_WC.primary, _WC.primaryGradientEnd],
         ),
         borderRadius: BorderRadius.circular(18),
         boxShadow: [
-          BoxShadow(color: _TC.primary.withOpacity(0.18), blurRadius: 12, offset: Offset(0, 4)),
+          BoxShadow(color: _WC.primary.withOpacity(0.18), blurRadius: 12, offset: const Offset(0, 4)),
         ],
       ),
       child: Stack(
@@ -366,7 +348,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             child: Opacity(opacity: 0.06, child: _RubElHizb(size: 130, color: Colors.white)),
           ),
           Padding(
-            padding: EdgeInsets.all(16),
+            padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -376,7 +358,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   runSpacing: 6,
                   children: [
                     Container(
-                      padding: EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                       decoration: BoxDecoration(
                         color: Colors.white.withOpacity(0.12),
                         borderRadius: BorderRadius.circular(999),
@@ -388,12 +370,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           Container(
                             width: 6,
                             height: 6,
-                            decoration: BoxDecoration(color: _WC.gold, shape: BoxShape.circle),
+                            decoration: const BoxDecoration(color: _WC.gold, shape: BoxShape.circle),
                           ),
-                          SizedBox(width: 6),
+                          const SizedBox(width: 6),
                           Text(
                             _roleLabel(role),
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontSize: 10,
                               fontWeight: FontWeight.w700,
                               color: _WC.gold,
@@ -409,22 +391,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ),
                   ],
                 ),
-                SizedBox(height: 10),
+                const SizedBox(height: 10),
                 Text(
                   'Halo, $namaPengguna',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.w700,
                     height: 1.25,
                     color: Colors.white,
                   ),
                 ),
-                SizedBox(height: 3),
+                const SizedBox(height: 3),
                 Text(
                   semester,
                   style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.7)),
                 ),
-                SizedBox(height: 12),
+                const SizedBox(height: 12),
                 Row(
                   children: [
                     Expanded(
@@ -434,10 +416,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             width: 16,
                             height: 16,
                             child: _syncing
-                                ? CircularProgressIndicator(strokeWidth: 2, color: _WC.gold)
-                                : Icon(Icons.sync, size: 16, color: _WC.gold),
+                                ? const CircularProgressIndicator(strokeWidth: 2, color: _WC.gold)
+                                : const Icon(Icons.sync, size: 16, color: _WC.gold),
                           ),
-                          SizedBox(width: 6),
+                          const SizedBox(width: 6),
                           Flexible(
                             child: Text(
                               'Data diperbarui: ${_elapsed(_lastLoaded)}',
@@ -448,19 +430,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         ],
                       ),
                     ),
-                    SizedBox(width: 8),
+                    const SizedBox(width: 8),
                     InkWell(
                       onTap: _syncing ? null : _load,
                       borderRadius: BorderRadius.circular(999),
                       child: Container(
-                        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                         decoration: BoxDecoration(
-                          color: _TC.mint,
+                          color: _WC.mint,
                           borderRadius: BorderRadius.circular(999),
                         ),
-                        child: Text(
+                        child: const Text(
                           'Perbarui',
-                          style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: _TC.primary),
+                          style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: _WC.primary),
                         ),
                       ),
                     ),
@@ -1166,15 +1148,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
       children: [
         // ---- 2. Ringkasan angka pondok ----
         _SectionLabel(title: 'Master Data Terdata', trailing: 'Cakupan Lembaga Sendiri', trailingAsPill: true),
-        SizedBox(height: 10),
+        const SizedBox(height: 10),
         _TwoColGrid(
           children: [
             _MetricCard(
               label: 'Santri Aktif',
               value: _fmtInt(santriAktif),
               icon: Icons.school,
-              iconColor: _TC.primary,
-              iconBg: _TC.sage,
+              iconColor: _WC.primary,
+              iconBg: _WC.sage,
               caption: (santriPutra > 0 || santriPutri > 0)
                   ? '${_fmtInt(santriPutra)} Putra • ${_fmtInt(santriPutri)} Putri'
                   : 'Data santri aktif pondok',
@@ -1193,8 +1175,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
               label: 'Kelas & Halaqah',
               value: '${_fmtInt(totalKelas)} Rombel',
               icon: Icons.menu_book,
-              iconColor: _TC.primary,
-              iconBg: _TC.sage,
+              iconColor: _WC.primary,
+              iconBg: _WC.sage,
               caption: (kelasTahfidz > 0 || kelasDiniyah > 0)
                   ? '${_fmtInt(kelasTahfidz)} Tahfidz • ${_fmtInt(kelasDiniyah)} Diniyah'
                   : 'Rombongan belajar aktif',
@@ -1211,19 +1193,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ],
         ),
-        SizedBox(height: 20),
+        const SizedBox(height: 20),
 
         // ---- 3. Tindakan cepat ----
         _SectionLabel(title: 'Tindakan Data Master', trailing: 'Input Langsung', trailingColor: _WC.goldDark),
-        SizedBox(height: 10),
+        const SizedBox(height: 10),
         _TwoColGrid(
           children: [
             _QuickAction(
               title: 'Santri Baru',
               subtitle: 'Entri biodata & berkas santri',
               icon: Icons.person_add,
-              iconBg: _TC.sage,
-              iconColor: _TC.primary,
+              iconBg: _WC.sage,
+              iconColor: _WC.primary,
               tag: 'Auto-NIS',
               onTap: _bukaSantriBaru,
             ),
@@ -1239,8 +1221,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
               title: 'Rombel & Halaqah',
               subtitle: 'Plotting santri & wali kelas',
               icon: Icons.meeting_room,
-              iconBg: _TC.sage,
-              iconColor: _TC.primary,
+              iconBg: _WC.sage,
+              iconColor: _WC.primary,
               onTap: _notAvailable,
             ),
             _QuickAction(
@@ -1253,30 +1235,30 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ],
         ),
-        SizedBox(height: 20),
+        const SizedBox(height: 20),
 
         // ---- 4. Audit kelengkapan data ----
         _buildAuditCard(),
-        SizedBox(height: 20),
+        const SizedBox(height: 20),
 
         // ---- 5. Kelola akademik & KBM ----
         _buildAcademicCard(),
-        SizedBox(height: 20),
+        const SizedBox(height: 20),
 
         // ---- 6. Log aktivitas ----
         _buildLogCard(),
-        SizedBox(height: 16),
+        const SizedBox(height: 16),
 
         // ---- Catatan batas akses ----
         Container(
-          padding: EdgeInsets.all(14),
+          padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
             color: _WC.surfaceDim,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(color: _WC.border),
           ),
           child: RichText(
-            text: TextSpan(
+            text: const TextSpan(
               style: TextStyle(fontSize: 11.5, color: _WC.inkSecondary, height: 1.5, fontStyle: FontStyle.italic),
               children: [
                 TextSpan(
@@ -1296,7 +1278,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildAuditCard() {
-    final items = ((_data!['auditKelengkapan'] as List?) ?? []).cast<Map<String, dynamic>>();
+    final items = ((_data!['auditKelengkapan'] as List?) ?? const []).cast<Map<String, dynamic>>();
     return _Card(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1304,7 +1286,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Expanded(
+              const Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -1317,19 +1299,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
               ),
               if (items.isNotEmpty) ...[
-                SizedBox(width: 8),
+                const SizedBox(width: 8),
                 Container(
-                  padding: EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(color: _WC.errorBg, borderRadius: BorderRadius.circular(999)),
                   child: Text('${items.length} Tindakan',
-                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: _WC.errorText)),
+                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: _WC.errorText)),
                 ),
               ],
             ],
           ),
-          SizedBox(height: 12),
+          const SizedBox(height: 12),
           if (items.isEmpty)
-            _EmptyRow(text: 'Semua data wajib sudah lengkap.', icon: Icons.check_circle_outline)
+            const _EmptyRow(text: 'Semua data wajib sudah lengkap.', icon: Icons.check_circle_outline)
           else
             Column(
               children: [
@@ -1351,8 +1333,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final accent = accents[index % accents.length];
 
     return Container(
-      margin: EdgeInsets.only(bottom: 8),
-      padding: EdgeInsets.all(10),
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: _WC.surfaceDim,
         borderRadius: BorderRadius.circular(12),
@@ -1361,29 +1343,29 @@ class _DashboardScreenState extends State<DashboardScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: EdgeInsets.only(top: 1),
+            padding: const EdgeInsets.only(top: 1),
             child: Icon(Icons.error_outline, size: 18, color: accent),
           ),
-          SizedBox(width: 8),
+          const SizedBox(width: 8),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: _WC.ink)),
+                Text(title, style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: _WC.ink)),
                 if (subtitle.isNotEmpty)
-                  Text(subtitle, style: TextStyle(fontSize: 11.5, color: _WC.inkSecondary)),
+                  Text(subtitle, style: const TextStyle(fontSize: 11.5, color: _WC.inkSecondary)),
               ],
             ),
           ),
-          SizedBox(width: 8),
+          const SizedBox(width: 8),
           InkWell(
             onTap: _notAvailable,
             borderRadius: BorderRadius.circular(999),
             child: Container(
-              padding: EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
               decoration: BoxDecoration(color: accent, borderRadius: BorderRadius.circular(999)),
               child: Text(actionLabel,
-                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.white)),
+                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.white)),
             ),
           ),
         ],
@@ -1404,7 +1386,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Expanded(
+              const Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -1419,14 +1401,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
               Container(
                 width: 34,
                 height: 34,
-                decoration: BoxDecoration(color: _TC.sage, shape: BoxShape.circle),
-                child: Icon(Icons.library_books, size: 18, color: _TC.primary),
+                decoration: const BoxDecoration(color: _WC.sage, shape: BoxShape.circle),
+                child: const Icon(Icons.library_books, size: 18, color: _WC.primary),
               ),
             ],
           ),
-          SizedBox(height: 12),
+          const SizedBox(height: 12),
           Container(
-            padding: EdgeInsets.all(12),
+            padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(color: _WC.surfaceDim, borderRadius: BorderRadius.circular(12)),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1434,42 +1416,42 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Expanded(
+                    const Expanded(
                       child: Text('Kepatuhan Rekap Absensi Harian',
                           style: TextStyle(fontSize: 12, color: _WC.ink)),
                     ),
                     Text(
                       pct != null ? '${_fmtInt(terisi!)} / ${_fmtInt(total!)} Rombel (${(pct * 100).round()}%)' : 'Belum ada data',
-                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _TC.primary),
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _WC.primary),
                     ),
                   ],
                 ),
-                SizedBox(height: 8),
+                const SizedBox(height: 8),
                 ClipRRect(
                   borderRadius: BorderRadius.circular(999),
                   child: LinearProgressIndicator(
                     value: pct ?? 0,
                     minHeight: 8,
                     backgroundColor: _WC.border,
-                    valueColor: AlwaysStoppedAnimation(_TC.primary),
+                    valueColor: const AlwaysStoppedAnimation(_WC.primary),
                   ),
                 ),
               ],
             ),
           ),
-          SizedBox(height: 10),
+          const SizedBox(height: 10),
           _academicShortcut(
             icon: Icons.fact_check,
             label: 'Input Rekap Absensi Terpusat',
             onTap: _notAvailable,
           ),
-          SizedBox(height: 8),
+          const SizedBox(height: 8),
           _academicShortcut(
             icon: Icons.upload_file,
             label: 'Unggah Nilai Kolektif (Excel/CSV)',
             onTap: _notAvailable,
           ),
-          SizedBox(height: 8),
+          const SizedBox(height: 8),
           _academicShortcut(
             icon: Icons.auto_stories,
             label: 'Katalog Mata Pelajaran & Kitab Turats',
@@ -1486,7 +1468,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       borderRadius: BorderRadius.circular(999),
       child: Container(
         height: 48,
-        padding: EdgeInsets.symmetric(horizontal: 14),
+        padding: const EdgeInsets.symmetric(horizontal: 14),
         decoration: BoxDecoration(
           color: _WC.surfaceDim,
           borderRadius: BorderRadius.circular(999),
@@ -1498,18 +1480,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
             Expanded(
               child: Row(
                 children: [
-                  Icon(icon, size: 18, color: _TC.primary),
-                  SizedBox(width: 10),
+                  Icon(icon, size: 18, color: _WC.primary),
+                  const SizedBox(width: 10),
                   Expanded(
                     child: Text(label,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: _WC.ink)),
+                        style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: _WC.ink)),
                   ),
                 ],
               ),
             ),
-            Icon(Icons.chevron_right, size: 18, color: _WC.inkSecondary),
+            const Icon(Icons.chevron_right, size: 18, color: _WC.inkSecondary),
           ],
         ),
       ),
@@ -1517,7 +1499,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildLogCard() {
-    final logs = ((_data!['logAktivitas'] as List?) ?? []).cast<Map<String, dynamic>>();
+    final logs = ((_data!['logAktivitas'] as List?) ?? const []).cast<Map<String, dynamic>>();
     return _Card(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1525,17 +1507,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Expanded(
+              const Expanded(
                 child: Text('Log Aktivitas Data Master',
                     style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _WC.ink)),
               ),
-              Text('Internal Ma\'had',
+              const Text('Internal Ma\'had',
                   style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: _WC.inkSecondary)),
             ],
           ),
-          SizedBox(height: 10),
+          const SizedBox(height: 10),
           if (logs.isEmpty)
-            _EmptyRow(text: 'Belum ada aktivitas tercatat.')
+            const _EmptyRow(text: 'Belum ada aktivitas tercatat.')
           else
             Column(
               children: [
@@ -1552,27 +1534,27 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final actor = _pick(log, ['oleh', 'actor']) ?? 'Admin Lembaga';
     final time = _pick(log, ['waktu', 'time']) ?? '';
     return Padding(
-      padding: EdgeInsets.symmetric(vertical: 6),
+      padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
             width: 28,
             height: 28,
-            margin: EdgeInsets.only(top: 2),
-            decoration: BoxDecoration(color: _TC.sage, shape: BoxShape.circle),
-            child: Icon(Icons.person_add, size: 14, color: _TC.primary),
+            margin: const EdgeInsets.only(top: 2),
+            decoration: const BoxDecoration(color: _WC.sage, shape: BoxShape.circle),
+            child: const Icon(Icons.person_add, size: 14, color: _WC.primary),
           ),
-          SizedBox(width: 10),
+          const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(message, style: TextStyle(fontSize: 12.5, color: _WC.ink, height: 1.3)),
-                SizedBox(height: 2),
+                Text(message, style: const TextStyle(fontSize: 12.5, color: _WC.ink, height: 1.3)),
+                const SizedBox(height: 2),
                 Text(
                   time.isNotEmpty ? '$actor • $time' : actor,
-                  style: TextStyle(fontSize: 11, color: _WC.inkSecondary),
+                  style: const TextStyle(fontSize: 11, color: _WC.inkSecondary),
                 ),
               ],
             ),
@@ -1583,22 +1565,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   // =========================================================================
-  // USTADZ / GURU — beranda ustadz (screen.png), disesuaikan dengan PRD Fase 1.
-  //
-  // PRD belum punya jadwal mengajar, jurnal, tugas penilaian, maupun
-  // pengumuman, jadi bagian itu TIDAK ditampilkan. Yang dipakai hanya yang
-  // bisa dihitung dari tabel Ustadz, Kelas, Santri, dan Absensi.
+  // USTADZ / GURU / MUSYRIF — mengikuti desain beranda ustadz (screen.png)
   //
   // Field yang dibaca dari GET /api/dashboard (semua null-safe):
   //   tanggalHijriah: String
-  //   tagline: String (opsional)
-  //   kelasDiampu: [{ namaKelas, mapel, tingkat, jumlahSantri,
-  //                   absensiHariIniTerisi: bool }]
-  //   ringkasan: { kehadiranPersen, kehadiranKet }
-  // Ujian TIDAK dari /api/dashboard: diambil terpisah lewat GET ApiUrl.ujian
-  // (endpoint yang sama dengan ujian_screen.dart), lalu disaring 3 terdekat.
-  // Kartu "Nilai Belum" di Ringkasan juga dihitung dari daftar ujian ini.
-  // Tap kartu => _goto('Ujian & Remedial').
+  //   jadwalHariIni: [{ jamMulai, jamSelesai, mapel, materi, kelas, ruang,
+  //                     status: BERLANGSUNG | SELESAI | BELUM }]
+  //   ringkasan: { kehadiranPersen, kehadiranKet, absensiBelum,
+  //                absensiBelumKet, nilaiBelum, nilaiBelumKet, jurnalBelum }
+  //   pengumuman: [{ judul, ringkas, waktu, baru: bool }]
   //
   // App bar atas (SIMPesantren + pill Ustadz + lonceng + foto) dan bottom nav
   // (Beranda, Absensi, Nilai, Tahfidz, Lainnya) milik shell utama, bukan file ini.
@@ -1607,66 +1582,66 @@ class _DashboardScreenState extends State<DashboardScreen> {
   /// Deteksi akun ustadz. API saat ini mengirim role 'TENANT' untuk semua akun
   /// lembaga, jadi pembeda dicari berlapis. Akun admin TIDAK ikut terdeteksi.
   ///  1. saklar preview (testing)
-  ///  2. role / field jabatan dari API mengandung USTADZ/GURU/ASATIDZ/PENGAJAR
-  ///  3. backend mengirim `kelasDiampu` (payload khusus ustadz)
-  bool _isUstadzUser(String role) {
-    if (kPreviewUstadz) return true;
+  ///  2. role / field jabatan dari API mengandung USTADZ/GURU/MUSYRIF/ASATIDZ
+  ///  3. backend mengirim `jadwalHariIni` (payload khusus ustadz)
+bool _isUstadzUser(String role) {
+  if (kPreviewUstadz) return true;
 
-    bool musyrif(String v) => v.toUpperCase().contains('MUSYRIF');
+  bool musyrif(String v) => v.toUpperCase().contains('MUSYRIF');
 
-    bool cocok(String v) {
-      final up = v.toUpperCase();
-      if (up.contains('ADMIN') ||
-          up.contains('MUDIR') ||
-          up.contains('PIMPINAN') ||
-          up.contains('MUSYRIF')) {
-        return false;
-      }
-      return up.contains('USTAD') ||
-          up.contains('GURU') ||
-          up.contains('ASATIDZ') ||
-          up.contains('PENGAJAR');
+  bool cocok(String v) {
+    final up = v.toUpperCase();
+    if (up.contains('ADMIN') ||
+        up.contains('MUDIR') ||
+        up.contains('PIMPINAN') ||
+        up.contains('MUSYRIF')) {
+      return false;
     }
-
-    // Kumpulkan semua nilai role/jabatan dari respons dashboard.
-    final fields = <String>[role];
-    for (final k in const ['jabatan', 'peran', 'tipeUser', 'jenisUser', 'subRole', 'roleDetail', 'posisi']) {
-      final v = _data?[k];
-      if (v is String) fields.add(v);
-    }
-
-    // Kumpulkan juga dari data login (UserData) tanpa crash kalau field tidak ada.
-    final dynamic user = AppScope.of(context).user;
-    if (user != null) {
-      final getters = <dynamic Function()>[
-        () => user.role,
-        () => user.jabatan,
-        () => user.peran,
-        () => user.tipe,
-        () => user.userRole,
-      ];
-      for (final g in getters) {
-        try {
-          final v = g();
-          if (v is String) fields.add(v);
-        } catch (_) {
-          // field tidak ada di UserData — abaikan
-        }
-      }
-    }
-
-    // 1. Musyrif dicek PALING DULU, supaya tidak ikut terdeteksi lewat jalur lain
-    //    (termasuk kelasDiampu).
-    if (fields.any(musyrif)) return false;
-
-    // 2. Role/jabatan yang jelas menunjukkan ustadz/guru.
-    if (fields.any(cocok)) return true;
-
-    // 3. Payload khusus ustadz dari backend.
-    if (_data?.containsKey('kelasDiampu') == true) return true;
-
-    return false;
+    return up.contains('USTAD') ||
+        up.contains('GURU') ||
+        up.contains('ASATIDZ') ||
+        up.contains('PENGAJAR');
   }
+
+  // Kumpulkan semua nilai role/jabatan dari respons dashboard.
+  final fields = <String>[role];
+  for (final k in const ['jabatan', 'peran', 'tipeUser', 'jenisUser', 'subRole', 'roleDetail', 'posisi']) {
+    final v = _data?[k];
+    if (v is String) fields.add(v);
+  }
+
+  // Kumpulkan juga dari data login (UserData) tanpa crash kalau field tidak ada.
+  final dynamic user = AppScope.of(context).user;
+  if (user != null) {
+    final getters = <dynamic Function()>[
+      () => user.role,
+      () => user.jabatan,
+      () => user.peran,
+      () => user.tipe,
+      () => user.userRole,
+    ];
+    for (final g in getters) {
+      try {
+        final v = g();
+        if (v is String) fields.add(v);
+      } catch (_) {
+        // field tidak ada di UserData — abaikan
+      }
+    }
+  }
+
+  // 1. Musyrif dicek PALING DULU, supaya tidak ikut terdeteksi lewat jalur lain
+  //    (termasuk jadwalHariIni).
+  if (fields.any(musyrif)) return false;
+
+  // 2. Role/jabatan yang jelas menunjukkan ustadz/guru.
+  if (fields.any(cocok)) return true;
+
+  // 3. Payload khusus ustadz dari backend.
+  if (_data?.containsKey('jadwalHariIni') == true) return true;
+
+  return false;
+}
 
   /// Navigasi ke tab/menu lain lewat shell; fallback snackbar kalau shell
   /// tidak memasang `onNavigate`.
@@ -1679,43 +1654,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
-  List<Map<String, dynamic>> _ustadzKelas() =>
-      ((_data!['kelasDiampu'] as List?) ?? const []).cast<Map<String, dynamic>>();
-
-  /// Maksimal 3 ujian yang tanggalnya hari ini atau sesudahnya, paling dekat dulu.
-  List<Map<String, dynamic>> _ustadzUjian() {
-    final now = DateTime.now();
-    final start = DateTime(now.year, now.month, now.day);
-    final hasil = <MapEntry<DateTime, Map<String, dynamic>>>[];
-    for (final u in _ujianList) {
-      final d = DateTime.tryParse('${u['tanggal'] ?? ''}')?.toLocal();
-      if (d == null) continue;
-      if (DateTime(d.year, d.month, d.day).isBefore(start)) continue;
-      hasil.add(MapEntry(d, u));
-    }
-    hasil.sort((a, b) => a.key.compareTo(b.key));
-    return hasil.take(3).map((e) => e.value).toList();
-  }
-
-  /// Ujian yang sudah lewat tanggalnya, belum dikunci, tapi belum semua
-  /// santrinya dinilai. Sumber datanya sama dengan _UUjianCard.
-  List<Map<String, dynamic>> _ujianBelumDinilai() {
-    final now = DateTime.now();
-    final hasil = <Map<String, dynamic>>[];
-    for (final u in _ujianList) {
-      if (u['dikunciPada'] != null) continue;
-      final d = DateTime.tryParse('${u['tanggal'] ?? ''}')?.toLocal();
-      if (d == null || d.isAfter(now)) continue;
-
-      final nilai = (u['_count'] is Map ? u['_count']['nilais'] : null) as int? ?? 0;
-      final totalRaw = u['totalSantri'] ?? (u['kelas'] is Map ? u['kelas']['jumlahSantri'] : null);
-      final total = totalRaw is int && totalRaw > 0 ? totalRaw : null;
-
-      final belum = total != null ? nilai < total : nilai == 0;
-      if (belum) hasil.add(u);
-    }
-    return hasil;
-  }
+  List<Map<String, dynamic>> _ustadzJadwal() =>
+      ((_data!['jadwalHariIni'] as List?) ?? const []).cast<Map<String, dynamic>>();
 
   Widget _ustadzHeroHeader() {
     final nama = _pick(_data!, ['namaPengguna', 'nama', 'userName']) ??
@@ -1725,12 +1665,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final tenantNama = AppScope.of(context).user?.tenantNama;
     final namaPondok = _pick(_data!, ['namaPondok', 'namaLembaga', 'tenantNama']) ??
         ((tenantNama != null && tenantNama.isNotEmpty) ? tenantNama : 'Lembaga Anda');
-    final tagline = _pick(_data!, ['tagline']) ?? 'TAQARRUB & KHIDMAH';
     final hijriah = _pick(_data!, ['tanggalHijriah']);
     final tanggal = _formatIndoDate(DateTime.now()) + (hijriah != null ? ' • $hijriah' : '');
 
-    final kelas = _ustadzKelas();
-    final belumAbsen = kelas.where((k) => k['absensiHariIniTerisi'] != true).length;
+    final jadwal = _ustadzJadwal();
+    final selesai = jadwal.where((j) => '${j['status']}'.toUpperCase() == 'SELESAI').length;
 
     return Container(
       clipBehavior: Clip.antiAlias,
@@ -1768,7 +1707,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     const SizedBox(width: 6),
                     Flexible(
                       child: Text(
-                        '$tagline • ${namaPondok.toUpperCase()}',
+                        'TAQARRUB & KHIDMAH • ${namaPondok.toUpperCase()}',
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                           fontSize: 9.5,
@@ -1820,7 +1759,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
-                        kelas.isEmpty ? 'Belum ada kelas yang Anda ampu' : 'Anda mengampu ${kelas.length} kelas',
+                        'Hari ini Anda mengajar ${jadwal.length} kelas',
                         style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: Colors.white),
                       ),
                     ),
@@ -1832,9 +1771,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         borderRadius: BorderRadius.circular(999),
                       ),
                       child: Text(
-                        kelas.isEmpty
-                            ? 'Tidak Ada Kelas'
-                            : (belumAbsen == 0 ? 'Absensi Lengkap' : '$belumAbsen Belum Absen'),
+                        jadwal.isEmpty ? 'Tidak Ada Jadwal' : '$selesai/${jadwal.length} Selesai',
                         style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.white),
                       ),
                     ),
@@ -1871,14 +1808,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _ustadzBody() {
-    final kelas = _ustadzKelas();
-    final ujian = _ustadzUjian();
+    final jadwal = _ustadzJadwal();
     final r = (_data!['ringkasan'] as Map?)?.cast<String, dynamic>() ?? <String, dynamic>{};
+    final pengumuman = ((_data!['pengumuman'] as List?) ?? const []).cast<Map<String, dynamic>>();
 
     final hadir = r.containsKey('kehadiranPersen') ? _num(r, ['kehadiranPersen']).round() : null;
-    final absensiBelum = kelas.where((k) => k['absensiHariIniTerisi'] != true).length;
-    final nilaiBelumList = _ujianBelumDinilai();
-    final nilaiBelum = nilaiBelumList.length;
+    final absensiBelum = _num(r, ['absensiBelum']).round();
+    final nilaiBelum = _num(r, ['nilaiBelum']).round();
+    final jurnalBelum = _num(r, ['jurnalBelum']).round();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1899,30 +1836,36 @@ class _DashboardScreenState extends State<DashboardScreen> {
             Expanded(
               child: _UQuickTile(icon: Icons.auto_stories_outlined, label: 'Tahfidz', onTap: () => _goto('Tahfidz')),
             ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _UQuickTile(icon: Icons.history_edu_outlined, label: 'Jurnal', onTap: () => _goto('Jurnal')),
+            ),
           ],
         ),
         const SizedBox(height: 22),
 
-        // ---- Kelas yang Diampu ----
+        // ---- Jadwal Hari Ini ----
         _ustadzSection(
-          'Kelas yang Diampu',
-          badge: _UPill(label: '${kelas.length} Kelas', bg: _WC.sage, fg: _WC.primary),
+          'Jadwal Hari Ini',
+          badge: _UPill(label: '${jadwal.length} Kelas', bg: _WC.sage, fg: _WC.primary),
+          trailing: 'Lihat Semua',
+          onTap: () => _goto('Jadwal'),
         ),
         const SizedBox(height: 10),
-        if (kelas.isEmpty)
+        if (jadwal.isEmpty)
           const _Card(
-            child: _EmptyRow(text: 'Belum ada kelas yang Anda ampu.', icon: Icons.meeting_room_outlined),
+            child: _EmptyRow(text: 'Tidak ada jadwal mengajar hari ini.', icon: Icons.event_available_outlined),
           )
         else
-          for (final k in kelas)
+          for (final j in jadwal)
             Padding(
               padding: const EdgeInsets.only(bottom: 10),
-              child: _UKelasCard(kelas: k, onAbsensi: () => _goto('Absensi')),
+              child: _UJadwalCard(jadwal: j, onMulaiAbsensi: () => _goto('Absensi')),
             ),
         const SizedBox(height: 12),
 
         // ---- Ringkasan ----
-        _ustadzSection('Ringkasan', trailing: 'Hari Ini'),
+        _ustadzSection('Ringkasan', trailing: 'Status Tugas Pengajar'),
         const SizedBox(height: 10),
         _TwoColGrid(
           children: [
@@ -1941,7 +1884,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
               tagFg: _WC.pendingText,
               value: '$absensiBelum',
               unit: 'Kelas',
-              caption: absensiBelum > 0 ? 'Belum diisi hari ini' : 'Semua sudah terisi',
+              caption: absensiBelum > 0
+                  ? (_pick(r, ['absensiBelumKet']) ?? 'Menunggu verifikasi')
+                  : 'Semua sudah terisi',
               captionColor: absensiBelum > 0 ? _WC.errorText : _WC.successText,
             ),
             _USummaryCard(
@@ -1950,33 +1895,39 @@ class _DashboardScreenState extends State<DashboardScreen> {
               iconBg: _WC.sage,
               iconFg: _WC.primary,
               value: '$nilaiBelum',
-              unit: 'Ujian',
-              caption: nilaiBelum == 0
-                  ? 'Semua nilai sudah masuk'
-                  : (nilaiBelum == 1
-                      ? '${nilaiBelumList.first['nama'] ?? 'Ujian'}'
-                      : 'Menunggu input nilai'),
-              captionColor: nilaiBelum > 0 ? _WC.errorText : _WC.successText,
+              unit: 'Berkas',
+              caption: _pick(r, ['nilaiBelumKet']) ??
+                  (nilaiBelum > 0 ? 'Tugas perlu dinilai' : 'Semua sudah dinilai'),
+            ),
+            _USummaryCard(
+              label: 'Jurnal Belum',
+              tag: jurnalBelum > 0 ? 'Tertunda' : null,
+              tagBg: _WC.pendingBg,
+              tagFg: _WC.pendingText,
+              value: '$jurnalBelum',
+              unit: 'Jurnal',
+              caption: jurnalBelum > 0 ? 'Perlu diisi hari ini' : 'Semua sudah diisi',
+              captionColor: jurnalBelum > 0 ? _WC.errorText : _WC.successText,
             ),
           ],
         ),
         const SizedBox(height: 22),
 
-        // ---- Ujian Terdekat (menggantikan Pengumuman Terbaru) ----
-        _ustadzSection(
-          'Ujian Terdekat',
-          badge: ujian.isEmpty ? null : _UPill(label: '${ujian.length} Ujian', bg: _WC.sage, fg: _WC.primary),
-          trailing: 'Semua',
-          onTap: () => _goto('Ujian & Remedial'),
-        ),
+        // ---- Pengumuman Terbaru ----
+        _ustadzSection('Pengumuman Terbaru', trailing: 'Semua', onTap: () => _goto('Pengumuman')),
         const SizedBox(height: 10),
-        if (ujian.isEmpty)
-          const _Card(child: _EmptyRow(text: 'Belum ada ujian terjadwal.', icon: Icons.quiz_outlined))
+        if (pengumuman.isEmpty)
+          const _Card(child: _EmptyRow(text: 'Belum ada pengumuman.', icon: Icons.campaign_outlined))
         else
-          for (final u in ujian)
+          for (final p in pengumuman)
             Padding(
               padding: const EdgeInsets.only(bottom: 10),
-              child: _UUjianCard(ujian: u, onTap: () => _goto('Ujian & Remedial')),
+              child: _UPengumumanCard(
+                judul: _pick(p, ['judul', 'title']) ?? '-',
+                ringkas: _pick(p, ['ringkas', 'isi']) ?? '',
+                waktu: _pick(p, ['waktu', 'time']) ?? '',
+                baru: p['baru'] == true,
+              ),
             ),
       ],
     );
@@ -2115,7 +2066,7 @@ class _QuickAction extends StatelessWidget {
   final String? tag;
   final VoidCallback onTap;
 
-  _QuickAction({
+  const _QuickAction({
     required this.title,
     required this.subtitle,
     required this.icon,
@@ -2134,7 +2085,7 @@ class _QuickAction extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(16),
         child: Container(
-          padding: EdgeInsets.all(12),
+          padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
             border: Border.all(color: _WC.border),
@@ -2153,20 +2104,20 @@ class _QuickAction extends StatelessWidget {
                   ),
                   if (tag != null)
                     Container(
-                      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(color: _TC.mint, borderRadius: BorderRadius.circular(999)),
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(color: _WC.mint, borderRadius: BorderRadius.circular(999)),
                       child: Text(tag!,
-                          style: TextStyle(fontSize: 9.5, color: _TC.primary, fontWeight: FontWeight.w700)),
+                          style: const TextStyle(fontSize: 9.5, color: _WC.primary, fontWeight: FontWeight.w700)),
                     ),
                 ],
               ),
-              SizedBox(height: 8),
-              Text(title, style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: _WC.ink)),
-              SizedBox(height: 1),
+              const SizedBox(height: 8),
+              Text(title, style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: _WC.ink)),
+              const SizedBox(height: 1),
               Text(subtitle,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 10.5, color: _WC.inkSecondary)),
+                  style: const TextStyle(fontSize: 10.5, color: _WC.inkSecondary)),
             ],
           ),
         ),
@@ -2329,13 +2280,10 @@ class _UQuickTile extends StatelessWidget {
   }
 }
 
-/// Kartu satu kelas yang diampu ustadz. Gayanya mengikuti kartu jadwal di
-/// screen.png: garis aksen kiri + pill status + tombol aksi untuk kelas
-/// yang belum diabsen.
-class _UKelasCard extends StatelessWidget {
-  final Map<String, dynamic> kelas;
-  final VoidCallback onAbsensi;
-  const _UKelasCard({required this.kelas, required this.onAbsensi});
+class _UJadwalCard extends StatelessWidget {
+  final Map<String, dynamic> jadwal;
+  final VoidCallback onMulaiAbsensi;
+  const _UJadwalCard({required this.jadwal, required this.onMulaiAbsensi});
 
   Widget _chip(IconData icon, String label) {
     return Container(
@@ -2359,15 +2307,25 @@ class _UKelasCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     String? s(String k) {
-      final v = kelas[k];
+      final v = jadwal[k];
       return (v is String && v.trim().isNotEmpty) ? v : null;
     }
 
-    final nama = s('namaKelas') ?? '-';
-    final mapel = s('mapel');
-    final tingkat = s('tingkat');
-    final jumlah = kelas['jumlahSantri'];
-    final terisi = kelas['absensiHariIniTerisi'] == true;
+    final status = (s('status') ?? 'BELUM').toUpperCase();
+    final berlangsung = status == 'BERLANGSUNG';
+    final selesai = status == 'SELESAI';
+
+    final jam = [s('jamMulai'), s('jamSelesai')].whereType<String>().join(' - ');
+    final mapel = s('mapel') ?? '-';
+    final materi = s('materi');
+    final kelas = s('kelas');
+    final ruang = s('ruang');
+
+    final Widget pill = berlangsung
+        ? const _UPill(label: 'Berlangsung', bg: _WC.successBg, fg: _WC.successText, dot: _WC.successText)
+        : selesai
+            ? const _UPill(label: 'Selesai', bg: _WC.successBg, fg: _WC.successText)
+            : const _UPill(label: 'Belum', bg: _WC.surfaceDim, fg: _WC.inkSecondary, dot: _WC.inkSecondary);
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(16),
@@ -2375,45 +2333,46 @@ class _UKelasCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: _WC.surface,
           border: Border.all(color: _WC.border),
-          borderRadius: BorderRadius.circular(16),
         ),
         child: IntrinsicHeight(
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Garis aksen kiri: hanya untuk kelas yang belum diabsen.
-              Container(width: 4, color: terisi ? Colors.transparent : _WC.primary),
+              if (berlangsung) Container(width: 4, color: _WC.primary),
               Expanded(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 14, 14, 14),
+                  padding: const EdgeInsets.all(14),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(Icons.schedule_rounded, size: 14, color: _WC.ink),
+                          const SizedBox(width: 5),
+                          Expanded(
+                            child: Text(
+                              jam.isEmpty ? '-' : '$jam WIB',
+                              style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: _WC.ink),
+                            ),
+                          ),
+                          pill,
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
-                                  nama,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w800,
-                                    color: _WC.ink,
-                                    height: 1.25,
-                                  ),
-                                ),
-                                if (mapel != null)
+                                Text(mapel,
+                                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _WC.ink)),
+                                if (materi != null)
                                   Padding(
                                     padding: const EdgeInsets.only(top: 2),
                                     child: Text(
-                                      mapel,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
+                                      materi,
                                       style: const TextStyle(
                                         fontSize: 11.5,
                                         fontStyle: FontStyle.italic,
@@ -2424,59 +2383,36 @@ class _UKelasCard extends StatelessWidget {
                               ],
                             ),
                           ),
-                          const SizedBox(width: 8),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              terisi
-                                  ? const _UPill(
-                                      label: 'Absensi Terisi',
-                                      bg: _WC.successBg,
-                                      fg: _WC.successText,
-                                      dot: _WC.successText,
-                                    )
-                                  : const _UPill(
-                                      label: 'Belum Absen',
-                                      bg: _WC.pendingBg,
-                                      fg: _WC.pendingText,
-                                      dot: _WC.pendingText,
-                                    ),
-                              if (!terisi) ...[
-                                const SizedBox(height: 10),
-                                FilledButton(
-                                  style: FilledButton.styleFrom(
-                                    backgroundColor: _WC.primary,
-                                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                                    minimumSize: Size.zero,
-                                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-                                  ),
-                                  onPressed: onAbsensi,
-                                  child: const Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Text(
-                                        'Isi Absensi',
-                                        style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: Colors.white),
-                                      ),
-                                      SizedBox(width: 6),
-                                      Icon(Icons.arrow_forward, size: 14, color: Colors.white),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
+                          if (berlangsung) ...[
+                            const SizedBox(width: 8),
+                            FilledButton(
+                              style: FilledButton.styleFrom(
+                                backgroundColor: _WC.primary,
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+                              ),
+                              onPressed: onMulaiAbsensi,
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text('Mulai Absensi',
+                                      style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: Colors.white)),
+                                  SizedBox(width: 6),
+                                  Icon(Icons.arrow_forward, size: 14, color: Colors.white),
+                                ],
+                              ),
+                            ),
+                          ],
                         ],
                       ),
-                      if (tingkat != null || jumlah != null) ...[
+                      if (kelas != null || ruang != null) ...[
                         const SizedBox(height: 10),
                         Wrap(
                           spacing: 6,
                           runSpacing: 6,
                           children: [
-                            if (tingkat != null) _chip(Icons.layers_outlined, tingkat),
-                            if (jumlah != null) _chip(Icons.groups_2_outlined, '$jumlah santri'),
+                            if (kelas != null) _chip(Icons.groups_2_outlined, kelas),
+                            if (ruang != null) _chip(Icons.meeting_room_outlined, ruang),
                           ],
                         ),
                       ],
@@ -2484,161 +2420,6 @@ class _UKelasCard extends StatelessWidget {
                   ),
                 ),
               ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Kartu satu ujian di beranda ustadz. Field mengikuti response GET ujian
-/// (lihat ujian_screen.dart): nama, jenis, tanggal, mapel.namaMapel,
-/// kelas.namaKelas, _count.nilais, totalSantri, dikunciPada.
-class _UUjianCard extends StatelessWidget {
-  final Map<String, dynamic> ujian;
-  final VoidCallback onTap;
-  const _UUjianCard({required this.ujian, required this.onTap});
-
-  static const _bulan = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
-
-  String _jenisLabel(String j) {
-    switch (j) {
-      case 'UTS':
-        return 'UTS';
-      case 'UAS':
-        return 'UAS';
-      case 'TES_TAHFIDZ':
-        return 'TES TAHFIDZ';
-      case 'LAINNYA':
-        return 'LAINNYA';
-      default:
-        return 'ULANGAN';
-    }
-  }
-
-  String? _nested(String key, String sub) {
-    final v = ujian[key];
-    if (v is Map && v[sub] != null && '${v[sub]}'.trim().isNotEmpty) return '${v[sub]}';
-    return null;
-  }
-
-  Widget _chip(IconData icon, String label) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: _WC.surfaceDim,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: _WC.border),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 12, color: _WC.inkSecondary),
-          const SizedBox(width: 4),
-          Text(label, style: const TextStyle(fontSize: 10.5, color: _WC.inkSecondary)),
-        ],
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final nama = '${ujian['nama'] ?? 'Ujian'}';
-    final jenis = _jenisLabel('${ujian['jenis'] ?? 'ULANGAN'}');
-    final mapel = _nested('mapel', 'namaMapel');
-    final kelas = _nested('kelas', 'namaKelas');
-    final terkunci = ujian['dikunciPada'] != null;
-
-    final d = DateTime.tryParse('${ujian['tanggal'] ?? ''}')?.toLocal();
-    String tanggal = '-';
-    String? sisa;
-    Color sisaBg = _WC.sage;
-    Color sisaFg = _WC.primary;
-    if (d != null) {
-      final jam = '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
-      tanggal = '${d.day} ${_bulan[d.month - 1]} ${d.year} • $jam WIB';
-      final now = DateTime.now();
-      final diff = DateTime(d.year, d.month, d.day)
-          .difference(DateTime(now.year, now.month, now.day))
-          .inDays;
-      if (diff == 0) {
-        sisa = 'Hari ini';
-        sisaBg = _WC.pendingBg;
-        sisaFg = _WC.pendingText;
-      } else if (diff == 1) {
-        sisa = 'Besok';
-        sisaBg = _WC.pendingBg;
-        sisaFg = _WC.pendingText;
-      } else if (diff > 1) {
-        sisa = '$diff hari lagi';
-      }
-    }
-
-    final nilai = (ujian['_count'] is Map ? ujian['_count']['nilais'] : null) as int? ?? 0;
-    final totalRaw = ujian['totalSantri'] ??
-        (ujian['kelas'] is Map ? ujian['kelas']['jumlahSantri'] : null);
-    final total = totalRaw is int && totalRaw > 0 ? totalRaw : null;
-    final progresText = total != null ? '$nilai/$total dinilai' : (nilai > 0 ? '$nilai dinilai' : 'Belum ada nilai');
-
-    return Material(
-      color: _WC.surface,
-      borderRadius: BorderRadius.circular(16),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: _WC.border),
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(color: _WC.goldSurface, borderRadius: BorderRadius.circular(12)),
-                child: const Icon(Icons.quiz_outlined, size: 20, color: _WC.gold),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(tanggal,
-                              style: const TextStyle(fontSize: 10.5, color: _WC.inkSecondary)),
-                        ),
-                        if (sisa != null) _UPill(label: sisa, bg: sisaBg, fg: sisaFg),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      nama,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: _WC.ink, height: 1.3),
-                    ),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 6,
-                      children: [
-                        _chip(Icons.label_outline, jenis),
-                        if (mapel != null) _chip(Icons.menu_book_outlined, mapel),
-                        if (kelas != null) _chip(Icons.groups_2_outlined, kelas),
-                        _chip(terkunci ? Icons.lock_outline : Icons.assignment_turned_in_outlined, progresText),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 4),
-              const Icon(Icons.chevron_right, size: 18, color: _WC.inkSecondary),
             ],
           ),
         ),
@@ -2723,6 +2504,74 @@ class _USummaryCard extends StatelessWidget {
               fontSize: 10.5,
               fontWeight: captionColor != null ? FontWeight.w600 : FontWeight.w400,
               color: captionColor ?? _WC.inkSecondary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _UPengumumanCard extends StatelessWidget {
+  final String judul;
+  final String ringkas;
+  final String waktu;
+  final bool baru;
+  const _UPengumumanCard({
+    required this.judul,
+    required this.ringkas,
+    required this.waktu,
+    required this.baru,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: _WC.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _WC.border),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(color: _WC.sage, borderRadius: BorderRadius.circular(12)),
+            child: const Icon(Icons.campaign_outlined, size: 20, color: _WC.primary),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(waktu, style: const TextStyle(fontSize: 10.5, color: _WC.inkSecondary)),
+                    ),
+                    if (baru) const _UPill(label: 'Baru', bg: _WC.pendingBg, fg: _WC.pendingText),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  judul,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: _WC.ink, height: 1.3),
+                ),
+                if (ringkas.isNotEmpty) ...[
+                  const SizedBox(height: 3),
+                  Text(
+                    ringkas,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 11.5, color: _WC.inkSecondary),
+                  ),
+                ],
+              ],
             ),
           ),
         ],

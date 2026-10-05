@@ -2,18 +2,19 @@ import 'package:flutter/material.dart';
 import '../../services/api_client.dart';
 import '../../services/app_scope.dart';
 import '../ui_utils.dart';
+import '../santri/santri_ui.dart';
 
 /// Palet sama persis dengan `_WC` di dashboard_screen.dart.
 class _AC {
   _AC._();
 
-  static const primary = Color(0xFF0F3A2E);
-  static const primaryGradientEnd = Color(0xFF164E3D);
+  static Color get primary => SC.primary;
+  static Color get primaryGradientEnd => SC.primaryEnd;
   static const gold = Color(0xFFC5A059);
   static const goldSurface = Color(0xFFFAF5EC);
   static const goldDark = Color(0xFF7A5B10);
-  static const mint = Color(0xFFD2E4DC);
-  static const sage = Color(0xFFE2ECE9);
+  static Color get mint => SC.mint;
+  static Color get sage => SC.sage;
 
   static const background = Color(0xFFFAF9F5);
   static const surface = Color(0xFFFFFFFF);
@@ -457,7 +458,7 @@ class _AbsensiScreenState extends State<AbsensiScreen> {
                             color: _AC.ink,
                           )),
                       trailing: it['id'] == selectedId
-                          ? const Icon(Icons.check_circle, color: _AC.primary, size: 20)
+                          ? Icon(Icons.check_circle, color: _AC.primary, size: 20)
                           : null,
                       onTap: () {
                         Navigator.pop(ctx);
@@ -547,7 +548,7 @@ class _AbsensiScreenState extends State<AbsensiScreen> {
                 borderRadius: BorderRadius.circular(999),
                 border: Border.all(color: _AC.border),
               ),
-              child: const Row(
+              child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text('Ganti',
@@ -582,7 +583,7 @@ class _AbsensiScreenState extends State<AbsensiScreen> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Icon(Icons.calendar_today_outlined, size: 15, color: _AC.primary),
+                    Icon(Icons.calendar_today_outlined, size: 15, color: _AC.primary),
                     const SizedBox(width: 8),
                     Flexible(
                       child: Text(_fmtDate(_date),
@@ -697,7 +698,7 @@ class _AbsensiScreenState extends State<AbsensiScreen> {
     return Container(
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
+        gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [_AC.primary, _AC.primaryGradientEnd],
@@ -776,7 +777,7 @@ class _AbsensiScreenState extends State<AbsensiScreen> {
                     value: pct,
                     minHeight: 8,
                     backgroundColor: Colors.white.withOpacity(0.15),
-                    valueColor: const AlwaysStoppedAnimation(_AC.mint),
+                    valueColor: AlwaysStoppedAnimation(_AC.mint),
                   ),
                 ),
               ],
@@ -824,7 +825,7 @@ class _AbsensiScreenState extends State<AbsensiScreen> {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(color: _AC.mint, borderRadius: BorderRadius.circular(999)),
-              child: const Row(
+              child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(Icons.done_all, size: 14, color: _AC.primary),
@@ -1034,7 +1035,7 @@ class _AbsensiScreenState extends State<AbsensiScreen> {
       ),
       child: Row(
         children: [
-          const Icon(Icons.lock_outline, size: 20, color: _AC.primary),
+          Icon(Icons.lock_outline, size: 20, color: _AC.primary),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
@@ -1169,7 +1170,7 @@ class _AbsensiScreenState extends State<AbsensiScreen> {
                           ],
                           const SizedBox(height: 14),
                           if (_loadingSantri)
-                            const Padding(
+                            Padding(
                               padding: EdgeInsets.all(24),
                               child: Center(child: CircularProgressIndicator(color: _AC.primary)),
                             )
