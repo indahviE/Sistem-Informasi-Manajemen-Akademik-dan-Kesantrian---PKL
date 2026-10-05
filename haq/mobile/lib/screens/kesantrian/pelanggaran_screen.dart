@@ -247,7 +247,9 @@ class _PelanggaranScreenState extends State<PelanggaranScreen> {
         child: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 480),
-            child: Column(
+            child: Stack(
+              children: [
+            Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 _buildHeader(),
@@ -275,18 +277,24 @@ class _PelanggaranScreenState extends State<PelanggaranScreen> {
                 ),
               ],
             ),
+                // Tombol berada di dalam kotak konten (maxWidth 480), tetap di bawah.
+                if (!isWali)
+                  Positioned(
+                    right: 16,
+                    bottom: 16,
+                    child: FloatingActionButton.extended(
+                      onPressed: _openInput,
+                      backgroundColor: PColors.primary,
+                      icon: const Icon(Icons.add_circle_outline, color: Colors.white),
+                      label: const Text('Catat Pelanggaran',
+                          style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w700, color: Colors.white)),
+                    ),
+                  ),
+              ],
+            ),
           ),
         ),
       ),
-      floatingActionButton: isWali
-          ? null
-          : FloatingActionButton.extended(
-              onPressed: _openInput,
-              backgroundColor: PColors.primary,
-              icon: const Icon(Icons.add_circle_outline, color: Colors.white),
-              label: const Text('Catat Pelanggaran',
-                  style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w700, color: Colors.white)),
-            ),
     );
   }
 
