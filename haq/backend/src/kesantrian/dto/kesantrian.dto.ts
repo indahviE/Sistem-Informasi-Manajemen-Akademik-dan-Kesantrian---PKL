@@ -160,3 +160,21 @@ export class QueryKesantrianDto {
   @IsString()
   kelasId?: string;
 }
+
+export class UpdateKesehatanDto {
+  @IsOptional()
+  @IsEnum(StatusKesehatan, { message: 'Status kesehatan tidak valid' })
+  status?: StatusKesehatan;
+
+  @IsOptional()
+  @IsString()
+  diagnosa?: string;
+
+  @IsOptional()
+  @IsString()
+  tindakan?: string;
+
+  @IsOptional()
+  @IsString()
+  obat?: string;
+}

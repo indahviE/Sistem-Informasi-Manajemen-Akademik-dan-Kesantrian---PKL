@@ -11,6 +11,7 @@ import {
   CreatePerizinanDto,
   CreateTataTertibDto,
   QueryKesantrianDto,
+  UpdateKesehatanDto,
   UpdatePelanggaranDto,
   UpdatePerizinanDto,
 } from './dto/kesantrian.dto';
@@ -70,6 +71,12 @@ export class KesantrianController {
   @Post('kesehatan')
   createKesehatan(@TenantId() tenantId: string, @Body() dto: CreateKesehatanDto, @CurrentUser() user: RequestUser) {
     return this.kesantrianService.createKesehatan(tenantId, dto, user);
+  }
+
+  @Roles(Role.ADMIN, Role.MUSYRIF)
+  @Patch('kesehatan/:id')
+  updateKesehatan(@TenantId() tenantId: string, @Param('id') id: string, @Body() dto: UpdateKesehatanDto) {
+    return this.kesantrianService.updateKesehatan(tenantId, id, dto);
   }
 
   // ===== Rekam Medis =====
