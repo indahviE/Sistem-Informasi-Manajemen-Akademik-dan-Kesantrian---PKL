@@ -46,6 +46,88 @@ BoxDecoration _cardDeco() => BoxDecoration(
   ],
 );
 
+/// Notifikasi melayang bertema (sukses = warna tema, gagal = merah lembut).
+/// Sama dengan toast di halaman Users / Ustadz / Kesehatan.
+void _toast(
+  BuildContext context,
+  String title, {
+  String? subtitle,
+  bool error = false,
+}) {
+  final w = MediaQuery.of(context).size.width;
+  final side = w > 472 ? (w - 440) / 2 : 16.0;
+  final fg = error ? _RC.redFg : Colors.white;
+
+  ScaffoldMessenger.of(context)
+    ..hideCurrentSnackBar()
+    ..showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        padding: EdgeInsets.zero,
+        margin: EdgeInsets.fromLTRB(side, 0, side, 16),
+        duration: Duration(seconds: error ? 4 : 3),
+        content: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: error ? _RC.redBg : _RC.primary,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: error
+                  ? _RC.redFg.withOpacity(0.25)
+                  : _RC.gold.withOpacity(0.5),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: (error ? _RC.redFg : _RC.primary).withOpacity(0.25),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: error ? Colors.white : _RC.gold.withOpacity(0.18),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  error ? Icons.error_outline : Icons.check_rounded,
+                  size: 18,
+                  color: error ? _RC.redFg : _RC.gold,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: _t(13.5, FontWeight.w800, fg),
+                    ),
+                    if (subtitle != null && subtitle.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle,
+                        style: _t(11.5, FontWeight.w500, fg.withOpacity(0.75)),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+}
+
 // ============================================================================
 // Daftar santri
 // ============================================================================
@@ -204,14 +286,15 @@ class _RaporScreenState extends State<RaporScreen> {
         'periode': confirmed.trim(),
       });
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Rapor berhasil digenerate')),
+      _toast(
+        context,
+        'Rapor berhasil digenerate',
+        subtitle: '${santri['nama']} • $confirmed',
       );
     } on ApiException catch (e) {
-      if (mounted)
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(e.message)));
+      if (mounted) _toast(context, e.message, error: true);
+    } catch (_) {
+      if (mounted) _toast(context, 'Gagal generate rapor.', error: true);
     }
   }
 
@@ -539,6 +622,7 @@ class RaporDetailScreen extends StatefulWidget {
 
 class _RaporDetailScreenState extends State<RaporDetailScreen> {
   List<dynamic> _rapors = [];
+  String? _busy; // 'terbit:<id>' atau 'perbarui:<id>' saat proses berjalan
   bool _loading = true;
   String? _error;
 
@@ -578,19 +662,228 @@ class _RaporDetailScreenState extends State<RaporDetailScreen> {
   }
 
   Future<void> _terbit(Map<String, dynamic> r) async {
+    if (_busy != null) return;
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: _RC.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        icon: Container(
+          width: 52,
+          height: 52,
+          decoration: BoxDecoration(color: _RC.sage, shape: BoxShape.circle),
+          child: Icon(Icons.send_outlined, size: 24, color: _RC.primary),
+        ),
+        title: Text(
+          'Terbitkan rapor?',
+          textAlign: TextAlign.center,
+          style: _t(17, FontWeight.w800, _RC.primary),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: _RC.surfaceDim,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Column(
+                children: [
+                  Text(
+                    '${widget.santri['nama']}',
+                    textAlign: TextAlign.center,
+                    style: _t(14, FontWeight.w800, _RC.primary),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${r['periode']}',
+                    style: _t(12, FontWeight.w600, _RC.inkSecondary),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Pastikan nilai dan kehadiran sudah benar. '
+              'Rapor yang sudah diterbitkan tidak dapat diubah lagi.',
+              textAlign: TextAlign.center,
+              style: _t(12.5, FontWeight.w500, _RC.inkSecondary, height: 1.45),
+            ),
+          ],
+        ),
+        actionsAlignment: MainAxisAlignment.center,
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(
+              'Batal',
+              style: _t(13, FontWeight.w700, _RC.inkSecondary),
+            ),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: FilledButton.styleFrom(
+              backgroundColor: _RC.primary,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
+            ),
+            child: Text(
+              'Terbitkan',
+              style: _t(13, FontWeight.w800, Colors.white),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+
+    setState(() => _busy = 'terbit:${r['id']}');
     try {
       await AppScope.of(context).api.patch('${ApiUrl.rapor}/${r['id']}/terbit');
       if (!mounted) return;
-      ScaffoldMessenger.of(
+      // Ubah status langsung di list (tanpa _load) supaya layar tidak berkedip.
+      setState(() => r['status'] = 'TERBIT');
+      _toast(
         context,
-      ).showSnackBar(const SnackBar(content: Text('Rapor diterbitkan')));
-      _load();
+        'Rapor diterbitkan',
+        subtitle: '${r['periode']} • Status: TERBIT',
+      );
     } on ApiException catch (e) {
-      if (mounted)
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(e.message)));
+      if (mounted) _toast(context, e.message, error: true);
+    } catch (_) {
+      if (mounted) _toast(context, 'Gagal menerbitkan rapor.', error: true);
+    } finally {
+      if (mounted) setState(() => _busy = null);
     }
+  }
+
+  /// Tarik ulang nilai & kehadiran untuk rapor yang masih draft.
+  Future<void> _perbarui(Map<String, dynamic> r) async {
+    if (_busy != null) return;
+    setState(() => _busy = 'perbarui:${r['id']}');
+    try {
+      await AppScope.of(context).api.post(ApiUrl.raporGenerate, {
+        'santriId': widget.santri['id'],
+        'periode': r['periode'],
+      });
+      if (!mounted) return;
+      await _load();
+      if (!mounted) return;
+      _toast(
+        context,
+        'Rapor diperbarui',
+        subtitle: 'Nilai & kehadiran ditarik ulang',
+      );
+    } on ApiException catch (e) {
+      if (mounted) _toast(context, e.message, error: true);
+    } catch (_) {
+      if (mounted) _toast(context, 'Gagal memperbarui rapor.', error: true);
+    } finally {
+      if (mounted) setState(() => _busy = null);
+    }
+  }
+
+  /// Panel status: jelas beda antara draft dan sudah terbit.
+  Widget _statusPanel(bool terbit) {
+    final bg = terbit ? _RC.sage : const Color(0xFFFAF5EC);
+    final fg = terbit ? _RC.primary : const Color(0xFF7A5B10);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: fg.withOpacity(0.18)),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            terbit ? Icons.verified_rounded : Icons.edit_note_rounded,
+            size: 24,
+            color: fg,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  terbit ? 'Rapor sudah diterbitkan' : 'Masih berstatus draft',
+                  style: _t(13, FontWeight.w800, fg),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  terbit
+                      ? 'Rapor ini sudah final dan tidak dapat diubah.'
+                      : 'Periksa nilai dan kehadiran, perbarui jika perlu, lalu terbitkan.',
+                  style: _t(11.5, FontWeight.w500, fg.withOpacity(0.85), height: 1.35),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Tombol aksi untuk rapor draft: Perbarui + Terbitkan.
+  Widget _aksiDraft(Map<String, dynamic> r) {
+    final id = r['id']?.toString();
+    final sibuk = _busy != null;
+    final loadingTerbit = _busy == 'terbit:$id';
+    final loadingPerbarui = _busy == 'perbarui:$id';
+
+    Widget spinner(Color c) => SizedBox(
+          width: 16,
+          height: 16,
+          child: CircularProgressIndicator(strokeWidth: 2, color: c),
+        );
+
+    return Row(
+      children: [
+        OutlinedButton.icon(
+          onPressed: sibuk ? null : () => _perbarui(r),
+          icon: loadingPerbarui
+              ? spinner(_RC.primary)
+              : const Icon(Icons.refresh_rounded, size: 18),
+          label: Text('Perbarui', style: _t(13, FontWeight.w800, _RC.primary)),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: _RC.primary,
+            side: BorderSide(color: _RC.primary.withOpacity(0.4)),
+            minimumSize: const Size(0, 48),
+            padding: const EdgeInsets.symmetric(horizontal: 18),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: SizedBox(
+            height: 48,
+            child: FilledButton.icon(
+              onPressed: sibuk ? null : () => _terbit(r),
+              icon: loadingTerbit
+                  ? spinner(Colors.white)
+                  : const Icon(Icons.send_outlined, size: 18, color: Colors.white),
+              label: Text('Terbitkan', style: _t(14, FontWeight.w800, Colors.white)),
+              style: FilledButton.styleFrom(
+                backgroundColor: _RC.primary,
+                disabledBackgroundColor: _RC.primary.withOpacity(0.5),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
   @override
@@ -782,7 +1075,13 @@ class _RaporDetailScreenState extends State<RaporDetailScreen> {
     return Container(
       width: double.infinity,
       clipBehavior: Clip.antiAlias,
-      decoration: _cardDeco().copyWith(borderRadius: BorderRadius.circular(22)),
+      decoration: _cardDeco().copyWith(
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(
+          color: terbit ? _RC.primary.withOpacity(0.35) : _RC.line.withOpacity(0.7),
+          width: terbit ? 1.4 : 1,
+        ),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -824,9 +1123,22 @@ class _RaporDetailScreenState extends State<RaporDetailScreen> {
                               color: terbit ? _RC.mint : _RC.gold,
                               borderRadius: BorderRadius.circular(9999),
                             ),
-                            child: Text(
-                              r['status'] as String,
-                              style: _t(10.5, FontWeight.w800, _RC.primary),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  terbit
+                                      ? Icons.check_circle_rounded
+                                      : Icons.edit_note_rounded,
+                                  size: 13,
+                                  color: _RC.primary,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  terbit ? 'Diterbitkan' : 'Draft',
+                                  style: _t(10.5, FontWeight.w800, _RC.primary),
+                                ),
+                              ],
                             ),
                           ),
                         ],
@@ -891,38 +1203,11 @@ class _RaporDetailScreenState extends State<RaporDetailScreen> {
                     const SizedBox(height: 14),
                   _kehadiranPanel(kehadiran),
                 ],
+                const SizedBox(height: 16),
+                _statusPanel(terbit),
                 if (!terbit) ...[
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    child: Material(
-                      color: _RC.primary,
-                      borderRadius: BorderRadius.circular(16),
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(16),
-                        onTap: () => _terbit(r),
-                        child: Container(
-                          height: 48,
-                          alignment: Alignment.center,
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Icon(
-                                Icons.send_outlined,
-                                size: 18,
-                                color: Colors.white,
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                'Terbitkan',
-                                style: _t(14, FontWeight.w800, Colors.white),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
+                  const SizedBox(height: 12),
+                  _aksiDraft(r),
                 ],
               ],
             ),

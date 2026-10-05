@@ -616,66 +616,76 @@ class _KesehatanScreenState extends State<KesehatanScreen> {
       }
     }).toList();
 
+    Widget content;
+    if (_loading) {
+      content = loadingView();
+    } else if (_error != null) {
+      content = errorView(_error!, _load);
+    } else {
+      content = RefreshIndicator(
+        color: _KC.primary,
+        onRefresh: _load,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(12, 12, 12, 96),
+          children: [
+            _header(),
+            const SizedBox(height: 14),
+            if (_items.isEmpty)
+              _emptyCard('Belum ada catatan kesehatan.\nKetuk "Catat Sakit" untuk menambah.')
+            else ...[
+              _summaryCard(),
+              const SizedBox(height: 14),
+              _filterRow(),
+              const SizedBox(height: 14),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('Riwayat Kesehatan Santri',
+                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _KC.ink)),
+                  Text('${filtered.length} catatan',
+                      style: const TextStyle(fontSize: 11, color: _KC.inkSecondary)),
+                ],
+              ),
+              const SizedBox(height: 10),
+              if (filtered.isEmpty)
+                _emptyCard('Tidak ada catatan pada filter ini.')
+              else
+                for (int i = 0; i < filtered.length; i++)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: _itemCard(i, filtered[i] as Map<String, dynamic>),
+                  ),
+            ],
+          ],
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: _KC.background,
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _add,
-        tooltip: 'Catat Sakit',
-        backgroundColor: _KC.primary,
-        foregroundColor: Colors.white,
-        elevation: 3,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        icon: const Icon(Icons.add_rounded),
-        label: const Text('Catat Sakit', style: TextStyle(fontWeight: FontWeight.w700)),
-      ),
-      body: _loading
-          ? loadingView()
-          : _error != null
-              ? errorView(_error!, _load)
-              : Align(
-                  alignment: Alignment.topCenter,
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 480),
-                    child: RefreshIndicator(
-                      color: _KC.primary,
-                      onRefresh: _load,
-                      child: ListView(
-                        physics: const AlwaysScrollableScrollPhysics(),
-                        padding: const EdgeInsets.fromLTRB(12, 12, 12, 96),
-                        children: [
-                          _header(),
-                          const SizedBox(height: 14),
-                          if (_items.isEmpty)
-                            _emptyCard('Belum ada catatan kesehatan.\nKetuk "Catat Sakit" untuk menambah.')
-                          else ...[
-                            _summaryCard(),
-                            const SizedBox(height: 14),
-                            _filterRow(),
-                            const SizedBox(height: 14),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                const Text('Riwayat Kesehatan Santri',
-                                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _KC.ink)),
-                                Text('${filtered.length} catatan',
-                                    style: const TextStyle(fontSize: 11, color: _KC.inkSecondary)),
-                              ],
-                            ),
-                            const SizedBox(height: 10),
-                            if (filtered.isEmpty)
-                              _emptyCard('Tidak ada catatan pada filter ini.')
-                            else
-                              for (int i = 0; i < filtered.length; i++)
-                                Padding(
-                                  padding: const EdgeInsets.only(bottom: 10),
-                                  child: _itemCard(i, filtered[i] as Map<String, dynamic>),
-                                ),
-                          ],
-                        ],
-                      ),
-                    ),
-                  ),
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 480),
+          child: Stack(
+            children: [
+              Positioned.fill(child: content),
+              Positioned(
+                right: 16,
+                bottom: 16,
+                child: FloatingActionButton.extended(
+                  onPressed: _add,
+                  tooltip: 'Catat Sakit',
+                  backgroundColor: _KC.primary,
+                  foregroundColor: Colors.white,
+                  icon: const Icon(Icons.add_rounded),
+                  label: const Text('Catat Sakit', style: TextStyle(fontWeight: FontWeight.w700)),
                 ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
