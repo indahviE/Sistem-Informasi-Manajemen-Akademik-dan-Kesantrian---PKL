@@ -23,7 +23,7 @@ class UstadzHeader extends StatelessWidget implements PreferredSizeWidget {
   });
 
   /// Sama dengan AdminHeader.brandName supaya nama produknya konsisten.
-  static const String brandName = 'SIMEdu';
+  static const String brandName = 'SIMpesantren';
 
   /// Baris kedua (nama menu aktif, mis. "Beranda").
   final String subtitle;

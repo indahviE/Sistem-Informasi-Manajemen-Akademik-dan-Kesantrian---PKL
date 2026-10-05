@@ -145,7 +145,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final role = (_data?['role'] ?? '').toString();
     if (role == 'WALI_SANTRI' || role == 'SUPER_ADMIN' || !_isUstadzUser(role)) return;
     try {
-      final res = await AppScope.of(context).api.get(ApiUrl.ujian);
+      final res = await AppScope.of(context).api.get('${ApiUrl.ujian}?saya=true');
       final items = res is List ? res : ((res as Map<String, dynamic>)['data'] as List? ?? []);
       if (!mounted) return;
       setState(() => _ujianList = items.whereType<Map<String, dynamic>>().toList());
@@ -1597,7 +1597,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   //   ringkasan: { kehadiranPersen, kehadiranKet }
   // Ujian TIDAK dari /api/dashboard: diambil terpisah lewat GET ApiUrl.ujian
   // (endpoint yang sama dengan ujian_screen.dart), lalu disaring 3 terdekat.
-  // Tap kartu => _goto('Ujian').
+  // Kartu "Nilai Belum" di Ringkasan juga dihitung dari daftar ujian ini.
+  // Tap kartu => _goto('Ujian & Remedial').
   //
   // App bar atas (SIMPesantren + pill Ustadz + lonceng + foto) dan bottom nav
   // (Beranda, Absensi, Nilai, Tahfidz, Lainnya) milik shell utama, bukan file ini.
@@ -1694,6 +1695,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
     hasil.sort((a, b) => a.key.compareTo(b.key));
     return hasil.take(3).map((e) => e.value).toList();
+  }
+
+  /// Ujian yang sudah lewat tanggalnya, belum dikunci, tapi belum semua
+  /// santrinya dinilai. Sumber datanya sama dengan _UUjianCard.
+  List<Map<String, dynamic>> _ujianBelumDinilai() {
+    final now = DateTime.now();
+    final hasil = <Map<String, dynamic>>[];
+    for (final u in _ujianList) {
+      if (u['dikunciPada'] != null) continue;
+      final d = DateTime.tryParse('${u['tanggal'] ?? ''}')?.toLocal();
+      if (d == null || d.isAfter(now)) continue;
+
+      final nilai = (u['_count'] is Map ? u['_count']['nilais'] : null) as int? ?? 0;
+      final totalRaw = u['totalSantri'] ?? (u['kelas'] is Map ? u['kelas']['jumlahSantri'] : null);
+      final total = totalRaw is int && totalRaw > 0 ? totalRaw : null;
+
+      final belum = total != null ? nilai < total : nilai == 0;
+      if (belum) hasil.add(u);
+    }
+    return hasil;
   }
 
   Widget _ustadzHeroHeader() {
@@ -1856,6 +1877,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     final hadir = r.containsKey('kehadiranPersen') ? _num(r, ['kehadiranPersen']).round() : null;
     final absensiBelum = kelas.where((k) => k['absensiHariIniTerisi'] != true).length;
+    final nilaiBelumList = _ujianBelumDinilai();
+    final nilaiBelum = nilaiBelumList.length;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1921,6 +1944,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
               caption: absensiBelum > 0 ? 'Belum diisi hari ini' : 'Semua sudah terisi',
               captionColor: absensiBelum > 0 ? _WC.errorText : _WC.successText,
             ),
+            _USummaryCard(
+              label: 'Nilai Belum',
+              icon: Icons.rate_review_outlined,
+              iconBg: _WC.sage,
+              iconFg: _WC.primary,
+              value: '$nilaiBelum',
+              unit: 'Ujian',
+              caption: nilaiBelum == 0
+                  ? 'Semua nilai sudah masuk'
+                  : (nilaiBelum == 1
+                      ? '${nilaiBelumList.first['nama'] ?? 'Ujian'}'
+                      : 'Menunggu input nilai'),
+              captionColor: nilaiBelum > 0 ? _WC.errorText : _WC.successText,
+            ),
           ],
         ),
         const SizedBox(height: 22),
@@ -1930,7 +1967,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           'Ujian Terdekat',
           badge: ujian.isEmpty ? null : _UPill(label: '${ujian.length} Ujian', bg: _WC.sage, fg: _WC.primary),
           trailing: 'Semua',
-          onTap: () => _goto('Ujian'),
+          onTap: () => _goto('Ujian & Remedial'),
         ),
         const SizedBox(height: 10),
         if (ujian.isEmpty)
@@ -1939,7 +1976,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           for (final u in ujian)
             Padding(
               padding: const EdgeInsets.only(bottom: 10),
-              child: _UUjianCard(ujian: u, onTap: () => _goto('Ujian')),
+              child: _UUjianCard(ujian: u, onTap: () => _goto('Ujian & Remedial')),
             ),
       ],
     );
@@ -2292,8 +2329,9 @@ class _UQuickTile extends StatelessWidget {
   }
 }
 
-/// Kartu satu kelas yang diampu ustadz: nama kelas, mapel, tingkat, jumlah
-/// santri, dan status absensi hari ini.
+/// Kartu satu kelas yang diampu ustadz. Gayanya mengikuti kartu jadwal di
+/// screen.png: garis aksen kiri + pill status + tombol aksi untuk kelas
+/// yang belum diabsen.
 class _UKelasCard extends StatelessWidget {
   final Map<String, dynamic> kelas;
   final VoidCallback onAbsensi;
@@ -2331,69 +2369,124 @@ class _UKelasCard extends StatelessWidget {
     final jumlah = kelas['jumlahSantri'];
     final terisi = kelas['absensiHariIniTerisi'] == true;
 
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: _WC.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _WC.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        decoration: BoxDecoration(
+          color: _WC.surface,
+          border: Border.all(color: _WC.border),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              // Garis aksen kiri: hanya untuk kelas yang belum diabsen.
+              Container(width: 4, color: terisi ? Colors.transparent : _WC.primary),
               Expanded(
-                child: Text(nama,
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _WC.ink)),
-              ),
-              terisi
-                  ? const _UPill(label: 'Absensi Terisi', bg: _WC.successBg, fg: _WC.successText)
-                  : const _UPill(label: 'Belum Absen', bg: _WC.pendingBg, fg: _WC.pendingText, dot: _WC.pendingText),
-            ],
-          ),
-          if (mapel != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 2),
-              child: Text(mapel,
-                  style: const TextStyle(fontSize: 11.5, fontStyle: FontStyle.italic, color: _WC.inkSecondary)),
-            ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(
-                child: Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
-                  children: [
-                    if (tingkat != null) _chip(Icons.layers_outlined, tingkat),
-                    if (jumlah != null) _chip(Icons.groups_2_outlined, '$jumlah santri'),
-                  ],
-                ),
-              ),
-              if (!terisi) ...[
-                const SizedBox(width: 8),
-                FilledButton(
-                  style: FilledButton.styleFrom(
-                    backgroundColor: _WC.primary,
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-                  ),
-                  onPressed: onAbsensi,
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 14, 14, 14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Isi Absensi',
-                          style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: Colors.white)),
-                      SizedBox(width: 6),
-                      Icon(Icons.arrow_forward, size: 14, color: Colors.white),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  nama,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w800,
+                                    color: _WC.ink,
+                                    height: 1.25,
+                                  ),
+                                ),
+                                if (mapel != null)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 2),
+                                    child: Text(
+                                      mapel,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontSize: 11.5,
+                                        fontStyle: FontStyle.italic,
+                                        color: _WC.inkSecondary,
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              terisi
+                                  ? const _UPill(
+                                      label: 'Absensi Terisi',
+                                      bg: _WC.successBg,
+                                      fg: _WC.successText,
+                                      dot: _WC.successText,
+                                    )
+                                  : const _UPill(
+                                      label: 'Belum Absen',
+                                      bg: _WC.pendingBg,
+                                      fg: _WC.pendingText,
+                                      dot: _WC.pendingText,
+                                    ),
+                              if (!terisi) ...[
+                                const SizedBox(height: 10),
+                                FilledButton(
+                                  style: FilledButton.styleFrom(
+                                    backgroundColor: _WC.primary,
+                                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                                    minimumSize: Size.zero,
+                                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+                                  ),
+                                  onPressed: onAbsensi,
+                                  child: const Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        'Isi Absensi',
+                                        style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: Colors.white),
+                                      ),
+                                      SizedBox(width: 6),
+                                      Icon(Icons.arrow_forward, size: 14, color: Colors.white),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ],
+                      ),
+                      if (tingkat != null || jumlah != null) ...[
+                        const SizedBox(height: 10),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          children: [
+                            if (tingkat != null) _chip(Icons.layers_outlined, tingkat),
+                            if (jumlah != null) _chip(Icons.groups_2_outlined, '$jumlah santri'),
+                          ],
+                        ),
+                      ],
                     ],
                   ),
                 ),
-              ],
+              ),
             ],
           ),
-        ],
+        ),
       ),
     );
   }
