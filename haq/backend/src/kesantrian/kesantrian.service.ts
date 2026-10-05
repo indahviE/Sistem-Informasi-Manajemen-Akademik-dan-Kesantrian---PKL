@@ -8,6 +8,7 @@ import {
   CreatePerizinanDto,
   CreateTataTertibDto,
   QueryKesantrianDto,
+  UpdateKesehatanDto,
   UpdatePelanggaranDto,
   UpdatePerizinanDto,
 } from './dto/kesantrian.dto';
@@ -223,6 +224,23 @@ private async buildSantriScope(
       `${santri.nama} sedang sakit: ${dto.keluhan}.`,
     );
     return created;
+  }
+
+    async updateKesehatan(tenantId: string, id: string, dto: UpdateKesehatanDto) {
+    // findFirst dengan tenantId supaya admin pondok lain tidak bisa mengubah catatan ini
+    const row = await this.prisma.kesehatanLog.findFirst({ where: { id, tenantId } });
+    if (!row) throw new NotFoundException('Catatan kesehatan tidak ditemukan');
+
+    return this.prisma.kesehatanLog.update({
+      where: { id },
+      data: {
+        ...(dto.status !== undefined && { status: dto.status }),
+        ...(dto.diagnosa !== undefined && { diagnosa: dto.diagnosa }),
+        ...(dto.tindakan !== undefined && { tindakan: dto.tindakan }),
+        ...(dto.obat !== undefined && { obat: dto.obat }),
+      },
+      include: { santri: { select: { id: true, nama: true, nis: true } } },
+    });
   }
 
   // ===== Kunjungan Wali =====

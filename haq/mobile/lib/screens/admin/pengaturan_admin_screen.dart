@@ -79,6 +79,24 @@ const List<({String key, String title, String desc})> _notifItems = [
   ),
 ];
 
+// Ikon visual per toggle (hanya tampilan).
+IconData _notifIcon(String key) {
+  switch (key) {
+    case 'perizinanBaru':
+      return Icons.exit_to_app_rounded;
+    case 'pelanggaranBaru':
+      return Icons.gavel_rounded;
+    case 'waliBelumAktivasi':
+      return Icons.how_to_reg_outlined;
+    case 'eskalasiDarurat':
+      return Icons.priority_high_rounded;
+    case 'rekapAbsensiShalat':
+      return Icons.fact_check_outlined;
+    default:
+      return Icons.notifications_none;
+  }
+}
+
 // ============================================================================
 // Screen
 // ============================================================================
@@ -237,12 +255,24 @@ class _PengaturanAdminScreenState extends State<PengaturanAdminScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: _AC.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text('Keluar dari Akun Admin?', style: _t(17, FontWeight.w800, _AC.primary)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        icon: Container(
+          width: 52,
+          height: 52,
+          decoration: const BoxDecoration(color: _AC.errorBg, shape: BoxShape.circle),
+          child: const Icon(Icons.logout_rounded, size: 24, color: _AC.errorText),
+        ),
+        title: Text(
+          'Keluar dari Akun Admin?',
+          textAlign: TextAlign.center,
+          style: _t(17, FontWeight.w800, _AC.primary),
+        ),
         content: Text(
           'Kamu perlu login kembali untuk mengakses pengaturan dan data pondok.',
+          textAlign: TextAlign.center,
           style: _t(13, FontWeight.w500, _AC.inkSecondary, height: 1.4),
         ),
+        actionsAlignment: MainAxisAlignment.center,
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
@@ -292,68 +322,119 @@ class _PengaturanAdminScreenState extends State<PengaturanAdminScreen> {
       color: _AC.primary,
       onRefresh: _load,
       child: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
         children: [
-          _TitleRow(onBack: widget.onBack),
-          const SizedBox(height: 14),
-          _ProfileCard(
-            nama: (_profil['nama'] ?? '-') as String,
-            email: (_profil['email'] ?? '-') as String,
-            noHp: _profil['noHp'] as String?,
-            role: (_profil['role'] ?? '') as String,
-            onEditProfil: _editProfil,
-            onUbahPassword: _ubahPassword,
+          const _Reveal(index: 0, child: _TitleRow()),
+          const SizedBox(height: 16),
+          _Reveal(
+            index: 1,
+            child: _ProfileCard(
+              nama: (_profil['nama'] ?? '-') as String,
+              email: (_profil['email'] ?? '-') as String,
+              noHp: _profil['noHp'] as String?,
+              role: (_profil['role'] ?? '') as String,
+              onEditProfil: _editProfil,
+              onUbahPassword: _ubahPassword,
+            ),
           ),
-          const SizedBox(height: 14),
-          _PaketCard(
-            paket: _paket,
-            onUpgrade: () => _showInfo('Pengajuan upgrade kuota segera hadir.'),
+          const SizedBox(height: 16),
+          _Reveal(
+            index: 2,
+            child: _PaketCard(
+              paket: _paket,
+              onUpgrade: () => _showInfo('Pengajuan upgrade kuota segera hadir.'),
+            ),
           ),
-          const SizedBox(height: 14),
-          _NotifCard(values: _notif, onChanged: _toggleNotif),
-          const SizedBox(height: 14),
-          _PanduanCard(
-            items: [
-              _PanduanItem(
-                icon: Icons.description_outlined,
-                title: 'Pedoman & Tata Tertib',
-                subtitle: 'Format PDF resmi Mudir Ma\'had',
-                onTap: () => _showInfo('Segera hadir.'),
-              ),
-              _PanduanItem(
-                icon: Icons.menu_book_outlined,
-                title: 'Buku Panduan Admin',
-                subtitle: 'Tata cara input nilai, mutaba\'ah & SPP',
-                onTap: () => _showInfo('Segera hadir.'),
-              ),
-              _PanduanItem(
-                icon: Icons.shield_outlined,
-                title: 'Kebijakan Privasi & Enkripsi Santri',
-                subtitle: 'Standar perlindungan data pribadi',
-                onTap: () => _showInfo('Segera hadir.'),
-              ),
-              _PanduanItem(
-                icon: Icons.support_agent_outlined,
-                title: 'Hubungi Bantuan Teknis IT',
-                subtitle: 'Layanan siaga WhatsApp 24/7',
-                external: true,
-                highlight: true,
-                onTap: _hubungiBantuan,
-              ),
-            ],
+          const SizedBox(height: 16),
+          _Reveal(index: 3, child: _NotifCard(values: _notif, onChanged: _toggleNotif)),
+          const SizedBox(height: 16),
+          _Reveal(
+            index: 4,
+            child: _PanduanCard(
+              items: [
+                _PanduanItem(
+                  icon: Icons.description_outlined,
+                  title: 'Pedoman & Tata Tertib',
+                  subtitle: 'Format PDF resmi Mudir Ma\'had',
+                  onTap: () => _showInfo('Segera hadir.'),
+                ),
+                _PanduanItem(
+                  icon: Icons.menu_book_outlined,
+                  title: 'Buku Panduan Admin',
+                  subtitle: 'Tata cara input nilai, mutaba\'ah & SPP',
+                  onTap: () => _showInfo('Segera hadir.'),
+                ),
+                _PanduanItem(
+                  icon: Icons.shield_outlined,
+                  title: 'Kebijakan Privasi & Enkripsi Santri',
+                  subtitle: 'Standar perlindungan data pribadi',
+                  onTap: () => _showInfo('Segera hadir.'),
+                ),
+                _PanduanItem(
+                  icon: Icons.support_agent_outlined,
+                  title: 'Hubungi Bantuan Teknis IT',
+                  subtitle: 'Layanan siaga WhatsApp 24/7',
+                  external: true,
+                  highlight: true,
+                  onTap: _hubungiBantuan,
+                ),
+              ],
+            ),
           ),
-          const SizedBox(height: 14),
-          _LogoutButton(onPressed: _confirmLogout),
-          const SizedBox(height: 14),
-          Center(
-            child: Text(
-              'Sistem Administrasi $namaPondok',
-              textAlign: TextAlign.center,
-              style: _t(11, FontWeight.w600, _AC.inkSecondary),
+          const SizedBox(height: 16),
+          _Reveal(index: 5, child: _LogoutButton(onPressed: _confirmLogout)),
+          const SizedBox(height: 18),
+          _Reveal(
+            index: 6,
+            child: Center(
+              child: Column(
+                children: [
+                  Container(
+                    width: 28,
+                    height: 3,
+                    decoration: BoxDecoration(
+                      color: _AC.line,
+                      borderRadius: BorderRadius.circular(9999),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    'Sistem Administrasi $namaPondok',
+                    textAlign: TextAlign.center,
+                    style: _t(11, FontWeight.w600, _AC.inkSecondary),
+                  ),
+                ],
+              ),
             ),
           ),
         ],
       ),
+    );
+  }
+}
+
+// ============================================================================
+// Animasi masuk (fade + slide halus, berurutan)
+// ============================================================================
+
+class _Reveal extends StatelessWidget {
+  const _Reveal({required this.index, required this.child});
+
+  final int index;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: Duration(milliseconds: 320 + index * 70),
+      curve: Curves.easeOutCubic,
+      builder: (context, v, c) => Opacity(
+        opacity: v,
+        child: Transform.translate(offset: Offset(0, (1 - v) * 16), child: c),
+      ),
+      child: child,
     );
   }
 }
@@ -376,14 +457,28 @@ class _LoadErrorState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.error_outline, color: _AC.errorText, size: 32),
-            const SizedBox(height: 10),
-            Text(message, textAlign: TextAlign.center, style: _t(13, FontWeight.w500, _AC.inkSecondary)),
-            const SizedBox(height: 12),
-            FilledButton(
+            Container(
+              width: 64,
+              height: 64,
+              decoration: const BoxDecoration(color: _AC.errorBg, shape: BoxShape.circle),
+              child: const Icon(Icons.cloud_off_rounded, color: _AC.errorText, size: 30),
+            ),
+            const SizedBox(height: 14),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: _t(13, FontWeight.w500, _AC.inkSecondary, height: 1.4),
+            ),
+            const SizedBox(height: 16),
+            FilledButton.icon(
               onPressed: onRetry,
-              style: FilledButton.styleFrom(backgroundColor: _AC.primary),
-              child: const Text('Coba Lagi'),
+              icon: const Icon(Icons.refresh_rounded, size: 18),
+              style: FilledButton.styleFrom(
+                backgroundColor: _AC.primary,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              ),
+              label: const Text('Coba Lagi'),
             ),
           ],
         ),
@@ -397,7 +492,10 @@ class _LoadErrorState extends StatelessWidget {
 // ============================================================================
 
 class _SectionCard extends StatelessWidget {
-  const _SectionCard({required this.child, this.padding = const EdgeInsets.all(16)});
+  const _SectionCard({
+    required this.child,
+    this.padding = const EdgeInsets.all(16),
+  });
 
   final Widget child;
   final EdgeInsets padding;
@@ -407,14 +505,58 @@ class _SectionCard extends StatelessWidget {
     return Container(
       width: double.infinity,
       padding: padding,
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         color: _AC.surface,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: _AC.line.withOpacity(0.7)),
         boxShadow: const [
-          BoxShadow(color: Color(0x0A0F3A2E), blurRadius: 6, offset: Offset(0, 2)),
+          BoxShadow(color: Color(0x0F0F3A2E), blurRadius: 16, offset: Offset(0, 6)),
         ],
       ),
       child: child,
+    );
+  }
+}
+
+/// Header section seragam: ikon dalam kotak tint + judul + subjudul opsional.
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader({required this.icon, required this.title, this.subtitle, this.trailing});
+
+  final IconData icon;
+  final String title;
+  final String? subtitle;
+  final Widget? trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Container(
+          width: 38,
+          height: 38,
+          decoration: BoxDecoration(
+            color: _AC.sage,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Icon(icon, size: 20, color: _AC.primary),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: _t(15.5, FontWeight.w800, _AC.primary, height: 1.2)),
+              if (subtitle != null) ...[
+                const SizedBox(height: 2),
+                Text(subtitle!, style: _t(11.5, FontWeight.w500, _AC.inkSecondary, height: 1.3)),
+              ],
+            ],
+          ),
+        ),
+        if (trailing != null) trailing!,
+      ],
     );
   }
 }
@@ -428,9 +570,10 @@ class _Toggle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onTap: () => onChanged(!value),
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
+        duration: const Duration(milliseconds: 200),
         curve: Curves.easeInOut,
         width: 50,
         height: 30,
@@ -440,16 +583,23 @@ class _Toggle extends StatelessWidget {
           borderRadius: BorderRadius.circular(9999),
         ),
         child: AnimatedAlign(
-          duration: const Duration(milliseconds: 180),
+          duration: const Duration(milliseconds: 200),
           curve: Curves.easeInOut,
           alignment: value ? Alignment.centerRight : Alignment.centerLeft,
           child: Container(
             width: 24,
             height: 24,
+            alignment: Alignment.center,
             decoration: const BoxDecoration(
               color: Colors.white,
               shape: BoxShape.circle,
-              boxShadow: [BoxShadow(color: Color(0x33000000), blurRadius: 2, offset: Offset(0, 1))],
+              boxShadow: [BoxShadow(color: Color(0x33000000), blurRadius: 3, offset: Offset(0, 1))],
+            ),
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 160),
+              child: value
+                  ? Icon(Icons.check_rounded, key: const ValueKey('on'), size: 15, color: _AC.primary)
+                  : const SizedBox.shrink(key: ValueKey('off')),
             ),
           ),
         ),
@@ -458,38 +608,19 @@ class _Toggle extends StatelessWidget {
   }
 }
 
-// ============================================================================
-// Title row
-// ============================================================================
-
 class _TitleRow extends StatelessWidget {
-  const _TitleRow({this.onBack});
-
-  final VoidCallback? onBack;
+  const _TitleRow();
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Material(
-          color: _AC.surfaceDim,
-          shape: const CircleBorder(),
-          child: InkWell(
-            customBorder: const CircleBorder(),
-            onTap: onBack,
-            child: SizedBox(
-              width: 40,
-              height: 40,
-              child: Icon(Icons.arrow_back, size: 20, color: _AC.primary),
-            ),
-          ),
-        ),
-        const SizedBox(width: 12),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Pengaturan', style: _t(20, FontWeight.w800, _AC.primary)),
+              Text('Pengaturan', style: _t(21, FontWeight.w800, _AC.primary, height: 1.15)),
+              const SizedBox(height: 2),
               Text(
                 'Akun & Preferensi Admin',
                 overflow: TextOverflow.ellipsis,
@@ -499,15 +630,25 @@ class _TitleRow extends StatelessWidget {
           ),
         ),
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-          decoration: BoxDecoration(color: _AC.sage, borderRadius: BorderRadius.circular(9999)),
+          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+          decoration: BoxDecoration(
+            color: _AC.sage,
+            borderRadius: BorderRadius.circular(9999),
+            border: Border.all(color: _AC.primary.withOpacity(0.12)),
+          ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               Container(
-                width: 6,
-                height: 6,
-                decoration: BoxDecoration(color: _AC.primary, shape: BoxShape.circle),
+                width: 7,
+                height: 7,
+                decoration: BoxDecoration(
+                  color: _AC.primary,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(color: _AC.primary.withOpacity(0.35), blurRadius: 4, spreadRadius: 1),
+                  ],
+                ),
               ),
               const SizedBox(width: 6),
               Text('Admin Aktif', style: _t(11, FontWeight.w800, _AC.primary)),
@@ -549,58 +690,142 @@ class _ProfileCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final punyaHp = noHp != null && noHp!.trim().isNotEmpty;
+
     return _SectionCard(
+      padding: EdgeInsets.zero,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          // Banner gradient + avatar yang menimpa tepi bawah banner.
+          Stack(
+            clipBehavior: Clip.none,
             children: [
               Container(
-                width: 64,
-                height: 64,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(color: _AC.primary, shape: BoxShape.circle),
-                child: Text(_inisial, style: _t(26, FontWeight.w800, _AC.gold)),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                height: 84,
+                width: double.infinity,
+                clipBehavior: Clip.antiAlias,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [_AC.primary, _AC.primarySoft],
+                  ),
+                ),
+                child: Stack(
                   children: [
-                    Text(nama, style: _t(17, FontWeight.w800, _AC.primary, height: 1.2)),
-                    const SizedBox(height: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: _AC.surfaceDim,
-                        borderRadius: BorderRadius.circular(9999),
-                        border: Border.all(color: _AC.line),
+                    Positioned(
+                      right: -30,
+                      top: -50,
+                      child: Container(
+                        width: 140,
+                        height: 140,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white.withOpacity(0.10), width: 1.5),
+                        ),
                       ),
-                      child: Text(_roleLabel, style: _t(11, FontWeight.w700, _AC.inkSecondary)),
                     ),
-                    const SizedBox(height: 8),
-                    _InfoLine(icon: Icons.mail_outline, text: email),
-                    if (noHp != null && noHp!.trim().isNotEmpty) ...[
-                      const SizedBox(height: 3),
-                      _InfoLine(icon: Icons.phone_outlined, text: noHp!),
-                    ],
+                    Positioned(
+                      right: 24,
+                      bottom: -30,
+                      child: Container(
+                        width: 80,
+                        height: 80,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: _AC.gold.withOpacity(0.10),
+                        ),
+                      ),
+                    ),
                   ],
+                ),
+              ),
+              Positioned(
+                left: 18,
+                bottom: -34,
+                child: Container(
+                  width: 72,
+                  height: 72,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: _AC.primary,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: _AC.surface, width: 4),
+                    boxShadow: const [
+                      BoxShadow(color: Color(0x290F3A2E), blurRadius: 10, offset: Offset(0, 4)),
+                    ],
+                  ),
+                  child: Text(_inisial, style: _t(28, FontWeight.w800, _AC.gold)),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 14),
-          Row(
-            children: [
-              Expanded(
-                child: _GhostButton(icon: Icons.edit_outlined, label: 'Edit Profil', onPressed: onEditProfil),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _GhostButton(icon: Icons.key_outlined, label: 'Ubah Sandi', onPressed: onUbahPassword),
-              ),
-            ],
+          const SizedBox(height: 42),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Flexible(
+                      child: Text(
+                        nama,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: _t(19, FontWeight.w800, _AC.primary, height: 1.2),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: _AC.sage,
+                        borderRadius: BorderRadius.circular(9999),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.verified_user_outlined, size: 12, color: _AC.primary),
+                          const SizedBox(width: 4),
+                          Text(_roleLabel, style: _t(10.5, FontWeight.w800, _AC.primary)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                _InfoTile(icon: Icons.mail_outline_rounded, label: 'Email', text: email),
+                if (punyaHp) ...[
+                  const SizedBox(height: 8),
+                  _InfoTile(icon: Icons.phone_outlined, label: 'No. HP', text: noHp!),
+                ],
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _ActionButton(
+                        icon: Icons.edit_outlined,
+                        label: 'Edit Profil',
+                        filled: true,
+                        onPressed: onEditProfil,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _ActionButton(
+                        icon: Icons.key_outlined,
+                        label: 'Ubah Sandi',
+                        filled: false,
+                        onPressed: onUbahPassword,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -608,58 +833,91 @@ class _ProfileCard extends StatelessWidget {
   }
 }
 
-class _InfoLine extends StatelessWidget {
-  const _InfoLine({required this.icon, required this.text});
+class _InfoTile extends StatelessWidget {
+  const _InfoTile({required this.icon, required this.label, required this.text});
 
   final IconData icon;
+  final String label;
   final String text;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Icon(icon, size: 14, color: _AC.inkSecondary),
-        const SizedBox(width: 6),
-        Expanded(
-          child: Text(
-            text,
-            overflow: TextOverflow.ellipsis,
-            style: _t(12, FontWeight.w500, _AC.inkSecondary),
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: _AC.surfaceDim,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 30,
+            height: 30,
+            decoration: const BoxDecoration(color: _AC.surface, shape: BoxShape.circle),
+            child: Icon(icon, size: 16, color: _AC.primary),
           ),
-        ),
-      ],
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: _t(10, FontWeight.w700, _AC.inkSecondary)),
+                const SizedBox(height: 1),
+                Text(
+                  text,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: _t(12.5, FontWeight.w700, _AC.primary),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
 
-class _GhostButton extends StatelessWidget {
-  const _GhostButton({required this.icon, required this.label, required this.onPressed});
+class _ActionButton extends StatelessWidget {
+  const _ActionButton({
+    required this.icon,
+    required this.label,
+    required this.filled,
+    required this.onPressed,
+  });
 
   final IconData icon;
   final String label;
+  final bool filled;
   final VoidCallback onPressed;
 
   @override
   Widget build(BuildContext context) {
+    final fg = filled ? Colors.white : _AC.primary;
     return Material(
-      color: _AC.surfaceDim,
-      borderRadius: BorderRadius.circular(24),
+      color: filled ? _AC.primary : _AC.surface,
+      borderRadius: BorderRadius.circular(16),
       child: InkWell(
         onTap: onPressed,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(16),
         child: Container(
           height: 46,
           alignment: Alignment.center,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: filled ? null : Border.all(color: _AC.primary.withOpacity(0.35), width: 1.2),
+          ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, size: 17, color: _AC.primary),
-              const SizedBox(width: 6),
+              Icon(icon, size: 17, color: fg),
+              const SizedBox(width: 7),
               Flexible(
                 child: Text(
                   label,
                   overflow: TextOverflow.ellipsis,
-                  style: _t(13, FontWeight.w700, _AC.primary),
+                  style: _t(13, FontWeight.w800, fg),
                 ),
               ),
             ],
@@ -706,9 +964,9 @@ class _PaketCard extends StatelessWidget {
           end: Alignment.bottomRight,
           colors: [_AC.primary, _AC.primarySoft],
         ),
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(24),
         boxShadow: [
-          BoxShadow(color: _AC.primary.withOpacity(0.22), blurRadius: 14, offset: const Offset(0, 6)),
+          BoxShadow(color: _AC.primary.withOpacity(0.28), blurRadius: 20, offset: const Offset(0, 8)),
         ],
       ),
       child: Stack(
@@ -725,12 +983,12 @@ class _PaketCard extends StatelessWidget {
               height: 130,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: _AC.gold.withOpacity(0.07),
+                color: _AC.gold.withOpacity(0.08),
               ),
             ),
           ),
           Padding(
-            padding: const EdgeInsets.all(18),
+            padding: const EdgeInsets.all(20),
             child: p == null ? _kosong() : _isi(p),
           ),
         ],
@@ -756,11 +1014,12 @@ class _PaketCard extends StatelessWidget {
         Row(
           children: [
             Container(
-              width: 40,
-              height: 40,
+              width: 42,
+              height: 42,
               decoration: BoxDecoration(
                 color: Colors.white.withOpacity(0.10),
                 shape: BoxShape.circle,
+                border: Border.all(color: _AC.gold.withOpacity(0.55)),
               ),
               child: const Icon(Icons.workspace_premium_outlined, size: 22, color: _AC.gold),
             ),
@@ -770,12 +1029,12 @@ class _PaketCard extends StatelessWidget {
             ),
           ],
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 12),
         Text(
           'Belum ada paket aktif untuk pondok ini. Ajukan paket untuk mulai memakai seluruh modul.',
-          style: _t(12, FontWeight.w500, Colors.white70, height: 1.4),
+          style: _t(12, FontWeight.w500, Colors.white70, height: 1.45),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 18),
         _upgradeButton(),
       ],
     );
@@ -801,7 +1060,7 @@ class _PaketCard extends StatelessWidget {
           children: [
             if (periode.isNotEmpty)
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 4),
                 decoration: BoxDecoration(
                   color: _AC.gold,
                   borderRadius: BorderRadius.circular(9999),
@@ -810,23 +1069,23 @@ class _PaketCard extends StatelessWidget {
               ),
             const Spacer(),
             Container(
-              width: 42,
-              height: 42,
+              width: 44,
+              height: 44,
               decoration: BoxDecoration(
                 color: Colors.white.withOpacity(0.10),
                 shape: BoxShape.circle,
                 border: Border.all(color: _AC.gold.withOpacity(0.55)),
               ),
-              child: const Icon(Icons.workspace_premium_outlined, size: 22, color: _AC.gold),
+              child: const Icon(Icons.workspace_premium_outlined, size: 23, color: _AC.gold),
             ),
           ],
         ),
         const SizedBox(height: 10),
         Text(
           (p['nama'] ?? 'Paket') as String,
-          style: _t(23, FontWeight.w800, Colors.white, height: 1.15),
+          style: _t(24, FontWeight.w800, Colors.white, height: 1.15),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 10),
         Wrap(
           spacing: 8,
           runSpacing: 6,
@@ -855,15 +1114,15 @@ class _PaketCard extends StatelessWidget {
               ),
           ],
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 18),
         // Panel kuota santri
         Container(
           width: double.infinity,
-          padding: const EdgeInsets.all(14),
+          padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.07),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white.withOpacity(0.09)),
+            color: Colors.white.withOpacity(0.08),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: Colors.white.withOpacity(0.10)),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -886,12 +1145,12 @@ class _PaketCard extends StatelessWidget {
                     ),
                 ],
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 12),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.baseline,
                 textBaseline: TextBaseline.alphabetic,
                 children: [
-                  Text('$aktif', style: _t(32, FontWeight.w800, Colors.white, height: 1)),
+                  Text('$aktif', style: _t(34, FontWeight.w800, Colors.white, height: 1)),
                   const SizedBox(width: 6),
                   Text(
                     limit > 0 ? '/ $limit santri' : 'santri aktif',
@@ -900,12 +1159,12 @@ class _PaketCard extends StatelessWidget {
                 ],
               ),
               if (limit > 0) ...[
-                const SizedBox(height: 12),
+                const SizedBox(height: 14),
                 ClipRRect(
                   borderRadius: BorderRadius.circular(9999),
                   child: LinearProgressIndicator(
                     value: persen / 100,
-                    minHeight: 9,
+                    minHeight: 10,
                     backgroundColor: Colors.white.withOpacity(0.14),
                     valueColor: AlwaysStoppedAnimation<Color>(hampirPenuh ? _AC.gold : _AC.mint),
                   ),
@@ -933,7 +1192,7 @@ class _PaketCard extends StatelessWidget {
             ],
           ),
         ),
-        const SizedBox(height: 14),
+        const SizedBox(height: 16),
         _upgradeButton(),
       ],
     );
@@ -942,12 +1201,12 @@ class _PaketCard extends StatelessWidget {
   Widget _upgradeButton() {
     return Material(
       color: _AC.gold,
-      borderRadius: BorderRadius.circular(14),
+      borderRadius: BorderRadius.circular(16),
       child: InkWell(
         onTap: onUpgrade,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(16),
         child: Container(
-          height: 50,
+          height: 52,
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Row(
             children: [
@@ -956,7 +1215,15 @@ class _PaketCard extends StatelessWidget {
               Expanded(
                 child: Text('Ajukan Upgrade Kuota Santri', style: _t(14, FontWeight.w800, _AC.primary)),
               ),
-              Icon(Icons.arrow_forward_rounded, size: 19, color: _AC.primary),
+              Container(
+                width: 28,
+                height: 28,
+                decoration: BoxDecoration(
+                  color: _AC.primary.withOpacity(0.10),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.arrow_forward_rounded, size: 17, color: _AC.primary),
+              ),
             ],
           ),
         ),
@@ -977,28 +1244,38 @@ class _NotifCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final aktifCount = _notifItems.where((n) => values[n.key] ?? false).length;
+
     return _SectionCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Icon(Icons.notifications_none, size: 22, color: _AC.primary),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text('Notifikasi & Peringatan Admin', style: _t(16, FontWeight.w800, _AC.primary)),
+          _SectionHeader(
+            icon: Icons.notifications_none_rounded,
+            title: 'Notifikasi & Peringatan Admin',
+            trailing: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+              decoration: BoxDecoration(
+                color: _AC.surfaceDim,
+                borderRadius: BorderRadius.circular(9999),
+                border: Border.all(color: _AC.line),
               ),
-            ],
+              child: Text(
+                '$aktifCount/${_notifItems.length}',
+                style: _t(11, FontWeight.w800, _AC.primary),
+              ),
+            ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 10),
           Text(
             'Pilih notifikasi otomatis yang ingin Anda terima di aplikasi dan WhatsApp dinas.',
-            style: _t(12, FontWeight.w500, _AC.inkSecondary, height: 1.35),
+            style: _t(12, FontWeight.w500, _AC.inkSecondary, height: 1.4),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 8),
           for (var i = 0; i < _notifItems.length; i++) ...[
             if (i > 0) const Divider(height: 1, color: _AC.line),
             _NotifRow(
+              icon: _notifIcon(_notifItems[i].key),
               title: _notifItems[i].title,
               desc: _notifItems[i].desc,
               value: values[_notifItems[i].key] ?? false,
@@ -1013,12 +1290,14 @@ class _NotifCard extends StatelessWidget {
 
 class _NotifRow extends StatelessWidget {
   const _NotifRow({
+    required this.icon,
     required this.title,
     required this.desc,
     required this.value,
     required this.onChanged,
   });
 
+  final IconData icon;
   final String title;
   final String desc;
   final bool value;
@@ -1027,15 +1306,30 @@ class _NotifRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12),
+      padding: const EdgeInsets.symmetric(vertical: 13),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: value ? _AC.sage : _AC.surfaceDim,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              icon,
+              size: 19,
+              color: value ? _AC.primary : _AC.inkSecondary.withOpacity(0.7),
+            ),
+          ),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: _t(13, FontWeight.w800, _AC.primary)),
+                Text(title, style: _t(13, FontWeight.w800, _AC.primary, height: 1.25)),
                 const SizedBox(height: 2),
                 Text(desc, style: _t(11.5, FontWeight.w500, _AC.inkSecondary, height: 1.35)),
               ],
@@ -1082,17 +1376,17 @@ class _PanduanCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Icon(Icons.info_outline, size: 21, color: _AC.primary),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text('Panduan & Bantuan', style: _t(16, FontWeight.w800, _AC.primary)),
-              ),
-            ],
+          const _SectionHeader(
+            icon: Icons.help_outline_rounded,
+            title: 'Panduan & Bantuan',
+            subtitle: 'Dokumen resmi dan dukungan teknis',
           ),
           const SizedBox(height: 8),
-          for (final item in items) _PanduanRow(item: item),
+          for (var i = 0; i < items.length; i++) ...[
+            if (i > 0)
+              const Divider(height: 1, color: _AC.line, indent: 52),
+            _PanduanRow(item: items[i]),
+          ],
         ],
       ),
     );
@@ -1108,19 +1402,23 @@ class _PanduanRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: item.onTap,
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(14),
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 2),
+        padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 2),
         child: Row(
           children: [
             Container(
               width: 40,
               height: 40,
               decoration: BoxDecoration(
-                color: item.highlight ? _AC.sage : _AC.surfaceDim,
+                color: item.highlight ? _AC.primary : _AC.surfaceDim,
                 shape: BoxShape.circle,
               ),
-              child: Icon(item.icon, size: 20, color: _AC.primary),
+              child: Icon(
+                item.icon,
+                size: 20,
+                color: item.highlight ? _AC.gold : _AC.primary,
+              ),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -1133,6 +1431,7 @@ class _PanduanRow extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: _t(13, FontWeight.w800, _AC.primary),
                   ),
+                  const SizedBox(height: 1),
                   Text(
                     item.subtitle,
                     maxLines: 1,
@@ -1142,10 +1441,19 @@ class _PanduanRow extends StatelessWidget {
                 ],
               ),
             ),
-            Icon(
-              item.external ? Icons.open_in_new : Icons.chevron_right,
-              size: 19,
-              color: _AC.inkSecondary,
+            const SizedBox(width: 8),
+            Container(
+              width: 28,
+              height: 28,
+              decoration: BoxDecoration(
+                color: item.highlight ? _AC.sage : _AC.surfaceDim,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                item.external ? Icons.open_in_new_rounded : Icons.chevron_right_rounded,
+                size: 17,
+                color: item.highlight ? _AC.primary : _AC.inkSecondary,
+              ),
             ),
           ],
         ),
@@ -1168,18 +1476,22 @@ class _LogoutButton extends StatelessWidget {
     return SizedBox(
       width: double.infinity,
       child: Material(
-        color: _AC.errorBg,
-        borderRadius: BorderRadius.circular(28),
+        color: _AC.errorBg.withOpacity(0.55),
+        borderRadius: BorderRadius.circular(20),
         child: InkWell(
-          borderRadius: BorderRadius.circular(28),
+          borderRadius: BorderRadius.circular(20),
           onTap: onPressed,
           child: Container(
-            height: 52,
+            height: 54,
             alignment: Alignment.center,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: _AC.errorText.withOpacity(0.25), width: 1.2),
+            ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(Icons.logout, size: 19, color: _AC.errorText),
+                const Icon(Icons.logout_rounded, size: 19, color: _AC.errorText),
                 const SizedBox(width: 8),
                 Text('Keluar dari Akun Admin', style: _t(14, FontWeight.w800, _AC.errorText)),
               ],
