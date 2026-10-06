@@ -36,6 +36,7 @@ import 'admin/admin_header.dart';
 import 'master/ustadz/ustadz_header.dart';
 import 'admin/pengaturan_admin_screen.dart';
 import 'wali/wali_screen.dart';
+import 'wali/wali_header.dart';
 import 'ppdb/ppdb_list_screen.dart';
 import 'kurikulum/kurikulum_screen.dart';
 import 'kesantrian/rekam_medis_screen.dart';
@@ -63,6 +64,7 @@ class _ShellScreenState extends State<ShellScreen> {
   // (super admin's 5-item menu is shown in full, without this cap).
   static const _pinned = ['Dashboard', 'Santri', 'Absensi', 'Kurikulum'];
   static const _adminPinned = ['Dashboard', 'Santri', 'Absensi', 'Pengaturan'];
+  static const _waliPinned = ['Beranda', 'Anak Saya', 'Pelanggaran', 'Perizinan'];
 
   // Keeps the bottom nav pinned to a mobile-sized width and centered,
   // instead of stretching full-width on tablet/web/desktop screens.
@@ -92,7 +94,7 @@ class _ShellScreenState extends State<ShellScreen> {
       chosen = List.of(all);
     } else {
       chosen = <_MenuItem>[];
-      for (final label in (user.isAdmin ? _adminPinned : _pinned)) {
+      for (final label in (user.isAdmin ? _adminPinned : (user.isWali ? _waliPinned : _pinned))) {
         final i = all.indexWhere((e) => e.label == label);
         if (i >= 0) chosen.add(all[i]);
       }
@@ -107,7 +109,7 @@ class _ShellScreenState extends State<ShellScreen> {
     if (_navIndex >= _navItems.length) _navIndex = 0;
     _activeExtra = null;
 
-    if (user.isSuperAdmin || user.isAdmin) _loadUnreadCount();
+    if (user.isSuperAdmin || user.isAdmin || user.isWali) _loadUnreadCount();
   }
 
   Future<void> _loadUnreadCount() async {
@@ -135,7 +137,11 @@ class _ShellScreenState extends State<ShellScreen> {
       return m;
     }
 
-    m.add(_MenuItem('Dashboard', Icons.dashboard, (_) => DashboardScreen(onNavigate: _goToMenu)));
+    m.add(_MenuItem(
+      user.isWali ? 'Beranda' : 'Dashboard',
+      user.isWali ? Icons.home_rounded : Icons.dashboard,
+      (_) => DashboardScreen(onNavigate: _goToMenu),
+    ));
 
     if (!user.isWali) {
       m.add(_MenuItem('Santri', Icons.groups, (_) => const SantriListScreen()));
@@ -268,7 +274,22 @@ class _ShellScreenState extends State<ShellScreen> {
                       email: user.email,
                       onLogout: _logout,
                     )
-              : AppBar(
+              : user.isWali
+                  ? WaliHeader(
+                      subtitle: title == 'Beranda' ? 'Portal Wali Santri' : title,
+                      nama: user.nama,
+                      email: user.email,
+                      hasUnread: _unreadCount > 0,
+                      onNotifikasi: () async {
+                        await Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const NotifikasiScreen()),
+                        );
+                        _loadUnreadCount();
+                      },
+                      onLogout: _logout,
+                    )
+                  : AppBar(
         title: _appBarTitle(user, title),
         actions: [
           IconButton(

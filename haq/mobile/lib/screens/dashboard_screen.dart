@@ -8,6 +8,7 @@ import 'super_admin/tenants_screen.dart'; // TODO: sesuaikan path bila struktur 
 import 'billing/billing_admin_screen.dart'; // TODO: sesuaikan nama class/path bila beda (asumsi: BillingAdminScreen)
 import 'santri/santri_form_screen.dart';
 import 'santri/santri_ui.dart';
+import 'wali/wali_dashboard_screen.dart';
 
 /// ---------------------------------------------------------------------------
 /// Palet warna dashboard — mirrored 1:1 dari signup_screen.dart's `PColors`
@@ -189,7 +190,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return Container(
       // Background ivory yang sama untuk Super Admin, Admin Lembaga & Ustadz
       // (PColors.background == _WC.background == 0xFFFAF9F5).
-      color: (isSuperAdmin || isTenantAdmin || isUstadz) ? _WC.background : null,
+      color: _WC.background,
       child: RefreshIndicator(
         onRefresh: _load,
         child: Align(
@@ -202,7 +203,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
               children: [
                 if (isWali)
-                  _waliHeroHeader()
+                  WaliHero(data: data)
                 else if (isUstadz)
                   _ustadzHeroHeader()
                 else if (isTenantAdmin)
@@ -215,7 +216,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 if (isSuperAdmin)
                   _superBody()
                 else if (isWali)
-                  _waliBody()
+                  WaliBody(data: data, onNavigate: _goto)
                 else if (isUstadz)
                   _ustadzBody()
                 else
