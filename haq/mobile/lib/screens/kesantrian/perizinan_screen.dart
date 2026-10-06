@@ -5,6 +5,7 @@ import '../../services/api_client.dart';
 import '../../services/app_scope.dart';
 import '../ui_utils.dart';
 import '../signup_screen.dart' show PColors, PText;
+import '../p_theme.dart';
 
 // ============================================================================
 // Catatan field yang diasumsikan dikirim backend (selain yang sudah ada):
@@ -110,7 +111,7 @@ class _PerizinanScreenState extends State<PerizinanScreen> {
       await api.post(ApiUrl.perizinan, result);
       _load();
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(backgroundColor: PColors.primary, content: const Text('Izin berhasil diajukan.')),
+        SnackBar(backgroundColor: PTheme.primary, content: const Text('Izin berhasil diajukan.')),
       );
     } on ApiException catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -224,7 +225,7 @@ class _PerizinanScreenState extends State<PerizinanScreen> {
               ListTile(
                 title: Text(e.value, style: PText.bodyMd),
                 trailing: _selectedSantriId == e.key
-                    ? const Icon(Icons.check_circle_rounded, color: PColors.primary)
+                    ? Icon(Icons.check_circle_rounded, color: PTheme.primary)
                     : null,
                 onTap: () {
                   setState(() => _selectedSantriId = e.key);
@@ -248,7 +249,7 @@ class _PerizinanScreenState extends State<PerizinanScreen> {
     return [
       Row(
         children: [
-          Expanded(child: Text('Portal Wali Santri', style: PText.labelMd.copyWith(color: PColors.primary))),
+          Expanded(child: Text('Portal Wali Santri', style: PText.labelMd.copyWith(color: PTheme.primary))),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
             decoration: BoxDecoration(
@@ -339,7 +340,7 @@ class _PerizinanScreenState extends State<PerizinanScreen> {
       child: FilledButton.icon(
         onPressed: _add,
         style: FilledButton.styleFrom(
-          backgroundColor: PColors.primary,
+          backgroundColor: PTheme.primary,
           foregroundColor: PColors.gold,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9999)),
         ),
@@ -368,7 +369,7 @@ class _PerizinanScreenState extends State<PerizinanScreen> {
                 : _error != null
                     ? errorView(_error!, _load)
                     : RefreshIndicator(
-                        color: PColors.primary,
+                        color: PTheme.primary,
                         onRefresh: _load,
                         child: ListView(
                           padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
@@ -611,7 +612,7 @@ class _AnakCard extends StatelessWidget {
               height: 46,
               alignment: Alignment.center,
               decoration: BoxDecoration(
-                gradient: const LinearGradient(colors: [PColors.primary, PColors.primaryGradientEnd]),
+                gradient: LinearGradient(colors: [PTheme.primary, PTheme.primaryEnd]),
                 borderRadius: BorderRadius.circular(14),
               ),
               child: Text(
@@ -668,10 +669,10 @@ class _ActivePerizinanCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
+        gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [PColors.primary, PColors.primaryGradientEnd],
+          colors: [PTheme.primary, PTheme.primaryEnd],
         ),
         borderRadius: BorderRadius.circular(20),
       ),
@@ -764,7 +765,7 @@ class _ActivePerizinanCard extends StatelessWidget {
                   decoration: BoxDecoration(color: PColors.gold, borderRadius: BorderRadius.circular(9999)),
                   child: Text(
                     sisaWaktuText,
-                    style: const TextStyle(fontFamily: 'Nunito', fontSize: 11, fontWeight: FontWeight.w800, color: PColors.primary),
+                    style: TextStyle(fontFamily: 'Nunito', fontSize: 11, fontWeight: FontWeight.w800, color: PTheme.primary),
                   ),
                 ),
               ],
@@ -845,8 +846,8 @@ class _DisciplineGuideCard extends StatelessWidget {
             width: 32,
             height: 32,
             alignment: Alignment.center,
-            decoration: BoxDecoration(color: PColors.sage, borderRadius: BorderRadius.circular(10)),
-            child: const Icon(Icons.shield_outlined, size: 16, color: PColors.primary),
+            decoration: BoxDecoration(color: PTheme.sage, borderRadius: BorderRadius.circular(10)),
+            child: Icon(Icons.shield_outlined, size: 16, color: PTheme.primary),
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -881,9 +882,9 @@ class _FilterChip extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
-          color: selected ? PColors.primary : PColors.surface,
+          color: selected ? PTheme.primary : PColors.surface,
           borderRadius: BorderRadius.circular(9999),
-          border: Border.all(color: selected ? PColors.primary : PColors.border),
+          border: Border.all(color: selected ? PTheme.primary : PColors.border),
         ),
         child: Text(
           label,
@@ -1039,10 +1040,10 @@ class _RiwayatTile extends StatelessWidget {
                 margin: const EdgeInsets.only(top: 1, right: 8),
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: status == 'DITOLAK' ? PColors.errorBg : PColors.sage,
+                  color: status == 'DITOLAK' ? PColors.errorBg : PTheme.sage,
                   borderRadius: BorderRadius.circular(9),
                 ),
-                child: Icon(_iconForJenis(p), size: 15, color: status == 'DITOLAK' ? PColors.errorText : PColors.primary),
+                child: Icon(_iconForJenis(p), size: 15, color: status == 'DITOLAK' ? PColors.errorText : PTheme.primary),
               ),
               Expanded(
                 child: Column(
@@ -1098,7 +1099,7 @@ class _RiwayatTile extends StatelessWidget {
                 if (onReject != null)
                   Expanded(child: _POutlinedButton(label: 'Tolak', color: PColors.errorText, onPressed: onReject!)),
                 if (onReturn != null)
-                  Expanded(child: _POutlinedButton(label: 'Tandai Kembali', color: PColors.primary, onPressed: onReturn!)),
+                  Expanded(child: _POutlinedButton(label: 'Tandai Kembali', color: PTheme.primary, onPressed: onReturn!)),
               ],
             ),
           ],
@@ -1253,7 +1254,7 @@ class _ClosingCard extends StatelessWidget {
           Text(
             'Semoga Allah Menjaga Keistiqamahan Santri',
             textAlign: TextAlign.center,
-            style: PText.bodySm.copyWith(fontStyle: FontStyle.italic, color: PColors.primary, fontWeight: FontWeight.w700),
+            style: PText.bodySm.copyWith(fontStyle: FontStyle.italic, color: PTheme.primary, fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 16),
           const Text(
@@ -1369,7 +1370,7 @@ class _AjukanIzinDialogState extends State<_AjukanIzinDialog> {
                       leading: _initialsAvatar(s['nama']?.toString() ?? '-', size: 36),
                       title: Text(s['nama']?.toString() ?? '-', style: PText.bodyMd),
                       subtitle: Text('NIS: ${s['nis'] ?? '-'}', style: PText.bodySm),
-                      trailing: _santri?['id'] == s['id'] ? const Icon(Icons.check_circle_rounded, color: PColors.primary) : null,
+                      trailing: _santri?['id'] == s['id'] ? Icon(Icons.check_circle_rounded, color: PTheme.primary) : null,
                       onTap: () {
                         setState(() => _santri = s);
                         Navigator.pop(ctx);
@@ -1394,7 +1395,7 @@ class _AjukanIzinDialogState extends State<_AjukanIzinDialog> {
             : (parts[0][0] + parts[1][0]).toUpperCase();
     return Container(
       width: size, height: size,
-      decoration: const BoxDecoration(color: PColors.primary, shape: BoxShape.circle),
+      decoration: BoxDecoration(color: PTheme.primary, shape: BoxShape.circle),
       alignment: Alignment.center,
       child: Text(initials, style: TextStyle(fontFamily: 'Nunito', fontSize: size * 0.36, fontWeight: FontWeight.w800, color: Colors.white)),
     );
@@ -1455,8 +1456,8 @@ class _AjukanIzinDialogState extends State<_AjukanIzinDialog> {
                   children: [
                     Container(
                       width: 44, height: 44,
-                      decoration: BoxDecoration(color: PColors.primary.withOpacity(0.10), shape: BoxShape.circle),
-                      child: const Icon(Icons.assignment_turned_in_rounded, color: PColors.primary),
+                      decoration: BoxDecoration(color: PTheme.primary.withOpacity(0.10), shape: BoxShape.circle),
+                      child: Icon(Icons.assignment_turned_in_rounded, color: PTheme.primary),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
@@ -1661,7 +1662,7 @@ class _AjukanIzinDialogState extends State<_AjukanIzinDialog> {
                       child: FilledButton.icon(
                         onPressed: _submitting ? null : _submit,
                         style: FilledButton.styleFrom(
-                          backgroundColor: PColors.primary,
+                          backgroundColor: PTheme.primary,
                           foregroundColor: PColors.gold,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
                         ),
@@ -1700,7 +1701,7 @@ class _AjukanIzinDialogState extends State<_AjukanIzinDialog> {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(
-          color: selected ? PColors.primary : PColors.background,
+          color: selected ? PTheme.primary : PColors.background,
           borderRadius: BorderRadius.circular(12),
         ),
         alignment: Alignment.center,
