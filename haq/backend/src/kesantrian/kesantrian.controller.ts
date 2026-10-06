@@ -63,8 +63,8 @@ export class KesantrianController {
   // ===== Kesehatan =====
   @Roles(Role.ADMIN, Role.PIMPINAN, Role.MUSYRIF, Role.WALI_SANTRI)
   @Get('kesehatan')
-  findAllKesehatan(@TenantId() tenantId: string, @Query() q: QueryKesantrianDto) {
-    return this.kesantrianService.findAllKesehatan(tenantId, q);
+  findAllKesehatan(@TenantId() tenantId: string, @Query() q: QueryKesantrianDto, @CurrentUser() user: RequestUser) {
+    return this.kesantrianService.findAllKesehatan(tenantId, q, user);
   }
 
   @Roles(Role.ADMIN, Role.MUSYRIF)
@@ -82,8 +82,8 @@ export class KesantrianController {
   // ===== Rekam Medis =====
   @Roles(Role.ADMIN, Role.PIMPINAN, Role.MUSYRIF, Role.WALI_SANTRI)
   @Get('rekam-medis/:santriId')
-  getRekamMedis(@TenantId() tenantId: string, @Param('santriId') santriId: string) {
-    return this.kesantrianService.getRekamMedis(tenantId, santriId);
+  getRekamMedis(@TenantId() tenantId: string, @Param('santriId') santriId: string, @CurrentUser() user: RequestUser) {
+    return this.kesantrianService.getRekamMedis(tenantId, santriId, user);
   }
 
   @Roles(Role.ADMIN, Role.PIMPINAN, Role.MUSYRIF)

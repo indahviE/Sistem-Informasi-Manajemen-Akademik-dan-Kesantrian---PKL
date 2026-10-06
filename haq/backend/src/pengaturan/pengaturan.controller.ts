@@ -10,6 +10,7 @@ import {
   UpdateKebijakanOnboardingDto,
   UpdateNotifikasiAdminDto,
   UpdateNotifikasiDto,
+  UpdateNotifikasiWaliDto,
   UpdateProfilDto,
 } from './dto/pengaturan.dto';
 
@@ -40,13 +41,13 @@ export class PengaturanController {
 
   // ===== Dipakai bersama (Super Admin + Admin Lembaga) =====
 
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.PIMPINAN)
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.PIMPINAN, Role.WALI_SANTRI)
   @Patch('profil')
   updateProfil(@CurrentUser() user: RequestUser, @Body() dto: UpdateProfilDto) {
     return this.pengaturanService.updateProfil(user.userId, dto);
   }
 
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.PIMPINAN)
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.PIMPINAN, Role.WALI_SANTRI)
   @Patch('ubah-password')
   ubahPassword(@CurrentUser() user: RequestUser, @Body() dto: UbahPasswordDto) {
     return this.pengaturanService.ubahPassword(user.userId, dto);
@@ -67,5 +68,22 @@ export class PengaturanController {
     @Body() dto: UpdateNotifikasiAdminDto,
   ) {
     return this.pengaturanService.updateAdminNotifikasi(user.userId, dto);
+  }
+  
+  // ===== Khusus Wali Santri =====
+
+  @Roles(Role.WALI_SANTRI)
+  @Get('wali')
+  getWaliSettings(@CurrentUser() user: RequestUser) {
+    return this.pengaturanService.getWaliSettings(user.userId);
+  }
+
+  @Roles(Role.WALI_SANTRI)
+  @Patch('wali/notifikasi')
+  updateWaliNotifikasi(
+    @CurrentUser() user: RequestUser,
+    @Body() dto: UpdateNotifikasiWaliDto,
+  ) {
+    return this.pengaturanService.updateWaliNotifikasi(user.userId, dto);
   }
 }
