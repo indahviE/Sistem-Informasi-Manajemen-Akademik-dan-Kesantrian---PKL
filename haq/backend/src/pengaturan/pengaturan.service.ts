@@ -7,6 +7,7 @@ import {
   UpdateKebijakanOnboardingDto,
   UpdateNotifikasiAdminDto,
   UpdateNotifikasiDto,
+  UpdateNotifikasiWaliDto,
   UpdateProfilDto,
 } from './dto/pengaturan.dto';
 
@@ -16,6 +17,14 @@ const NOTIF_ADMIN_SELECT = {
   waliBelumAktivasi: true,
   eskalasiDarurat: true,
   rekapAbsensiShalat: true,
+} as const;
+
+const NOTIF_WALI_SELECT = {
+  perizinanAnak: true,
+  pelanggaranAnak: true,
+  kesehatanAnak: true,
+  nilaiRapor: true,
+  absensiAnak: true,
 } as const;
 
 @Injectable()
@@ -166,6 +175,61 @@ export class PengaturanService {
       create: { userId, ...dto },
       update: dto,
       select: NOTIF_ADMIN_SELECT,
+    });
+  }
+  
+  // ===== Wali Santri =====
+
+  async getWaliSettings(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        nama: true,
+        email: true,
+        noHp: true,
+        role: true,
+        tenantId: true,
+        tenant: { select: { namaPondok: true, kodeTenant: true } },
+      },
+    });
+    if (!user) throw new NotFoundException('Pengguna tidak ditemukan.');
+    if (!user.tenantId) throw new BadRequestException('Akun ini tidak terhubung ke pondok.');
+
+    const [notif, anak] = await Promise.all([
+      this.prisma.userNotifSetting.upsert({
+        where: { userId },
+        create: { userId },
+        update: {},
+        select: NOTIF_WALI_SELECT,
+      }),
+      this.prisma.santri.findMany({
+        where: { tenantId: user.tenantId, wali: { userId } },
+        select: {
+          id: true,
+          nama: true,
+          nis: true,
+          status: true,
+          kelas: { select: { namaKelas: true } },
+        },
+        orderBy: { nama: 'asc' },
+      }),
+    ]);
+
+    return {
+      profil: { id: user.id, nama: user.nama, email: user.email, noHp: user.noHp, role: user.role },
+      tenant: user.tenant,
+      anak,
+      notifikasi: notif,
+    };
+  }
+
+  async updateWaliNotifikasi(userId: string, dto: UpdateNotifikasiWaliDto) {
+    return this.prisma.userNotifSetting.upsert({
+      where: { userId },
+      create: { userId, ...dto },
+      update: dto,
+      select: NOTIF_WALI_SELECT,
     });
   }
 }

@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { RequestUser } from '../common/decorators/current-user.decorator';
 import {
@@ -189,11 +189,12 @@ private async buildSantriScope(
   }
 
   // ===== Kesehatan =====
-  async findAllKesehatan(tenantId: string, query: QueryKesantrianDto) {
+  async findAllKesehatan(tenantId: string, query: QueryKesantrianDto, user: RequestUser) {
+    const santriId = await this.buildSantriScope(tenantId, user, query.santriId);
     return this.prisma.kesehatanLog.findMany({
       where: {
         tenantId,
-        ...(query.santriId ? { santriId: query.santriId } : {}),
+        ...(santriId ? { santriId } : {}),
         ...(query.kelasId ? { santri: { kelasId: query.kelasId } } : {}),
       },
       include: { santri: { select: { id: true, nama: true, nis: true, kelas: { select: { namaKelas: true } } } } },
@@ -286,8 +287,14 @@ private async buildSantriScope(
   }
 
   // ===== Rekam Medis =====
-  async getRekamMedis(tenantId: string, santriId: string) {
+  async getRekamMedis(tenantId: string, santriId: string, user: RequestUser) {
     await this.assertSantri(tenantId, santriId);
+    if (user.role === Role.WALI_SANTRI) {
+      const allowed = await this.getAllowedSantriIdsForWali(tenantId, user.userId);
+      if (!allowed.includes(santriId)) {
+        throw new ForbiddenException('Anda tidak berhak melihat data santri ini.');
+      }
+    }
     const rekam = await this.prisma.rekamMedis.findFirst({
       where: { santriId, tenantId },
     });

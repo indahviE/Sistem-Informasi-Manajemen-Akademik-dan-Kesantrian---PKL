@@ -37,6 +37,8 @@ import 'master/ustadz/ustadz_header.dart';
 import 'admin/pengaturan_admin_screen.dart';
 import 'wali/wali_screen.dart';
 import 'wali/wali_header.dart';
+import 'wali/pengaturan_wali_screen.dart';
+import 'wali/notifikasi_wali_screen.dart';
 import 'ppdb/ppdb_list_screen.dart';
 import 'kurikulum/kurikulum_screen.dart';
 import 'kesantrian/rekam_medis_screen.dart';
@@ -64,7 +66,7 @@ class _ShellScreenState extends State<ShellScreen> {
   // (super admin's 5-item menu is shown in full, without this cap).
   static const _pinned = ['Dashboard', 'Santri', 'Absensi', 'Kurikulum'];
   static const _adminPinned = ['Dashboard', 'Santri', 'Absensi', 'Pengaturan'];
-  static const _waliPinned = ['Beranda', 'Anak Saya', 'Pelanggaran', 'Perizinan'];
+  static const _waliPinned = ['Beranda', 'Anak Saya', 'Perizinan', 'Pelanggaran'];
 
   // Keeps the bottom nav pinned to a mobile-sized width and centered,
   // instead of stretching full-width on tablet/web/desktop screens.
@@ -211,6 +213,7 @@ class _ShellScreenState extends State<ShellScreen> {
       m.add(_MenuItem('Perizinan', Icons.exit_to_app, (_) => const PerizinanScreen()));
       m.add(_MenuItem('Pembinaan Karakter', Icons.emoji_events, (_) => const PembinaanKarakterScreen()));
       m.add(_MenuItem('Pembinaan Ibadah', Icons.mosque, (_) => const PembinaanIbadahScreen()));
+      m.add(_MenuItem('Pengaturan', Icons.tune, (_) => const PengaturanWaliScreen()));
     }
 
     return m;
@@ -280,13 +283,7 @@ class _ShellScreenState extends State<ShellScreen> {
                       nama: user.nama,
                       email: user.email,
                       hasUnread: _unreadCount > 0,
-                      onNotifikasi: () async {
-                        await Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => const NotifikasiScreen()),
-                        );
-                        _loadUnreadCount();
-                      },
+                      onNotifikasi: () => setState(() => _notifikasiOpen = true),
                       onLogout: _logout,
                     )
                   : AppBar(
@@ -343,7 +340,16 @@ class _ShellScreenState extends State<ShellScreen> {
                   onNavigate: _goToMenu,
                   onReadStateChanged: _loadUnreadCount,
                 )
-              : active.builder(context),
+              : (user.isWali && _notifikasiOpen)
+                  ? NotifikasiWaliScreen(
+                      onBack: () {
+                        setState(() => _notifikasiOpen = false);
+                        _loadUnreadCount();
+                      },
+                      onNavigate: _goToMenu,
+                      onReadStateChanged: _loadUnreadCount,
+                    )
+                  : active.builder(context),
       bottomNavigationBar: Container(
         // Full-width fill supaya nggak ada strip abu-abu bawaan Scaffold yang
         // keliatan di kiri-kanan kotak nav 480px — warnanya disamain persis

@@ -950,6 +950,14 @@ model UserNotifSetting {
   waliBelumAktivasi  Boolean  @default(true)
   eskalasiDarurat    Boolean  @default(true)
   rekapAbsensiShalat Boolean  @default(false)
+
+  // Wali Santri
+  perizinanAnak      Boolean  @default(true)
+  pelanggaranAnak    Boolean  @default(true)
+  kesehatanAnak      Boolean  @default(true)
+  nilaiRapor         Boolean  @default(true)
+  absensiAnak        Boolean  @default(true)
+
   updatedAt          DateTime @updatedAt
 
   user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)

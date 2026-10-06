@@ -21,6 +21,14 @@ export class UpdateNotifikasiAdminDto {
   @IsOptional() @IsBoolean() rekapAbsensiShalat?: boolean;
 }
 
+export class UpdateNotifikasiWaliDto {
+  @IsOptional() @IsBoolean() perizinanAnak?: boolean;
+  @IsOptional() @IsBoolean() pelanggaranAnak?: boolean;
+  @IsOptional() @IsBoolean() kesehatanAnak?: boolean;
+  @IsOptional() @IsBoolean() nilaiRapor?: boolean;
+  @IsOptional() @IsBoolean() absensiAnak?: boolean;
+}
+
 export class UpdateProfilDto {
   @IsOptional()
   @IsString()

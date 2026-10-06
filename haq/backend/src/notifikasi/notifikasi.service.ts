@@ -17,6 +17,30 @@ const ADMIN_NOTIF_DEFAULT: Record<AdminNotifKey, boolean> = {
   rekapAbsensiShalat: false,
 };
 
+type WaliNotifKey =
+  | 'perizinanAnak'
+  | 'pelanggaranAnak'
+  | 'kesehatanAnak'
+  | 'nilaiRapor'
+  | 'absensiAnak';
+
+const WALI_NOTIF_DEFAULT: Record<WaliNotifKey, boolean> = {
+  perizinanAnak: true,
+  pelanggaranAnak: true,
+  kesehatanAnak: true,
+  nilaiRapor: true,
+  absensiAnak: true,
+};
+
+// DARURAT sengaja tidak ada di sini: selalu tampil untuk wali.
+const WALI_NOTIF_JENIS: Record<WaliNotifKey, JenisNotifikasi[]> = {
+  perizinanAnak: [JenisNotifikasi.PERIZINAN],
+  pelanggaranAnak: [JenisNotifikasi.PELANGGARAN],
+  kesehatanAnak: [JenisNotifikasi.KESEHATAN],
+  nilaiRapor: [JenisNotifikasi.NILAI],
+  absensiAnak: [JenisNotifikasi.ABSENSI],
+};
+
 @Injectable()
 export class NotifikasiService {
   private readonly logger = new Logger(NotifikasiService.name);
@@ -35,9 +59,34 @@ export class NotifikasiService {
       : { userId };
   }
 
+  /** Jenis yang dimatikan user wali di Pengaturan. Role lain: kosong. */
+  private async jenisDimatikan(userId: string): Promise<JenisNotifikasi[]> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true, notifSetting: true },
+    });
+    if (!user || user.role !== Role.WALI_SANTRI) return [];
+
+    const off: JenisNotifikasi[] = [];
+    for (const key of Object.keys(WALI_NOTIF_JENIS) as WaliNotifKey[]) {
+      const aktif = user.notifSetting ? user.notifSetting[key] : WALI_NOTIF_DEFAULT[key];
+      if (!aktif) off.push(...WALI_NOTIF_JENIS[key]);
+    }
+    return off;
+  }
+
+  private async scopeTampil(
+    userId: string,
+    tenantId: string | undefined,
+  ): Promise<Prisma.NotifikasiWhereInput> {
+    const base = this.scope(userId, tenantId);
+    const off = await this.jenisDimatikan(userId);
+    return off.length ? { AND: [base, { jenis: { notIn: off } }] } : base;
+  }
+
   async myNotifikasis(userId: string, tenantId: string | undefined) {
     return this.prisma.notifikasi.findMany({
-      where: this.scope(userId, tenantId),
+      where: await this.scopeTampil(userId, tenantId),
       orderBy: { tanggal: 'desc' },
       take: 100,
     });
@@ -45,7 +94,7 @@ export class NotifikasiService {
 
   async unreadCount(userId: string, tenantId: string | undefined) {
     return this.prisma.notifikasi.count({
-      where: { ...this.scope(userId, tenantId), statusBaca: false },
+      where: { AND: [await this.scopeTampil(userId, tenantId), { statusBaca: false }] },
     });
   }
 
