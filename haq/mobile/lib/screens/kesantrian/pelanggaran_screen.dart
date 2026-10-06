@@ -3,20 +3,8 @@ import 'package:flutter/material.dart';
 import '../../services/api_client.dart';
 import '../../services/app_scope.dart';
 import '../ui_utils.dart';
-import '../santri/santri_ui.dart' show SC;
+import '../p_theme.dart';
 import '../signup_screen.dart' show PText;
-import '../signup_screen.dart' as sg show PColors;
-
-/// Palet lokal: primary ikut branding pondok (SC), sisanya tetap dari PColors asli.
-/// Namanya sengaja beda dari PColors supaya tidak bentrok saat di-import file lain.
-class PTheme {
-  PTheme._();
-  static Color get primary => SC.primary;
-  static const background = sg.PColors.background;
-  static const surface = sg.PColors.surface;
-  static const ink = sg.PColors.ink;
-  static const inkSecondary = sg.PColors.inkSecondary;
-}
 
 // ============================================================================
 // Catatan field yang diasumsikan dikirim/diterima backend untuk Pelanggaran:
