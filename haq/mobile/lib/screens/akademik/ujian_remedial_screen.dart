@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import '../../services/api_client.dart';
 import '../../services/app_scope.dart';
 import '../ui_utils.dart';
+import '../santri/santri_ui.dart' show SC;
 
 // Halaman Sesi Remedial (mandiri: tidak bergantung pada file ujian lain).
 //
@@ -12,7 +13,9 @@ import '../ui_utils.dart';
 //  - POST {ujian}/:id/remedial   -> simpan/upsert remedial per santri
 
 class _C {
-  static const emerald = Color(0xFF0F3A2E);
+  // Ikut tema pondok (diatur admin).
+  static Color get emerald => SC.primary;
+
   static const gold = Color(0xFFC5A059);
   static const goldSoft = Color(0xFFFAF5EC);
   static const goldChip = Color(0xFFFDEFD3);
@@ -1033,7 +1036,7 @@ class _UjianRemedialScreenState extends State<UjianRemedialScreen> {
             ),
           ),
           // Garis aksen kiri
-          const Positioned(
+          Positioned(
             left: 0,
             top: 0,
             bottom: 0,
@@ -1383,7 +1386,7 @@ class _UjianRemedialScreenState extends State<UjianRemedialScreen> {
               borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
           focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: _C.emerald, width: 2)),
+              borderSide: BorderSide(color: _C.emerald, width: 2)),
         ),
       );
 

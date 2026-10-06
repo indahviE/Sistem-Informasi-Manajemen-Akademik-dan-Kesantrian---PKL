@@ -2,13 +2,16 @@ import 'package:flutter/material.dart';
 import '../../services/api_client.dart';
 import '../../services/app_scope.dart';
 import '../ui_utils.dart';
+import '../santri/santri_ui.dart' show SC;
 
 /// Palet sama dengan `_KC` di konseling_screen.dart (desain Khadim al-Ma'had).
 class _PC {
   _PC._();
 
-  static const primary = Color(0xFF0F3A2E);
-  static const primaryGradientEnd = Color(0xFF164E3D);
+  // Ikut tema pondok (diatur admin).
+  static Color get primary => SC.primary;
+  static Color get primaryGradientEnd => SC.primaryEnd;
+
   static const gold = Color(0xFFC5A059);
   static const goldDark = Color(0xFF7A5B10);
   static const goldTop = Color(0xFFFED488);
@@ -334,7 +337,7 @@ class _PembinaanKarakterScreenState extends State<PembinaanKarakterScreen> {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        const Expanded(
+        Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -382,10 +385,10 @@ class _PembinaanKarakterScreenState extends State<PembinaanKarakterScreen> {
             width: 36,
             height: 36,
             decoration: BoxDecoration(color: _PC.avatarBg, borderRadius: BorderRadius.circular(10)),
-            child: const Icon(Icons.spa_outlined, size: 20, color: _PC.primary),
+            child: Icon(Icons.spa_outlined, size: 20, color: _PC.primary),
           ),
           const SizedBox(width: 12),
-          const Expanded(
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -597,7 +600,7 @@ class _PembinaanKarakterScreenState extends State<PembinaanKarakterScreen> {
                       alignment: Alignment.center,
                       decoration: BoxDecoration(color: _PC.avatarBg, borderRadius: BorderRadius.circular(12)),
                       child: Text(_initials(nama),
-                          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _PC.primary)),
+                          style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _PC.primary)),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -630,7 +633,7 @@ class _PembinaanKarakterScreenState extends State<PembinaanKarakterScreen> {
                       child: Text(kategori,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontSize: 15.5, fontWeight: FontWeight.w800, color: _PC.primary)),
+                          style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w800, color: _PC.primary)),
                     ),
                   ],
                 ),
@@ -677,7 +680,7 @@ class _PembinaanKarakterScreenState extends State<PembinaanKarakterScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 22),
               decoration: BoxDecoration(color: _PC.surfaceLow, borderRadius: BorderRadius.circular(999)),
               alignment: Alignment.center,
-              child: const Text('Memuat Lebih Banyak',
+              child: Text('Memuat Lebih Banyak',
                   style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: _PC.primary)),
             ),
           ),
@@ -699,10 +702,10 @@ class _PembinaanKarakterScreenState extends State<PembinaanKarakterScreen> {
             width: 48,
             height: 48,
             decoration: _cardDeco(radius: 16),
-            child: const Icon(Icons.auto_stories_outlined, size: 24, color: _PC.primary),
+            child: Icon(Icons.auto_stories_outlined, size: 24, color: _PC.primary),
           ),
           const SizedBox(height: 12),
-          const Text('Pembinaan Karakter & Adab',
+          Text('Pembinaan Karakter & Adab',
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: _PC.primary)),
           const SizedBox(height: 6),
@@ -899,7 +902,7 @@ class _DetailSheet extends StatelessWidget {
                 _grabHandle(),
                 Row(
                   children: [
-                    const Expanded(
+                    Expanded(
                       child: Text('Detail Pembinaan Karakter',
                           style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: _PC.primary)),
                     ),
@@ -924,7 +927,7 @@ class _DetailSheet extends StatelessWidget {
                     margin: const EdgeInsets.only(bottom: 12),
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(18),
-                      gradient: const LinearGradient(
+                      gradient: LinearGradient(
                         colors: [_PC.primary, _PC.primaryGradientEnd],
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
@@ -1052,7 +1055,7 @@ class _DetailSheet extends StatelessWidget {
                             const SizedBox(width: 12),
                             Expanded(
                               child: Text(kategori,
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                       fontSize: 18, fontWeight: FontWeight.w800, color: _PC.primary)),
                             ),
                           ],
@@ -1099,7 +1102,7 @@ class _DetailSheet extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(color: _PC.sage, borderRadius: BorderRadius.circular(14)),
-                    child: const Row(
+                    child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Icon(Icons.verified_user_outlined, size: 19, color: _PC.primary),
@@ -1246,7 +1249,7 @@ class _PilihSantriSheetState extends State<_PilihSantriSheet> {
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: _PC.primary, width: 2),
+                      borderSide: BorderSide(color: _PC.primary, width: 2),
                     ),
                   ),
                 ),
@@ -1270,7 +1273,7 @@ class _PilihSantriSheetState extends State<_PilihSantriSheet> {
                                     decoration:
                                         BoxDecoration(color: _PC.avatarBg, borderRadius: BorderRadius.circular(12)),
                                     child: Text(_initials(nama),
-                                        style: const TextStyle(
+                                        style: TextStyle(
                                             fontSize: 13, fontWeight: FontWeight.w700, color: _PC.primary)),
                                   ),
                                   title: Text(nama,
@@ -1459,7 +1462,7 @@ class _FormSheetState extends State<_FormSheet> {
               alignment: Alignment.center,
               decoration: BoxDecoration(color: _PC.avatarBg, borderRadius: BorderRadius.circular(26)),
               child: Text(_initials(nama),
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _PC.primary)),
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _PC.primary)),
             ),
             Positioned(
               right: 0,
@@ -1554,7 +1557,7 @@ class _FormSheetState extends State<_FormSheet> {
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Row(
             children: [
-              const Icon(Icons.calendar_today_outlined, size: 20, color: _PC.primary),
+              Icon(Icons.calendar_today_outlined, size: 20, color: _PC.primary),
               const SizedBox(width: 12),
               Expanded(
                 child: Text(_fmtTanggalPenuh(_tgl),
@@ -1669,7 +1672,7 @@ class _FormSheetState extends State<_FormSheet> {
                         width: 46,
                         height: 46,
                         decoration: BoxDecoration(color: const Color(0xFFBFEBD8), borderRadius: BorderRadius.circular(14)),
-                        child: const Icon(Icons.edit_note_rounded, size: 24, color: _PC.primary),
+                        child: Icon(Icons.edit_note_rounded, size: 24, color: _PC.primary),
                       ),
                       const SizedBox(width: 12),
                       const Expanded(
@@ -1701,7 +1704,7 @@ class _FormSheetState extends State<_FormSheet> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                       decoration: BoxDecoration(color: _PC.mint, borderRadius: BorderRadius.circular(14)),
-                      child: const Row(
+                      child: Row(
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
                           Icon(Icons.spa_outlined, size: 20, color: _PC.primary),
@@ -1725,7 +1728,7 @@ class _FormSheetState extends State<_FormSheet> {
                               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
                               decoration:
                                   BoxDecoration(color: const Color(0xFFBFEBD8), borderRadius: BorderRadius.circular(999)),
-                              child: const Text('Terpilih Aktif',
+                              child: Text('Terpilih Aktif',
                                   style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: _PC.primary)),
                             ),
                     ),

@@ -112,7 +112,7 @@ export class TenantsController {
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.ADMIN, Role.PIMPINAN)
+  @Roles(Role.ADMIN, Role.PIMPINAN, Role.USTADZ)
   @Get('branding/me')
   getMyBranding(@TenantId() tenantId: string) {
     return this.tenantsService.getMyBranding(tenantId);

@@ -4,14 +4,17 @@ import '../../services/api_client.dart';
 import 'ujian_detail_screen.dart';
 import '../../services/app_scope.dart';
 import '../ui_utils.dart';
+import '../santri/santri_ui.dart' show SC;
 
 // ─────────────────────────────────────────────────────────────
 // Palet & helper (mengikuti DESIGN.md SIM Pesantren)
 // Ukuran dibuat kompak, mengikuti dashboard_screen.dart
 // ─────────────────────────────────────────────────────────────
 class _C {
-  static const emerald = Color(0xFF0F3A2E);
-  static const emeraldMid = Color(0xFF164E3D);
+  // Ikut tema pondok (diatur admin).
+  static Color get emerald => SC.primary;
+  static Color get emeraldMid => SC.primaryEnd;
+
   static const gold = Color(0xFFC5A059);
   static const goldSoft = Color(0xFFFAF5EC);
   static const goldBorder = Color(0xFFE7D2A7);
@@ -76,7 +79,7 @@ _JenisStyle _jenisStyle(String j) {
   const goldIconBg = Color(0xFFFDEFD3);
   switch (j) {
     case 'UAS':
-      return const _JenisStyle(_C.emerald, Colors.white, 'UAS', 'UJIAN AKHIR SEMESTER',
+      return _JenisStyle(_C.emerald, Colors.white, 'UAS', 'UJIAN AKHIR SEMESTER',
           Icons.menu_book_outlined, _C.chipGray, _C.ink);
     case 'UTS':
       return const _JenisStyle(Color(0xFFFED488), _C.goldText, 'UTS', 'UJIAN TENGAH SEMESTER',
@@ -329,7 +332,7 @@ class _UjianScreenState extends State<UjianScreen> {
           child: Stack(
             children: [
               Positioned.fill(
-                    child: _loading
+                child: _loading
                     ? loadingView()
                     : _error != null
                         ? errorView(_error!, _load)
@@ -442,9 +445,9 @@ class _UjianScreenState extends State<UjianScreen> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text('Urutkan: ${_sorts[_sort]}',
-                      style: const TextStyle(
+                      style: TextStyle(
                           fontSize: 11.5, fontWeight: FontWeight.w700, color: _C.emerald)),
-                  const Icon(Icons.keyboard_arrow_down, size: 16, color: _C.emerald),
+                  Icon(Icons.keyboard_arrow_down, size: 16, color: _C.emerald),
                 ],
               ),
             ),
@@ -452,7 +455,7 @@ class _UjianScreenState extends State<UjianScreen> {
         ),
         const SizedBox(height: 10),
 
-         if (all.isEmpty)
+        if (all.isEmpty)
           _emptyState()
         else if (list.isEmpty)
           Padding(
@@ -473,7 +476,7 @@ class _UjianScreenState extends State<UjianScreen> {
       clipBehavior: Clip.antiAlias,
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
+        gradient: LinearGradient(
             colors: [_C.emerald, _C.emeraldMid],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight),
@@ -553,7 +556,7 @@ class _UjianScreenState extends State<UjianScreen> {
     );
   }
 
-    Widget _emptyState() => Container(
+  Widget _emptyState() => Container(
         padding: const EdgeInsets.fromLTRB(20, 28, 20, 24),
         decoration: _cardDeco(),
         child: Column(
@@ -827,7 +830,7 @@ class _UjianScreenState extends State<UjianScreen> {
                             minHeight: 5,
                             backgroundColor: _C.trackGray,
                             valueColor: AlwaysStoppedAnimation(
-                                complete ? _C.emerald : const Color(0xFF3E6658)),
+                                complete ? _C.emerald : _C.emerald.withOpacity(0.75)),
                           ),
                         ),
                       ],
@@ -1043,7 +1046,7 @@ class _FormUjianSheetState extends State<_FormUjianSheet> {
             borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
         focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: _C.emerald, width: 2)),
+            borderSide: BorderSide(color: _C.emerald, width: 2)),
         errorBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
             borderSide: const BorderSide(color: _C.badFg, width: 1.5)),
@@ -1164,7 +1167,7 @@ class _FormUjianSheetState extends State<_FormUjianSheet> {
                       style: const TextStyle(fontSize: 13, color: _C.ink),
                       decoration: _fieldDec(
                         hint: 'Contoh: UAS Bahasa Arab Semester Ganjil',
-                        suffix: const Icon(Icons.menu_book_outlined, size: 20, color: _C.emerald),
+                        suffix: Icon(Icons.menu_book_outlined, size: 20, color: _C.emerald),
                         error: _namaError ? 'Nama ujian wajib diisi' : null,
                       ),
                     ),
@@ -1234,7 +1237,7 @@ class _FormUjianSheetState extends State<_FormUjianSheet> {
                       textCapitalization: TextCapitalization.words,
                       style: const TextStyle(fontSize: 13, color: _C.ink),
                       decoration: _fieldDec(hint: 'Contoh: Bahasa Arab (Nahwu & Sharaf)').copyWith(
-                        prefixIcon: const Icon(Icons.translate, size: 20, color: _C.emerald),
+                        prefixIcon: Icon(Icons.translate, size: 20, color: _C.emerald),
                       ),
                     ),
                     const SizedBox(height: 6),
@@ -1602,24 +1605,24 @@ class _KelasChooser extends StatelessWidget {
                 children: [
                   ListTile(
                     dense: true,
-                    leading: const Icon(Icons.groups_2_outlined, size: 20, color: _C.emerald),
+                    leading: Icon(Icons.groups_2_outlined, size: 20, color: _C.emerald),
                     title: const Text('Semua kelas',
                         style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600)),
                     trailing: selected == null
-                        ? const Icon(Icons.check_circle, size: 18, color: _C.emerald)
+                        ? Icon(Icons.check_circle, size: 18, color: _C.emerald)
                         : null,
                     onTap: () => Navigator.of(context).pop(<String, dynamic>{'nama': '__ALL__'}),
                   ),
                   for (final k in list)
                     ListTile(
                       dense: true,
-                      leading: const Icon(Icons.apartment_outlined, size: 20, color: _C.emerald),
+                      leading: Icon(Icons.apartment_outlined, size: 20, color: _C.emerald),
                       title: Text('${k['nama']}',
                           style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600)),
                       subtitle: Text('${k['count']} Santri',
                           style: const TextStyle(fontSize: 11.5, color: _C.ink2)),
                       trailing: selected?['nama'] == k['nama']
-                          ? const Icon(Icons.check_circle, size: 18, color: _C.emerald)
+                          ? Icon(Icons.check_circle, size: 18, color: _C.emerald)
                           : null,
                       onTap: () => Navigator.of(context).pop(k),
                     ),
