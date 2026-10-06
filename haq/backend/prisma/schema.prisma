@@ -289,6 +289,7 @@ model MataPelajaran {
   namaMapel String
   kode     String?
   jenis    String?
+  kkm      Float    @default(75)
 
   tenant   Tenant   @relation(fields: [tenantId], references: [id])
   absensis Absensi[]
@@ -776,6 +777,7 @@ enum StatusRemedial {
   BELUM_TES
   PROSES
   TUNTAS
+  BELUM_TUNTAS
 }
 
 model Remedial {
@@ -789,6 +791,7 @@ model Remedial {
   status        StatusRemedial @default(BELUM_TES)
   nilaiAwal     Float?
   nilaiRemedial Float?
+  nilaiAkhir    Float?
   catatan       String?
   jadwal        DateTime?
   ruang         String?

@@ -8,6 +8,14 @@ import '../ui_utils.dart';
 import '../santri/santri_ui.dart' show SC;
 
 // Halaman Detail Ujian (mandiri: tidak bergantung pada file ujian lain).
+//
+// Status akhir santri ditentukan dari nilai awal + data remedial dari backend
+// (status & nilaiAkhir), sama dengan halaman Remedial:
+//   - nilai awal >= KKM                  -> Tuntas langsung
+//   - di bawah KKM, remedial TUNTAS      -> Tuntas (remedial)
+//   - di bawah KKM, remedial BELUM_TUNTAS-> Belum Tuntas (final)
+//   - di bawah KKM, remedial belum ada/selesai -> Belum Tuntas (menunggu remedial)
+//   - tanpa nilai (sakit/izin/alpa)      -> Susulan
 
 class _C {
   // Ikut tema pondok (diatur admin).
@@ -111,8 +119,17 @@ double? _nilaiNum(Map<String, dynamic> n) =>
 
 String _kehadiranOf(Map<String, dynamic> n) => '${n['status'] ?? 'HADIR'}'.toUpperCase();
 
+String _fmtNum(dynamic v) {
+  if (v is! num) return '';
+  final d = v.toDouble();
+  return d == d.roundToDouble() ? d.toStringAsFixed(0) : d.toStringAsFixed(1);
+}
+
 void _snack(BuildContext context, String msg) =>
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+
+/// Status akhir santri pada ujian ini.
+enum _Akhir { tuntasLangsung, tuntasRemedial, belumFinal, belumMenunggu, susulan }
 
 /// Pola bintang 8 titik (Rub el Hizb) untuk watermark header.
 class _StarPainter extends CustomPainter {
@@ -175,7 +192,7 @@ class _UjianDetailScreenState extends State<UjianDetailScreen> {
   List<Map<String, dynamic>> _remedials = [];
   bool _loading = true;
   String? _error;
-  String _tab = 'ALL'; // ALL | OK | BAD
+  String _tab = 'ALL'; // ALL | OK | BAD | SUS
   String _query = '';
   bool _busyKunci = false;
 
@@ -196,7 +213,7 @@ class _UjianDetailScreenState extends State<UjianDetailScreen> {
       final api = AppScope.of(context).api;
       final res = await api.get('${ApiUrl.ujian}/${widget.ujian['id']}');
 
-      // Data remedial (opsional): dipakai supaya angka Remedial sama dengan halaman Remedial.
+      // Data remedial (opsional): dipakai supaya status & nilai akhir sama dengan halaman Remedial.
       var rem = <Map<String, dynamic>>[];
       try {
         final rr = await api.get('${ApiUrl.ujian}/${widget.ujian['id']}/remedial');
@@ -226,13 +243,15 @@ class _UjianDetailScreenState extends State<UjianDetailScreen> {
   /// supaya field yang tidak dikirim endpoint detail tetap terisi.
   Map<String, dynamic> get _ujian => {...widget.ujian, ...?_data};
 
-  /// KKM milik ujian ini (jatuh ke bawaan bila belum ada).
+  /// KKM ujian ini. Backend mengirim KKM mapel di field `kkm`
+  /// (jatuh ke bawaan bila belum ada).
   double get _kkm =>
       (_ujian['kkm'] is num) ? (_ujian['kkm'] as num).toDouble() : kKkmDefault;
 
   String get _kkmText =>
       _kkm == _kkm.roundToDouble() ? _kkm.toStringAsFixed(0) : _kkm.toStringAsFixed(1);
-        bool get _terkunci => _ujian['dikunciPada'] != null;
+
+  bool get _terkunci => _ujian['dikunciPada'] != null;
 
   // Buka halaman Input Nilai, lalu muat ulang data setelah kembali.
   Future<void> _openInput() async {
@@ -250,14 +269,14 @@ class _UjianDetailScreenState extends State<UjianDetailScreen> {
     if (mounted) _load();
   }
 
-    Future<void> _kunci() async {
+  Future<void> _kunci() async {
     if (_busyKunci) return;
     final ok = await showDialog<bool>(
       context: context,
       builder: (c) => AlertDialog(
         title: const Text('Kunci Nilai Ujian?'),
         content: const Text(
-            'Setelah dikunci, nilai dan remedial tidak bisa diubah. Untuk mengubahnya, kunci harus dibuka dengan alasan yang dicatat.'),
+            'Setelah dikunci, nilai dan remedial tidak bisa diubah (kecuali ujian susulan santri sakit/izin/alpa). Untuk mengubahnya, kunci harus dibuka dengan alasan yang dicatat.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Batal')),
           FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('Kunci')),
@@ -361,8 +380,8 @@ class _UjianDetailScreenState extends State<UjianDetailScreen> {
                 Text(
                   locked
                       ? (tgl.isEmpty
-                          ? 'Tidak bisa diubah kecuali kunci dibuka.'
-                          : 'Dikunci $tgl. Tidak bisa diubah kecuali kunci dibuka.')
+                          ? 'Tidak bisa diubah kecuali kunci dibuka (ujian susulan tetap bisa diisi).'
+                          : 'Dikunci $tgl. Tidak bisa diubah kecuali kunci dibuka (ujian susulan tetap bisa diisi).')
                       : 'Kunci setelah semua nilai dan remedial selesai.',
                   style: const TextStyle(fontSize: 11.5, color: _C.ink2, height: 1.3),
                 ),
@@ -393,19 +412,35 @@ class _UjianDetailScreenState extends State<UjianDetailScreen> {
   List<Map<String, dynamic>> get _nilais =>
       ((_data?['nilais'] as List?) ?? []).whereType<Map<String, dynamic>>().toList();
 
-  /// Santri di bawah KKM yang remedialnya belum tuntas (sama dengan hitungan halaman Remedial).
-  int get _remedialAktif {
-    final tuntas = _remedials
-        .where((r) => '${r['status']}'.toUpperCase() == 'TUNTAS')
-        .map((r) => r['santriId'] ?? (r['santri'] as Map?)?['id'])
-        .toSet();
-    return _nilais.where((n) {
-      final v = _nilaiNum(n);
-      return v != null &&
-          v < _kkm &&
-          !tuntas.contains(n['santriId'] ?? (n['santri'] as Map?)?['id']);
-    }).length;
+  dynamic _sidOf(Map<String, dynamic> m) => m['santriId'] ?? (m['santri'] as Map?)?['id'];
+
+  /// Data remedial milik santri pada nilai [n] (null bila belum ada).
+  Map<String, dynamic>? _remedialOf(Map<String, dynamic> n) {
+    final id = _sidOf(n);
+    if (id == null) return null;
+    for (final r in _remedials) {
+      if (_sidOf(r) == id) return r;
+    }
+    return null;
   }
+
+  /// Status akhir santri berdasarkan nilai awal + remedial dari backend.
+  _Akhir _akhirOf(Map<String, dynamic> n) {
+    final v = _nilaiNum(n);
+    if (v == null) return _Akhir.susulan;
+    if (v >= _kkm) return _Akhir.tuntasLangsung;
+    final st = '${_remedialOf(n)?['status'] ?? ''}'.toUpperCase();
+    if (st == 'TUNTAS') return _Akhir.tuntasRemedial;
+    if (st == 'BELUM_TUNTAS') return _Akhir.belumFinal;
+    return _Akhir.belumMenunggu;
+  }
+
+  bool _isTuntas(_Akhir a) => a == _Akhir.tuntasLangsung || a == _Akhir.tuntasRemedial;
+
+  /// Santri di bawah KKM yang remedialnya masih menunggu
+  /// (BELUM_TUNTAS sudah final, jadi tidak dihitung). Sama dengan halaman Remedial.
+  int get _remedialAktif =>
+      _nilais.where((n) => _akhirOf(n) == _Akhir.belumMenunggu).length;
 
   // ───────────────────────────── BUILD ─────────────────────────────
 
@@ -514,7 +549,7 @@ class _UjianDetailScreenState extends State<UjianDetailScreen> {
     final all = _nilais;
     final dinilai = all.where((n) => _nilaiNum(n) != null).toList();
     final susulan = all.length - dinilai.length;
-    final tuntas = dinilai.where((n) => _nilaiNum(n)! >= _kkm).length;
+    final tuntas = dinilai.where((n) => _isTuntas(_akhirOf(n))).length;
     final belum = dinilai.length - tuntas;
     final remedial = _remedialAktif;
 
@@ -525,10 +560,10 @@ class _UjianDetailScreenState extends State<UjianDetailScreen> {
 
     final q = _query.trim().toLowerCase();
     final list = all.where((n) {
-      final v = _nilaiNum(n);
-      if (_tab == 'OK' && (v == null || v < _kkm)) return false;
-      if (_tab == 'BAD' && (v == null || v >= _kkm)) return false;
-      if (_tab == 'SUS' && v != null) return false;
+      final a = _akhirOf(n);
+      if (_tab == 'OK' && !_isTuntas(a)) return false;
+      if (_tab == 'BAD' && (a == _Akhir.susulan || _isTuntas(a))) return false;
+      if (_tab == 'SUS' && a != _Akhir.susulan) return false;
       if (q.isEmpty) return true;
       final s = n['santri'] as Map<String, dynamic>;
       return '${s['nama']} ${s['nis']}'.toLowerCase().contains(q);
@@ -538,7 +573,7 @@ class _UjianDetailScreenState extends State<UjianDetailScreen> {
     return ListView(
       padding: const EdgeInsets.fromLTRB(12, 12, 12, 20),
       children: [
-      _hero(u, all),
+        _hero(u, all),
         const SizedBox(height: 12),
         _kunciBanner(),
         const SizedBox(height: 16),
@@ -582,7 +617,7 @@ class _UjianDetailScreenState extends State<UjianDetailScreen> {
               _tabChip('Semua', all.length, 'ALL'),
               _tabChip('Tuntas', tuntas, 'OK'),
               _tabChip('Belum Tuntas', belum, 'BAD', countColor: _C.badFg),
-               if (susulan > 0) _tabChip('Susulan', susulan, 'SUS'),
+              if (susulan > 0) _tabChip('Susulan', susulan, 'SUS'),
             ],
           ),
         ),
@@ -644,7 +679,7 @@ class _UjianDetailScreenState extends State<UjianDetailScreen> {
   Widget _hero(Map<String, dynamic> u, List<Map<String, dynamic>> all) {
     final st = _jenisStyle(_jenisOf(u));
 
-        double? avg;
+    double? avg;
     Map<String, dynamic>? top, low;
     final dinilai = all.where((n) => _nilaiNum(n) != null).toList();
     if (dinilai.isNotEmpty) {
@@ -810,7 +845,10 @@ class _UjianDetailScreenState extends State<UjianDetailScreen> {
     final nv = _nilaiNum(n);
     if (nv == null) return _susulanTile(n, santri);
     final v = nv;
-    final ok = v >= _kkm;
+    final akhir = _akhirOf(n);
+    final ok = _isTuntas(akhir);
+    final rem = _remedialOf(n);
+    final nilaiAkhir = rem?['nilaiAkhir'];
     final cat = '${n['catatan'] ?? ''}'.trim();
 
     // Warna kotak nilai: emas (tertinggi), hijau (>=90), abu (tuntas), merah (belum tuntas)
@@ -830,9 +868,31 @@ class _UjianDetailScreenState extends State<UjianDetailScreen> {
       fg = _C.ink;
     }
 
+    // Pill status
+    final Widget pill;
+    switch (akhir) {
+      case _Akhir.tuntasLangsung:
+        pill = _pill('Tuntas (${_grade(v, _kkm)})', _C.okBg, _C.okFg, bd: _C.okBd, fs: 10);
+        break;
+      case _Akhir.tuntasRemedial:
+        pill = _pill('Tuntas (Remedial)', _C.okBg, _C.okFg, bd: _C.okBd, fs: 10);
+        break;
+      default:
+        pill = _pill('Belum Tuntas', _C.badBg, _C.badFg, bd: _C.badBd, fs: 10);
+    }
+
+    // Keterangan di bawah nama
     final subColor = ok ? _C.ink2 : _C.badFg;
     final spans = <InlineSpan>[TextSpan(text: 'NIS: ${santri['nis']}')];
-    if (cat.isNotEmpty) {
+    if (akhir == _Akhir.tuntasRemedial || akhir == _Akhir.belumFinal) {
+      final akhirTxt = _fmtNum(nilaiAkhir);
+      spans.add(TextSpan(
+          text: akhirTxt.isEmpty
+              ? ' • Setelah remedial'
+              : ' • Nilai akhir $akhirTxt (remedial)'));
+    } else if (akhir == _Akhir.belumMenunggu) {
+      spans.add(const TextSpan(text: ' • Menunggu remedial'));
+    } else if (cat.isNotEmpty) {
       spans.add(const TextSpan(text: ' • '));
       if (isTop) {
         final first = RegExp(r'^[^\s,]+').firstMatch(cat)?.group(0) ?? '';
@@ -894,10 +954,7 @@ class _UjianDetailScreenState extends State<UjianDetailScreen> {
                               fontWeight: FontWeight.w700, fontSize: 13.5, color: _C.ink)),
                     ),
                     const SizedBox(width: 6),
-                    ok
-                        ? _pill('Tuntas (${_grade(v, _kkm)})', _C.okBg, _C.okFg,
-                            bd: _C.okBd, fs: 10)
-                        : _pill('Belum Tuntas', _C.badBg, _C.badFg, bd: _C.badBd, fs: 10),
+                    pill,
                   ],
                 ),
                 const SizedBox(height: 3),
@@ -914,51 +971,58 @@ class _UjianDetailScreenState extends State<UjianDetailScreen> {
     );
   }
 
-    Widget _susulanTile(Map<String, dynamic> n, Map<String, dynamic> santri) {
+  Widget _susulanTile(Map<String, dynamic> n, Map<String, dynamic> santri) {
     final label = switch (_kehadiranOf(n)) {
       'SAKIT' => 'Sakit',
       'IZIN' => 'Izin',
       'ALPA' => 'Alpa',
       _ => 'Belum ada nilai',
     };
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(10),
-      decoration: _cardDeco(),
-      child: Row(
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration:
-                BoxDecoration(color: _C.chipGray, borderRadius: BorderRadius.circular(10)),
-            child: const Icon(Icons.event_busy_outlined, size: 18, color: _C.ink2),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(santri['nama'] as String,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                              fontWeight: FontWeight.w700, fontSize: 13.5, color: _C.ink)),
-                    ),
-                    const SizedBox(width: 6),
-                    _pill('Susulan • $label', _C.warnBg, _C.warnFg, bd: _C.warnBd, fs: 10),
-                  ],
-                ),
-                const SizedBox(height: 3),
-                Text('NIS: ${santri['nis']}',
-                    style: const TextStyle(fontSize: 11.5, color: _C.ink2)),
-              ],
+    // Ketuk untuk mengisi nilai susulan di halaman Input Nilai.
+    return InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: _openInput,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.all(10),
+        decoration: _cardDeco(),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration:
+                  BoxDecoration(color: _C.chipGray, borderRadius: BorderRadius.circular(10)),
+              child: const Icon(Icons.event_busy_outlined, size: 18, color: _C.ink2),
             ),
-          ),
-        ],
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(santri['nama'] as String,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w700, fontSize: 13.5, color: _C.ink)),
+                      ),
+                      const SizedBox(width: 6),
+                      _pill('Susulan • $label', _C.warnBg, _C.warnFg, bd: _C.warnBd, fs: 10),
+                    ],
+                  ),
+                  const SizedBox(height: 3),
+                  Text('NIS: ${santri['nis']} • Ketuk untuk isi nilai susulan',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 11.5, color: _C.ink2)),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

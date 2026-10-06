@@ -238,7 +238,9 @@ class _UjianScreenState extends State<UjianScreen> {
     }
   }
 
-  /// Cadangan: hitung remedial yang belum tuntas. Diam-diam diabaikan kalau endpoint GET belum ada.
+  /// Cadangan: hitung remedial yang masih menunggu. TUNTAS dan BELUM_TUNTAS
+  /// sudah final, jadi tidak dihitung (sama dengan layar Remedial & Detail Ujian).
+  /// Diam-diam diabaikan kalau endpoint GET belum ada.
   Future<void> _loadRemedial() async {
     try {
       final res = await AppScope.of(context).api.get(ApiUrl.remedial);
@@ -248,7 +250,7 @@ class _UjianScreenState extends State<UjianScreen> {
       final n = raw.where((r) {
         if (r is! Map) return false;
         final h = '${r['status'] ?? r['hasil'] ?? 'PROSES'}'.toUpperCase();
-        return h != 'TUNTAS';
+        return h != 'TUNTAS' && h != 'BELUM_TUNTAS';
       }).length;
       setState(() => _remedialCount = n);
     } catch (_) {}
@@ -684,8 +686,9 @@ class _UjianScreenState extends State<UjianScreen> {
     final complete = total != null && count >= total;
     final double? progress =
         total == null ? null : (count / total).clamp(0.0, 1.0).toDouble();
-    final remed =
-        (u['remedialAktif'] as int?) ?? (u['_count']?['remedials'] as int?) ?? 0;
+    // Hanya remedial yang masih menunggu (dihitung backend). Tidak memakai
+    // jumlah seluruh remedial supaya angkanya sama dengan layar Detail & Remedial.
+    final remed = (u['remedialAktif'] as int?) ?? 0;
     final mapel = u['mapel']?['namaMapel'] ?? 'Umum';
     final kelas = u['kelas']?['namaKelas'] ?? 'Semua kelas';
 
@@ -693,7 +696,7 @@ class _UjianScreenState extends State<UjianScreen> {
     if (total == null) {
       panelText = '$count santri telah dinilai';
     } else if (complete) {
-      panelText = 'Nilai Tuntas: $count / $total Santri';
+      panelText = 'Semua santri sudah dinilai: $count / $total';
     } else {
       panelText = '$count / $total Santri telah dinilai';
     }
@@ -897,10 +900,15 @@ class _FormUjianSheetState extends State<_FormUjianSheet> {
   final _nama = TextEditingController();
   final _kkm = TextEditingController(text: '75');
   String _jenis = 'UAS';
-  final _mapelText = TextEditingController();
   final _lainnyaNama = TextEditingController();
   final _lainnyaKet = TextEditingController();
-  List<dynamic> _mapel = []; // hanya untuk mencocokkan teks mapel dengan mapel terdaftar
+  List<dynamic> _mapel = []; // mapel terdaftar (untuk dropdown)
+  // Dua alur: ujian mapel (pilih dari daftar, KKM ikut mapel) atau non-mapel/umum (KKM manual).
+  bool _pakaiMapel = true;
+  dynamic _mapelId;
+  bool _mapelLoading = true;
+  bool _mapelGagal = false;
+  bool _mapelError = false;
   List<Map<String, dynamic>> _kelasList = [];
   Map<String, dynamic>? _kelas;
   DateTime _jadwal = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day, 8, 0);
@@ -923,20 +931,52 @@ class _FormUjianSheetState extends State<_FormUjianSheet> {
     try {
       final res = await AppScope.of(context).api.get(ApiUrl.mapel);
       final items = res is List ? res : ((res as Map<String, dynamic>)['data'] as List? ?? []);
-      if (mounted) setState(() => _mapel = items);
-    } catch (_) {}
-  }
-
-  /// Mapel terdaftar yang namanya sama persis dengan teks yang diketik (tanpa peduli huruf besar/kecil).
-  Map<String, dynamic>? get _mapelCocok {
-    final t = _mapelText.text.trim().toLowerCase();
-    if (t.isEmpty) return null;
-    for (final m in _mapel) {
-      if (m is Map && '${m['namaMapel']}'.trim().toLowerCase() == t) {
-        return Map<String, dynamic>.from(m);
+      if (mounted) {
+        setState(() {
+          _mapel = items;
+          _mapelLoading = false;
+          _mapelGagal = false;
+        });
+      }
+    } catch (_) {
+      // Mis. role tidak boleh membaca daftar mapel: tampilkan pesan, jangan diam-diam kosong.
+      if (mounted) {
+        setState(() {
+          _mapelLoading = false;
+          _mapelGagal = true;
+        });
       }
     }
+  }
+
+  /// Mapel yang dipilih di dropdown (null bila alur non-mapel atau belum memilih).
+  Map<String, dynamic>? get _mapelTerpilih {
+    if (!_pakaiMapel || _mapelId == null) return null;
+    for (final m in _mapel) {
+      if (m is Map && m['id'] == _mapelId) return Map<String, dynamic>.from(m);
+    }
     return null;
+  }
+
+  /// KKM milik mapel terpilih (null bila non-mapel, belum memilih, atau mapel belum punya KKM).
+  double? get _kkmMapel {
+    final v = _mapelTerpilih?['kkm'];
+    return v is num ? v.toDouble() : null;
+  }
+
+  /// Pada alur mapel, KKM ditentukan mapel (backend mengabaikan isian lain).
+  bool get _kkmTerkunci => _kkmMapel != null;
+
+  String _fmtKkm(num v) =>
+      v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(1);
+
+  /// Samakan isian KKM dengan KKM mapel terpilih. Dipanggil di dalam setState.
+  void _syncKkm() {
+    final k = _kkmMapel;
+    if (k != null) {
+      _kkm.text = _fmtKkm(k);
+      _kkmError = false;
+    }
   }
 
   /// Daftar kelas diturunkan dari data santri (belum ada endpoint kelas di layar ini).
@@ -963,7 +1003,6 @@ class _FormUjianSheetState extends State<_FormUjianSheet> {
   void dispose() {
     _nama.dispose();
     _kkm.dispose();
-    _mapelText.dispose();
     _lainnyaNama.dispose();
     _lainnyaKet.dispose();
     super.dispose();
@@ -992,21 +1031,23 @@ class _FormUjianSheetState extends State<_FormUjianSheet> {
 
   void _submit() {
     final nama = _nama.text.trim();
-    final kkm = double.tryParse(_kkm.text.replaceAll(',', '.'));
+    // Ujian mapel memakai KKM mapel; non-mapel (atau mapel tanpa KKM) pakai isian.
+    final kkm = _kkmMapel ?? double.tryParse(_kkm.text.replaceAll(',', '.'));
     final namaBad = nama.isEmpty;
     final kkmBad = kkm == null || kkm < 0 || kkm > 100;
-    if (namaBad || kkmBad) {
+    final mapelBad = _pakaiMapel && _mapelId == null;
+    if (namaBad || kkmBad || mapelBad) {
       setState(() {
         _namaError = namaBad;
         _kkmError = kkmBad;
+        _mapelError = mapelBad;
       });
       return;
     }
-    final cocok = _mapelCocok;
     final payload = <String, dynamic>{
       'nama': nama,
       'jenis': _jenis,
-      'mapelId': cocok?['id'],
+      'mapelId': _pakaiMapel ? _mapelId : null,
       'kkm': kkm,
     };
     if (kKirimFieldTambahan) {
@@ -1230,18 +1271,8 @@ class _FormUjianSheetState extends State<_FormUjianSheet> {
                           : const SizedBox(width: double.infinity),
                     ),
 
-                    _label('Mata Pelajaran (Opsional)'),
-                    TextField(
-                      controller: _mapelText,
-                      onChanged: (_) => setState(() {}),
-                      textCapitalization: TextCapitalization.words,
-                      style: const TextStyle(fontSize: 13, color: _C.ink),
-                      decoration: _fieldDec(hint: 'Contoh: Bahasa Arab (Nahwu & Sharaf)').copyWith(
-                        prefixIcon: Icon(Icons.translate, size: 20, color: _C.emerald),
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    _mapelHelper(),
+                    _label('Mata Pelajaran', req: true),
+                    _mapelSection(),
                     const SizedBox(height: 14),
 
                     _label('Kelas / Rombel Sasaran'),
@@ -1327,29 +1358,44 @@ class _FormUjianSheetState extends State<_FormUjianSheet> {
                               _label('KKM Kelulusan', req: true),
                               TextField(
                                 controller: _kkm,
+                                readOnly: _kkmTerkunci,
                                 keyboardType:
                                     const TextInputType.numberWithOptions(decimal: true),
                                 onChanged: (_) {
                                   if (_kkmError) setState(() => _kkmError = false);
                                 },
-                                style: const TextStyle(
-                                    fontSize: 14, fontWeight: FontWeight.w700, color: _C.ink),
+                                style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w700,
+                                    color: _kkmTerkunci ? _C.ink2 : _C.ink),
                                 decoration: _fieldDec(
                                   error: _kkmError ? '0–100' : null,
                                   suffix: Padding(
                                     padding: const EdgeInsets.all(8),
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 8, vertical: 3),
-                                      decoration: BoxDecoration(
-                                          color: _C.chipGray,
-                                          borderRadius: BorderRadius.circular(8)),
-                                      child: const Text('Poin',
-                                          style: TextStyle(fontSize: 11, color: _C.ink2)),
-                                    ),
+                                    child: _kkmTerkunci
+                                        ? const Icon(Icons.lock_outline,
+                                            size: 18, color: _C.goldText)
+                                        : Container(
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 8, vertical: 3),
+                                            decoration: BoxDecoration(
+                                                color: _C.chipGray,
+                                                borderRadius: BorderRadius.circular(8)),
+                                            child: const Text('Poin',
+                                                style:
+                                                    TextStyle(fontSize: 11, color: _C.ink2)),
+                                          ),
                                   ),
+                                ).copyWith(
+                                  fillColor: _kkmTerkunci ? _C.chipGray : _C.fieldFill,
                                 ),
                               ),
+                              if (_kkmTerkunci)
+                                const Padding(
+                                  padding: EdgeInsets.only(top: 4),
+                                  child: Text('Mengikuti KKM mata pelajaran',
+                                      style: TextStyle(fontSize: 10.5, color: _C.goldText)),
+                                ),
                             ],
                           ),
                         ),
@@ -1481,32 +1527,154 @@ class _FormUjianSheetState extends State<_FormUjianSheet> {
     );
   }
 
-  Widget _mapelHelper() {
-    final t = _mapelText.text.trim();
-    final IconData icon;
-    final String text;
-    if (t.isEmpty) {
-      icon = Icons.check_circle_outline;
-      text = 'Kosongkan jika ujian bersifat umum (tanpa mapel khusus)';
-    } else if (_mapelCocok != null) {
-      icon = Icons.check_circle;
-      text = 'Terhubung ke mapel terdaftar';
-    } else {
-      icon = Icons.info_outline;
-      text = 'Belum cocok dengan mapel terdaftar. Ketik nama yang sama persis agar tertaut';
-    }
-    return Row(
+  /// Pilihan alur: "Mapel Terdaftar" (dropdown, KKM ikut mapel) atau "Non-Mapel" (umum, KKM manual).
+  Widget _alurChip(String label, IconData icon, bool selected, VoidCallback onTap) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          decoration: BoxDecoration(
+            color: selected ? _C.emerald : _C.chipGray,
+            borderRadius: BorderRadius.circular(12),
+            border: selected ? null : Border.all(color: _C.border),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 16, color: selected ? Colors.white : _C.ink2),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(label,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                        color: selected ? Colors.white : _C.ink)),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _mapelSection() {
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.only(top: 1),
-          child: Icon(icon, size: 14, color: _C.goldText),
+        Row(
+          children: [
+            _alurChip('Mapel Terdaftar', Icons.menu_book_outlined, _pakaiMapel,
+                () => setState(() {
+                      _pakaiMapel = true;
+                      _mapelError = false;
+                    })),
+            const SizedBox(width: 8),
+            _alurChip('Non-Mapel (Umum)', Icons.edit_note_outlined, !_pakaiMapel,
+                () => setState(() {
+                      _pakaiMapel = false;
+                      _mapelError = false;
+                    })),
+          ],
         ),
-        const SizedBox(width: 6),
-        Expanded(child: Text(text, style: const TextStyle(fontSize: 11.5, color: _C.goldText))),
+        const SizedBox(height: 10),
+        if (_pakaiMapel) _mapelDropdown() else _infoNonMapel(),
       ],
     );
   }
+
+  Widget _mapelDropdown() {
+    final items = _mapel.whereType<Map>().toList();
+    final String? helper;
+    if (_mapelLoading) {
+      helper = 'Memuat daftar mapel...';
+    } else if (_mapelGagal) {
+      helper = 'Daftar mapel tidak dapat dimuat. Periksa izin akses, atau pilih Non-Mapel.';
+    } else if (items.isEmpty) {
+      helper = 'Belum ada mapel terdaftar. Hubungi admin, atau pilih Non-Mapel.';
+    } else if (_mapelTerpilih != null && _kkmMapel == null) {
+      helper = 'Mapel ini belum punya KKM. Isi KKM di bawah.';
+    } else if (_kkmTerkunci) {
+      helper = 'KKM mengikuti mapel (${_fmtKkm(_kkmMapel!)}).';
+    } else {
+      helper = null;
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        DropdownButtonFormField<dynamic>(
+          value: items.any((m) => m['id'] == _mapelId) ? _mapelId : null,
+          isExpanded: true,
+          icon: Icon(Icons.keyboard_arrow_down, size: 20, color: _C.emerald),
+          style: const TextStyle(fontSize: 13, color: _C.ink),
+          decoration: _fieldDec(
+            hint: 'Pilih mata pelajaran',
+            error: _mapelError ? 'Pilih mapel, atau ganti ke Non-Mapel' : null,
+          ).copyWith(
+            prefixIcon: Icon(Icons.translate, size: 20, color: _C.emerald),
+          ),
+          items: [
+            for (final m in items)
+              DropdownMenuItem<dynamic>(
+                value: m['id'],
+                child: Text(
+                  m['kkm'] is num
+                      ? '${m['namaMapel']} (KKM ${_fmtKkm(m['kkm'] as num)})'
+                      : '${m['namaMapel']}',
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+          ],
+          onChanged: items.isEmpty
+              ? null
+              : (v) => setState(() {
+                    _mapelId = v;
+                    _mapelError = false;
+                    _syncKkm();
+                  }),
+        ),
+        if (helper != null) ...[
+          const SizedBox(height: 6),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(top: 1),
+                child: Icon(
+                    _mapelGagal || (!_mapelLoading && items.isEmpty)
+                        ? Icons.info_outline
+                        : Icons.check_circle_outline,
+                    size: 14,
+                    color: _C.goldText),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                  child: Text(helper,
+                      style: const TextStyle(fontSize: 11.5, color: _C.goldText))),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _infoNonMapel() => Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.only(top: 1),
+            child: Icon(Icons.check_circle_outline, size: 14, color: _C.goldText),
+          ),
+          const SizedBox(width: 6),
+          const Expanded(
+            child: Text(
+                'Ujian umum tanpa mapel khusus. KKM diisi manual di bawah.',
+                style: TextStyle(fontSize: 11.5, color: _C.goldText)),
+          ),
+        ],
+      );
 
   /// Form tambahan (opsional) yang muncul saat Jenis Evaluasi = Lainnya.
   Widget _lainnyaForm() {

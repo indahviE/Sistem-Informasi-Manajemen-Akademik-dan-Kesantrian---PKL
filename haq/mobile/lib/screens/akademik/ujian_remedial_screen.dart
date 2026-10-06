@@ -7,6 +7,12 @@ import '../santri/santri_ui.dart' show SC;
 
 // Halaman Sesi Remedial (mandiri: tidak bergantung pada file ujian lain).
 //
+// Aturan (arahan pembimbing):
+//  - Nilai akhir = (nilai ujian + nilai remedial) / 2, maksimal KKM.
+//  - Tuntas jika rata-rata >= KKM, selain itu BELUM TUNTAS (tidak ada remedial lanjutan).
+//  - Status Tuntas/Belum Tuntas dan nilai akhir DITENTUKAN BACKEND; layar ini hanya menampilkan pratinjau.
+//  - KKM mengikuti mata pelajaran (backend mengirimnya lewat field `kkm` ujian).
+//
 // Sumber data:
 //  - GET  {ujian}/:id            -> info ujian + nilais (santri di bawah KKM jadi kandidat remedial)
 //  - GET  {ujian}/:id/remedial   -> daftar remedial (opsional; kalau belum ada, dianggap kosong)
@@ -131,6 +137,8 @@ _St _stOf(String s) {
   switch (s) {
     case 'TUNTAS':
       return const _St(_C.okBg, _C.okFg, _C.okBd, 'TUNTAS', 'Tuntas');
+    case 'BELUM_TUNTAS':
+      return const _St(_C.badBg, _C.badFg, _C.badBd, 'BELUM TUNTAS', 'Belum Tuntas');
     case 'PROSES':
       return const _St(_C.goldChip, _C.goldText, _C.goldBorder, 'PROSES', 'Menunggu Sesi');
     default:
@@ -141,18 +149,23 @@ _St _stOf(String s) {
 String _normStatus(dynamic s) {
   final v = '${s ?? ''}'.toUpperCase();
   if (v == 'TUNTAS') return 'TUNTAS';
+  if (v == 'BELUM_TUNTAS') return 'BELUM_TUNTAS';
   if (v == 'PROSES') return 'PROSES';
   return 'BELUM_TES';
 }
+
+/// Status final: remedial sudah dinilai dan hasilnya sudah ditentukan backend.
+bool _isFinal(String s) => s == 'TUNTAS' || s == 'BELUM_TUNTAS';
 
 /// Satu baris santri dalam sesi remedial.
 class _Rem {
   final dynamic santriId;
   final String nama;
   final String nis;
-  final double? awal;
-  final double? hasil;
-  final String status; // BELUM_TES | PROSES | TUNTAS
+  final double? awal; // nilai ujian awal
+  final double? hasil; // nilai perbaikan (remedial)
+  final double? akhir; // nilai akhir dari backend = min((awal + remedial) / 2, KKM)
+  final String status; // BELUM_TES | PROSES | TUNTAS | BELUM_TUNTAS
   final String keterangan;
   final String ruang;
   final String catatan; // catatan pembimbing
@@ -166,6 +179,7 @@ class _Rem {
     required this.nis,
     required this.awal,
     required this.hasil,
+    required this.akhir,
     required this.status,
     required this.keterangan,
     required this.ruang,
@@ -262,7 +276,7 @@ class _UjianRemedialScreenState extends State<UjianRemedialScreen> {
       }
       if (target == null) {
         for (final r in _sorted(rows)) {
-          if (r.status != 'TUNTAS') {
+          if (!_isFinal(r.status)) {
             target = r;
             break;
           }
@@ -282,13 +296,14 @@ class _UjianRemedialScreenState extends State<UjianRemedialScreen> {
 
   Map<String, dynamic> get _ujian => {...widget.ujian, ...?_data};
 
-  /// KKM milik ujian ini (jatuh ke bawaan bila belum ada).
+  /// KKM milik ujian ini (dikirim backend, mengikuti mata pelajaran; jatuh ke bawaan bila belum ada).
   double get _kkm =>
       (_ujian['kkm'] is num) ? (_ujian['kkm'] as num).toDouble() : _kkmDefault;
 
   String get _kkmText =>
       _kkm == _kkm.roundToDouble() ? _kkm.toStringAsFixed(0) : _kkm.toStringAsFixed(1);
-        bool get _terkunci => _ujian['dikunciPada'] != null;
+
+  bool get _terkunci => _ujian['dikunciPada'] != null;
 
   List<Map<String, dynamic>> get _nilais => _listOf(_data?['nilais']);
 
@@ -310,6 +325,7 @@ class _UjianRemedialScreenState extends State<UjianRemedialScreen> {
         nis: '${s['nis'] ?? ''}',
         awal: v,
         hasil: null,
+        akhir: null,
         status: 'BELUM_TES',
         keterangan: '',
         ruang: '',
@@ -330,6 +346,7 @@ class _UjianRemedialScreenState extends State<UjianRemedialScreen> {
         nis: '${s['nis'] ?? base?.nis ?? ''}',
         awal: _numOf(r['nilaiAwal']) ?? base?.awal,
         hasil: _numOf(r['nilaiRemedial']),
+        akhir: _numOf(r['nilaiAkhir']),
         status: _normStatus(r['status']),
         keterangan: '${r['keterangan'] ?? ''}'.trim(),
         ruang: '${r['ruang'] ?? ''}'.trim(),
@@ -343,7 +360,18 @@ class _UjianRemedialScreenState extends State<UjianRemedialScreen> {
     return byId.values.toList();
   }
 
-  int _statusOrder(String s) => s == 'PROSES' ? 0 : (s == 'BELUM_TES' ? 1 : 2);
+  int _statusOrder(String s) {
+    switch (s) {
+      case 'PROSES':
+        return 0;
+      case 'BELUM_TES':
+        return 1;
+      case 'BELUM_TUNTAS':
+        return 2;
+      default:
+        return 3; // TUNTAS
+    }
+  }
 
   List<_Rem> _sorted(List<_Rem> list) {
     final l = [...list];
@@ -401,6 +429,16 @@ class _UjianRemedialScreenState extends State<UjianRemedialScreen> {
     return v;
   }
 
+  /// Status yang ditampilkan di form. Kalau nilai perbaikan sudah diisi, ini PRATINJAU
+  /// dari aturan backend: rata-rata (awal + perbaikan) / 2 dibandingkan dengan KKM.
+  String _statusPreview(_Rem r) {
+    final v = _nilaiVal;
+    if (v != null && r.awal != null) {
+      return ((r.awal! + v) / 2 >= _kkm) ? 'TUNTAS' : 'BELUM_TUNTAS';
+    }
+    return _status == 'PROSES' ? 'PROSES' : 'BELUM_TES';
+  }
+
   Future<void> _pickJadwal() async {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
@@ -429,10 +467,6 @@ class _UjianRemedialScreenState extends State<UjianRemedialScreen> {
   Future<void> _save() async {
     final r = _selected;
     if (r == null) return;
-    if (_terkunci) {
-      _msg('Nilai ujian dikunci. Buka kunci di halaman Detail Ujian untuk mengubah.');
-      return;
-    }
 
     final ket = _ketCtrl.text.trim();
     if (ket.isEmpty) {
@@ -445,24 +479,35 @@ class _UjianRemedialScreenState extends State<UjianRemedialScreen> {
       _msg('Nilai perbaikan harus antara 0 – 100.');
       return;
     }
-    if (_status == 'TUNTAS' && (v == null || v < _kkm)) {
-      _msg('Status Tuntas butuh nilai perbaikan minimal KKM $_kkmText.');
-      return;
-    }
+
+    // Status Tuntas / Belum Tuntas ditentukan backend dari nilai perbaikan.
+    // Dari layar ini hanya BELUM_TES atau PROSES yang dikirim.
+    final kirimStatus = (v != null || _status == 'PROSES' || _isFinal(_status)) ? 'PROSES' : 'BELUM_TES';
 
     setState(() => _saving = true);
     try {
-      await AppScope.of(context).api.post('${ApiUrl.ujian}/$_id/remedial', {
+      final res = await AppScope.of(context).api.post('${ApiUrl.ujian}/$_id/remedial', {
         'santriId': r.santriId,
         'keterangan': ket,
-        'status': _status,
+        'status': kirimStatus,
         'catatan': _catCtrl.text.trim(),
         if (v != null) 'nilaiRemedial': v,
         if (_jadwal != null) 'jadwal': _jadwal!.toIso8601String(),
       });
       await _load(silent: true);
       if (!mounted) return;
-      _msg('Hasil remedial ${r.nama} tersimpan.');
+
+      var hasilTxt = '';
+      if (res is Map) {
+        final st = '${res['status'] ?? ''}'.toUpperCase();
+        final ak = _numOf(res['nilaiAkhir']);
+        if (st == 'TUNTAS') {
+          hasilTxt = ' Tuntas, nilai akhir ${_fmtNum(ak)}.';
+        } else if (st == 'BELUM_TUNTAS') {
+          hasilTxt = ' Belum tuntas, nilai akhir ${_fmtNum(ak)}.';
+        }
+      }
+      _msg('Hasil remedial ${r.nama} tersimpan.$hasilTxt');
     } on ApiException catch (e) {
       if (mounted) _msg(e.message);
     } finally {
@@ -548,12 +593,12 @@ class _UjianRemedialScreenState extends State<UjianRemedialScreen> {
 
   Widget _buildContent() {
     final rows = _rows;
-    final wait = rows.where((r) => r.status != 'TUNTAS').length;
+    final wait = rows.where((r) => !_isFinal(r.status)).length;
     final done = rows.length - wait;
 
     final filtered = rows.where((r) {
-      if (_tab == 'WAIT') return r.status != 'TUNTAS';
-      if (_tab == 'DONE') return r.status == 'TUNTAS';
+      if (_tab == 'WAIT') return !_isFinal(r.status);
+      if (_tab == 'DONE') return _isFinal(r.status);
       return true;
     }).toList();
     final list = _sorted(filtered);
@@ -573,7 +618,7 @@ class _UjianRemedialScreenState extends State<UjianRemedialScreen> {
             children: [
               _tabChip('Semua Remedial', rows.length, 'ALL'),
               _tabChip('Menunggu Ujian', wait, 'WAIT'),
-              _tabChip('Sudah Diperbaiki', done, 'DONE'),
+              _tabChip('Sudah Dinilai', done, 'DONE'),
             ],
           ),
         ),
@@ -652,7 +697,7 @@ class _UjianRemedialScreenState extends State<UjianRemedialScreen> {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final upcoming = rows
-        .where((r) => r.status != 'TUNTAS' && r.jadwal != null && !r.jadwal!.isBefore(today))
+        .where((r) => !_isFinal(r.status) && r.jadwal != null && !r.jadwal!.isBefore(today))
         .toList()
       ..sort((a, b) => a.jadwal!.compareTo(b.jadwal!));
     return upcoming.isEmpty ? null : upcoming.first;
@@ -768,7 +813,40 @@ class _UjianRemedialScreenState extends State<UjianRemedialScreen> {
   Widget _formCard(_Rem r) {
     final v = _nilaiVal;
     final awalBelow = r.awal != null && r.awal! < _kkm;
-    final st = _stOf(_status);
+
+    // Pratinjau aturan backend: nilai akhir = min((awal + perbaikan) / 2, KKM)
+    final double? rata = (v != null && r.awal != null) ? (r.awal! + v) / 2 : null;
+    final double? akhirPrev = rata == null ? null : (rata < _kkm ? rata : _kkm);
+    final prevStatus = _statusPreview(r);
+    final st = _stOf(prevStatus);
+
+    final statusBox = Container(
+      height: 48,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: st.bg,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: st.bd),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 7,
+            height: 7,
+            decoration: BoxDecoration(color: st.fg, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(st.label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: st.fg)),
+          ),
+          Icon(_isFinal(prevStatus) ? Icons.check_circle_outline : Icons.schedule,
+              size: 18, color: st.fg),
+        ],
+      ),
+    );
 
     return Container(
       key: _formKey,
@@ -899,16 +977,8 @@ class _UjianRemedialScreenState extends State<UjianRemedialScreen> {
                                 Expanded(
                                   child: TextField(
                                     controller: _nilaiCtrl,
-                                    onChanged: (_) {
-                                      final x = _nilaiVal;
-                                      setState(() {
-                                        if (x != null && x >= _kkm) {
-                                          _status = 'TUNTAS';
-                                        } else if (_status == 'TUNTAS') {
-                                          _status = 'PROSES';
-                                        }
-                                      });
-                                    },
+                                    // Status tidak lagi diatur dari sini; cukup segarkan pratinjau.
+                                    onChanged: (_) => setState(() {}),
                                     keyboardType: const TextInputType.numberWithOptions(
                                         decimal: true),
                                     inputFormatters: [
@@ -947,48 +1017,60 @@ class _UjianRemedialScreenState extends State<UjianRemedialScreen> {
                           const Text('Status Sesi',
                               style: TextStyle(fontSize: 12, color: _C.ink2)),
                           const SizedBox(height: 6),
-                          PopupMenuButton<String>(
-                            onSelected: (s) => setState(() => _status = s),
-                            itemBuilder: (_) => [
-                              for (final s in ['BELUM_TES', 'PROSES', 'TUNTAS'])
-                                PopupMenuItem(value: s, child: Text(_stOf(s).label)),
-                            ],
-                            child: Container(
-                              height: 48,
-                              padding: const EdgeInsets.symmetric(horizontal: 12),
-                              decoration: BoxDecoration(
-                                color: st.bg,
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: st.bd),
-                              ),
-                              child: Row(
-                                children: [
-                                  Container(
-                                    width: 7,
-                                    height: 7,
-                                    decoration:
-                                        BoxDecoration(color: st.fg, shape: BoxShape.circle),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Text(st.label,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: TextStyle(
-                                            fontSize: 12.5,
-                                            fontWeight: FontWeight.w700,
-                                            color: st.fg)),
-                                  ),
-                                  Icon(Icons.schedule, size: 18, color: st.fg),
-                                ],
-                              ),
-                            ),
-                          ),
+                          // Nilai perbaikan kosong: status bisa dipilih (Belum Tes / Menunggu Sesi).
+                          // Nilai perbaikan terisi: status ditentukan sistem (Tuntas / Belum Tuntas).
+                          if (v == null)
+                            PopupMenuButton<String>(
+                              onSelected: (s) => setState(() => _status = s),
+                              itemBuilder: (_) => [
+                                for (final s in ['BELUM_TES', 'PROSES'])
+                                  PopupMenuItem(value: s, child: Text(_stOf(s).label)),
+                              ],
+                              child: statusBox,
+                            )
+                          else
+                            statusBox,
                         ],
                       ),
                     ),
                   ],
                 ),
+
+                // Pratinjau nilai akhir
+                if (akhirPrev != null) ...[
+                  const SizedBox(height: 10),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: st.bg,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: st.bd),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text.rich(TextSpan(
+                          style: const TextStyle(fontSize: 12.5, color: _C.ink2),
+                          children: [
+                            const TextSpan(text: 'Nilai Akhir (pratinjau): '),
+                            TextSpan(
+                                text: _fmtNum(akhirPrev),
+                                style: TextStyle(fontWeight: FontWeight.w800, color: st.fg)),
+                            TextSpan(
+                                text: ' • ${st.label}',
+                                style: TextStyle(fontWeight: FontWeight.w700, color: st.fg)),
+                          ],
+                        )),
+                        const SizedBox(height: 3),
+                        Text(
+                          '(Nilai Awal ${_fmtNum(r.awal)} + Nilai Perbaikan ${_fmtNum(v)}) ÷ 2 = ${_fmtNum(rata)}, maksimal KKM $_kkmText',
+                          style: const TextStyle(fontSize: 11, height: 1.3, color: _C.ink2),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 14),
 
                 // Catatan pembimbing
@@ -1018,9 +1100,9 @@ class _UjianRemedialScreenState extends State<UjianRemedialScreen> {
                 Row(
                   children: [
                     Expanded(
-                          child: _btn('Jadwalkan Ulang',
+                      child: _btn('Jadwalkan Ulang',
                           icon: Icons.calendar_month_outlined,
-                          onTap: (_saving || _terkunci) ? null : _pickJadwal),
+                          onTap: _saving ? null : _pickJadwal),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
@@ -1028,7 +1110,7 @@ class _UjianRemedialScreenState extends State<UjianRemedialScreen> {
                           primary: true,
                           icon: Icons.check_circle_outline,
                           loading: _saving,
-                          onTap: (_saving || _terkunci) ? null : _save),
+                          onTap: _saving ? null : _save),
                     ),
                   ],
                 ),
@@ -1090,10 +1172,78 @@ class _UjianRemedialScreenState extends State<UjianRemedialScreen> {
     );
   }
 
+  /// Ringkasan hasil remedial (Awal → Remedial → Nilai Akhir) untuk status final.
+  Widget _hasilBody(_Rem r, {required bool tuntas}) {
+    final akhir = r.akhir ?? r.hasil;
+
+    Widget kolom(String label, String nilai, Color warna,
+            {CrossAxisAlignment align = CrossAxisAlignment.start, String? extra}) =>
+        Column(
+          crossAxisAlignment: align,
+          children: [
+            Text(label, style: const TextStyle(fontSize: 11, color: _C.ink2)),
+            Text.rich(TextSpan(children: [
+              TextSpan(
+                  text: nilai,
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: warna)),
+              if (extra != null)
+                TextSpan(
+                    text: ' ($extra)',
+                    style: const TextStyle(fontSize: 11, color: _C.goldText)),
+            ])),
+          ],
+        );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration:
+              BoxDecoration(color: _C.fieldFill, borderRadius: BorderRadius.circular(10)),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              kolom('Awal', _fmtNum(r.awal), _C.badFg),
+              kolom('Remedial', _fmtNum(r.hasil), _C.ink, align: CrossAxisAlignment.center),
+              kolom('Nilai Akhir', _fmtNum(akhir), tuntas ? _C.okFg : _C.badFg,
+                  align: CrossAxisAlignment.end,
+                  extra: akhir == null ? null : _predikat(akhir, _kkm)),
+            ],
+          ),
+        ),
+        if (!tuntas) ...[
+          const SizedBox(height: 8),
+          const Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: EdgeInsets.only(top: 1),
+                child: Icon(Icons.info_outline, size: 14, color: _C.badFg),
+              ),
+              SizedBox(width: 6),
+              Expanded(
+                child: Text('Belum tuntas setelah remedial. Tidak ada remedial lanjutan.',
+                    style: TextStyle(fontSize: 11.5, color: _C.badFg, height: 1.3)),
+              ),
+            ],
+          ),
+        ],
+        if (r.catatan.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Text('"${r.catatan}"',
+              style: const TextStyle(
+                  fontSize: 12, fontStyle: FontStyle.italic, color: _C.ink2, height: 1.35)),
+        ],
+      ],
+    );
+  }
+
   Widget _riwayatTile(_Rem r) {
     final st = _stOf(r.status);
     final isSel = r.santriId == _selId;
     final tuntas = r.status == 'TUNTAS';
+    final belumTuntas = r.status == 'BELUM_TUNTAS';
     final sub = r.keterangan.isNotEmpty
         ? r.keterangan
         : (_mapelNama.isNotEmpty ? _mapelNama : 'Belum ada materi remedial');
@@ -1101,54 +1251,10 @@ class _UjianRemedialScreenState extends State<UjianRemedialScreen> {
     Widget body;
     switch (r.status) {
       case 'TUNTAS':
-        body = Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              decoration:
-                  BoxDecoration(color: _C.fieldFill, borderRadius: BorderRadius.circular(10)),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('Awal', style: TextStyle(fontSize: 11, color: _C.ink2)),
-                      Text(_fmtNum(r.awal),
-                          style: const TextStyle(
-                              fontSize: 15, fontWeight: FontWeight.w800, color: _C.badFg)),
-                    ],
-                  ),
-                  const Spacer(),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      const Text('Hasil Akhir',
-                          style: TextStyle(fontSize: 11, color: _C.ink2)),
-                      Text.rich(TextSpan(children: [
-                        TextSpan(
-                            text: _fmtNum(r.hasil),
-                            style: const TextStyle(
-                                fontSize: 17, fontWeight: FontWeight.w800, color: _C.ink)),
-                        if (r.hasil != null)
-                          TextSpan(
-                              text: ' (${_predikat(r.hasil!, _kkm)})',
-                              style: const TextStyle(fontSize: 11, color: _C.goldText)),
-                      ])),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            if (r.catatan.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Text('"${r.catatan}"',
-                  style: const TextStyle(
-                      fontSize: 12, fontStyle: FontStyle.italic, color: _C.ink2, height: 1.35)),
-            ],
-          ],
-        );
+        body = _hasilBody(r, tuntas: true);
+        break;
+      case 'BELUM_TUNTAS':
+        body = _hasilBody(r, tuntas: false);
         break;
       case 'PROSES':
         final j = r.jadwal;
@@ -1279,14 +1385,16 @@ class _UjianRemedialScreenState extends State<UjianRemedialScreen> {
                     height: 40,
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
-                      color: tuntas ? const Color(0xFFCDE8DC) : _C.chipGray,
+                      color: tuntas
+                          ? const Color(0xFFCDE8DC)
+                          : (belumTuntas ? _C.badBg : _C.chipGray),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Text(_initials(r.nama),
                         style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w800,
-                            color: tuntas ? _C.okFg : _C.ink)),
+                            color: tuntas ? _C.okFg : (belumTuntas ? _C.badFg : _C.ink))),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -1323,6 +1431,8 @@ class _UjianRemedialScreenState extends State<UjianRemedialScreen> {
     switch (s) {
       case 'TUNTAS':
         return Icons.check_circle_outline;
+      case 'BELUM_TUNTAS':
+        return Icons.cancel_outlined;
       case 'BELUM_TES':
         return Icons.circle;
       default:
@@ -1330,7 +1440,7 @@ class _UjianRemedialScreenState extends State<UjianRemedialScreen> {
     }
   }
 
-    Widget _kunciInfo() => Container(
+  Widget _kunciInfo() => Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: _C.goldSoft,
@@ -1344,7 +1454,7 @@ class _UjianRemedialScreenState extends State<UjianRemedialScreen> {
             SizedBox(width: 10),
             Expanded(
               child: Text(
-                  'Nilai ujian ini sudah dikunci. Buka kunci di halaman Detail Ujian (alasan wajib diisi) jika perlu perbaikan.',
+                  'Nilai ujian ini sudah dikunci. Saat terkunci, remedial hanya bisa diisi untuk santri hasil ujian susulan. Untuk mengubah yang lain, buka kunci di halaman Detail Ujian (alasan wajib diisi).',
                   style: TextStyle(fontSize: 12, height: 1.35, color: _C.goldText)),
             ),
           ],
@@ -1421,13 +1531,25 @@ class _UjianRemedialScreenState extends State<UjianRemedialScreen> {
   // ── Bar bawah: progres kelas + cetak rekap ──
   Widget _bottomBar() {
     final rows = _rows;
-    final aktif = rows.where((r) => r.status != 'TUNTAS').length;
-    final tuntas = rows.length - aktif;
+    final aktif = rows.where((r) => !_isFinal(r.status)).length;
+    final tuntas = rows.where((r) => r.status == 'TUNTAS').length;
+    final belum = rows.where((r) => r.status == 'BELUM_TUNTAS').length;
 
     Widget dot(Color c) => Container(
           width: 7,
           height: 7,
           decoration: BoxDecoration(color: c, shape: BoxShape.circle),
+        );
+
+    Widget item(Color c, String text) => Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            dot(c),
+            const SizedBox(width: 6),
+            Text(text,
+                style: const TextStyle(
+                    fontSize: 13, fontWeight: FontWeight.w700, color: _C.ink)),
+          ],
         );
 
     return Center(
@@ -1464,19 +1586,13 @@ class _UjianRemedialScreenState extends State<UjianRemedialScreen> {
                         const Text('Progres Kelas',
                             style: TextStyle(fontSize: 11, color: _C.ink2)),
                         const SizedBox(height: 3),
-                        Row(
+                        Wrap(
+                          spacing: 10,
+                          runSpacing: 2,
                           children: [
-                            dot(_C.goldText),
-                            const SizedBox(width: 6),
-                            Text('$aktif Aktif',
-                                style: const TextStyle(
-                                    fontSize: 13, fontWeight: FontWeight.w700, color: _C.ink)),
-                            const SizedBox(width: 10),
-                            dot(_C.okFg),
-                            const SizedBox(width: 6),
-                            Text('$tuntas Tuntas',
-                                style: const TextStyle(
-                                    fontSize: 13, fontWeight: FontWeight.w700, color: _C.ink)),
+                            item(_C.goldText, '$aktif Aktif'),
+                            item(_C.okFg, '$tuntas Tuntas'),
+                            item(_C.badFg, '$belum Belum'),
                           ],
                         ),
                       ],

@@ -22,12 +22,14 @@ import {
 import {
   AuditKategori,
   AuditTingkat,
+  NilaiUjian,
   PredikatKelulusan,
   Prisma,
   Role,
   SantriStatus,
   StatusKehadiranUjian,
   StatusRapor,
+  StatusRemedial,
   Ujian,
 } from '@prisma/client';
 
@@ -60,6 +62,28 @@ export class PenilaianService {
     return ujian;
   }
 
+  // KKM mengikuti mata pelajaran. Cadangan: KKM lama di ujian (untuk ujian tanpa mapel).
+  private async getKkm(tenantId: string, ujian: Ujian): Promise<number> {
+    if (ujian.mapelId) {
+      const mapel = await this.prisma.mataPelajaran.findFirst({
+        where: { id: ujian.mapelId, tenantId },
+        select: { kkm: true },
+      });
+      if (mapel) return mapel.kkm;
+    }
+    return ujian.kkm ?? 75;
+  }
+
+  // Aturan pembimbing: nilai akhir = rata-rata (ujian + remedial), maksimal KKM.
+  // Tuntas jika rata-rata >= KKM, selain itu belum tuntas.
+  private hitungRemedial(awal: number, remedial: number, kkm: number) {
+    const rata = (awal + remedial) / 2;
+    return {
+      nilaiAkhir: Math.min(rata, kkm),
+      status: rata >= kkm ? StatusRemedial.TUNTAS : StatusRemedial.BELUM_TUNTAS,
+    };
+  }
+
   // Ustadz hanya boleh mengelola ujian yang ia buat. Admin/Pimpinan bebas. Ujian lama (dibuatOleh kosong) terbuka.
   private assertBolehKelola(ujian: Ujian, actor: Actor) {
     if (actor.role === Role.USTADZ && ujian.dibuatOleh && ujian.dibuatOleh !== actor.id) {
@@ -75,10 +99,54 @@ export class PenilaianService {
     }
   }
 
+  // Nilai susulan masuk = santri yang sebelumnya sakit/izin/alpa (nilai masih kosong),
+  // sekarang diisi nilainya dengan status HADIR.
+  private adalahSusulanMasuk(lama: NilaiUjian | null, item: InputNilaiUjianDto): boolean {
+    if (!lama) return false;
+    const statusBaru = item.status ?? StatusKehadiranUjian.HADIR;
+    return (
+      lama.status !== StatusKehadiranUjian.HADIR &&
+      lama.nilai === null &&
+      statusBaru === StatusKehadiranUjian.HADIR &&
+      item.nilai !== undefined &&
+      item.nilai !== null
+    );
+  }
+
+  // Saat ujian terkunci, input nilai hanya boleh berupa nilai susulan.
+  // Mengubah nilai lain tetap harus lewat buka kunci (alasan wajib diisi).
+  private async assertBolehInput(tenantId: string, ujian: Ujian, items: InputNilaiUjianDto[]) {
+    if (!ujian.dikunciPada) return;
+    const lamaList = await this.prisma.nilaiUjian.findMany({
+      where: { ujianId: ujian.id, tenantId, santriId: { in: items.map((i) => i.santriId) } },
+    });
+    const lamaMap = new Map(lamaList.map((n) => [n.santriId, n]));
+    const ditolak = items.filter((i) => !this.adalahSusulanMasuk(lamaMap.get(i.santriId) ?? null, i));
+    if (ditolak.length > 0) {
+      throw new ConflictException(
+        'Nilai ujian ini sudah dikunci. Saat terkunci hanya nilai susulan (santri yang sebelumnya sakit/izin/alpa) yang boleh diisi. Untuk mengubah nilai lain, buka kunci terlebih dahulu (alasan wajib diisi).',
+      );
+    }
+  }
+
+  // Saat ujian terkunci, remedial hanya boleh dibuat/diisi untuk santri hasil susulan,
+  // yaitu nilainya masuk SETELAH ujian dikunci (satu-satunya input yang diizinkan saat terkunci).
+  private assertRemedialBolehSaatTerkunci(ujian: Ujian, nilaiUtama: NilaiUjian | null) {
+    if (!ujian.dikunciPada) return;
+    if (nilaiUtama && nilaiUtama.updatedAt > ujian.dikunciPada) return;
+    this.assertTerbuka(ujian);
+  }
+
   private async assertUjianTerbukaById(tenantId: string, ujianId?: string | null) {
     if (!ujianId) return;
     const ujian = await this.prisma.ujian.findFirst({ where: { id: ujianId, tenantId } });
     if (ujian) this.assertTerbuka(ujian);
+  }
+
+    private async assertBolehKelolaByUjianId(tenantId: string, ujianId: string | null | undefined, actor: Actor) {
+    if (!ujianId) return;
+    const ujian = await this.prisma.ujian.findFirst({ where: { id: ujianId, tenantId } });
+    if (ujian) this.assertBolehKelola(ujian, actor);
   }
 
   private audit(
@@ -121,58 +189,60 @@ export class PenilaianService {
 
   // ===== UJIAN =====
   async findAllUjian(
-  tenantId: string,
-  kelasId?: string,
-  user?: RequestUser,
-  hanyaSaya = false,
-) {
-  const actor = this.actor(user);
+    tenantId: string,
+    kelasId?: string,
+    user?: RequestUser,
+    hanyaSaya = false,
+  ) {
+    const actor = this.actor(user);
 
-  const list = await this.prisma.ujian.findMany({
-    where: {
-      tenantId,
-      ...(kelasId ? { kelasId } : {}),
-      // filter per ustadz: hanya aktif kalau dashboard minta ?saya=true
-      ...(hanyaSaya && actor.id
-        ? { OR: [{ dibuatOleh: actor.id }, { dibuatOleh: null }] }
-        : {}),
-    },
-    include: {
-      mapel: { select: { id: true, namaMapel: true } },
-      kelas: { select: { id: true, namaKelas: true } },
-      _count: { select: { nilais: true } },
-    },
-    orderBy: { createdAt: 'desc' },
-  });
+    const list = await this.prisma.ujian.findMany({
+      where: {
+        tenantId,
+        ...(kelasId ? { kelasId } : {}),
+        // filter per ustadz: hanya aktif kalau dashboard minta ?saya=true
+        ...(hanyaSaya && actor.id
+          ? { OR: [{ dibuatOleh: actor.id }, { dibuatOleh: null }] }
+          : {}),
+      },
+      include: {
+        mapel: { select: { id: true, namaMapel: true, kkm: true } },
+        kelas: { select: { id: true, namaKelas: true } },
+        _count: { select: { nilais: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
 
-  // jumlah santri aktif per kelas
-  const kelasIds = [...new Set(list.map((u) => u.kelasId).filter(Boolean))] as string[];
-  const grup = kelasIds.length
-    ? await this.prisma.santri.groupBy({
-        by: ['kelasId'],
-        where: { tenantId, status: SantriStatus.AKTIF, kelasId: { in: kelasIds } },
-        _count: { _all: true },
-      })
-    : [];
-  const perKelas = new Map(grup.map((g) => [g.kelasId, g._count._all]));
+    // jumlah santri aktif per kelas
+    const kelasIds = [...new Set(list.map((u) => u.kelasId).filter(Boolean))] as string[];
+    const grup = kelasIds.length
+      ? await this.prisma.santri.groupBy({
+          by: ['kelasId'],
+          where: { tenantId, status: SantriStatus.AKTIF, kelasId: { in: kelasIds } },
+          _count: { _all: true },
+        })
+      : [];
+    const perKelas = new Map(grup.map((g) => [g.kelasId, g._count._all]));
 
-  // ujian "Semua kelas" (kelasId kosong) = seluruh santri aktif di pondok
-  const totalSemua = list.some((u) => !u.kelasId)
-    ? await this.prisma.santri.count({ where: { tenantId, status: SantriStatus.AKTIF } })
-    : 0;
+    // ujian "Semua kelas" (kelasId kosong) = seluruh santri aktif di pondok
+    const totalSemua = list.some((u) => !u.kelasId)
+      ? await this.prisma.santri.count({ where: { tenantId, status: SantriStatus.AKTIF } })
+      : 0;
 
-  return list.map((u) => ({
-    ...u,
-    terkunci: !!u.dikunciPada,
-    totalSantri: u.kelasId ? perKelas.get(u.kelasId) ?? 0 : totalSemua,
-  }));
-}
+    return list.map((u) => ({
+      ...u,
+      // KKM efektif: ikut mata pelajaran (cadangan: KKM lama di ujian)
+      kkm: u.mapel?.kkm ?? u.kkm,
+      terkunci: !!u.dikunciPada,
+      totalSantri: u.kelasId ? perKelas.get(u.kelasId) ?? 0 : totalSemua,
+    }));
+  }
 
   async getUjian(tenantId: string, id: string) {
     const ujian = await this.prisma.ujian.findFirst({
       where: { id, tenantId },
       include: {
-        mapel: { select: { id: true, namaMapel: true } },
+        mapel: { select: { id: true, namaMapel: true, kkm: true } },
         kelas: { select: { id: true, namaKelas: true } },
         nilais: {
           include: { santri: { select: { id: true, nama: true, nis: true } } },
@@ -181,7 +251,8 @@ export class PenilaianService {
       },
     });
     if (!ujian) throw new NotFoundException('Ujian tidak ditemukan.');
-    return { ...ujian, terkunci: !!ujian.dikunciPada };
+    // KKM efektif: ikut mata pelajaran (cadangan: KKM lama di ujian)
+    return { ...ujian, kkm: ujian.mapel?.kkm ?? ujian.kkm, terkunci: !!ujian.dikunciPada };
   }
 
   async createUjian(tenantId: string, dto: CreateUjianDto, user?: RequestUser) {
@@ -244,8 +315,7 @@ export class PenilaianService {
     const nilais = await this.prisma.nilaiUjian.findMany({ where: { ujianId, tenantId } });
     if (nilais.length === 0) throw new BadRequestException('Belum ada nilai yang diinput untuk ujian ini.');
 
-    // Semua santri aktif di kelas harus punya nilai atau keterangan kehadiran (sakit/izin/alpa)
-        // Semua santri aktif yang menjadi peserta (satu kelas, atau seluruh pondok bila "Semua kelas")
+    // Semua santri aktif yang menjadi peserta (satu kelas, atau seluruh pondok bila "Semua kelas")
     // harus punya nilai atau keterangan kehadiran (sakit/izin/alpa)
     const aktif = await this.prisma.santri.findMany({
       where: {
@@ -273,7 +343,7 @@ export class PenilaianService {
       );
     }
 
-    const kkm = ujian.kkm ?? 75;
+    const kkm = await this.getKkm(tenantId, ujian);
     const hadir = nilais.filter((n) => n.status === StatusKehadiranUjian.HADIR && n.nilai !== null);
     const dibawahKkm = hadir.filter((n) => (n.nilai as number) < kkm);
     const idRemedial = new Set(remedials.map((r) => r.santriId));
@@ -378,6 +448,8 @@ export class PenilaianService {
       where: { ujianId_santriId: { ujianId, santriId: dto.santriId } },
     });
     const berubah = !!lama && (lama.nilai !== nilai || lama.status !== status);
+    const susulan = this.adalahSusulanMasuk(lama, dto);
+    const kkm = await this.getKkm(tenantId, ujian);
 
     return this.prisma.$transaction(async (tx) => {
       const hasil = await tx.nilaiUjian.upsert({
@@ -396,26 +468,49 @@ export class PenilaianService {
       });
 
       if (lama && berubah) {
+        const terkunci = !!ujian.dikunciPada;
         await tx.auditLog.create({
           data: this.audit(
             tenantId,
             actor,
-            'NILAI_UJIAN_UBAH',
+            susulan ? 'NILAI_SUSULAN_MASUK' : 'NILAI_UJIAN_UBAH',
             ujianId,
-            'Nilai ujian diubah',
-            `Nilai ${hasil.santri.nama} pada ujian "${ujian.nama}" diubah.`,
+            susulan ? 'Nilai susulan diinput' : 'Nilai ujian diubah',
+            susulan
+              ? `Nilai susulan ${hasil.santri.nama} pada ujian "${ujian.nama}" diinput${terkunci ? ' (saat nilai terkunci)' : ''}.`
+              : `Nilai ${hasil.santri.nama} pada ujian "${ujian.nama}" diubah.`,
             {
               santriId: dto.santriId,
               lama: { nilai: lama.nilai, status: lama.status },
               baru: { nilai, status },
+              terkunci,
             },
           ),
         });
-        // Jaga agar nilai awal di remedial yang belum selesai tetap sinkron dengan nilai terbaru
-        await tx.remedial.updateMany({
-          where: { ujianId, santriId: dto.santriId, nilaiRemedial: null },
-          data: { nilaiAwal: nilai },
-        });
+
+        // Jaga agar remedial santri ini tetap sinkron dengan nilai ujian terbaru
+        if (nilai !== null) {
+          const rem = await tx.remedial.findUnique({
+            where: { ujianId_santriId: { ujianId, santriId: dto.santriId } },
+          });
+          if (rem) {
+            if (rem.nilaiRemedial === null) {
+              await tx.remedial.update({ where: { id: rem.id }, data: { nilaiAwal: nilai } });
+            } else if (nilai < kkm) {
+              // Remedial sudah dinilai: hitung ulang nilai akhir dan statusnya
+              const hitung = this.hitungRemedial(nilai, rem.nilaiRemedial, kkm);
+              await tx.remedial.update({
+                where: { id: rem.id },
+                data: {
+                  nilaiAwal: nilai,
+                  nilaiAkhir: hitung.nilaiAkhir,
+                  status: hitung.status,
+                  hasil: hitung.status,
+                },
+              });
+            }
+          }
+        }
       }
       return hasil;
     });
@@ -425,8 +520,8 @@ export class PenilaianService {
     const actor = this.actor(user);
     const ujian = await this.getUjianRingkas(tenantId, ujianId);
     this.assertBolehKelola(ujian, actor);
-    this.assertTerbuka(ujian);
     await this.assertSantri(tenantId, dto.santriId);
+    await this.assertBolehInput(tenantId, ujian, [dto]);
     return this.simpanNilai(tenantId, ujian, dto, actor);
   }
 
@@ -434,7 +529,6 @@ export class PenilaianService {
     const actor = this.actor(user);
     const ujian = await this.getUjianRingkas(tenantId, ujianId);
     this.assertBolehKelola(ujian, actor);
-    this.assertTerbuka(ujian);
 
     // Validasi semua item dulu supaya tidak ada yang tersimpan separuh jalan
     items.forEach((item, i) => {
@@ -447,6 +541,9 @@ export class PenilaianService {
     const ids = [...new Set(items.map((i) => i.santriId))];
     const ditemukan = await this.prisma.santri.count({ where: { tenantId, id: { in: ids } } });
     if (ditemukan !== ids.length) throw new NotFoundException('Ada santri yang tidak ditemukan di pondok ini.');
+
+    // Saat terkunci, semua item harus berupa nilai susulan; kalau ada satu saja yang bukan, seluruhnya ditolak
+    await this.assertBolehInput(tenantId, ujian, items);
 
     const hasil = [];
     for (const item of items) {
@@ -496,11 +593,13 @@ export class PenilaianService {
     });
   }
 
-  async createRemedial(tenantId: string, dto: CreateRemedialDto) {
+    async createRemedial(tenantId: string, dto: CreateRemedialDto, user?: RequestUser) {
+    const actor = this.actor(user);
     await this.assertSantri(tenantId, dto.santriId);
     if (dto.ujianId) {
       const ujian = await this.prisma.ujian.findFirst({ where: { id: dto.ujianId, tenantId } });
       if (!ujian) throw new NotFoundException('Ujian tidak ditemukan.');
+      this.assertBolehKelola(ujian, actor);
       this.assertTerbuka(ujian);
     }
     return this.prisma.remedial.create({
@@ -520,9 +619,11 @@ export class PenilaianService {
     });
   }
 
-  async updateRemedial(tenantId: string, id: string, dto: UpdateRemedialDto) {
+  async updateRemedial(tenantId: string, id: string, dto: UpdateRemedialDto, user?: RequestUser) {
+    const actor = this.actor(user);
     const found = await this.prisma.remedial.findFirst({ where: { id, tenantId } });
     if (!found) throw new NotFoundException('Remedial tidak ditemukan.');
+    await this.assertBolehKelolaByUjianId(tenantId, found.ujianId, actor);
     await this.assertUjianTerbukaById(tenantId, found.ujianId);
     return this.prisma.remedial.update({
       where: { id },
@@ -534,9 +635,11 @@ export class PenilaianService {
     });
   }
 
-  async removeRemedial(tenantId: string, id: string) {
+    async removeRemedial(tenantId: string, id: string, user?: RequestUser) {
+    const actor = this.actor(user);
     const found = await this.prisma.remedial.findFirst({ where: { id, tenantId } });
     if (!found) throw new NotFoundException('Remedial tidak ditemukan.');
+    await this.assertBolehKelolaByUjianId(tenantId, found.ujianId, actor);
     await this.assertUjianTerbukaById(tenantId, found.ujianId);
     return this.prisma.remedial.delete({ where: { id } });
   }
@@ -560,38 +663,61 @@ export class PenilaianService {
     if (!ujian) throw new NotFoundException('Ujian tidak ditemukan');
     if (!santri) throw new NotFoundException('Santri tidak ditemukan');
     this.assertBolehKelola(ujian, actor);
-    this.assertTerbuka(ujian);
 
-    const KKM = ujian.kkm ?? 75;
+    const kkm = await this.getKkm(tenantId, ujian);
 
-    // Remedial hanya untuk santri yang hadir dan nilainya di bawah KKM
+    // Remedial hanya untuk santri yang sudah punya nilai (hadir atau sudah susulan) dan di bawah KKM
     const nilaiUtama = await this.prisma.nilaiUjian.findUnique({
       where: { ujianId_santriId: { ujianId, santriId } },
     });
+    // Ujian terkunci: remedial hanya boleh untuk santri hasil susulan (nilainya masuk setelah dikunci)
+    this.assertRemedialBolehSaatTerkunci(ujian, nilaiUtama);
     if (!nilaiUtama || nilaiUtama.status !== StatusKehadiranUjian.HADIR || nilaiUtama.nilai === null) {
       throw new BadRequestException(
-        'Santri ini belum punya nilai ujian. Santri yang sakit/izin/alpa memakai jalur ujian susulan, bukan remedial.',
+        'Santri ini belum punya nilai ujian. Santri yang sakit/izin/alpa harus mengikuti ujian susulan dulu; remedial bisa dibuat setelah nilai susulannya masuk.',
       );
     }
-    if (nilaiUtama.nilai >= KKM) {
-      throw new BadRequestException(`Nilai santri (${nilaiUtama.nilai}) sudah mencapai KKM ${KKM}, tidak perlu remedial.`);
+    if (nilaiUtama.nilai >= kkm) {
+      throw new BadRequestException(`Nilai santri (${nilaiUtama.nilai}) sudah mencapai KKM ${kkm}, tidak perlu remedial.`);
     }
 
-    if (nilaiRemedial !== undefined && nilaiRemedial !== null) {
-      if (Number(nilaiRemedial) < 0 || Number(nilaiRemedial) > 100) {
-        throw new BadRequestException('Nilai perbaikan harus antara 0 sampai 100.');
-      }
+    // Nilai remedial: pakai kiriman baru, kalau tidak ada pakai yang sudah tersimpan
+    const lama = await this.prisma.remedial.findUnique({
+      where: { ujianId_santriId: { ujianId, santriId } },
+    });
+    const nilaiRem =
+      nilaiRemedial !== undefined && nilaiRemedial !== null
+        ? Number(nilaiRemedial)
+        : lama?.nilaiRemedial ?? null;
+    if (nilaiRem !== null && (Number.isNaN(nilaiRem) || nilaiRem < 0 || nilaiRem > 100)) {
+      throw new BadRequestException('Nilai perbaikan harus antara 0 sampai 100.');
     }
-    if (status === 'TUNTAS' && !(Number(nilaiRemedial) >= KKM)) {
-      throw new BadRequestException(`Status Tuntas butuh nilai perbaikan minimal KKM ${KKM}`);
+
+    // Status dan nilai akhir ditentukan sistem
+    let statusFinal: StatusRemedial;
+    let nilaiAkhir: number | null = null;
+    if (nilaiRem !== null) {
+      const hasil = this.hitungRemedial(nilaiUtama.nilai, nilaiRem, kkm);
+      nilaiAkhir = hasil.nilaiAkhir;
+      statusFinal = hasil.status;
+    } else {
+      const input = String(status ?? 'BELUM_TES').toUpperCase();
+      if (input === 'TUNTAS' || input === 'BELUM_TUNTAS') {
+        throw new BadRequestException(
+          'Status Tuntas / Belum Tuntas ditentukan otomatis setelah nilai remedial diisi.',
+        );
+      }
+      statusFinal = input === 'PROSES' ? StatusRemedial.PROSES : StatusRemedial.BELUM_TES;
     }
 
     const data = {
       keterangan: keterangan.trim(),
-      status,
-      hasil: status,
+      status: statusFinal,
+      hasil: statusFinal,
       catatan,
-      nilaiRemedial,
+      nilaiAwal: nilaiUtama.nilai,
+      nilaiRemedial: nilaiRem,
+      nilaiAkhir,
       jadwal: jadwal ? new Date(jadwal) : undefined,
       tenggat: tenggat ? new Date(tenggat) : undefined,
       ruang,
@@ -606,7 +732,6 @@ export class PenilaianService {
         ujianId,
         santriId,
         mapelId: ujian.mapelId,
-        nilaiAwal: nilaiUtama.nilai,
       },
     });
   }
@@ -630,7 +755,7 @@ export class PenilaianService {
   }
 
   async generateRapor(tenantId: string, dto: GenerateRaporDto) {
-    const santri = await this.assertSantri(tenantId, dto.santriId);
+    await this.assertSantri(tenantId, dto.santriId);
 
     const nilaiGroup = await this.prisma.nilai.groupBy({
       by: ['mapelId'],
@@ -641,14 +766,26 @@ export class PenilaianService {
     const mapels = await this.prisma.mataPelajaran.findMany({ where: { tenantId, id: { in: mapelIds } } });
     const mapelMap = new Map(mapels.map((m) => [m.id, m.namaMapel]));
 
-    const nilaiUjianGroup = await this.prisma.nilaiUjian.groupBy({
-      by: ['ujianId'],
-      where: { tenantId, santriId: dto.santriId },
-      _avg: { nilai: true },
+    // Nilai ujian santri (hanya yang hadir dan sudah bernilai)
+    const nilaiUjianList = await this.prisma.nilaiUjian.findMany({
+      where: {
+        tenantId,
+        santriId: dto.santriId,
+        status: StatusKehadiranUjian.HADIR,
+        nilai: { not: null },
+      },
+      select: { ujianId: true, nilai: true },
     });
-    const ujianIds = nilaiUjianGroup.map((n) => n.ujianId).filter(Boolean) as string[];
+
+    // Hasil remedial: kalau ada, nilai akhir dipakai menggantikan nilai awal
+    const remedialList = await this.prisma.remedial.findMany({
+      where: { tenantId, santriId: dto.santriId, ujianId: { not: null }, nilaiAkhir: { not: null } },
+      select: { ujianId: true, nilaiAkhir: true },
+    });
+    const akhirMap = new Map(remedialList.map((r) => [r.ujianId as string, r.nilaiAkhir as number]));
+
     const ujians = await this.prisma.ujian.findMany({
-      where: { tenantId, id: { in: ujianIds } },
+      where: { tenantId, id: { in: nilaiUjianList.map((n) => n.ujianId) } },
       include: { mapel: { select: { namaMapel: true } } },
     });
     const ujianMap = new Map(ujians.map((u) => [u.id, u.mapel?.namaMapel ?? u.nama]));
@@ -664,9 +801,19 @@ export class PenilaianService {
       mapel: nilaiGroup
         .filter((n) => mapelMap.get(n.mapelId))
         .map((n) => ({ mapel: mapelMap.get(n.mapelId), rataRata: Number(n._avg.nilai?.toFixed(1) ?? 0) })),
-      ujian: nilaiUjianGroup
+      ujian: nilaiUjianList
         .filter((n) => ujianMap.get(n.ujianId))
-        .map((n) => ({ ujian: ujianMap.get(n.ujianId), rataRata: Number(n._avg.nilai?.toFixed(1) ?? 0) })),
+        .map((n) => {
+          const awal = n.nilai as number;
+          const akhir = akhirMap.get(n.ujianId);
+          return {
+            ujian: ujianMap.get(n.ujianId),
+            nilaiAwal: awal,
+            nilaiAkhir: akhir ?? awal,
+            remedial: akhir !== undefined,
+            rataRata: Number((akhir ?? awal).toFixed(1)),
+          };
+        }),
       kehadiran: { hadir: kehadiran, total: totalAbsensi },
     };
 
@@ -683,7 +830,6 @@ export class PenilaianService {
       include: { santri: { select: { id: true, nama: true, nis: true, kelas: { select: { namaKelas: true } } } } },
     });
   }
-
   async terbitRapor(tenantId: string, id: string) {
     const found = await this.prisma.rapor.findFirst({ where: { id, tenantId } });
     if (!found) throw new NotFoundException('Rapor tidak ditemukan.');

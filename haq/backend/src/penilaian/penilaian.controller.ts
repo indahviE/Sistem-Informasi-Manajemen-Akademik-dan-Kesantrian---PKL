@@ -145,30 +145,28 @@ export class PenilaianController {
   }
 
   // ===== Remedial =====
-  @Roles(...PENGELOLA)
-  @Get('remedial')
-  findAllRemedial(@TenantId() tenantId: string, @Query('santriId') santriId?: string) {
-    return this.penilaianService.findAllRemedial(tenantId, santriId);
-  }
-
   @Roles(...WRITE)
   @Post('remedial')
-  createRemedial(@TenantId() tenantId: string, @Body() dto: CreateRemedialDto) {
-    return this.penilaianService.createRemedial(tenantId, dto);
+  createRemedial(@TenantId() tenantId: string, @Body() dto: CreateRemedialDto, @CurrentUser() user: RequestUser) {
+    return this.penilaianService.createRemedial(tenantId, dto, user);
   }
 
   @Roles(...WRITE)
   @Patch('remedial/:id')
-  updateRemedial(@TenantId() tenantId: string, @Param('id') id: string, @Body() dto: UpdateRemedialDto) {
-    return this.penilaianService.updateRemedial(tenantId, id, dto);
+  updateRemedial(
+    @TenantId() tenantId: string,
+    @Param('id') id: string,
+    @Body() dto: UpdateRemedialDto,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return this.penilaianService.updateRemedial(tenantId, id, dto, user);
   }
 
   @Roles(...WRITE)
   @Delete('remedial/:id')
-  removeRemedial(@TenantId() tenantId: string, @Param('id') id: string) {
-    return this.penilaianService.removeRemedial(tenantId, id);
+  removeRemedial(@TenantId() tenantId: string, @Param('id') id: string, @CurrentUser() user: RequestUser) {
+    return this.penilaianService.removeRemedial(tenantId, id, user);
   }
-
   // ===== Rapor =====
   @Roles(...TERBATAS)
   @Get('rapor')

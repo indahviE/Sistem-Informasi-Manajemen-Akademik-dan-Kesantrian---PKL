@@ -1,10 +1,19 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../services/api_client.dart';
 import '../../services/app_scope.dart';
 import '../santri/santri_ui.dart';
 import '../ui_utils.dart';
+
+/// KKM bawaan untuk mapel baru.
+const double _kkmDefault = 75;
+
+String _fmtKkm(num v) {
+  final d = v.toDouble();
+  return d == d.roundToDouble() ? d.toStringAsFixed(0) : d.toStringAsFixed(1);
+}
 
 class MapelListScreen extends StatefulWidget {
   const MapelListScreen({super.key});
@@ -316,7 +325,7 @@ class _MapelListScreenState extends State<MapelListScreen> {
     } else if (_items.isEmpty) {
       ringkasan = 'Belum ada mata pelajaran';
     } else {
-      ringkasan = 'Ketuk mapel untuk mengubah datanya';
+      ringkasan = 'Ketuk mapel untuk mengubah nama, kode, atau KKM';
     }
     String v(int n) => loaded ? '$n' : '–';
     final berkode = _items.where(_hasKode).length;
@@ -524,6 +533,28 @@ class _MapelListScreenState extends State<MapelListScreen> {
     );
   }
 
+  /// Lencana KKM mapel (batas tuntas). Kosong bila belum diatur.
+  static Widget _kkmBadge(dynamic kkm) {
+    final has = kkm is num;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+      decoration: BoxDecoration(
+        color: SC.sage,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: SC.primary.withOpacity(0.25)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.flag_outlined, size: 12, color: SC.primary),
+          const SizedBox(width: 3),
+          Text(has ? 'KKM ${_fmtKkm(kkm)}' : 'KKM belum diatur',
+              style: sty(11.5, FontWeight.w800, SC.primary)),
+        ],
+      ),
+    );
+  }
+
   /// Kartu bergaya "punggung buku": garis warna di sisi kiri, selang-seling emerald dan emas.
   Widget _mapelTile(int index, Map<String, dynamic> m) {
     final nama = (m['namaMapel'] as String?)?.trim() ?? '-';
@@ -576,7 +607,15 @@ class _MapelListScreenState extends State<MapelListScreen> {
                                 style: sty(14.5, FontWeight.w800, SC.ink, h: 1.25),
                               ),
                               const SizedBox(height: 6),
-                              _kodeBadge(m['kode'] as String?),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 6,
+                                crossAxisAlignment: WrapCrossAlignment.center,
+                                children: [
+                                  _kodeBadge(m['kode'] as String?),
+                                  _kkmBadge(m['kkm']),
+                                ],
+                              ),
                             ],
                           ),
                         ),
@@ -639,25 +678,43 @@ class _MapelFormScreenState extends State<_MapelFormScreen> {
       TextEditingController(text: widget.existing?['namaMapel'] as String? ?? '');
   late final TextEditingController _kode =
       TextEditingController(text: widget.existing?['kode'] as String? ?? '');
+  late final TextEditingController _kkm = TextEditingController(
+      text: _fmtKkm(widget.existing?['kkm'] is num
+          ? widget.existing!['kkm'] as num
+          : _kkmDefault));
   String? _namaError;
+  String? _kkmError;
 
   bool get _editing => widget.existing != null;
+
+  double? get _kkmVal {
+    final v = double.tryParse(_kkm.text.trim().replaceAll(',', '.'));
+    if (v == null || v < 0 || v > 100) return null;
+    return v;
+  }
 
   @override
   void dispose() {
     _nama.dispose();
     _kode.dispose();
+    _kkm.dispose();
     super.dispose();
   }
 
   void _submit() {
-    if (_nama.text.trim().isEmpty) {
-      setState(() => _namaError = 'Nama mapel wajib diisi');
+    final namaBad = _nama.text.trim().isEmpty;
+    final kkm = _kkmVal;
+    if (namaBad || kkm == null) {
+      setState(() {
+        _namaError = namaBad ? 'Nama mapel wajib diisi' : null;
+        _kkmError = kkm == null ? 'KKM harus angka 0 – 100' : null;
+      });
       return;
     }
     Navigator.pop(context, {
       'namaMapel': _nama.text.trim(),
       'kode': _kode.text.trim().isEmpty ? null : _kode.text.trim(),
+      'kkm': kkm == kkm.roundToDouble() ? kkm.toInt() : kkm,
     });
   }
 
@@ -752,7 +809,9 @@ class _MapelFormScreenState extends State<_MapelFormScreen> {
                     style: sty(20, FontWeight.w800, Colors.white, h: 1.15)),
                 const SizedBox(height: 3),
                 Text(
-                  _editing ? 'Perbarui nama atau kode mapel' : 'Tambahkan mata pelajaran ke kurikulum',
+                  _editing
+                      ? 'Perbarui nama, kode, atau KKM mapel'
+                      : 'Tambahkan mata pelajaran ke kurikulum',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: sty(12.5, FontWeight.w500, Colors.white.withOpacity(0.78)),
@@ -824,7 +883,15 @@ class _MapelFormScreenState extends State<_MapelFormScreen> {
                             style: sty(14.5, FontWeight.w800, has ? SC.ink : SC.inkMuted, h: 1.25),
                           ),
                           const SizedBox(height: 6),
-                          _MapelListScreenState._kodeBadge(_kode.text),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 6,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            children: [
+                              _MapelListScreenState._kodeBadge(_kode.text),
+                              _MapelListScreenState._kkmBadge(_kkmVal),
+                            ],
+                          ),
                         ],
                       ),
                     ),
@@ -939,13 +1006,38 @@ class _MapelFormScreenState extends State<_MapelFormScreen> {
                           TextField(
                             controller: _kode,
                             textCapitalization: TextCapitalization.characters,
-                            textInputAction: TextInputAction.done,
-                            onSubmitted: (_) => _submit(),
+                            textInputAction: TextInputAction.next,
                             style: sty(14, FontWeight.w600, SC.ink),
                             onChanged: (_) => setState(() {}),
                             decoration: _deco(hint: 'Contoh: MTK', icon: Icons.tag_rounded),
                           ),
                           _kodeSuggestion(),
+                          const SizedBox(height: 18),
+                          _label('KKM', note: '(batas tuntas, 0 – 100)'),
+                          TextField(
+                            controller: _kkm,
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            textInputAction: TextInputAction.done,
+                            onSubmitted: (_) => _submit(),
+                            inputFormatters: [
+                              FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
+                              LengthLimitingTextInputFormatter(5),
+                            ],
+                            style: sty(14, FontWeight.w600, SC.ink),
+                            onChanged: (_) => setState(() {
+                              if (_kkmError != null) _kkmError = null;
+                            }),
+                            decoration: _deco(
+                              hint: 'Contoh: 75',
+                              icon: Icons.flag_outlined,
+                              error: _kkmError,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Dipakai semua ujian pada mapel ini untuk menentukan santri tuntas atau perlu remedial.',
+                            style: sty(11.5, FontWeight.w500, SC.inkSecondary, h: 1.4),
+                          ),
                         ],
                       ),
                     ),
