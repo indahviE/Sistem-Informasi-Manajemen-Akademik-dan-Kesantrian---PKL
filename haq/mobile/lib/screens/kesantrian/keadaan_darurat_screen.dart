@@ -159,8 +159,66 @@ class _KeadaanDaruratScreenState extends State<KeadaanDaruratScreen> {
     }
   }
 
-  void _snack(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  // ---- Notifikasi ----
+  /// Notifikasi melayang bertema (sukses = zamrud, gagal = merah lembut).
+  void _toast(String title, {String? subtitle, bool error = false}) {
+    if (!mounted) return;
+    final w = MediaQuery.of(context).size.width;
+    final side = w > 472 ? (w - 440) / 2 : 16.0;
+    final fg = error ? _DC.errorText : Colors.white;
+
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: error ? _DC.errorBg : _DC.primary,
+          elevation: 6,
+          // 88 = jarak dari bawah supaya tidak menutupi tombol "Lapor Darurat"
+          margin: EdgeInsets.fromLTRB(side, 0, side, 88),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          duration: Duration(seconds: error ? 4 : 3),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(
+              color: error ? _DC.errorText.withOpacity(0.25) : _DC.gold.withOpacity(0.5),
+            ),
+          ),
+          content: Row(
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: error ? Colors.white : _DC.gold.withOpacity(0.18),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  error ? Icons.error_outline : Icons.check_rounded,
+                  size: 18,
+                  color: error ? _DC.errorText : _DC.gold,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title,
+                        style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: fg)),
+                    if (subtitle != null) ...[
+                      const SizedBox(height: 2),
+                      Text(subtitle,
+                          style: TextStyle(fontSize: 11.5, color: fg.withOpacity(0.75))),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
   }
 
   // ---- Lapor ----
@@ -178,10 +236,11 @@ class _KeadaanDaruratScreenState extends State<KeadaanDaruratScreen> {
     try {
       await api.post(ApiUrl.keadaanDarurat, payload);
       if (!mounted) return;
-      _snack('Laporan darurat dikirim.');
+      _toast('Laporan darurat dikirim',
+          subtitle: 'Admin & Pimpinan akan segera mendapat notifikasi');
       _load();
     } on ApiException catch (e) {
-      if (mounted) _snack(e.message);
+      if (mounted) _toast(e.message, error: true);
     }
   }
 
@@ -200,10 +259,10 @@ class _KeadaanDaruratScreenState extends State<KeadaanDaruratScreen> {
       final api = AppScope.of(context).api;
       await api.patch('${ApiUrl.keadaanDarurat}/${item['id']}', res);
       if (!mounted) return;
-      _snack('Status laporan diperbarui.');
+      _toast('Status laporan diperbarui', subtitle: '${item['jenis']}');
       _load();
     } on ApiException catch (e) {
-      if (mounted) _snack(e.message);
+      if (mounted) _toast(e.message, error: true);
     }
   }
 
@@ -1381,7 +1440,7 @@ class _TindakSheetState extends State<_TindakSheet> {
                   children: [
                     const Expanded(child: SizedBox()),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), 
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(color: stAwal.bg, borderRadius: BorderRadius.circular(999)),
                       child: Text(stAwal.label,
                           style: TextStyle(

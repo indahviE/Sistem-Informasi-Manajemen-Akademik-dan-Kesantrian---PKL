@@ -213,10 +213,69 @@ class _PembinaanKarakterScreenState extends State<PembinaanKarakterScreen> {
     }
   }
 
-  void _snack(String msg) {
+  // ---------------------------------------------------------------------
+  // Notifikasi
+  // ---------------------------------------------------------------------
+  /// Notifikasi melayang bertema (sukses = emerald, gagal = merah lembut).
+  /// Sama dengan `_toast` di absensi_screen.dart.
+  void _toast(String title, {String? subtitle, bool error = false}) {
+    if (!mounted) return;
+    final w = MediaQuery.of(context).size.width;
+    final side = w > 472 ? (w - 440) / 2 : 16.0;
+    final fg = error ? _PC.errorText : Colors.white;
+
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(msg)));
+      ..showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: error ? _PC.errorBg : _PC.primary,
+          elevation: 6,
+          // angka 88 = jarak dari bawah (samakan dengan absensi; turunkan jika terlalu tinggi)
+          margin: EdgeInsets.fromLTRB(side, 0, side, 88),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          duration: Duration(seconds: error ? 4 : 3),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(
+              color: error ? _PC.errorText.withOpacity(0.25) : _PC.gold.withOpacity(0.5),
+            ),
+          ),
+          content: Row(
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: error ? Colors.white : _PC.gold.withOpacity(0.18),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  error ? Icons.error_outline : Icons.check_rounded,
+                  size: 18,
+                  color: error ? _PC.errorText : _PC.gold,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title,
+                        style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: fg)),
+                    if (subtitle != null) ...[
+                      const SizedBox(height: 2),
+                      Text(subtitle,
+                          style: TextStyle(fontSize: 11.5, color: fg.withOpacity(0.75))),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
   }
 
   Future<void> _add() async {
@@ -233,12 +292,14 @@ class _PembinaanKarakterScreenState extends State<PembinaanKarakterScreen> {
     try {
       await AppScope.of(context).api.post(ApiUrl.pembinaanKarakter, result);
       if (!mounted) return;
-      _snack('Pembinaan karakter dicatat.');
+      final tgl = DateTime.tryParse('${result['tanggal']}');
+      _toast('Pembinaan karakter dicatat',
+          subtitle: tgl == null ? null : _fmtTanggalPenuh(tgl));
       _load();
     } on ApiException catch (e) {
-      if (mounted) _snack(e.message);
+      if (mounted) _toast(e.message, error: true);
     } catch (_) {
-      if (mounted) _snack('Gagal menyimpan catatan.');
+      if (mounted) _toast('Gagal menyimpan catatan.', error: true);
     }
   }
 
@@ -273,12 +334,12 @@ class _PembinaanKarakterScreenState extends State<PembinaanKarakterScreen> {
     try {
       await AppScope.of(context).api.delete('${ApiUrl.pembinaanKarakter}/${p['id']}');
       if (!mounted) return;
-      _snack('Catatan pembinaan dihapus.');
+      _toast('Catatan pembinaan dihapus', subtitle: nama.toString());
       _load();
     } on ApiException catch (e) {
-      if (mounted) _snack(e.message);
+      if (mounted) _toast(e.message, error: true);
     } catch (_) {
-      if (mounted) _snack('Gagal menghapus catatan.');
+      if (mounted) _toast('Gagal menghapus catatan.', error: true);
     }
   }
 

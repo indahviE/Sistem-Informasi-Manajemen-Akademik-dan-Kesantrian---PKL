@@ -92,6 +92,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   // Daftar ujian (GET ApiUrl.ujian) — dipakai section "Ujian Terdekat" di beranda ustadz.
   List<Map<String, dynamic>> _ujianList = [];
+  // Alert ustadz cukup tampil sekali per sesi, bukan tiap pull-to-refresh.
+  bool _alertUstadzShown = false;
 
   @override
   void initState() {
@@ -142,6 +144,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   /// Ambil daftar ujian untuk beranda ustadz. Gagal = diam-diam diabaikan
   /// (section Ujian cukup tampil kosong), supaya dashboard tidak ikut error.
+  /// Setelah data ujian siap, alert ustadz (kalau ada yang belum beres) ditampilkan.
   Future<void> _loadUjian() async {
     final role = (_data?['role'] ?? '').toString();
     if (role == 'WALI_SANTRI' || role == 'SUPER_ADMIN' || !_isUstadzUser(role)) return;
@@ -151,6 +154,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       if (!mounted) return;
       setState(() => _ujianList = items.whereType<Map<String, dynamic>>().toList());
     } catch (_) {}
+    _tampilkanAlertUstadz();
   }
 
   void _notAvailable() {
@@ -1683,13 +1687,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
   List<Map<String, dynamic>> _ustadzKelas() =>
       ((_data!['kelasDiampu'] as List?) ?? const []).cast<Map<String, dynamic>>();
 
-      /// Kelas dianggap "sudah ada rekap" kalau minimal 1 mapel terisi hari ini.
-      /// Fallback ke field lama kalau backend belum mengirim mapelTerisiHariIni.
-      bool _kelasSudahDirekap(Map<String, dynamic> k) {
-        final n = k['mapelTerisiHariIni'];
-        if (n is num) return n > 0;
-        return k['absensiHariIniTerisi'] == true;
-      }
+  /// Kelas dianggap "sudah ada rekap" kalau minimal 1 mapel terisi hari ini.
+  /// Fallback ke field lama kalau backend belum mengirim mapelTerisiHariIni.
+  bool _kelasSudahDirekap(Map<String, dynamic> k) {
+    final n = k['mapelTerisiHariIni'];
+    if (n is num) return n > 0;
+    return k['absensiHariIniTerisi'] == true;
+  }
 
   /// Maksimal 3 ujian yang tanggalnya hari ini atau sesudahnya, paling dekat dulu.
   List<Map<String, dynamic>> _ustadzUjian() {
@@ -1726,6 +1730,86 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return hasil;
   }
 
+  /// Alert ustadz: notifikasi melayang bertema (gaya sama dengan _toast di
+  /// absensi_screen.dart — latar emerald, border emas, ikon bulat, judul +
+  /// subjudul). Muncul SEKALI per sesi, hanya kalau ada kelas yang belum
+  /// direkap atau ujian yang belum dinilai. Tombol aksi di kanan langsung
+  /// membawa ke Absensi (atau Ujian kalau absensi sudah beres).
+  void _tampilkanAlertUstadz() {
+    if (_alertUstadzShown || !mounted || _data == null) return;
+
+    final absensiBelum = _ustadzKelas().where((k) => !_kelasSudahDirekap(k)).length;
+    final nilaiBelum = _ujianBelumDinilai().length;
+    if (absensiBelum == 0 && nilaiBelum == 0) return;
+
+    _alertUstadzShown = true;
+
+    final pesan = <String>[
+      if (absensiBelum > 0) '$absensiBelum kelas belum ada rekap absensi hari ini',
+      if (nilaiBelum > 0) '$nilaiBelum ujian menunggu input nilai',
+    ];
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final w = MediaQuery.of(context).size.width;
+      final side = w > 472 ? (w - 440) / 2 : 16.0;
+
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: _WC.primary,
+            elevation: 6,
+            margin: EdgeInsets.fromLTRB(side, 0, side, 16),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            duration: const Duration(seconds: 8),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+              side: BorderSide(color: _WC.gold.withOpacity(0.5)),
+            ),
+            action: SnackBarAction(
+              label: absensiBelum > 0 ? 'Isi Absensi' : 'Lihat Ujian',
+              textColor: _WC.gold,
+              onPressed: () => _goto(absensiBelum > 0 ? 'Absensi' : 'Ujian & Remedial'),
+            ),
+            content: Row(
+              children: [
+                Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: _WC.gold.withOpacity(0.18),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.notifications_active_outlined, size: 18, color: _WC.gold),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Perlu Tindakan',
+                        style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: Colors.white),
+                      ),
+                      const SizedBox(height: 2),
+                      for (final p in pesan)
+                        Text(
+                          p,
+                          style: TextStyle(fontSize: 11.5, height: 1.35, color: Colors.white.withOpacity(0.75)),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+    });
+  }
+
   Widget _ustadzHeroHeader() {
     final nama = _pick(_data!, ['namaPengguna', 'nama', 'userName']) ??
         AppScope.of(context).user?.nama ??
@@ -1744,17 +1828,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return Container(
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-      gradient: LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-        colors: [_TC.primary, _TC.primaryEnd],
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [_TC.primary, _TC.primaryEnd],
+        ),
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(color: _TC.primary.withOpacity(0.18), blurRadius: 12, offset: const Offset(0, 4)),
+        ],
       ),
-      borderRadius: BorderRadius.circular(18),
-      boxShadow: [
-        BoxShadow(color: _TC.primary.withOpacity(0.18), blurRadius: 12, offset: const Offset(0, 4)),
-      ],
-    ),
-          child: Stack(
+      child: Stack(
         clipBehavior: Clip.none,
         children: [
           Positioned(
@@ -1842,8 +1926,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       ),
                       child: Text(
                         kelas.isEmpty
-                          ? 'Tidak Ada Kelas'
-                          : (belumAbsen == 0 ? 'Semua Ada Rekap' : '$belumAbsen Belum Ada Rekap'),
+                            ? 'Tidak Ada Kelas'
+                            : (belumAbsen == 0 ? 'Semua Ada Rekap' : '$belumAbsen Belum Ada Rekap'),
                         style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.white),
                       ),
                     ),
@@ -1888,6 +1972,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final absensiBelum = kelas.where((k) => !_kelasSudahDirekap(k)).length;
     final nilaiBelumList = _ujianBelumDinilai();
     final nilaiBelum = nilaiBelumList.length;
+    final totalSantri = kelas.fold<int>(0, (sum, k) {
+      final j = k['jumlahSantri'];
+      return sum + (j is num ? j.toInt() : 0);
+    });
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1954,10 +2042,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
               captionColor: absensiBelum > 0 ? _WC.errorText : _WC.successText,
             ),
             _USummaryCard(
-            label: 'Nilai Belum',
-            icon: Icons.rate_review_outlined,
-            iconBg: _TC.sage,
-            iconFg: _TC.primary,
+              label: 'Nilai Belum',
+              icon: Icons.rate_review_outlined,
+              iconBg: _TC.sage,
+              iconFg: _TC.primary,
               value: '$nilaiBelum',
               unit: 'Ujian',
               caption: nilaiBelum == 0
@@ -1966,6 +2054,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       ? '${nilaiBelumList.first['nama'] ?? 'Ujian'}'
                       : 'Menunggu input nilai'),
               captionColor: nilaiBelum > 0 ? _WC.errorText : _WC.successText,
+            ),
+            _USummaryCard(
+              label: 'Santri Diampu',
+              icon: Icons.groups_2_outlined,
+              iconBg: _WC.goldSurface,
+              iconFg: _WC.gold,
+              value: '$totalSantri',
+              unit: 'Santri',
+              caption: kelas.isEmpty ? 'Belum ada kelas' : 'Di ${kelas.length} kelas Anda',
             ),
           ],
         ),
@@ -2381,7 +2478,7 @@ class _UKelasCard extends StatelessWidget {
     final mapelTerisi =
         kelas['mapelTerisiHariIni'] is num ? (kelas['mapelTerisiHariIni'] as num).toInt() : null;
     final terisi =
-    mapelTerisi != null ? mapelTerisi > 0 : kelas['absensiHariIniTerisi'] == true;
+        mapelTerisi != null ? mapelTerisi > 0 : kelas['absensiHariIniTerisi'] == true;
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(16),

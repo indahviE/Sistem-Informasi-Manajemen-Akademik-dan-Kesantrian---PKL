@@ -125,8 +125,72 @@ String _fmtNum(dynamic v) {
   return d == d.roundToDouble() ? d.toStringAsFixed(0) : d.toStringAsFixed(1);
 }
 
-void _snack(BuildContext context, String msg) =>
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+/// Notifikasi melayang bertema (sama seperti di layar absensi):
+/// sukses = warna tema + ikon emas, gagal = merah lembut.
+/// Snackbar melayang otomatis muncul di atas bar tombol bawah (bottomNavigationBar).
+void _toast(
+  BuildContext context,
+  String title, {
+  String? subtitle,
+  bool error = false,
+  IconData? icon,
+}) {
+  final w = MediaQuery.of(context).size.width;
+  final side = w > kMaxWidth + 24 ? (w - (kMaxWidth - 40)) / 2 : 16.0;
+  final fg = error ? _C.badFg : Colors.white;
+
+  ScaffoldMessenger.of(context)
+    ..hideCurrentSnackBar()
+    ..showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: error ? _C.badBg : _C.emerald,
+        elevation: 6,
+        margin: EdgeInsets.fromLTRB(side, 0, side, 12),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        duration: Duration(seconds: error ? 4 : 3),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(
+            color: error ? _C.badFg.withOpacity(0.25) : _C.gold.withOpacity(0.5),
+          ),
+        ),
+        content: Row(
+          children: [
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: error ? Colors.white : _C.gold.withOpacity(0.18),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                icon ?? (error ? Icons.error_outline : Icons.check_rounded),
+                size: 18,
+                color: error ? _C.badFg : _C.gold,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title,
+                      style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: fg)),
+                  if (subtitle != null) ...[
+                    const SizedBox(height: 2),
+                    Text(subtitle,
+                        style: TextStyle(fontSize: 11.5, color: fg.withOpacity(0.75))),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+}
 
 /// Status akhir santri pada ujian ini.
 enum _Akhir { tuntasLangsung, tuntasRemedial, belumFinal, belumMenunggu, susulan }
@@ -296,10 +360,17 @@ class _UjianDetailScreenState extends State<UjianDetailScreen> {
       if (r is Map) {
         await _tampilRingkasan(Map<String, dynamic>.from(r));
       } else {
-        _snack(context, 'Nilai ujian dikunci.');
+        _toast(
+          context,
+          'Nilai ujian dikunci',
+          subtitle: '${_ujian['nama'] ?? 'Ujian'}',
+          icon: Icons.lock_outline,
+        );
       }
     } on ApiException catch (e) {
-      if (mounted) _snack(context, e.message);
+      if (mounted) _toast(context, e.message, error: true);
+    } catch (_) {
+      if (mounted) _toast(context, 'Gagal mengunci nilai.', error: true);
     } finally {
       if (mounted) setState(() => _busyKunci = false);
     }
@@ -319,9 +390,18 @@ class _UjianDetailScreenState extends State<UjianDetailScreen> {
           .api
           .post('${ApiUrl.ujian}/${widget.ujian['id']}/buka-kunci', {'alasan': alasan});
       await _load();
-      if (mounted) _snack(context, 'Kunci dibuka. Setiap perubahan nilai akan tercatat.');
+      if (mounted) {
+        _toast(
+          context,
+          'Kunci dibuka',
+          subtitle: 'Setiap perubahan nilai akan tercatat',
+          icon: Icons.lock_open_outlined,
+        );
+      }
     } on ApiException catch (e) {
-      if (mounted) _snack(context, e.message);
+      if (mounted) _toast(context, e.message, error: true);
+    } catch (_) {
+      if (mounted) _toast(context, 'Gagal membuka kunci.', error: true);
     } finally {
       if (mounted) setState(() => _busyKunci = false);
     }
@@ -517,7 +597,12 @@ class _UjianDetailScreenState extends State<UjianDetailScreen> {
             const SizedBox(width: 8),
             InkWell(
               borderRadius: BorderRadius.circular(12),
-              onTap: () => _snack(context, 'Bagikan hasil segera hadir.'),
+              onTap: () => _toast(
+                context,
+                'Bagikan hasil segera hadir',
+                subtitle: 'Fitur ini sedang disiapkan',
+                icon: Icons.hourglass_empty_rounded,
+              ),
               child: _iconBox(Icons.ios_share),
             ),
             const SizedBox(width: 8),

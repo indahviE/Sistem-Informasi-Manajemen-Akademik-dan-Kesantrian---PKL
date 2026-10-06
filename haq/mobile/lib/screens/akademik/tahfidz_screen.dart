@@ -22,6 +22,7 @@ class _C {
   static Color get onPrimaryContainer => Color.lerp(SC.primary, Colors.white, 0.5)!;
   static Color get tertiaryFixed => SC.mint;
 
+  static const gold = Color(0xFFC5A059); // dipakai oleh toast
   static const tertiaryFixedDim = Color(0xFFB9CAC3);
   static const secondary = Color(0xFF775A19);
   static const secondaryContainer = Color(0xFFFED488);
@@ -48,6 +49,73 @@ TextStyle _t(double size, FontWeight w, Color c, {double? h, double? ls}) =>
 
 TextStyle _lb(double size, FontWeight w, Color c, {double ls = 0.3}) =>
     GoogleFonts.inter(fontSize: size, fontWeight: w, color: c, letterSpacing: ls);
+
+// ---------------------------------------------------------------------------
+// Notifikasi melayang bertema (sama seperti di layar absensi)
+// ---------------------------------------------------------------------------
+
+/// Sukses = warna tema + ikon emas, gagal = merah lembut.
+void _toast(
+  BuildContext context,
+  String title, {
+  String? subtitle,
+  bool error = false,
+  IconData? icon,
+}) {
+  final w = MediaQuery.of(context).size.width;
+  final side = w > 480 ? (w - 448) / 2 : 16.0;
+  final fg = error ? _C.onErrorContainer : Colors.white;
+
+  ScaffoldMessenger.of(context)
+    ..hideCurrentSnackBar()
+    ..showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: error ? _C.errorContainer : _C.primary,
+        elevation: 6,
+        margin: EdgeInsets.fromLTRB(side, 0, side, 16),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        duration: Duration(seconds: error ? 4 : 3),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(
+            color: error ? _C.onErrorContainer.withOpacity(0.25) : _C.gold.withOpacity(0.5),
+          ),
+        ),
+        content: Row(
+          children: [
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: error ? Colors.white : _C.gold.withOpacity(0.18),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                icon ?? (error ? Icons.error_outline : Icons.check_rounded),
+                size: 18,
+                color: error ? _C.onErrorContainer : _C.gold,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: _t(13.5, FontWeight.w800, fg)),
+                  if (subtitle != null) ...[
+                    const SizedBox(height: 2),
+                    Text(subtitle, style: _t(11.5, FontWeight.w400, fg.withOpacity(0.75))),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+}
 
 // ---------------------------------------------------------------------------
 // Helper kecil
@@ -334,13 +402,22 @@ class _TahfidzScreenState extends State<TahfidzScreen> {
       builder: (_) => _SetoranSheet(santri: santri, terakhir: _ringkas['${santri['id']}']?.maju),
     );
     if (ok == true && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Setoran tahfidz disimpan.')));
+      _toast(
+        context,
+        'Setoran tahfidz disimpan',
+        subtitle: '${santri['nama'] ?? '-'} • ${_tglLengkap(DateTime.now())}',
+      );
       _load();
     }
   }
 
   void _segera(String fitur) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$fitur segera hadir.')));
+    _toast(
+      context,
+      '$fitur segera hadir',
+      subtitle: 'Fitur ini sedang disiapkan',
+      icon: Icons.hourglass_empty_rounded,
+    );
   }
 
   void _detail(Map<String, dynamic> santri) {
@@ -1691,8 +1768,12 @@ class _SetoranSheetState extends State<_SetoranSheet> {
               child: TextButton.icon(
                 onPressed: _saving
                     ? null
-                    : () => ScaffoldMessenger.of(context)
-                        .showSnackBar(const SnackBar(content: Text('Mushaf digital segera hadir.'))),
+                    : () => _toast(
+                          context,
+                          'Mushaf digital segera hadir',
+                          subtitle: 'Fitur ini sedang disiapkan',
+                          icon: Icons.auto_stories_outlined,
+                        ),
                 icon: const Icon(Icons.auto_stories_outlined, size: 18),
                 label: Text('Buka Mushaf Digital Halaman $_halMulai', style: _lb(12.5, FontWeight.w600, _C.primary)),
                 style: TextButton.styleFrom(

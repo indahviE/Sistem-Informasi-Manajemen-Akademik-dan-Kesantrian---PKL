@@ -217,7 +217,7 @@ class _UjianInputScreenState extends State<UjianInputScreen> {
   /// Hanya untuk menampilkan banner; TIDAK dipakai untuk memblokir input.
   bool get _terkunci => _ujian['dikunciPada'] != null;
 
-    bool _aktif(Map<String, dynamic> s) {
+  bool _aktif(Map<String, dynamic> s) {
     final st = s['status'];
     return st == null || '$st'.toUpperCase() == 'AKTIF';
   }
@@ -254,8 +254,68 @@ class _UjianInputScreenState extends State<UjianInputScreen> {
     return v;
   }
 
-  void _msg(String text) =>
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+  /// Notifikasi melayang bertema, gaya sama dengan _toast di absensi_screen.dart.
+  /// Sukses = emerald + emas, gagal = merah lembut.
+  void _toast(String title, {String? subtitle, bool error = false}) {
+    if (!mounted) return;
+    final w = MediaQuery.of(context).size.width;
+    final side = w > 472 ? (w - 440) / 2 : 16.0;
+    final fg = error ? _C.badFg : Colors.white;
+
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: error ? _C.badBg : _C.emerald,
+          elevation: 6,
+          // SnackBar melayang otomatis berada di atas bottomNavigationBar,
+          // jadi jarak bawah cukup 16.
+          margin: EdgeInsets.fromLTRB(side, 0, side, 16),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          duration: Duration(seconds: error ? 4 : 3),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(
+              color: error ? _C.badFg.withOpacity(0.25) : _C.gold.withOpacity(0.5),
+            ),
+          ),
+          content: Row(
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: error ? Colors.white : _C.gold.withOpacity(0.18),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  error ? Icons.error_outline : Icons.check_rounded,
+                  size: 18,
+                  color: error ? _C.badFg : _C.gold,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title,
+                        style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: fg)),
+                    if (subtitle != null) ...[
+                      const SizedBox(height: 2),
+                      Text(subtitle,
+                          style: TextStyle(fontSize: 11.5, color: fg.withOpacity(0.75))),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+  }
 
   // ───────────────────────────── AKSI ─────────────────────────────
 
@@ -299,7 +359,7 @@ class _UjianInputScreenState extends State<UjianInputScreen> {
     final hadir = _kehadiran == 'HADIR';
     final v = _nilaiVal;
     if (hadir && v == null) {
-      _msg('Masukkan nilai antara 0 – 100.');
+      _toast('Nilai belum valid', subtitle: 'Masukkan nilai antara 0 – 100.', error: true);
       return;
     }
     setState(() => _savingNilai = true);
@@ -314,14 +374,19 @@ class _UjianInputScreenState extends State<UjianInputScreen> {
       });
       await _load(silent: true);
       if (!mounted) return;
-      _msg(!hadir
-          ? '${s['nama']} dicatat ${_labelKehadiran(_kehadiran).toLowerCase()} (jalur susulan).'
-          : ((v ?? 0) >= _kkm
-              ? 'Nilai ${s['nama']} tersimpan.'
-              : 'Nilai ${s['nama']} tersimpan (belum tuntas).'));
+      final nama = '${s['nama']}';
+      if (!hadir) {
+        _toast('$nama dicatat ${_labelKehadiran(_kehadiran).toLowerCase()}',
+            subtitle: 'Masuk jalur susulan');
+      } else if ((v ?? 0) >= _kkm) {
+        _toast('Nilai $nama tersimpan', subtitle: 'Nilai ${_fmtNum(v)} • Tuntas');
+      } else {
+        _toast('Nilai $nama tersimpan',
+            subtitle: 'Nilai ${_fmtNum(v)} • Belum tuntas, masuk remedial');
+      }
       _clearSelection();
     } on ApiException catch (e) {
-      if (mounted) _msg(e.message);
+      if (mounted) _toast(e.message, error: true);
     } finally {
       if (mounted) setState(() => _savingNilai = false);
     }
@@ -1035,7 +1100,8 @@ class _UjianInputScreenState extends State<UjianInputScreen> {
                       shape: const StadiumBorder(),
                       textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
                     ),
-                    onPressed: () => _msg('Kirim rekap segera hadir.'),
+                    onPressed: () => _toast('Kirim rekap segera hadir',
+                        subtitle: 'Fitur ini sedang disiapkan'),
                     icon: const Icon(Icons.send_outlined, size: 17),
                     label: const Text('Kirim Rekap'),
                   ),

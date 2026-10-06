@@ -1,4 +1,11 @@
 import 'package:flutter/material.dart';
+
+
+
+
+
+
+
 import 'package:flutter/services.dart';
 import '../../services/api_client.dart';
 import '../../services/app_scope.dart';
@@ -49,6 +56,73 @@ const double _maxW = 480;
 const double _kkmDefault = 75;
 
 // ───────────────────────────── HELPER ─────────────────────────────
+
+/// Notifikasi melayang bertema (sama seperti di layar absensi):
+/// sukses = warna tema + ikon emas, gagal = merah lembut.
+/// Snackbar melayang otomatis muncul di atas bar bawah (bottomNavigationBar).
+void _toast(
+  BuildContext context,
+  String title, {
+  String? subtitle,
+  bool error = false,
+  IconData? icon,
+}) {
+  final w = MediaQuery.of(context).size.width;
+  final side = w > _maxW + 24 ? (w - (_maxW - 40)) / 2 : 16.0;
+  final fg = error ? _C.badFg : Colors.white;
+
+  ScaffoldMessenger.of(context)
+    ..hideCurrentSnackBar()
+    ..showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: error ? _C.badBg : _C.emerald,
+        elevation: 6,
+        margin: EdgeInsets.fromLTRB(side, 0, side, 12),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        duration: Duration(seconds: error ? 4 : 3),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(
+            color: error ? _C.badFg.withOpacity(0.25) : _C.gold.withOpacity(0.5),
+          ),
+        ),
+        content: Row(
+          children: [
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: error ? Colors.white : _C.gold.withOpacity(0.18),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                icon ?? (error ? Icons.error_outline : Icons.check_rounded),
+                size: 18,
+                color: error ? _C.badFg : _C.gold,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title,
+                      style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: fg)),
+                  if (subtitle != null) ...[
+                    const SizedBox(height: 2),
+                    Text(subtitle,
+                        style: TextStyle(fontSize: 11.5, color: fg.withOpacity(0.75))),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+}
 
 BoxDecoration _cardDeco({double radius = 16}) => BoxDecoration(
       color: Colors.white,
@@ -398,8 +472,13 @@ class _UjianRemedialScreenState extends State<UjianRemedialScreen> {
     return null;
   }
 
-  void _msg(String text) =>
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+  /// Notifikasi "segera hadir" bertema.
+  void _segera(String fitur) => _toast(
+        context,
+        '$fitur segera hadir',
+        subtitle: 'Fitur ini sedang disiapkan',
+        icon: Icons.hourglass_empty_rounded,
+      );
 
   // ───────────────────────────── AKSI ─────────────────────────────
 
@@ -461,7 +540,12 @@ class _UjianRemedialScreenState extends State<UjianRemedialScreen> {
       _jadwal = DateTime(d.year, d.month, d.day, t?.hour ?? 0, t?.minute ?? 0);
       if (_status == 'BELUM_TES') _status = 'PROSES';
     });
-    _msg('Jadwal diatur. Tekan "Simpan Hasil" untuk menyimpan.');
+    _toast(
+      context,
+      'Jadwal diatur',
+      subtitle: 'Tekan "Simpan Hasil" untuk menyimpan',
+      icon: Icons.event_available_outlined,
+    );
   }
 
   Future<void> _save() async {
@@ -470,13 +554,15 @@ class _UjianRemedialScreenState extends State<UjianRemedialScreen> {
 
     final ket = _ketCtrl.text.trim();
     if (ket.isEmpty) {
-      _msg('Keterangan materi remedial wajib diisi.');
+      _toast(context, 'Keterangan materi wajib diisi',
+          subtitle: 'Isi keterangan materi remedial dulu', error: true);
       return;
     }
     final raw = _nilaiCtrl.text.trim();
     final v = _nilaiVal;
     if (raw.isNotEmpty && v == null) {
-      _msg('Nilai perbaikan harus antara 0 – 100.');
+      _toast(context, 'Nilai perbaikan tidak valid',
+          subtitle: 'Isi dengan angka antara 0 – 100', error: true);
       return;
     }
 
@@ -502,14 +588,20 @@ class _UjianRemedialScreenState extends State<UjianRemedialScreen> {
         final st = '${res['status'] ?? ''}'.toUpperCase();
         final ak = _numOf(res['nilaiAkhir']);
         if (st == 'TUNTAS') {
-          hasilTxt = ' Tuntas, nilai akhir ${_fmtNum(ak)}.';
+          hasilTxt = 'Tuntas, nilai akhir ${_fmtNum(ak)}';
         } else if (st == 'BELUM_TUNTAS') {
-          hasilTxt = ' Belum tuntas, nilai akhir ${_fmtNum(ak)}.';
+          hasilTxt = 'Belum tuntas, nilai akhir ${_fmtNum(ak)}';
         }
       }
-      _msg('Hasil remedial ${r.nama} tersimpan.$hasilTxt');
+      _toast(
+        context,
+        'Hasil remedial tersimpan',
+        subtitle: hasilTxt.isEmpty ? r.nama : '${r.nama} • $hasilTxt',
+      );
     } on ApiException catch (e) {
-      if (mounted) _msg(e.message);
+      if (mounted) _toast(context, e.message, error: true);
+    } catch (_) {
+      if (mounted) _toast(context, 'Gagal menyimpan hasil remedial.', error: true);
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -1353,7 +1445,7 @@ class _UjianRemedialScreenState extends State<UjianRemedialScreen> {
                       style: const TextStyle(fontSize: 11.5, color: _C.ink2)),
                 ),
                 _smallBtn('Ingatkan Musyrif', Icons.notifications_none,
-                    onTap: () => _msg('Pengingat musyrif segera hadir.')),
+                    onTap: () => _segera('Pengingat musyrif')),
               ],
             ),
           ],
@@ -1608,7 +1700,7 @@ class _UjianRemedialScreenState extends State<UjianRemedialScreen> {
                       shape: const StadiumBorder(),
                       textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
                     ),
-                    onPressed: () => _msg('Cetak rekap segera hadir.'),
+                    onPressed: () => _segera('Cetak rekap'),
                     icon: const Icon(Icons.print_outlined, size: 18),
                     label: const Text('Cetak Rekap'),
                   ),

@@ -117,8 +117,72 @@ Future<T?> _showSheet<T>(BuildContext context, Widget child) => showModalBottomS
       builder: (_) => child,
     );
 
-void _snack(BuildContext context, String msg) =>
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+/// Notifikasi melayang bertema (sama seperti di layar absensi):
+/// sukses = warna tema + ikon emas, gagal = merah lembut.
+void _toast(
+  BuildContext context,
+  String title, {
+  String? subtitle,
+  bool error = false,
+  IconData? icon,
+}) {
+  final w = MediaQuery.of(context).size.width;
+  final side = w > 472 ? (w - 440) / 2 : 16.0;
+  final fg = error ? _C.badFg : Colors.white;
+
+  ScaffoldMessenger.of(context)
+    ..hideCurrentSnackBar()
+    ..showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: error ? _C.badBg : _C.emerald,
+        elevation: 6,
+        // 88 = jarak dari bawah supaya tidak menutupi tombol "Buat Ujian"
+        margin: EdgeInsets.fromLTRB(side, 0, side, 88),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        duration: Duration(seconds: error ? 4 : 3),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(
+            color: error ? _C.badFg.withOpacity(0.25) : _C.gold.withOpacity(0.5),
+          ),
+        ),
+        content: Row(
+          children: [
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: error ? Colors.white : _C.gold.withOpacity(0.18),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                icon ?? (error ? Icons.error_outline : Icons.check_rounded),
+                size: 18,
+                color: error ? _C.badFg : _C.gold,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title,
+                      style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: fg)),
+                  if (subtitle != null) ...[
+                    const SizedBox(height: 2),
+                    Text(subtitle,
+                        style: TextStyle(fontSize: 11.5, color: fg.withOpacity(0.75))),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+}
 
 // ─────────────────────────────────────────────────────────────
 // 1. DAFTAR UJIAN
@@ -262,10 +326,16 @@ class _UjianScreenState extends State<UjianScreen> {
     try {
       await AppScope.of(context).api.post(ApiUrl.ujian, result);
       if (!mounted) return;
-      _snack(context, 'Ujian berhasil dibuat');
+      _toast(
+        context,
+        'Ujian berhasil dibuat',
+        subtitle: '${result['nama']} • ${_jenisStyle('${result['jenis']}').label}',
+      );
       _load();
     } on ApiException catch (e) {
-      if (mounted) _snack(context, e.message);
+      if (mounted) _toast(context, e.message, error: true);
+    } catch (_) {
+      if (mounted) _toast(context, 'Gagal membuat ujian.', error: true);
     }
   }
 
