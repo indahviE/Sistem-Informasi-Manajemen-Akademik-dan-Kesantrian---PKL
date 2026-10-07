@@ -162,6 +162,7 @@ model Tenant {
   pembinaanKarakters PembinaanKarakter[]
   pembinaanIbadahs   PembinaanIbadah[]
   keadaanDarurats    KeadaanDarurat[]
+  jurnalMengajars    JurnalMengajar[] 
   deletedAt DateTime?
 
   @@map("tenants")
@@ -259,10 +260,33 @@ model Kelas {
   tahunAjaran   TahunAjaran? @relation(fields: [tahunAjaranId], references: [id])
   santris       Santri[]
   ujians        Ujian[]
+   jurnalMengajars JurnalMengajar[]
 
   @@unique([tenantId, namaKelas, tahunAjaranId])
   @@index([tenantId])
   @@map("kelas")
+}
+
+model JurnalMengajar {
+  id         String         @id @default(cuid())
+  tenantId   String
+  kelasId    String
+  mapelId    String?
+  tanggal    DateTime
+  materi     String         @db.VarChar(500)
+  catatan    String?        @db.VarChar(300)
+  inputOleh  String
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+
+  tenant     Tenant         @relation(fields: [tenantId], references: [id])
+  kelas      Kelas          @relation(fields: [kelasId], references: [id])
+  mapel      MataPelajaran? @relation(fields: [mapelId], references: [id])
+
+  @@index([tenantId, tanggal])
+  @@index([tenantId, kelasId])
+  @@index([tenantId, inputOleh])
+  @@map("jurnal_mengajars")
 }
 
 model WaliSantri {
@@ -299,6 +323,7 @@ model MataPelajaran {
   placementTests PlacementTest[]
   ujians        Ujian[]
   remedials     Remedial[]
+   jurnalMengajars JurnalMengajar[]
 
   @@unique([tenantId, namaMapel])
   @@index([tenantId])

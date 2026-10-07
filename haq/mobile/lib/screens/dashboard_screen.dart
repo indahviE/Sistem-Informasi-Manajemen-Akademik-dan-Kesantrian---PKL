@@ -1764,7 +1764,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           SnackBar(
           behavior: SnackBarBehavior.floating,
           persist: false, // baru: tetap hilang otomatis walau ada action
-          backgroundColor: _WC.primary,
+          backgroundColor: _TC.primary,
           elevation: 6,
           margin: EdgeInsets.fromLTRB(side, 0, side, 16),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -2001,9 +2001,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
             Expanded(
               child: _UQuickTile(icon: Icons.auto_stories_outlined, label: 'Tahfidz', onTap: () => _goto('Tahfidz')),
             ),
+            Expanded(
+              child: _UQuickTile(icon: Icons.cast_for_education_outlined, label: 'Jurnal', onTap: () => _goto('Jurnal Mengajar')),
+            ),
           ],
         ),
         const SizedBox(height: 22),
+        
 
         // ---- Kelas yang Diampu ----
         _ustadzSection(

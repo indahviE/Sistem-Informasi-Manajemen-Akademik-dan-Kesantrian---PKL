@@ -47,6 +47,7 @@ import 'kesantrian/rekam_medis_screen.dart';
 import 'billing/billing_admin_screen.dart';
 import 'billing/billing_tenant_screen.dart';
 import 'branding/branding_screen.dart';
+import 'akademik/jurnal_mengajar_screen.dart';
 import 'santri/santri_ui.dart' show SC;
 
 class ShellScreen extends StatefulWidget {
@@ -170,6 +171,9 @@ class _ShellScreenState extends State<ShellScreen> {
       m.add(_MenuItem('Ujian & Remedial', Icons.fact_check, (_) => const UjianScreen()));
       m.add(_MenuItem('Rapor Digital', Icons.description, (_) => const RaporScreen()));
       m.add(_MenuItem('Kelulusan & Wisuda', Icons.military_tech, (_) => const KelulusanScreen()));
+    }
+    if (user.isAdmin || user.isUstadz || user.isPimpinan) {
+      m.add(_MenuItem('Jurnal Mengajar', Icons.menu_book_outlined, (_) => const JurnalMengajarScreen()));
     }
 
     if (user.isAdmin || user.isMusyrif || user.isUstadz || user.isPimpinan) {
