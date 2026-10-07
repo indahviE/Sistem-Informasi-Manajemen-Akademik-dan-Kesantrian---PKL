@@ -77,6 +77,12 @@ class _AbsensiScreenState extends State<AbsensiScreen> {
   /// Terkunci = sudah direkap dan belum dibuka untuk diubah.
   bool get _locked => _saved && !_editing;
 
+  /// SESUAIKAN: ambil role dari session/auth yang Anda pakai.
+  bool get _isUstadz {
+    final role = AppScope.of(context).user?.role; // ganti sesuai AuthState
+    return role == 'USTADZ';
+  }
+
   @override
   void initState() {
     super.initState();
@@ -103,7 +109,10 @@ class _AbsensiScreenState extends State<AbsensiScreen> {
     final api = AppScope.of(context).api;
     String? err;
     try {
-      _kelas = _asList(await api.get(ApiUrl.kelas));
+      // Ustadz hanya mendapat kelas yang ia menjadi wali kelasnya (difilter server).
+      _kelas = _asList(await api.get(ApiUrl.kelas, query: {
+        if (_isUstadz) 'diampu': 'true',
+      }));
     } catch (_) {
       err = 'Gagal memuat daftar kelas.';
     }
@@ -1174,6 +1183,8 @@ class _AbsensiScreenState extends State<AbsensiScreen> {
                               padding: EdgeInsets.all(24),
                               child: Center(child: CircularProgressIndicator(color: _AC.primary)),
                             )
+                          else if (_isUstadz && _kelas.isEmpty)
+                            emptyView('Anda bukan wali kelas di kelas mana pun.')
                           else if (total == 0)
                             emptyView('Kelas ini belum punya santri.')
                           else ...[

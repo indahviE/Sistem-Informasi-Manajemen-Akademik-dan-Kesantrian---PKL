@@ -71,6 +71,30 @@ export class AkademikService {
   }
 
   async bulkAbsensi(tenantId: string, dto: BulkAbsensiDto, user: RequestUser) {
+    // Ustadz hanya boleh mengabsen kelas yang ia menjadi wali kelasnya
+    if (user.role === Role.USTADZ) {
+      const ustadz = await this.prisma.ustadz.findFirst({
+        where: { tenantId, userId: user.userId },
+        select: { id: true },
+      });
+      const kelas = await this.prisma.kelas.findFirst({
+        where: { id: dto.kelasId, tenantId, waliKelasId: ustadz?.id ?? '__none__' },
+        select: { id: true },
+      });
+      if (!kelas) {
+        throw new ForbiddenException('Anda bukan wali kelas ini.');
+      }
+
+      // Semua santri yang dikirim harus benar-benar anggota kelas tersebut
+      const idsKirim = [...new Set(dto.items.map((i) => i.santriId))];
+      const anggota = await this.prisma.santri.count({
+        where: { tenantId, kelasId: dto.kelasId, id: { in: idsKirim } },
+      });
+      if (anggota !== idsKirim.length) {
+        throw new ForbiddenException('Ada santri yang bukan anggota kelas ini.');
+      }
+    }
+
     const tanggal = new Date(dto.tanggal);
     const mapelId = dto.mapelId ?? null;
 
@@ -264,6 +288,7 @@ export class AkademikService {
       },
     });
   }
+
   private async assertSantriInTenant(tenantId: string, santriId: string) {
     const found = await this.assertSantri(tenantId, santriId);
     if (!found) throw new NotFoundException('Santri tidak ditemukan di pondok ini.');

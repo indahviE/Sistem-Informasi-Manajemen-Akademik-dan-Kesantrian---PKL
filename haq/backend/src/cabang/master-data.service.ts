@@ -1,5 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { RequestUser } from '../common/decorators/current-user.decorator';
 import {
   CreateKelasDto,
   CreateMapelDto,
@@ -53,9 +55,22 @@ export class MasterDataService {
   }
 
   // ===== Kelas / Halaqah =====
-  findAllKelas(tenantId: string) {
+  /**
+   * Daftar kelas. Kalau `diampu` true dan yang login USTADZ, hanya kelas yang
+   * ia menjadi wali kelasnya. Role lain / tanpa `diampu` = semua kelas (seperti semula).
+   */
+  async findAllKelas(tenantId: string, user?: RequestUser, diampu = false) {
+    const where: any = { tenantId };
+
+    if (diampu && user?.role === Role.USTADZ) {
+      const ustadz = await this.prisma.ustadz.findFirst({
+        where: { userId: user.userId, tenantId },
+      });
+      where.waliKelasId = ustadz?.id ?? '__none__';
+    }
+
     return this.prisma.kelas.findMany({
-      where: { tenantId },
+      where,
       include: {
         waliKelas: { select: { id: true, nama: true } },
         tahunAjaran: { select: { id: true, nama: true } },
@@ -130,7 +145,7 @@ export class MasterDataService {
     return this.prisma.tahunAjaran.create({ data: { tenantId, ...dto } });
   }
 
-    async setTahunAjaranAktif(tenantId: string, id: string) {
+  async setTahunAjaranAktif(tenantId: string, id: string) {
     // Pastikan tahun ajaran dengan id ini memang milik tenant yang login —
     // tanpa cek ini, admin tenant lain bisa mengaktifkan tahun ajaran
     // milik tenant lain (celah kritis isolasi data, lihat PRD bagian 8).
