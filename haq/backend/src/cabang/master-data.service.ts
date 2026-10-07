@@ -15,11 +15,24 @@ export class MasterDataService {
   constructor(private prisma: PrismaService) {}
 
   // ===== Ustadz / Pembina =====
-  findAllUstadz(tenantId: string, jenis?: string) {
-    return this.prisma.ustadz.findMany({
+  async findAllUstadz(tenantId: string, jenis?: string) {
+    const list = await this.prisma.ustadz.findMany({
       where: { tenantId, ...(jenis ? { jenis: jenis as any } : {}) },
+      include: { kelasDiampu: { select: { id: true, namaKelas: true } } },
       orderBy: { nama: 'asc' },
     });
+
+    // Ustadz.userId tidak punya relasi Prisma, jadi akun diambil terpisah (1 query).
+    const userIds = list.map((u) => u.userId).filter((x): x is string => !!x);
+    const users = userIds.length
+      ? await this.prisma.user.findMany({
+          where: { id: { in: userIds }, tenantId },
+          select: { id: true, email: true, status: true },
+        })
+      : [];
+    const byId = new Map(users.map((u) => [u.id, u]));
+
+    return list.map((u) => ({ ...u, akun: u.userId ? byId.get(u.userId) ?? null : null }));
   }
 
   createUstadz(tenantId: string, dto: CreateUstadzDto) {
@@ -52,7 +65,15 @@ export class MasterDataService {
     });
   }
 
-  createKelas(tenantId: string, dto: CreateKelasDto) {
+  /** Pastikan ustadz yang dipilih sebagai wali kelas milik tenant yang sama. */
+  private async cekWaliKelas(tenantId: string, waliKelasId?: string | null) {
+    if (!waliKelasId) return;
+    const ustadz = await this.prisma.ustadz.findFirst({ where: { id: waliKelasId, tenantId } });
+    if (!ustadz) throw new NotFoundException('Ustadz untuk wali kelas tidak ditemukan.');
+  }
+
+  async createKelas(tenantId: string, dto: CreateKelasDto) {
+    await this.cekWaliKelas(tenantId, dto.waliKelasId);
     return this.prisma.kelas.create({
       data: { tenantId, ...dto },
     });
@@ -61,6 +82,7 @@ export class MasterDataService {
   async updateKelas(tenantId: string, id: string, dto: UpdateKelasDto) {
     const found = await this.prisma.kelas.findFirst({ where: { id, tenantId } });
     if (!found) throw new NotFoundException('Kelas tidak ditemukan.');
+    await this.cekWaliKelas(tenantId, dto.waliKelasId);
     return this.prisma.kelas.update({ where: { id }, data: dto });
   }
 

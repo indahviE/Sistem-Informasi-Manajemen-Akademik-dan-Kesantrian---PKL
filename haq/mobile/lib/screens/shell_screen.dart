@@ -41,6 +41,8 @@ import 'wali/wali_screen.dart';
 import 'wali/wali_header.dart';
 import 'wali/pengaturan_wali_screen.dart';
 import 'wali/notifikasi_wali_screen.dart';
+import 'musyrif/musyrif_header.dart';
+import 'musyrif/notifikasi_screen.dart';
 import 'ppdb/ppdb_list_screen.dart';
 import 'kurikulum/kurikulum_screen.dart';
 import 'kesantrian/rekam_medis_screen.dart';
@@ -114,7 +116,9 @@ class _ShellScreenState extends State<ShellScreen> {
     if (_navIndex >= _navItems.length) _navIndex = 0;
     _activeExtra = null;
 
-    if (user.isSuperAdmin || user.isAdmin || user.isWali || user.isUstadz) _loadUnreadCount();
+    if (user.isSuperAdmin || user.isAdmin || user.isWali || user.isUstadz || user.isMusyrif) {
+      _loadUnreadCount();
+    }
   }
 
   Future<void> _loadUnreadCount() async {
@@ -300,6 +304,15 @@ class _ShellScreenState extends State<ShellScreen> {
                           onPengaturan: () => _goToMenu('Pengaturan'),
                           onLogout: _logout,
                         )
+                      : user.isMusyrif
+                          ? MusyrifHeader(
+                              subtitle: title == 'Dashboard' ? 'Beranda' : title,
+                              nama: user.nama,
+                              email: user.email,
+                              hasUnread: _unreadCount > 0,
+                              onNotifikasi: () => setState(() => _notifikasiOpen = true),
+                              onLogout: _logout,
+                            )
                       : AppBar(
                           title: _appBarTitle(user, title),
                           actions: [
@@ -375,7 +388,16 @@ class _ShellScreenState extends State<ShellScreen> {
                           onNavigate: _goToMenu,
                           onReadStateChanged: _loadUnreadCount,
                         )
-                      : active.builder(context),
+                      : (user.isMusyrif && _notifikasiOpen)
+                          ? NotifikasiMusyrifScreen(
+                              onBack: () {
+                                setState(() => _notifikasiOpen = false);
+                                _loadUnreadCount();
+                              },
+                              onNavigate: _goToMenu,
+                              onReadStateChanged: _loadUnreadCount,
+                            )
+                          : active.builder(context),
       bottomNavigationBar: Container(
         // Full-width fill supaya nggak ada strip abu-abu bawaan Scaffold yang
         // keliatan di kiri-kanan kotak nav 480px — warnanya disamain persis

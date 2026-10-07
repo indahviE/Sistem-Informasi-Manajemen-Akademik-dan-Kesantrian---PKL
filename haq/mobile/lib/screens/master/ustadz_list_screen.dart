@@ -1,21 +1,21 @@
 import 'package:flutter/material.dart';
 import '../../services/api_client.dart';
 import '../../services/app_scope.dart';
-import '../ui_utils.dart';
 import '../santri/santri_ui.dart';
+import '../ui_utils.dart';
 
-/// Palet sama persis dengan `_UC` di users_screen.dart.
-/// Warna utama diambil dari `SC` (getter), jadi otomatis ikut tema yang dipilih.
-class _UC {
-  _UC._();
+/// Palet sama dengan layar admin lembaga lainnya (emerald + emas).
+class _UsC {
+  _UsC._();
 
   static Color get primary => SC.primary;
-  static Color get primaryGradientEnd => SC.primaryEnd;
-  static const gold = Color(0xFFC5A059);
-  static const goldSurface = Color(0xFFFAF5EC);
-  static const goldDark = Color(0xFF7A5B10);
+  static Color get primaryEnd => SC.primaryEnd;
   static Color get mint => SC.mint;
   static Color get sage => SC.sage;
+  static const gold = Color(0xFFC5A059);
+  static const goldSurface = Color(0xFFFAF5EC);
+  static const goldBorder = Color(0xFFE7D2A7);
+  static const goldDark = Color(0xFF7A5B10);
 
   static const background = Color(0xFFFAF9F5);
   static const surface = Color(0xFFFFFFFF);
@@ -25,32 +25,39 @@ class _UC {
   static const inkSecondary = Color(0xFF475569);
   static const border = Color(0xFFEAE6DC);
 
-  static const errorBg = Color(0xFFFEE2E2);
+  static const pendingText = Color(0xFFB78103);
   static const errorText = Color(0xFF991B1B);
 }
 
-class _JenisInfo {
-  final String value;
-  final String label;
-  final String chip;
-  final IconData icon;
-  const _JenisInfo(this.value, this.label, this.chip, this.icon);
+InputDecoration _dec(String hint, {Widget? suffix}) {
+  OutlineInputBorder b(Color c, [double w = 1]) => OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: c, width: w),
+      );
+  return InputDecoration(
+    hintText: hint,
+    suffixIcon: suffix,
+    hintStyle: const TextStyle(fontSize: 13.5, color: _UsC.inkSecondary),
+    filled: true,
+    fillColor: _UsC.surfaceDim,
+    isDense: true,
+    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+    border: b(Colors.transparent),
+    enabledBorder: b(Colors.transparent),
+    focusedBorder: b(_UsC.primary, 1.4),
+  );
 }
 
-const _kJenis = [
-  _JenisInfo('GURU', 'Guru', 'Guru', Icons.school_outlined),
-  _JenisInfo('MUSYRIF', 'Musyrif / Pembina', 'Musyrif', Icons.night_shelter_outlined),
-];
-
-_JenisInfo _jenisOf(String value) {
-  for (final j in _kJenis) {
-    if (j.value == value) return j;
-  }
-  return _JenisInfo(value, value, value, Icons.person_outline_rounded);
-}
+Widget _label(String text) => Padding(
+      padding: const EdgeInsets.only(left: 2, bottom: 6),
+      child: Text(text,
+          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _UsC.inkSecondary)),
+    );
 
 class UstadzListScreen extends StatefulWidget {
-  const UstadzListScreen({super.key});
+  /// true kalau dibuka lewat Navigator.push (ada AppBar + tombol kembali).
+  final bool showBack;
+  const UstadzListScreen({super.key, this.showBack = false});
 
   @override
   State<UstadzListScreen> createState() => _UstadzListScreenState();
@@ -60,7 +67,7 @@ class _UstadzListScreenState extends State<UstadzListScreen> {
   List<Map<String, dynamic>> _items = [];
   bool _loading = true;
   String? _error;
-  String _filter = 'SEMUA'; // 'SEMUA' atau nilai jenis
+  String _filter = 'SEMUA'; // SEMUA | GURU | MUSYRIF
   String _q = '';
 
   @override
@@ -80,8 +87,7 @@ class _UstadzListScreenState extends State<UstadzListScreen> {
       _error = null;
     });
     try {
-      final api = AppScope.of(context).api;
-      final res = await api.get(ApiUrl.ustadz);
+      final res = await AppScope.of(context).api.get(ApiUrl.ustadz);
       if (!mounted) return;
       final raw = res is List ? res : (res is Map ? (res['items'] ?? res['data']) : null);
       setState(() {
@@ -108,311 +114,277 @@ class _UstadzListScreenState extends State<UstadzListScreen> {
     }
   }
 
-  Future<Map<String, dynamic>?> _openForm([Map<String, dynamic>? existing]) {
-    return showModalBottomSheet<Map<String, dynamic>>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: _UC.surface,
-      constraints: const BoxConstraints(maxWidth: 480),
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (_) => _FormSheet(existing: existing),
-    );
+  void _snack(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
-  Future<void> _add() async {
-    final res = await _openForm();
-    if (res == null || !mounted) return;
+  Map<String, dynamic>? _akun(Map<String, dynamic> u) =>
+      u['akun'] is Map ? Map<String, dynamic>.from(u['akun'] as Map) : null;
+
+  List<String> _kelasWali(Map<String, dynamic> u) {
+    final k = u['kelasDiampu'];
+    if (k is! List) return const [];
+    return k
+        .whereType<Map>()
+        .map((e) => '${e['namaKelas'] ?? ''}'.trim())
+        .where((s) => s.isNotEmpty)
+        .toList();
+  }
+
+  Future<void> _tambah() async {
+    final res = await showDialog<Map<String, String>>(
+      context: context,
+      builder: (_) => const _UstadzFormDialog(),
+    );
+    if (res == null) return;
     try {
       await AppScope.of(context).api.post(ApiUrl.ustadz, res);
-      if (!mounted) return;
-      _toast('Ustadz ditambahkan', subtitle: '${res['nama']} • ${_jenisOf(res['jenis']).label}');
+      _snack('Ustadz ditambahkan');
       _load();
     } on ApiException catch (e) {
-      _toast(e.message, error: true);
-    } catch (_) {
-      _toast('Gagal menambahkan ustadz.', error: true);
+      _snack(e.message);
     }
   }
 
-  Future<void> _edit(Map<String, dynamic> ustadz) async {
-    final res = await _openForm(ustadz);
-    if (res == null || !mounted) return;
+  Future<void> _edit(Map<String, dynamic> u) async {
+    final res = await showDialog<Map<String, String>>(
+      context: context,
+      builder: (_) => _UstadzFormDialog(existing: u),
+    );
+    if (res == null) return;
     try {
-      await AppScope.of(context).api.patch('${ApiUrl.ustadz}/${ustadz['id']}', res);
-      if (!mounted) return;
-      _toast('Ustadz diperbarui', subtitle: '${res['nama']} • ${_jenisOf(res['jenis']).label}');
+      await AppScope.of(context).api.patch('${ApiUrl.ustadz}/${u['id']}', res);
+      _snack('Data ustadz diperbarui');
       _load();
     } on ApiException catch (e) {
-      _toast(e.message, error: true);
-    } catch (_) {
-      _toast('Gagal memperbarui ustadz.', error: true);
+      _snack(e.message);
     }
   }
 
-  Future<void> _delete(Map<String, dynamic> ustadz) async {
+  Future<void> _hapus(Map<String, dynamic> u) async {
+    final punyaKelas = _kelasWali(u).isNotEmpty;
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: _UC.surface,
-        surfaceTintColor: Colors.transparent,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-          side: const BorderSide(color: _UC.border),
-        ),
-        title: Row(
-          children: [
-            Container(
-              width: 36,
-              height: 36,
-              decoration: const BoxDecoration(color: _UC.errorBg, shape: BoxShape.circle),
-              child: const Icon(Icons.delete_outline, size: 18, color: _UC.errorText),
-            ),
-            const SizedBox(width: 10),
-            const Expanded(
-              child: Text('Hapus ustadz?',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _UC.ink)),
-            ),
-          ],
-        ),
+        backgroundColor: _UsC.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: const Text('Hapus Ustadz',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _UsC.ink)),
         content: Text(
-          'Ustadz "${ustadz['nama']}" akan dihapus permanen.',
-          style: const TextStyle(fontSize: 13, color: _UC.inkSecondary, height: 1.4),
+          '"${u['nama']}" akan dihapus.'
+          '${punyaKelas ? '\nKelas yang dia pegang sebagai wali akan menjadi tanpa wali kelas.' : ''}'
+          '${_akun(u) != null ? '\nAkun login-nya tidak ikut terhapus (kelola di menu pengguna).' : ''}',
+          style: const TextStyle(fontSize: 13, color: _UsC.inkSecondary, height: 1.4),
         ),
         actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
         actions: [
           OutlinedButton(
-            onPressed: () => Navigator.pop(ctx, false),
             style: OutlinedButton.styleFrom(
-              foregroundColor: _UC.inkSecondary,
-              side: const BorderSide(color: _UC.border),
+              side: const BorderSide(color: _UsC.border),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
             ),
-            child: const Text('Batal', style: TextStyle(fontWeight: FontWeight.w700)),
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Batal',
+                style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: _UsC.inkSecondary)),
           ),
           FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
             style: FilledButton.styleFrom(
-              backgroundColor: _UC.errorText,
+              backgroundColor: _UsC.errorText,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
             ),
-            child: const Text('Hapus', style: TextStyle(fontWeight: FontWeight.w700)),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Hapus',
+                style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: Colors.white)),
           ),
         ],
       ),
     );
-    if (ok != true || !mounted) return;
+    if (ok != true) return;
     try {
-      await AppScope.of(context).api.delete('${ApiUrl.ustadz}/${ustadz['id']}');
-      if (!mounted) return;
-      _toast('Ustadz dihapus', subtitle: (ustadz['nama'] ?? '').toString());
+      await AppScope.of(context).api.delete('${ApiUrl.ustadz}/${u['id']}');
+      _snack('Ustadz dihapus');
       _load();
     } on ApiException catch (e) {
-      _toast(e.message, error: true);
-    } catch (_) {
-      _toast('Gagal menghapus ustadz.', error: true);
+      _snack(e.message);
+    }
+  }
+
+  Future<void> _buatAkun(Map<String, dynamic> u) async {
+    final jenis = (u['jenis'] ?? 'GURU').toString();
+    final res = await showDialog<Map<String, String>>(
+      context: context,
+      builder: (_) => _AkunDialog(nama: '${u['nama'] ?? ''}', jenis: jenis),
+    );
+    if (res == null) return;
+    try {
+      await AppScope.of(context).api.post(ApiUrl.users, {
+        'nama': u['nama'],
+        'email': res['email'],
+        'password': res['password'],
+        'role': jenis == 'MUSYRIF' ? 'MUSYRIF' : 'USTADZ',
+        'ustadzId': u['id'],
+      });
+      _snack('Akun untuk ${u['nama']} dibuat');
+      _load();
+    } on ApiException catch (e) {
+      _snack(e.message);
     }
   }
 
   // ---------------------------------------------------------------------
-  // Util
+  // UI
   // ---------------------------------------------------------------------
-  String _inisial(String nama) {
-    final n = nama.trim();
-    return n.isEmpty ? '?' : n.substring(0, 1).toUpperCase();
-  }
-
-  /// Notifikasi melayang bertema (sukses = warna tema, gagal = merah lembut).
-  void _toast(String title, {String? subtitle, bool error = false}) {
-    if (!mounted) return;
-    final w = MediaQuery.of(context).size.width;
-    final side = w > 472 ? (w - 440) / 2 : 16.0;
-    final fg = error ? _UC.errorText : Colors.white;
-
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          behavior: SnackBarBehavior.floating,
-          backgroundColor: error ? _UC.errorBg : _UC.primary,
-          elevation: 6,
-          margin: EdgeInsets.fromLTRB(side, 0, side, 16),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          duration: Duration(seconds: error ? 4 : 3),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-            side: BorderSide(color: error ? _UC.errorText.withOpacity(0.25) : _UC.gold.withOpacity(0.5)),
-          ),
-          content: Row(
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: _UsC.background,
+      appBar: widget.showBack
+          ? AppBar(
+              backgroundColor: _UsC.background,
+              foregroundColor: _UsC.ink,
+              elevation: 0,
+              scrolledUnderElevation: 0,
+              title: const Text('Ustadz / Guru',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _UsC.ink)),
+            )
+          : null,
+      body: Align(
+        alignment: Alignment.topCenter,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 480),
+          child: Stack(
             children: [
-              Container(
-                width: 32,
-                height: 32,
-                decoration: BoxDecoration(
-                  color: error ? Colors.white : _UC.gold.withOpacity(0.18),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  error ? Icons.error_outline : Icons.check_rounded,
-                  size: 18,
-                  color: error ? _UC.errorText : _UC.gold,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(title, style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: fg)),
-                    if (subtitle != null && subtitle.isNotEmpty) ...[
-                      const SizedBox(height: 2),
-                      Text(subtitle, style: TextStyle(fontSize: 11.5, color: fg.withOpacity(0.75))),
-                    ],
-                  ],
+              _body(),
+              Positioned(
+                right: 16,
+                bottom: 16,
+                child: FloatingActionButton.extended(
+                  heroTag: null,
+                  onPressed: _tambah,
+                  tooltip: 'Tambah Ustadz',
+                  backgroundColor: _UsC.primary,
+                  foregroundColor: Colors.white,
+                  elevation: 2,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+                  icon: const Icon(Icons.add, size: 18),
+                  label: const Text('Ustadz Baru',
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
                 ),
               ),
             ],
           ),
         ),
-      );
-  }
-
-  // ---------------------------------------------------------------------
-  // Building blocks
-  // ---------------------------------------------------------------------
-  Widget _card({required Widget child, EdgeInsets padding = const EdgeInsets.all(14)}) {
-    return Container(
-      width: double.infinity,
-      padding: padding,
-      decoration: BoxDecoration(
-        color: _UC.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _UC.border),
       ),
-      child: child,
     );
   }
 
-  Widget _header() {
-    return const Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('Data Ustadz & Pembina',
-            style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800, color: _UC.ink)),
-        SizedBox(height: 2),
-        Text('Guru pengajar dan musyrif / pembina pondok',
-            style: TextStyle(fontSize: 12, color: _UC.inkSecondary)),
-      ],
-    );
-  }
+  Widget _body() {
+    if (_loading) return loadingView();
+    if (_error != null) return errorView(_error!, _load);
+    if (_items.isEmpty) return emptyView('Belum ada ustadz. Tap "Ustadz Baru" untuk menambah.');
 
-  Widget _counter(IconData icon, String label, int value) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.10),
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(icon, size: 12, color: Colors.white.withOpacity(0.8)),
-                const SizedBox(width: 4),
-                Flexible(
-                  child: Text(label,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                          fontSize: 10.5, fontWeight: FontWeight.w600, color: Colors.white.withOpacity(0.8))),
-                ),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Text('$value',
-                style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: Colors.white)),
-          ],
-        ),
+    final q = _q.trim().toLowerCase();
+    final list = _items.where((u) {
+      if (_filter != 'SEMUA' && (u['jenis'] ?? '').toString() != _filter) return false;
+      if (q.isEmpty) return true;
+      final email = '${_akun(u)?['email'] ?? ''}'.toLowerCase();
+      return (u['nama'] ?? '').toString().toLowerCase().contains(q) ||
+          (u['noHp'] ?? '').toString().toLowerCase().contains(q) ||
+          email.contains(q);
+    }).toList();
+
+    return RefreshIndicator(
+      color: _UsC.primary,
+      onRefresh: _load,
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(12, 12, 12, 88),
+        children: [
+          _summaryCard(),
+          const SizedBox(height: 14),
+          _searchField(),
+          const SizedBox(height: 10),
+          _filterRow(),
+          const SizedBox(height: 12),
+          if (list.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 32),
+              child: Center(
+                child: Text('Tidak ada ustadz yang cocok.',
+                    style: TextStyle(fontSize: 12.5, color: _UsC.inkSecondary)),
+              ),
+            )
+          else
+            for (final u in list)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: _ustadzCard(u),
+              ),
+        ],
       ),
     );
   }
 
   Widget _summaryCard() {
     final total = _items.length;
-    final guru = _items.where((u) => (u['jenis'] ?? '').toString() == 'GURU').length;
-    final musyrif = _items.where((u) => (u['jenis'] ?? '').toString() == 'MUSYRIF').length;
-    final pct = total > 0 ? guru / total : 0.0;
+    final tanpaAkun = _items.where((u) => _akun(u) == null).length;
+    final waliKelas = _items.where((u) => _kelasWali(u).isNotEmpty).length;
+
+    Widget stat(String value, String label, {bool warn = false}) => Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(value,
+                  style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w800,
+                      color: warn ? _UsC.gold : Colors.white)),
+              const SizedBox(height: 2),
+              Text(label, style: TextStyle(fontSize: 11, color: Colors.white.withOpacity(0.72))),
+            ],
+          ),
+        );
 
     return Container(
-      clipBehavior: Clip.antiAlias,
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [_UC.primary, _UC.primaryGradientEnd],
+          colors: [_UsC.primary, _UsC.primaryEnd],
         ),
         borderRadius: BorderRadius.circular(18),
         boxShadow: [
-          BoxShadow(color: _UC.primary.withOpacity(0.18), blurRadius: 12, offset: const Offset(0, 4)),
+          BoxShadow(color: _UsC.primary.withOpacity(0.18), blurRadius: 12, offset: const Offset(0, 4)),
         ],
       ),
-      child: Stack(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Positioned(
-            right: -24,
-            top: -24,
-            child: Container(
-              width: 120,
-              height: 120,
-              decoration: BoxDecoration(color: _UC.gold.withOpacity(0.10), shape: BoxShape.circle),
-            ),
+          Row(
+            children: [
+              Container(
+                width: 6,
+                height: 6,
+                decoration: const BoxDecoration(color: _UsC.gold, shape: BoxShape.circle),
+              ),
+              const SizedBox(width: 6),
+              const Text('USTADZ / PEMBINA',
+                  style: TextStyle(
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.3,
+                      color: _UsC.gold)),
+            ],
           ),
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('RINGKASAN USTADZ',
-                    style: TextStyle(
-                        fontSize: 10,
-                        letterSpacing: 0.5,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white.withOpacity(0.7))),
-                const SizedBox(height: 4),
-                Text('$total Ustadz Terdaftar',
-                    style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: Colors.white)),
-                const SizedBox(height: 14),
-                Row(
-                  children: [
-                    _counter(Icons.groups_2_outlined, 'Total', total),
-                    const SizedBox(width: 8),
-                    _counter(Icons.school_outlined, 'Guru', guru),
-                    const SizedBox(width: 8),
-                    _counter(Icons.night_shelter_outlined, 'Musyrif', musyrif),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text('Porsi Guru', style: TextStyle(fontSize: 11.5, color: Colors.white.withOpacity(0.8))),
-                    Text('${(pct * 100).toStringAsFixed(1)}%',
-                        style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: Colors.white)),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(999),
-                  child: LinearProgressIndicator(
-                    value: pct,
-                    minHeight: 8,
-                    backgroundColor: Colors.white.withOpacity(0.15),
-                    valueColor: AlwaysStoppedAnimation(_UC.mint),
-                  ),
-                ),
-              ],
-            ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              stat('$total', 'Total Ustadz'),
+              stat('$waliKelas', 'Wali Kelas'),
+              stat('$tanpaAkun', 'Belum Punya Akun', warn: tanpaAkun > 0),
+            ],
           ),
         ],
       ),
@@ -420,152 +392,117 @@ class _UstadzListScreenState extends State<UstadzListScreen> {
   }
 
   Widget _searchField() {
+    OutlineInputBorder b(Color c, [double w = 1]) => OutlineInputBorder(
+          borderRadius: BorderRadius.circular(999),
+          borderSide: BorderSide(color: c, width: w),
+        );
     return TextField(
       onChanged: (v) => setState(() => _q = v),
-      style: const TextStyle(fontSize: 14, color: _UC.ink),
+      style: const TextStyle(fontSize: 13.5, color: _UsC.ink),
       decoration: InputDecoration(
-        hintText: 'Cari nama atau no HP',
-        hintStyle: const TextStyle(fontSize: 13, color: _UC.inkSecondary),
-        prefixIcon: const Icon(Icons.search_rounded, size: 20, color: _UC.inkSecondary),
+        hintText: 'Cari nama, no. HP, atau email',
+        hintStyle: const TextStyle(fontSize: 13, color: _UsC.inkSecondary),
+        prefixIcon: const Icon(Icons.search, size: 19, color: _UsC.inkSecondary),
         filled: true,
-        fillColor: _UC.surface,
-        contentPadding: const EdgeInsets.symmetric(vertical: 12),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(999),
-          borderSide: const BorderSide(color: _UC.border),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(999),
-          borderSide: BorderSide(color: _UC.primary),
-        ),
-      ),
-    );
-  }
-
-  Widget _filterChip(String value, String label, int count) {
-    final selected = _filter == value;
-    return GestureDetector(
-      onTap: () => setState(() => _filter = value),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-        decoration: BoxDecoration(
-          color: selected ? _UC.primary : _UC.surface,
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: selected ? _UC.primary : _UC.border),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(label,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: selected ? Colors.white : _UC.inkSecondary,
-                )),
-            const SizedBox(width: 6),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-              decoration: BoxDecoration(
-                color: selected ? Colors.white.withOpacity(0.2) : _UC.surfaceDim,
-                borderRadius: BorderRadius.circular(999),
-              ),
-              child: Text('$count',
-                  style: TextStyle(
-                    fontSize: 10.5,
-                    fontWeight: FontWeight.w800,
-                    color: selected ? Colors.white : _UC.inkSecondary,
-                  )),
-            ),
-          ],
-        ),
+        fillColor: _UsC.surface,
+        isDense: true,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        border: b(_UsC.border),
+        enabledBorder: b(_UsC.border),
+        focusedBorder: b(_UsC.primary, 1.4),
       ),
     );
   }
 
   Widget _filterRow() {
-    int countJenis(String j) => _items.where((u) => (u['jenis'] ?? '').toString() == j).length;
+    int count(String j) => _items.where((u) => (u['jenis'] ?? '').toString() == j).length;
+    Widget chip(String value, String label, int n) {
+      final selected = _filter == value;
+      return GestureDetector(
+        onTap: () => setState(() => _filter = value),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            color: selected ? _UsC.primary : _UsC.surface,
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: selected ? _UsC.primary : _UsC.border),
+          ),
+          child: Text('$label ($n)',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: selected ? Colors.white : _UsC.inkSecondary,
+              )),
+        ),
+      );
+    }
+
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: Row(
         children: [
-          _filterChip('SEMUA', 'Semua', _items.length),
-          for (final j in _kJenis) ...[
-            const SizedBox(width: 8),
-            _filterChip(j.value, j.chip, countJenis(j.value)),
-          ],
+          chip('SEMUA', 'Semua', _items.length),
+          const SizedBox(width: 8),
+          chip('GURU', 'Guru', count('GURU')),
+          const SizedBox(width: 8),
+          chip('MUSYRIF', 'Musyrif', count('MUSYRIF')),
         ],
       ),
     );
   }
 
-  Widget _emptyCard(String msg) {
-    return _card(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 32),
-      child: Column(
+  Widget _infoRow(IconData icon, String text, {Color? color, FontWeight? weight}) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: Row(
         children: [
-          Container(
-            width: 56,
-            height: 56,
-            decoration: const BoxDecoration(color: _UC.goldSurface, shape: BoxShape.circle),
-            child: const Icon(Icons.manage_accounts_outlined, color: _UC.gold, size: 26),
+          Icon(icon, size: 15, color: color ?? _UsC.inkSecondary),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(text,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 12, color: color ?? _UsC.inkSecondary, fontWeight: weight)),
           ),
-          const SizedBox(height: 12),
-          Text(msg,
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 13, color: _UC.inkSecondary, height: 1.4)),
         ],
       ),
     );
   }
 
-  Widget _actionBtn(IconData icon, String tooltip, Color fg, Color bg, VoidCallback onTap) {
-    return Tooltip(
-      message: tooltip,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(999),
-        child: Container(
-          width: 34,
-          height: 34,
-          decoration: BoxDecoration(color: bg, shape: BoxShape.circle),
-          child: Icon(icon, size: 17, color: fg),
-        ),
-      ),
-    );
-  }
-
-  Widget _ustadzCard(int index, Map<String, dynamic> u) {
+  Widget _ustadzCard(Map<String, dynamic> u) {
     final nama = (u['nama'] ?? '-').toString().trim();
-    final noHp = (u['noHp'] ?? '').toString().trim();
-    final jenis = _jenisOf((u['jenis'] ?? '').toString());
-    final even = index.isEven;
+    final musyrif = (u['jenis'] ?? 'GURU').toString() == 'MUSYRIF';
+    final hp = (u['noHp'] ?? '').toString().trim();
+    final akun = _akun(u);
+    final aktif = akun != null && (akun['status'] ?? '').toString() == 'AKTIF';
+    final kelasWali = _kelasWali(u);
+    final inisial = nama.isEmpty ? '?' : nama.substring(0, 1).toUpperCase();
 
-    // Pill jenis: guru = hijau tema, musyrif = emas
-    Color pillBg;
-    Color pillFg;
-    if (jenis.value == 'MUSYRIF') {
-      pillBg = const Color(0xFFF3E2B8);
-      pillFg = _UC.goldDark;
-    } else {
-      pillBg = _UC.sage;
-      pillFg = _UC.primary;
-    }
-
-    return _card(
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 12, 4, 12),
+      decoration: BoxDecoration(
+        color: _UsC.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: akun == null ? _UsC.goldBorder : _UsC.border),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
               Container(
-                width: 44,
-                height: 44,
+                width: 42,
+                height: 42,
                 alignment: Alignment.center,
-                decoration: BoxDecoration(color: even ? _UC.sage : _UC.goldSurface, shape: BoxShape.circle),
-                child: Text(_inisial(nama),
+                decoration: BoxDecoration(
+                  color: musyrif ? _UsC.goldSurface : _UsC.sage,
+                  shape: BoxShape.circle,
+                ),
+                child: Text(inisial,
                     style: TextStyle(
-                        fontSize: 16, fontWeight: FontWeight.w800, color: even ? _UC.primary : _UC.gold)),
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: musyrif ? _UsC.gold : _UsC.primary)),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -575,203 +512,148 @@ class _UstadzListScreenState extends State<UstadzListScreen> {
                     Text(nama,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: _UC.ink)),
-                    const SizedBox(height: 2),
-                    Row(
-                      children: [
-                        const Icon(Icons.phone_outlined, size: 12, color: _UC.inkSecondary),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(noHp.isEmpty ? 'No HP belum diisi' : noHp,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(fontSize: 11.5, color: _UC.inkSecondary)),
-                        ),
-                      ],
+                        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: _UsC.ink)),
+                    const SizedBox(height: 5),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: musyrif ? _UsC.goldSurface : _UsC.mint,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(musyrif ? 'Musyrif' : 'Guru',
+                          style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              color: musyrif ? _UsC.goldDark : _UsC.primary)),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(width: 8),
-              _actionBtn(Icons.edit_outlined, 'Edit', _UC.primary, _UC.sage, () => _edit(u)),
-              const SizedBox(width: 6),
-              _actionBtn(Icons.delete_outline, 'Hapus', _UC.errorText, _UC.errorBg, () => _delete(u)),
+              PopupMenuButton<String>(
+                tooltip: 'Aksi',
+                icon: const Icon(Icons.more_vert, size: 20, color: _UsC.inkSecondary),
+                color: _UsC.surface,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                onSelected: (v) {
+                  if (v == 'edit') _edit(u);
+                  if (v == 'hapus') _hapus(u);
+                },
+                itemBuilder: (_) => const [
+                  PopupMenuItem(value: 'edit', child: Text('Edit', style: TextStyle(fontSize: 13))),
+                  PopupMenuItem(
+                    value: 'hapus',
+                    child: Text('Hapus', style: TextStyle(fontSize: 13, color: _UsC.errorText)),
+                  ),
+                ],
+              ),
             ],
           ),
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(color: pillBg, borderRadius: BorderRadius.circular(999)),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(jenis.icon, size: 14, color: pillFg),
-                const SizedBox(width: 6),
-                Text(jenis.label, style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: pillFg)),
-              ],
+          const SizedBox(height: 6),
+          if (hp.isNotEmpty) _infoRow(Icons.phone_outlined, hp),
+          if (kelasWali.isNotEmpty)
+            _infoRow(Icons.class_outlined, 'Wali kelas: ${kelasWali.join(', ')}',
+                color: _UsC.ink, weight: FontWeight.w600),
+          if (akun != null)
+            _infoRow(Icons.verified_user_outlined, '${akun['email']} • ${aktif ? 'Aktif' : 'Nonaktif'}')
+          else
+            Padding(
+              padding: const EdgeInsets.only(top: 6, right: 8),
+              child: Row(
+                children: [
+                  const Icon(Icons.person_off_outlined, size: 15, color: _UsC.pendingText),
+                  const SizedBox(width: 6),
+                  const Expanded(
+                    child: Text('Belum punya akun login',
+                        style: TextStyle(
+                            fontSize: 12, fontWeight: FontWeight.w700, color: _UsC.pendingText)),
+                  ),
+                  OutlinedButton(
+                    onPressed: () => _buatAkun(u),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: _UsC.primary,
+                      side: BorderSide(color: _UsC.primary.withOpacity(0.4)),
+                      minimumSize: Size.zero,
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+                    ),
+                    child: const Text('Buat Akun',
+                        style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700)),
+                  ),
+                ],
+              ),
             ),
-          ),
         ],
       ),
     );
   }
-
-  // ---------------------------------------------------------------------
-  // Build
-  // ---------------------------------------------------------------------
-  @override
-  Widget build(BuildContext context) {
-    final q = _q.trim().toLowerCase();
-    final filtered = _items.where((u) {
-      if (_filter != 'SEMUA' && (u['jenis'] ?? '').toString() != _filter) return false;
-      if (q.isEmpty) return true;
-      return (u['nama'] ?? '').toString().toLowerCase().contains(q) ||
-          (u['noHp'] ?? '').toString().toLowerCase().contains(q);
-    }).toList();
-
-    Widget content;
-    if (_loading) {
-      content = loadingView();
-    } else if (_error != null) {
-      content = errorView(_error!, _load);
-    } else {
-      content = RefreshIndicator(
-        color: _UC.primary,
-        onRefresh: _load,
-        child: ListView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
-          children: [
-            _header(),
-            const SizedBox(height: 14),
-            _summaryCard(),
-            const SizedBox(height: 14),
-            _searchField(),
-            const SizedBox(height: 12),
-            _filterRow(),
-            const SizedBox(height: 14),
-            if (filtered.isEmpty)
-              _emptyCard(_items.isEmpty ? 'Belum ada ustadz / pembina.' : 'Tidak ada ustadz yang cocok.')
-            else
-              for (var i = 0; i < filtered.length; i++) ...[
-                _ustadzCard(i, filtered[i]),
-                const SizedBox(height: 10),
-              ],
-          ],
-        ),
-      );
-    }
-
-    return Scaffold(
-      backgroundColor: _UC.background,
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 480),
-          child: Stack(
-            children: [
-              Positioned.fill(child: content),
-              Positioned(
-                right: 16,
-                bottom: 16,
-                child: FloatingActionButton.extended(
-                  onPressed: _add,
-                  backgroundColor: _UC.primary,
-                  foregroundColor: Colors.white,
-                  icon: const Icon(Icons.person_add_alt_1_rounded),
-                  label: const Text('Tambah Ustadz'),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 }
 
-// ---------------------------------------------------------------------
-// Bottom sheet: tambah / edit ustadz
-// ---------------------------------------------------------------------
-class _FormSheet extends StatefulWidget {
+/// Dialog tambah/edit ustadz.
+class _UstadzFormDialog extends StatefulWidget {
   final Map<String, dynamic>? existing;
-  const _FormSheet({this.existing});
+  const _UstadzFormDialog({this.existing});
 
   @override
-  State<_FormSheet> createState() => _FormSheetState();
+  State<_UstadzFormDialog> createState() => _UstadzFormDialogState();
 }
 
-class _FormSheetState extends State<_FormSheet> {
+class _UstadzFormDialogState extends State<_UstadzFormDialog> {
   late final TextEditingController _nama;
-  late final TextEditingController _noHp;
+  late final TextEditingController _hp;
   late String _jenis;
   String? _err;
 
-  bool get _isEdit => widget.existing != null;
+  /// Jenis dikunci kalau sudah punya akun, karena role akun (USTADZ/MUSYRIF)
+  /// harus sejalan dengan jenisnya.
+  bool get _terkunci => widget.existing?['userId'] != null;
 
   @override
   void initState() {
     super.initState();
-    final e = widget.existing;
-    _nama = TextEditingController(text: e?['nama'] as String? ?? '');
-    _noHp = TextEditingController(text: e?['noHp'] as String? ?? '');
-    _jenis = e?['jenis'] as String? ?? 'GURU';
+    _nama = TextEditingController(text: widget.existing?['nama']?.toString() ?? '');
+    _hp = TextEditingController(text: widget.existing?['noHp']?.toString() ?? '');
+    _jenis = widget.existing?['jenis']?.toString() == 'MUSYRIF' ? 'MUSYRIF' : 'GURU';
   }
 
   @override
   void dispose() {
     _nama.dispose();
-    _noHp.dispose();
+    _hp.dispose();
     super.dispose();
   }
 
   void _submit() {
-    final nama = _nama.text.trim();
-    final noHp = _noHp.text.trim();
-    if (nama.isEmpty) {
+    if (_nama.text.trim().isEmpty) {
       setState(() => _err = 'Nama wajib diisi.');
       return;
     }
-    Navigator.pop<Map<String, dynamic>>(context, {
-      'nama': nama,
-      'noHp': noHp.isEmpty ? null : noHp,
+    Navigator.pop<Map<String, String>>(context, {
+      'nama': _nama.text.trim(),
       'jenis': _jenis,
+      'noHp': _hp.text.trim(),
     });
   }
 
-  InputDecoration _dec(String label, {String? hint}) => InputDecoration(
-        labelText: label,
-        hintText: hint,
-        hintStyle: const TextStyle(fontSize: 13, color: _UC.inkSecondary),
-        labelStyle: const TextStyle(fontSize: 13, color: _UC.inkSecondary),
-        filled: true,
-        fillColor: _UC.surfaceDim,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-      );
-
-  Widget _jenisChip(_JenisInfo j) {
-    final selected = _jenis == j.value;
-    return GestureDetector(
-      onTap: () => setState(() => _jenis = j.value),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-        decoration: BoxDecoration(
-          color: selected ? _UC.primary : _UC.surface,
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: selected ? _UC.primary : _UC.border),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(j.icon, size: 15, color: selected ? Colors.white : _UC.inkSecondary),
-            const SizedBox(width: 6),
-            Text(j.label,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: selected ? Colors.white : _UC.inkSecondary,
-                )),
-          ],
+  Widget _jenisChip(String value, String label) {
+    final selected = _jenis == value;
+    return Expanded(
+      child: GestureDetector(
+        onTap: _terkunci ? null : () => setState(() => _jenis = value),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 11),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: selected ? _UsC.primary : _UsC.surface,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: selected ? _UsC.primary : _UsC.border),
+          ),
+          child: Text(label,
+              style: TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w700,
+                color: selected ? Colors.white : _UsC.inkSecondary,
+              )),
         ),
       ),
     );
@@ -779,111 +661,236 @@ class _FormSheetState extends State<_FormSheet> {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-      child: SafeArea(
+    final isEdit = widget.existing != null;
+    return AlertDialog(
+      backgroundColor: _UsC.surface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      titlePadding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+      contentPadding: const EdgeInsets.fromLTRB(20, 16, 20, 4),
+      actionsPadding: const EdgeInsets.fromLTRB(16, 8, 16, 14),
+      title: Row(
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(color: _UsC.sage, shape: BoxShape.circle),
+            child: Icon(Icons.assignment_ind_rounded, size: 17, color: _UsC.primary),
+          ),
+          const SizedBox(width: 10),
+          Text(isEdit ? 'Edit Ustadz' : 'Tambah Ustadz',
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _UsC.ink)),
+        ],
+      ),
+      content: SizedBox(
+        width: 400,
         child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(20, 18, 20, 16),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                children: [
-                  Container(
-                    width: 38,
-                    height: 38,
-                    decoration: const BoxDecoration(color: _UC.goldSurface, shape: BoxShape.circle),
-                    child: Icon(_isEdit ? Icons.edit_outlined : Icons.person_add_alt_1_rounded,
-                        size: 18, color: _UC.gold),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(_isEdit ? 'Edit Ustadz / Pembina' : 'Tambah Ustadz / Pembina',
-                            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: _UC.ink)),
-                        Text(_isEdit ? 'Perbarui data ustadz' : 'Tambahkan guru atau musyrif baru',
-                            style: const TextStyle(fontSize: 11.5, color: _UC.inkSecondary)),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
+              _label('Nama'),
               TextField(
                 controller: _nama,
+                autofocus: true,
                 textCapitalization: TextCapitalization.words,
-                style: const TextStyle(fontSize: 14, color: _UC.ink),
-                decoration: _dec('Nama', hint: 'Nama lengkap'),
+                style: const TextStyle(fontSize: 14, color: _UsC.ink),
+                decoration: _dec('Nama lengkap'),
+                onChanged: (_) {
+                  if (_err != null) setState(() => _err = null);
+                },
               ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _noHp,
-                keyboardType: TextInputType.phone,
-                style: const TextStyle(fontSize: 14, color: _UC.ink),
-                decoration: _dec('No HP', hint: '08xxxxxxxxxx (opsional)'),
-              ),
-              const SizedBox(height: 16),
-              const Text('JENIS',
-                  style: TextStyle(
-                      fontSize: 10, letterSpacing: 0.4, fontWeight: FontWeight.w700, color: _UC.inkSecondary)),
-              const SizedBox(height: 8),
-              Wrap(spacing: 8, runSpacing: 8, children: [for (final j in _kJenis) _jenisChip(j)]),
               if (_err != null) ...[
-                const SizedBox(height: 12),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(color: _UC.errorBg, borderRadius: BorderRadius.circular(10)),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.error_outline, size: 16, color: _UC.errorText),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(_err!, style: const TextStyle(fontSize: 12.5, color: _UC.errorText)),
-                      ),
-                    ],
-                  ),
+                const SizedBox(height: 6),
+                Padding(
+                  padding: const EdgeInsets.only(left: 2),
+                  child: Text(_err!, style: const TextStyle(fontSize: 11.5, color: _UsC.errorText)),
                 ),
               ],
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
+              _label('Jenis'),
               Row(
                 children: [
-                  OutlinedButton(
-                    onPressed: () => Navigator.pop(context),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: _UC.inkSecondary,
-                      side: const BorderSide(color: _UC.border),
-                      minimumSize: const Size(0, 50),
-                      padding: const EdgeInsets.symmetric(horizontal: 22),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-                    ),
-                    child: const Text('Batal', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: SizedBox(
-                      height: 50,
-                      child: FilledButton.icon(
-                        onPressed: _submit,
-                        style: FilledButton.styleFrom(
-                          backgroundColor: _UC.primary,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-                        ),
-                        icon: const Icon(Icons.verified_outlined, size: 18, color: Colors.white),
-                        label: Text(_isEdit ? 'Simpan Perubahan' : 'Simpan Ustadz',
-                            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Colors.white)),
-                      ),
-                    ),
-                  ),
+                  _jenisChip('GURU', 'Guru'),
+                  const SizedBox(width: 8),
+                  _jenisChip('MUSYRIF', 'Musyrif'),
                 ],
+              ),
+              if (_terkunci)
+                const Padding(
+                  padding: EdgeInsets.only(top: 6, left: 2),
+                  child: Text('Jenis dikunci karena sudah punya akun login.',
+                      style: TextStyle(fontSize: 11, color: _UsC.inkSecondary)),
+                ),
+              const SizedBox(height: 12),
+              _label('No. HP (opsional)'),
+              TextField(
+                controller: _hp,
+                keyboardType: TextInputType.phone,
+                style: const TextStyle(fontSize: 14, color: _UsC.ink),
+                decoration: _dec('Contoh: 0812xxxxxxx'),
               ),
             ],
           ),
         ),
       ),
+      actions: [
+        OutlinedButton(
+          style: OutlinedButton.styleFrom(
+            side: const BorderSide(color: _UsC.border),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+          ),
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Batal',
+              style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: _UsC.inkSecondary)),
+        ),
+        FilledButton(
+          style: FilledButton.styleFrom(
+            backgroundColor: _UsC.primary,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+          ),
+          onPressed: _submit,
+          child: const Text('Simpan',
+              style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: Colors.white)),
+        ),
+      ],
+    );
+  }
+}
+
+/// Dialog buat akun login untuk ustadz yang sudah ada datanya.
+class _AkunDialog extends StatefulWidget {
+  final String nama;
+  final String jenis;
+  const _AkunDialog({required this.nama, required this.jenis});
+
+  @override
+  State<_AkunDialog> createState() => _AkunDialogState();
+}
+
+class _AkunDialogState extends State<_AkunDialog> {
+  final _email = TextEditingController();
+  final _pass = TextEditingController();
+  bool _show = false;
+  String? _err;
+
+  @override
+  void dispose() {
+    _email.dispose();
+    _pass.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final email = _email.text.trim();
+    if (email.isEmpty || !email.contains('@') || !email.contains('.')) {
+      setState(() => _err = 'Format email tidak valid.');
+      return;
+    }
+    if (_pass.text.length < 6) {
+      setState(() => _err = 'Password minimal 6 karakter.');
+      return;
+    }
+    Navigator.pop<Map<String, String>>(context, {'email': email, 'password': _pass.text});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final roleLabel = widget.jenis == 'MUSYRIF' ? 'Musyrif / Pembina' : 'Ustadz / Guru';
+    return AlertDialog(
+      backgroundColor: _UsC.surface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      titlePadding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+      contentPadding: const EdgeInsets.fromLTRB(20, 16, 20, 4),
+      actionsPadding: const EdgeInsets.fromLTRB(16, 8, 16, 14),
+      title: Row(
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: const BoxDecoration(color: _UsC.goldSurface, shape: BoxShape.circle),
+            child: const Icon(Icons.lock_person, size: 17, color: _UsC.gold),
+          ),
+          const SizedBox(width: 10),
+          const Expanded(
+            child: Text('Buat Akun Login',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _UsC.ink)),
+          ),
+        ],
+      ),
+      content: SizedBox(
+        width: 400,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('${widget.nama} • $roleLabel',
+                  style: const TextStyle(fontSize: 12.5, color: _UsC.inkSecondary)),
+              const SizedBox(height: 14),
+              _label('Email'),
+              TextField(
+                controller: _email,
+                autofocus: true,
+                keyboardType: TextInputType.emailAddress,
+                autocorrect: false,
+                style: const TextStyle(fontSize: 14, color: _UsC.ink),
+                decoration: _dec('nama@pondok.id'),
+                onChanged: (_) {
+                  if (_err != null) setState(() => _err = null);
+                },
+              ),
+              const SizedBox(height: 12),
+              _label('Password'),
+              TextField(
+                controller: _pass,
+                obscureText: !_show,
+                style: const TextStyle(fontSize: 14, color: _UsC.ink),
+                decoration: _dec(
+                  'Minimal 6 karakter',
+                  suffix: IconButton(
+                    onPressed: () => setState(() => _show = !_show),
+                    icon: Icon(
+                      _show ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                      size: 20,
+                      color: _UsC.inkSecondary,
+                    ),
+                  ),
+                ),
+                onChanged: (_) {
+                  if (_err != null) setState(() => _err = null);
+                },
+              ),
+              if (_err != null) ...[
+                const SizedBox(height: 8),
+                Padding(
+                  padding: const EdgeInsets.only(left: 2),
+                  child: Text(_err!, style: const TextStyle(fontSize: 11.5, color: _UsC.errorText)),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        OutlinedButton(
+          style: OutlinedButton.styleFrom(
+            side: const BorderSide(color: _UsC.border),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+          ),
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Batal',
+              style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: _UsC.inkSecondary)),
+        ),
+        FilledButton(
+          style: FilledButton.styleFrom(
+            backgroundColor: _UsC.primary,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+          ),
+          onPressed: _submit,
+          child: const Text('Buat Akun',
+              style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: Colors.white)),
+        ),
+      ],
     );
   }
 }
