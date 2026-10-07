@@ -1,29 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../../services/api_client.dart';
 import '../../services/app_scope.dart';
 import '../santri/santri_ui.dart';
 import '../ui_utils.dart';
-
-/// Palet sama persis dengan `_WC` di dashboard_screen.dart.
-class _KC {
-  _KC._();
-
-  static Color get primary => SC.primary;
-  static const gold = Color(0xFFC5A059);
-  static const goldSurface = Color(0xFFFAF5EC);
-  static Color get mint => SC.mint;
-  static Color get sage => SC.sage;
-
-  static const background = Color(0xFFFAF9F5);
-  static const surface = Color(0xFFFFFFFF);
-  static const surfaceDim = Color(0xFFF5F4EE);
-
-  static const ink = Color(0xFF0F172A);
-  static const inkSecondary = Color(0xFF475569);
-  static const border = Color(0xFFEAE6DC);
-
-  static const errorText = Color(0xFF991B1B);
-}
 
 class KelasListScreen extends StatefulWidget {
   /// true kalau dibuka lewat Navigator.push (mis. dari dashboard) supaya ada
@@ -38,9 +19,16 @@ class KelasListScreen extends StatefulWidget {
 class _KelasListScreenState extends State<KelasListScreen> {
   List<dynamic> _items = [];
   bool _loading = true;
+  bool _busy = false; // true selama simpan/hapus/muat daftar ustadz berjalan
   String? _error;
   String _query = '';
   String _tingkatFilter = 'Semua';
+
+  /// Banner notifikasi inline (di atas daftar), hilang otomatis.
+  String? _bannerTitle;
+  String? _bannerSub;
+  bool _bannerError = false;
+  Timer? _bannerTimer;
 
   @override
   void initState() {
@@ -50,11 +38,21 @@ class _KelasListScreenState extends State<KelasListScreen> {
     });
   }
 
-  Future<void> _load() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
+  @override
+  void dispose() {
+    _bannerTimer?.cancel();
+    super.dispose();
+  }
+
+  /// [silent] = true: tidak menampilkan spinner layar penuh (dipakai setelah
+  /// simpan/hapus supaya daftar tidak berkedip).
+  Future<void> _load({bool silent = false}) async {
+    if (!silent) {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+    }
     try {
       final api = AppScope.of(context).api;
       final res = await api.get(ApiUrl.kelas);
@@ -62,16 +60,23 @@ class _KelasListScreenState extends State<KelasListScreen> {
       setState(() {
         _items = res is List ? res : ((res is Map ? res['items'] : null) as List? ?? []);
         _loading = false;
+        _error = null;
       });
     } on ApiException catch (e) {
-      if (mounted) {
+      if (!mounted) return;
+      if (silent) {
+        _toast(e.message, error: true);
+      } else {
         setState(() {
           _error = e.message;
           _loading = false;
         });
       }
     } catch (_) {
-      if (mounted) {
+      if (!mounted) return;
+      if (silent) {
+        _toast('Gagal memuat ulang daftar kelas.', error: true);
+      } else {
         setState(() {
           _error = 'Gagal memuat daftar kelas.';
           _loading = false;
@@ -80,9 +85,22 @@ class _KelasListScreenState extends State<KelasListScreen> {
     }
   }
 
-  void _snack(String msg) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  /// Satu pola untuk semua aksi tulis: kunci tombol, tampilkan progress di atas,
+  /// tangkap error, lalu muat ulang daftar tanpa spinner penuh.
+  Future<void> _jalankan(Future<void> Function() aksi, String sukses, {String? sub}) async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      await aksi();
+      _toast(sukses, subtitle: sub);
+      await _load(silent: true);
+    } on ApiException catch (e) {
+      _toast(e.message, error: true);
+    } catch (_) {
+      _toast('Terjadi kesalahan. Coba lagi.', error: true);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
   /// Daftar ustadz untuk dropdown Wali Kelas. null = gagal dimuat.
@@ -96,83 +114,176 @@ class _KelasListScreenState extends State<KelasListScreen> {
     }
   }
 
-  Future<void> _add() async {
+  /// Muat daftar ustadz sambil menampilkan progress di atas layar.
+  Future<List<Map<String, dynamic>>?> _loadUstadzDenganProgress() async {
+    setState(() => _busy = true);
     final ustadz = await _loadUstadz();
+    if (mounted) setState(() => _busy = false);
+    return ustadz;
+  }
+
+  Future<void> _add() async {
+    if (_busy) return;
+    final ustadz = await _loadUstadzDenganProgress();
     if (!mounted) return;
     final result = await showDialog<Map<String, dynamic>>(
       context: context,
       builder: (_) => _KelasFormDialog(ustadzList: ustadz),
     );
-    if (result == null) return;
-    try {
-      await AppScope.of(context).api.post(ApiUrl.kelas, result);
-      _snack('Kelas berhasil ditambah');
-      _load();
-    } on ApiException catch (e) {
-      _snack(e.message);
-    }
+    if (result == null || !mounted) return;
+    final api = AppScope.of(context).api;
+    await _jalankan(() async {
+      await api.post(ApiUrl.kelas, result);
+    }, 'Kelas ditambahkan', sub: result['namaKelas']?.toString());
   }
 
   Future<void> _edit(Map<String, dynamic> kelas) async {
-    final ustadz = await _loadUstadz();
+    if (_busy) return;
+    final ustadz = await _loadUstadzDenganProgress();
     if (!mounted) return;
     final result = await showDialog<Map<String, dynamic>>(
       context: context,
       builder: (_) => _KelasFormDialog(existing: kelas, ustadzList: ustadz),
     );
-    if (result == null) return;
-    try {
-      await AppScope.of(context).api.patch('${ApiUrl.kelas}/${kelas['id']}', result);
-      _snack('Kelas berhasil diperbarui');
-      _load();
-    } on ApiException catch (e) {
-      _snack(e.message);
-    }
+    if (result == null || !mounted) return;
+    final api = AppScope.of(context).api;
+    await _jalankan(() async {
+      await api.patch('${ApiUrl.kelas}/${kelas['id']}', result);
+    }, 'Kelas diperbarui', sub: result['namaKelas']?.toString());
   }
 
   Future<void> _delete(Map<String, dynamic> kelas) async {
+    if (_busy) return;
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: _KC.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        title: const Text('Hapus Kelas',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _KC.ink)),
+        backgroundColor: SC.surface,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+        icon: Container(
+          width: 52,
+          height: 52,
+          decoration: const BoxDecoration(color: SC.errorBg, shape: BoxShape.circle),
+          child: const Icon(Icons.delete_outline_rounded, color: SC.errorText, size: 26),
+        ),
+        title: Text('Hapus kelas?',
+            textAlign: TextAlign.center, style: sty(17, FontWeight.w800, SC.ink)),
         content: Text(
           'Kelas "${kelas['namaKelas']}" akan dihapus permanen.',
-          style: const TextStyle(fontSize: 13, color: _KC.inkSecondary, height: 1.4),
+          textAlign: TextAlign.center,
+          style: sty(13, FontWeight.w500, SC.inkSecondary, h: 1.45),
         ),
-        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+        actionsAlignment: MainAxisAlignment.center,
+        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
         actions: [
           OutlinedButton(
             style: OutlinedButton.styleFrom(
-              side: const BorderSide(color: _KC.border),
+              side: const BorderSide(color: SC.border),
+              padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
             ),
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Batal',
-                style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: _KC.inkSecondary)),
+            child: Text('Batal', style: sty(13, FontWeight.w700, SC.inkSecondary)),
           ),
           FilledButton(
             style: FilledButton.styleFrom(
-              backgroundColor: _KC.errorText,
+              backgroundColor: SC.errorText,
+              padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
             ),
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Hapus',
-                style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: Colors.white)),
+            child: Text('Ya, hapus', style: sty(13, FontWeight.w700, Colors.white)),
           ),
         ],
       ),
     );
-    if (ok != true) return;
-    try {
-      await AppScope.of(context).api.delete('${ApiUrl.kelas}/${kelas['id']}');
-      _snack('Kelas dihapus');
-      _load();
-    } on ApiException catch (e) {
-      _snack(e.message);
-    }
+    if (ok != true || !mounted) return;
+    final api = AppScope.of(context).api;
+    await _jalankan(() async {
+      await api.delete('${ApiUrl.kelas}/${kelas['id']}');
+    }, 'Kelas dihapus', sub: kelas['namaKelas']?.toString());
+  }
+
+  // ---------------------------------------------------------------------
+  // Banner inline
+  // ---------------------------------------------------------------------
+  void _toast(String title, {String? subtitle, bool error = false}) {
+    if (!mounted) return;
+    _bannerTimer?.cancel();
+    setState(() {
+      _bannerTitle = title;
+      _bannerSub = subtitle;
+      _bannerError = error;
+    });
+    _bannerTimer = Timer(Duration(seconds: error ? 5 : 3), _closeBanner);
+  }
+
+  void _closeBanner() {
+    _bannerTimer?.cancel();
+    if (mounted) setState(() => _bannerTitle = null);
+  }
+
+  Widget _banner() {
+    final title = _bannerTitle;
+    final error = _bannerError;
+    final fg = error ? SC.errorText : Colors.white;
+
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOutCubic,
+      alignment: Alignment.topCenter,
+      child: title == null
+          ? const SizedBox(width: double.infinity)
+          : Container(
+              margin: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+              padding: const EdgeInsets.fromLTRB(12, 10, 6, 10),
+              decoration: BoxDecoration(
+                color: error ? SC.errorBg : SC.primary,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: error ? SC.errorText.withOpacity(0.25) : SC.gold.withOpacity(0.5),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: error ? Colors.white : SC.gold.withOpacity(0.18),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      error ? Icons.error_outline : Icons.check_rounded,
+                      size: 18,
+                      color: error ? SC.errorText : SC.gold,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(title, style: sty(13.5, FontWeight.w800, fg)),
+                        if (_bannerSub != null && _bannerSub!.isNotEmpty) ...[
+                          const SizedBox(height: 2),
+                          Text(_bannerSub!,
+                              style: sty(11.5, FontWeight.w500, fg.withOpacity(0.75))),
+                        ],
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: _closeBanner,
+                    visualDensity: VisualDensity.compact,
+                    tooltip: 'Tutup',
+                    icon: Icon(Icons.close_rounded, size: 18, color: fg.withOpacity(0.7)),
+                  ),
+                ],
+              ),
+            ),
+    );
   }
 
   // ---------------------------------------------------------------------
@@ -250,15 +361,25 @@ class _KelasListScreenState extends State<KelasListScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _KC.background,
+      backgroundColor: SC.background,
       appBar: widget.showBack
           ? AppBar(
-              backgroundColor: _KC.background,
-              foregroundColor: _KC.ink,
+              automaticallyImplyLeading: false,
+              backgroundColor: SC.background,
+              foregroundColor: SC.ink,
+              surfaceTintColor: Colors.transparent,
               elevation: 0,
               scrolledUnderElevation: 0,
-              title: const Text('Rombel & Halaqah',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _KC.ink)),
+              leading: IconButton(
+                tooltip: 'Kembali',
+                icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
+                onPressed: () => Navigator.of(context).maybePop(),
+              ),
+              title: Text('Rombel & Halaqah', style: sty(16, FontWeight.w800, SC.ink)),
+              bottom: const PreferredSize(
+                preferredSize: Size.fromHeight(1),
+                child: Divider(height: 1, thickness: 1, color: SC.border),
+              ),
             )
           : null,
       body: Align(
@@ -267,21 +388,39 @@ class _KelasListScreenState extends State<KelasListScreen> {
           constraints: const BoxConstraints(maxWidth: 480),
           child: Stack(
             children: [
-              _body(),
+              Column(
+                children: [
+                  _banner(),
+                  Expanded(child: _body()),
+                ],
+              ),
+              if (_busy)
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  child: LinearProgressIndicator(
+                    minHeight: 2,
+                    color: SC.gold,
+                    backgroundColor: Colors.transparent,
+                  ),
+                ),
               Positioned(
                 right: 16,
                 bottom: 16,
                 child: FloatingActionButton.extended(
                   heroTag: null,
-                  onPressed: _add,
-                  tooltip: 'Tambah Kelas',
-                  backgroundColor: _KC.primary,
+                  onPressed: _busy ? null : _add,
+                  tooltip: 'Tambah kelas',
+                  backgroundColor: SC.primary,
                   foregroundColor: Colors.white,
-                  elevation: 2,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-                  icon: const Icon(Icons.add, size: 18),
-                  label: const Text('Kelas Baru',
-                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+                  elevation: 4,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(999),
+                    side: BorderSide(color: SC.gold.withOpacity(0.6)),
+                  ),
+                  icon: const Icon(Icons.add_rounded, size: 18, color: SC.gold),
+                  label: Text('Kelas baru', style: sty(13, FontWeight.w700, Colors.white)),
                 ),
               ),
             ],
@@ -294,12 +433,12 @@ class _KelasListScreenState extends State<KelasListScreen> {
   Widget _body() {
     if (_loading) return loadingView();
     if (_error != null) return errorView(_error!, _load);
-    if (_items.isEmpty) return emptyView('Belum ada kelas. Tap "Kelas Baru" untuk menambah.');
+    if (_items.isEmpty) return emptyView('Belum ada kelas. Tap "Kelas baru" untuk menambah.');
 
     final list = _filtered();
     return RefreshIndicator(
-      color: _KC.primary,
-      onRefresh: _load,
+      color: SC.primary,
+      onRefresh: () => _load(silent: true),
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(12, 12, 12, 88),
@@ -311,11 +450,11 @@ class _KelasListScreenState extends State<KelasListScreen> {
           _tingkatChips(),
           const SizedBox(height: 12),
           if (list.isEmpty)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 32),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 32),
               child: Center(
                 child: Text('Tidak ada kelas yang cocok.',
-                    style: TextStyle(fontSize: 12.5, color: _KC.inkSecondary)),
+                    style: sty(12.5, FontWeight.w500, SC.inkSecondary)),
               ),
             )
           else
@@ -339,14 +478,9 @@ class _KelasListScreenState extends State<KelasListScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(value,
-                style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w800,
-                    color: warn ? _KC.gold : Colors.white)),
+            Text(value, style: sty(22, FontWeight.w800, warn ? SC.gold : Colors.white)),
             const SizedBox(height: 2),
-            Text(label,
-                style: TextStyle(fontSize: 11, color: Colors.white.withOpacity(0.72))),
+            Text(label, style: sty(11, FontWeight.w500, Colors.white.withOpacity(0.72))),
           ],
         ),
       );
@@ -373,15 +507,11 @@ class _KelasListScreenState extends State<KelasListScreen> {
               Container(
                 width: 6,
                 height: 6,
-                decoration: const BoxDecoration(color: _KC.gold, shape: BoxShape.circle),
+                decoration: const BoxDecoration(color: SC.gold, shape: BoxShape.circle),
               ),
               const SizedBox(width: 6),
-              const Text('ROMBEL & HALAQAH',
-                  style: TextStyle(
-                      fontSize: 9.5,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0.3,
-                      color: _KC.gold)),
+              Text('Rombel & Halaqah',
+                  style: sty(11.5, FontWeight.w700, SC.gold)),
             ],
           ),
           const SizedBox(height: 12),
@@ -404,18 +534,18 @@ class _KelasListScreenState extends State<KelasListScreen> {
         );
     return TextField(
       onChanged: (v) => setState(() => _query = v),
-      style: const TextStyle(fontSize: 13.5, color: _KC.ink),
+      style: sty(13.5, FontWeight.w600, SC.ink),
       decoration: InputDecoration(
         hintText: _adaDataWali ? 'Cari nama kelas atau wali kelas' : 'Cari nama kelas',
-        hintStyle: const TextStyle(fontSize: 13, color: _KC.inkSecondary),
-        prefixIcon: const Icon(Icons.search, size: 19, color: _KC.inkSecondary),
+        hintStyle: sty(13, FontWeight.w500, SC.inkMuted),
+        prefixIcon: Icon(Icons.search_rounded, size: 20, color: SC.primary),
         filled: true,
-        fillColor: _KC.surface,
+        fillColor: SC.surface,
         isDense: true,
         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        border: b(_KC.border),
-        enabledBorder: b(_KC.border),
-        focusedBorder: b(_KC.primary, 1.4),
+        border: b(SC.border),
+        enabledBorder: b(SC.border),
+        focusedBorder: b(SC.primary, 1.4),
       ),
     );
   }
@@ -439,17 +569,13 @@ class _KelasListScreenState extends State<KelasListScreen> {
               alignment: Alignment.center,
               padding: const EdgeInsets.symmetric(horizontal: 14),
               decoration: BoxDecoration(
-                color: selected ? _KC.primary : _KC.surface,
+                color: selected ? SC.primary : SC.surface,
                 borderRadius: BorderRadius.circular(999),
-                border: Border.all(color: selected ? _KC.primary : _KC.border),
+                border: Border.all(color: selected ? SC.primary : SC.border),
               ),
               child: Text(
                 l == 'Semua' ? l : 'Tingkat $l',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: selected ? Colors.white : _KC.inkSecondary,
-                ),
+                style: sty(12, FontWeight.w700, selected ? Colors.white : SC.inkSecondary),
               ),
             ),
           );
@@ -461,9 +587,8 @@ class _KelasListScreenState extends State<KelasListScreen> {
   Widget _chip(String label, {Color? bg, Color? fg}) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(color: bg ?? _KC.mint, borderRadius: BorderRadius.circular(999)),
-      child: Text(label,
-          style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: fg ?? _KC.primary)),
+      decoration: BoxDecoration(color: bg ?? SC.mint, borderRadius: BorderRadius.circular(999)),
+      child: Text(label, style: sty(10, FontWeight.w700, fg ?? SC.primary)),
     );
   }
 
@@ -477,144 +602,166 @@ class _KelasListScreenState extends State<KelasListScreen> {
     final adaWali = _adaDataWali;
     final perluWali = adaWali && wali == null;
 
-    return Material(
-      color: _KC.surface,
-      borderRadius: BorderRadius.circular(16),
-      child: InkWell(
+    return Container(
+      decoration: BoxDecoration(
+        color: SC.surface,
         borderRadius: BorderRadius.circular(16),
-        onTap: () => _edit(k),
-        child: ClipRRect(
+        boxShadow: softShadow,
+      ),
+      child: Material(
+        color: SC.surface,
+        borderRadius: BorderRadius.circular(16),
+        child: InkWell(
           borderRadius: BorderRadius.circular(16),
-          child: Container(
-            decoration: BoxDecoration(
-              border: Border.all(color: perluWali ? const Color(0xFFE7D2A7) : _KC.border),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: IntrinsicHeight(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Container(width: 4, color: perluWali ? _KC.gold : _KC.primary),
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(12, 12, 4, 12),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Container(
-                                width: 42,
-                                height: 42,
-                                decoration:
-                                    BoxDecoration(color: _KC.sage, borderRadius: BorderRadius.circular(12)),
-                                child: Icon(Icons.class_, size: 20, color: _KC.primary),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(nama,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: const TextStyle(
-                                            fontSize: 15, fontWeight: FontWeight.w800, color: _KC.ink)),
-                                    const SizedBox(height: 5),
-                                    Wrap(
-                                      spacing: 6,
-                                      runSpacing: 4,
-                                      children: [
-                                        if (tingkat.isNotEmpty) _chip('Tingkat $tingkat'),
-                                        if (jenis != null)
-                                          _chip(jenis, bg: _KC.goldSurface, fg: const Color(0xFF7A5B10)),
-                                      ],
+          onTap: _busy ? null : () => _edit(k),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: Container(
+              decoration: BoxDecoration(
+                border: Border.all(color: perluWali ? SC.gold.withOpacity(0.5) : SC.border),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: IntrinsicHeight(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Container(width: 4, color: perluWali ? SC.gold : SC.primary),
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(12, 12, 4, 12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Container(
+                                  width: 42,
+                                  height: 42,
+                                  decoration: BoxDecoration(
+                                    color: SC.sage,
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Icon(Icons.class_, size: 20, color: SC.primary),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(nama,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: sty(15, FontWeight.w800, SC.ink)),
+                                      const SizedBox(height: 5),
+                                      Wrap(
+                                        spacing: 6,
+                                        runSpacing: 4,
+                                        children: [
+                                          if (tingkat.isNotEmpty) _chip('Tingkat $tingkat'),
+                                          if (jenis != null)
+                                            _chip(jenis, bg: SC.goldSurface, fg: SC.goldDark),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                PopupMenuButton<String>(
+                                  tooltip: 'Opsi',
+                                  enabled: !_busy,
+                                  icon: const Icon(Icons.more_vert_rounded,
+                                      size: 20, color: SC.inkSecondary),
+                                  color: SC.surface,
+                                  surfaceTintColor: Colors.transparent,
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(16)),
+                                  onSelected: (v) {
+                                    if (v == 'edit') _edit(k);
+                                    if (v == 'hapus') _delete(k);
+                                  },
+                                  itemBuilder: (_) => [
+                                    PopupMenuItem(
+                                      value: 'edit',
+                                      child: Row(children: [
+                                        const Icon(Icons.edit_outlined, size: 18, color: SC.ink),
+                                        const SizedBox(width: 10),
+                                        Text('Edit data', style: sty(13, FontWeight.w600, SC.ink)),
+                                      ]),
+                                    ),
+                                    PopupMenuItem(
+                                      value: 'hapus',
+                                      child: Row(children: [
+                                        const Icon(Icons.delete_outline,
+                                            size: 18, color: SC.errorText),
+                                        const SizedBox(width: 10),
+                                        Text('Hapus',
+                                            style: sty(13, FontWeight.w600, SC.errorText)),
+                                      ]),
                                     ),
                                   ],
                                 ),
-                              ),
-                              PopupMenuButton<String>(
-                                tooltip: 'Aksi',
-                                icon: const Icon(Icons.more_vert, size: 20, color: _KC.inkSecondary),
-                                color: _KC.surface,
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                onSelected: (v) {
-                                  if (v == 'edit') _edit(k);
-                                  if (v == 'hapus') _delete(k);
-                                },
-                                itemBuilder: (_) => const [
-                                  PopupMenuItem(
-                                    value: 'edit',
-                                    child: Text('Edit', style: TextStyle(fontSize: 13)),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            if (adaWali) ...[
+                              Row(
+                                children: [
+                                  Icon(
+                                    wali != null ? Icons.person_outline : Icons.person_off_outlined,
+                                    size: 15,
+                                    color: wali != null ? SC.inkSecondary : SC.goldDark,
                                   ),
-                                  PopupMenuItem(
-                                    value: 'hapus',
-                                    child: Text('Hapus',
-                                        style: TextStyle(fontSize: 13, color: _KC.errorText)),
+                                  const SizedBox(width: 6),
+                                  Expanded(
+                                    child: Text(
+                                      wali != null ? 'Wali Kelas: $wali' : 'Belum ada wali kelas',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: sty(
+                                        12,
+                                        wali != null ? FontWeight.w600 : FontWeight.w700,
+                                        wali != null ? SC.ink : SC.goldDark,
+                                      ),
+                                    ),
                                   ),
                                 ],
                               ),
+                              const SizedBox(height: 8),
                             ],
-                          ),
-                          const SizedBox(height: 12),
-                          if (adaWali) ...[
                             Row(
                               children: [
-                                Icon(
-                                  wali != null ? Icons.person_outline : Icons.person_off_outlined,
-                                  size: 15,
-                                  color: wali != null ? _KC.inkSecondary : const Color(0xFFB78103),
-                                ),
+                                const Icon(Icons.groups_2_outlined,
+                                    size: 15, color: SC.inkSecondary),
                                 const SizedBox(width: 6),
-                                Expanded(
-                                  child: Text(
-                                    wali != null ? 'Wali Kelas: $wali' : 'Belum ada wali kelas',
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: wali != null ? FontWeight.w600 : FontWeight.w700,
-                                      color: wali != null ? _KC.ink : const Color(0xFFB78103),
-                                    ),
-                                  ),
+                                Text(
+                                  kapasitas != null ? '$jumlah / $kapasitas santri' : '$jumlah santri',
+                                  style: sty(12, FontWeight.w500, SC.inkSecondary),
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 8),
-                          ],
-                          Row(
-                            children: [
-                              const Icon(Icons.groups_2_outlined, size: 15, color: _KC.inkSecondary),
-                              const SizedBox(width: 6),
-                              Text(
-                                kapasitas != null ? '$jumlah / $kapasitas santri' : '$jumlah santri',
-                                style: const TextStyle(fontSize: 12, color: _KC.inkSecondary),
-                              ),
-                            ],
-                          ),
-                          if (kapasitas != null) ...[
-                            const SizedBox(height: 6),
-                            Padding(
-                              padding: const EdgeInsets.only(right: 10),
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(999),
-                                child: LinearProgressIndicator(
-                                  value: (jumlah / kapasitas).clamp(0.0, 1.0),
-                                  minHeight: 6,
-                                  backgroundColor: _KC.surfaceDim,
-                                  valueColor: AlwaysStoppedAnimation(
-                                    jumlah > kapasitas ? _KC.errorText : _KC.primary,
+                            if (kapasitas != null) ...[
+                              const SizedBox(height: 6),
+                              Padding(
+                                padding: const EdgeInsets.only(right: 10),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(999),
+                                  child: LinearProgressIndicator(
+                                    value: (jumlah / kapasitas).clamp(0.0, 1.0),
+                                    minHeight: 6,
+                                    backgroundColor: SC.surfaceDim,
+                                    valueColor: AlwaysStoppedAnimation(
+                                      jumlah > kapasitas ? SC.errorText : SC.primary,
+                                    ),
                                   ),
                                 ),
                               ),
-                            ),
+                            ],
                           ],
-                        ],
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
@@ -677,50 +824,68 @@ class _KelasFormDialogState extends State<_KelasFormDialog> {
     });
   }
 
+  /// Nama kelas LAIN yang sudah dipegang ustadz ini sebagai wali.
+  /// null = ustadz masih bebas (atau hanya memegang kelas yang sedang diedit).
+  String? _kelasLain(Map<String, dynamic> u) {
+    final k = u['kelasDiampu'];
+    if (k is! List) return null;
+    final selfId = widget.existing?['id']?.toString();
+    final nama = k
+        .whereType<Map>()
+        .where((e) => e['id']?.toString() != selfId)
+        .map((e) => '${e['namaKelas'] ?? ''}'.trim())
+        .where((s) => s.isNotEmpty)
+        .toList();
+    return nama.isEmpty ? null : nama.join(', ');
+  }
+
   InputDecoration _dec(String hint) {
     OutlineInputBorder b(Color c, [double w = 1]) => OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(14),
           borderSide: BorderSide(color: c, width: w),
         );
     return InputDecoration(
       hintText: hint,
-      hintStyle: const TextStyle(fontSize: 13.5, color: _KC.inkSecondary),
+      hintStyle: sty(13.5, FontWeight.w500, SC.inkMuted),
       filled: true,
-      fillColor: _KC.surfaceDim,
+      fillColor: SC.surfaceDim,
       isDense: true,
       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
       border: b(Colors.transparent),
       enabledBorder: b(Colors.transparent),
-      focusedBorder: b(_KC.primary, 1.4),
+      focusedBorder: b(SC.primary, 1.4),
     );
   }
 
   Widget _label(String text) => Padding(
         padding: const EdgeInsets.only(left: 2, bottom: 6),
-        child: Text(text,
-            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _KC.inkSecondary)),
+        child: Text(text, style: sty(12, FontWeight.w700, SC.inkSecondary)),
       );
 
   @override
   Widget build(BuildContext context) {
     final isEdit = widget.existing != null;
     return AlertDialog(
-      backgroundColor: _KC.surface,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      backgroundColor: SC.surface,
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
       titlePadding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
       contentPadding: const EdgeInsets.fromLTRB(20, 16, 20, 4),
-      actionsPadding: const EdgeInsets.fromLTRB(16, 8, 16, 14),
+      actionsPadding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
       title: Row(
         children: [
           Container(
-            width: 34,
-            height: 34,
-            decoration: BoxDecoration(color: _KC.sage, shape: BoxShape.circle),
-            child: Icon(Icons.meeting_room_rounded, size: 17, color: _KC.primary),
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: SC.sage,
+              shape: BoxShape.circle,
+              border: Border.all(color: SC.gold.withOpacity(0.45)),
+            ),
+            child: Icon(Icons.meeting_room_rounded, size: 18, color: SC.primary),
           ),
           const SizedBox(width: 10),
-          Text(isEdit ? 'Edit Kelas' : 'Tambah Kelas',
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _KC.ink)),
+          Text(isEdit ? 'Edit kelas' : 'Tambah kelas', style: sty(16, FontWeight.w800, SC.ink)),
         ],
       ),
       content: SizedBox(
@@ -734,7 +899,8 @@ class _KelasFormDialogState extends State<_KelasFormDialog> {
               TextField(
                 controller: _nama,
                 autofocus: true,
-                style: const TextStyle(fontSize: 14, color: _KC.ink),
+                textInputAction: TextInputAction.next,
+                style: sty(14, FontWeight.w600, SC.ink),
                 decoration: _dec('Contoh: 7A'),
                 onChanged: (_) {
                   if (_err != null) setState(() => _err = null);
@@ -744,14 +910,16 @@ class _KelasFormDialogState extends State<_KelasFormDialog> {
                 const SizedBox(height: 6),
                 Padding(
                   padding: const EdgeInsets.only(left: 2),
-                  child: Text(_err!, style: const TextStyle(fontSize: 11.5, color: _KC.errorText)),
+                  child: Text(_err!, style: sty(11.5, FontWeight.w600, SC.errorText)),
                 ),
               ],
               const SizedBox(height: 12),
               _label('Tingkat'),
               TextField(
                 controller: _tingkat,
-                style: const TextStyle(fontSize: 14, color: _KC.ink),
+                textInputAction: TextInputAction.done,
+                onSubmitted: (_) => _submit(),
+                style: sty(14, FontWeight.w600, SC.ink),
                 decoration: _dec('Contoh: 7'),
                 onChanged: (_) {
                   if (_err != null) setState(() => _err = null);
@@ -764,21 +932,20 @@ class _KelasFormDialogState extends State<_KelasFormDialog> {
                   value: _waliId,
                   isExpanded: true,
                   decoration: _dec('Pilih ustadz'),
-                  dropdownColor: _KC.surface,
-                  style: const TextStyle(fontSize: 14, color: _KC.ink),
+                  dropdownColor: SC.surface,
+                  style: sty(14, FontWeight.w600, SC.ink),
                   items: [
                     const DropdownMenuItem<String?>(value: null, child: Text('Belum ditentukan')),
                     for (final u in widget.ustadzList!
                         .where((u) => u['jenis'] != 'MUSYRIF' || u['id']?.toString() == _waliId))
-                      DropdownMenuItem<String?>(
-                        value: u['id']?.toString(),
-                        child: Text(
-                          '${u['nama'] ?? '-'}${u['jenis'] == 'MUSYRIF' ? ' (Musyrif)' : ''}',
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
+                      _ustadzItem(u),
                   ],
                   onChanged: (v) => setState(() => _waliId = v),
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(top: 6, left: 2),
+                  child: Text('Satu ustadz hanya bisa jadi wali satu kelas.',
+                      style: sty(11, FontWeight.w500, SC.inkSecondary)),
                 ),
               ],
             ],
@@ -788,23 +955,40 @@ class _KelasFormDialogState extends State<_KelasFormDialog> {
       actions: [
         OutlinedButton(
           style: OutlinedButton.styleFrom(
-            side: const BorderSide(color: _KC.border),
+            side: const BorderSide(color: SC.border),
+            padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
           ),
           onPressed: () => Navigator.pop(context),
-          child: const Text('Batal',
-              style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: _KC.inkSecondary)),
+          child: Text('Batal', style: sty(13, FontWeight.w700, SC.inkSecondary)),
         ),
         FilledButton(
           style: FilledButton.styleFrom(
-            backgroundColor: _KC.primary,
+            backgroundColor: SC.primary,
+            padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
           ),
           onPressed: _submit,
-          child: const Text('Simpan',
-              style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: Colors.white)),
+          child: Text('Simpan', style: sty(13, FontWeight.w700, Colors.white)),
         ),
       ],
+    );
+  }
+
+  /// Item dropdown ustadz. Ustadz yang sudah jadi wali kelas lain ditampilkan
+  /// redup dan tidak bisa dipilih, lengkap dengan nama kelasnya.
+  DropdownMenuItem<String?> _ustadzItem(Map<String, dynamic> u) {
+    final lain = _kelasLain(u);
+    final label = '${u['nama'] ?? '-'}${u['jenis'] == 'MUSYRIF' ? ' (Musyrif)' : ''}'
+        '${lain != null ? '  •  wali $lain' : ''}';
+    return DropdownMenuItem<String?>(
+      value: u['id']?.toString(),
+      enabled: lain == null,
+      child: Text(
+        label,
+        overflow: TextOverflow.ellipsis,
+        style: sty(14, FontWeight.w600, lain == null ? SC.ink : SC.inkSecondary.withOpacity(0.6)),
+      ),
     );
   }
 }
