@@ -104,9 +104,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
     });
   }
 
+  ScaffoldMessengerState? _messenger; // baru
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _messenger = ScaffoldMessenger.of(context); // baru
     if (!_didLoadOnce) {
       _didLoadOnce = true;
       _load();
@@ -115,6 +118,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   void dispose() {
+    _messenger?.hideCurrentSnackBar(); // baru
     _tickTimer?.cancel();
     super.dispose();
   }
@@ -1758,12 +1762,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ..hideCurrentSnackBar()
         ..showSnackBar(
           SnackBar(
-            behavior: SnackBarBehavior.floating,
-            backgroundColor: _WC.primary,
-            elevation: 6,
-            margin: EdgeInsets.fromLTRB(side, 0, side, 16),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            duration: const Duration(seconds: 8),
+          behavior: SnackBarBehavior.floating,
+          persist: false, // baru: tetap hilang otomatis walau ada action
+          backgroundColor: _WC.primary,
+          elevation: 6,
+          margin: EdgeInsets.fromLTRB(side, 0, side, 16),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          duration: const Duration(seconds: 8),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
               side: BorderSide(color: _WC.gold.withOpacity(0.5)),

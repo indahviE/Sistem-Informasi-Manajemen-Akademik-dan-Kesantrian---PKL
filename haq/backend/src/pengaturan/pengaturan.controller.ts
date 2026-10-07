@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Patch, UseGuards } from '@nestjs/common';
 import { PengaturanService } from './pengaturan.service';
+import { PengaturanUstadzService } from './pengaturan-ustadz.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -13,11 +14,15 @@ import {
   UpdateNotifikasiWaliDto,
   UpdateProfilDto,
 } from './dto/pengaturan.dto';
+import { UpdateNotifikasiUstadzDto } from './pengaturan-ustadz.dto';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('pengaturan')
 export class PengaturanController {
-  constructor(private pengaturanService: PengaturanService) {}
+  constructor(
+    private pengaturanService: PengaturanService,
+    private pengaturanUstadzService: PengaturanUstadzService,
+  ) {}
 
   // ===== Khusus Super Admin (setting platform) =====
 
@@ -41,13 +46,13 @@ export class PengaturanController {
 
   // ===== Dipakai bersama (Super Admin + Admin Lembaga) =====
 
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.PIMPINAN, Role.WALI_SANTRI)
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.PIMPINAN, Role.WALI_SANTRI, Role.USTADZ)
   @Patch('profil')
   updateProfil(@CurrentUser() user: RequestUser, @Body() dto: UpdateProfilDto) {
     return this.pengaturanService.updateProfil(user.userId, dto);
   }
 
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.PIMPINAN, Role.WALI_SANTRI)
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.PIMPINAN, Role.WALI_SANTRI, Role.USTADZ)
   @Patch('ubah-password')
   ubahPassword(@CurrentUser() user: RequestUser, @Body() dto: UbahPasswordDto) {
     return this.pengaturanService.ubahPassword(user.userId, dto);
@@ -69,7 +74,7 @@ export class PengaturanController {
   ) {
     return this.pengaturanService.updateAdminNotifikasi(user.userId, dto);
   }
-  
+
   // ===== Khusus Wali Santri =====
 
   @Roles(Role.WALI_SANTRI)
@@ -85,5 +90,22 @@ export class PengaturanController {
     @Body() dto: UpdateNotifikasiWaliDto,
   ) {
     return this.pengaturanService.updateWaliNotifikasi(user.userId, dto);
+  }
+
+  // ===== Khusus Ustadz =====
+
+  @Roles(Role.USTADZ)
+  @Get('ustadz')
+  getUstadz(@CurrentUser() user: RequestUser) {
+    return this.pengaturanUstadzService.getUstadz(user.userId, user.tenantId as string);
+  }
+
+  @Roles(Role.USTADZ)
+  @Patch('ustadz/notifikasi')
+  updateUstadzNotifikasi(
+    @CurrentUser() user: RequestUser,
+    @Body() dto: UpdateNotifikasiUstadzDto,
+  ) {
+    return this.pengaturanUstadzService.updateNotifikasi(user.userId, dto);
   }
 }

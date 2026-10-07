@@ -41,6 +41,19 @@ const WALI_NOTIF_JENIS: Record<WaliNotifKey, JenisNotifikasi[]> = {
   absensiAnak: [JenisNotifikasi.ABSENSI],
 };
 
+type UstadzNotifKey =
+  | 'pengingatAbsensi'
+  | 'pengingatNilai'
+  | 'jadwalMengajar'
+  | 'pengumumanPondok';
+
+const USTADZ_NOTIF_DEFAULT: Record<UstadzNotifKey, boolean> = {
+  pengingatAbsensi: true,
+  pengingatNilai: true,
+  jadwalMengajar: true,
+  pengumumanPondok: true,
+};
+
 @Injectable()
 export class NotifikasiService {
   private readonly logger = new Logger(NotifikasiService.name);
@@ -173,6 +186,36 @@ export class NotifikasiService {
       });
     } catch (e) {
       this.logger.error(`Gagal kirim notifikasi admin ${jenis}: ${(e as Error).message}`);
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // Pengiriman notifikasi ke Ustadz (per akun)
+  // -------------------------------------------------------------------------
+
+  /**
+   * Kirim satu notifikasi ke satu ustadz, hanya kalau toggle-nya menyala di
+   * Pengaturan Ustadz. Ustadz yang belum pernah membuka Pengaturan (belum ada
+   * baris setting) memakai nilai default. Mengembalikan true kalau terkirim.
+   * Tidak pernah melempar error.
+   */
+  async kirimKeUstadz(
+    tenantId: string,
+    userId: string,
+    jenis: JenisNotifikasi,
+    kunci: UstadzNotifKey,
+    pesan: string,
+  ): Promise<boolean> {
+    try {
+      const setting = await this.prisma.userNotifSetting.findUnique({ where: { userId } });
+      const aktif = setting ? setting[kunci] : USTADZ_NOTIF_DEFAULT[kunci];
+      if (!aktif) return false;
+
+      await this.prisma.notifikasi.create({ data: { tenantId, userId, jenis, pesan } });
+      return true;
+    } catch (e) {
+      this.logger.error(`Gagal kirim notifikasi ustadz ${jenis}: ${(e as Error).message}`);
+      return false;
     }
   }
 

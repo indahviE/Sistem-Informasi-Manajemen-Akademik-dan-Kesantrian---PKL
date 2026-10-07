@@ -1,13 +1,10 @@
 // ustadz_header.dart
 //
 // Header (bar atas) untuk Ustadz/Guru, disamakan dengan AdminHeader:
-//   SIMEdu [USTADZ]                                        (avatar)
+//   SIMEdu [USTADZ]                              (lonceng)  (avatar)
 //   (ikon) Panel Ustadz / Guru • Beranda
 //
-// Klik avatar -> membuka kartu profil dengan tombol Keluar.
-// Lonceng notifikasi sengaja belum ada (belum ada pemicu notifikasi untuk
-// ustadz di backend/PRD). Kalau nanti dibutuhkan, tambahkan lagi parameter
-// onNotifikasi + hasUnread seperti di AdminHeader.
+// Klik avatar -> membuka kartu profil dengan tombol Pengaturan & Keluar.
 
 import 'package:flutter/material.dart';
 import '../../super_admin/tenants_screen.dart' show PColors;
@@ -18,12 +15,16 @@ class UstadzHeader extends StatelessWidget implements PreferredSizeWidget {
     required this.subtitle,
     required this.nama,
     required this.email,
+    required this.onNotifikasi,
+    required this.onPengaturan,
     required this.onLogout,
     this.roleLabel = 'USTADZ',
+    this.hasUnread = false,
   });
 
-  /// Sama dengan AdminHeader.brandName supaya nama produknya konsisten.
-  static const String brandName = 'SIMpesantren';
+  /// Nama produk global (bukan nama pondok/sekolah tenant).
+  /// Harus sama dengan AdminHeader.brandName supaya nama produknya konsisten.
+  static const String brandName = 'SIMEdu';
 
   /// Baris kedua (nama menu aktif, mis. "Beranda").
   final String subtitle;
@@ -31,10 +32,15 @@ class UstadzHeader extends StatelessWidget implements PreferredSizeWidget {
   final String nama;
   final String email;
 
+  final VoidCallback onNotifikasi;
+  final VoidCallback onPengaturan;
   final VoidCallback onLogout;
 
   /// Label pill di sebelah nama produk.
   final String roleLabel;
+
+  /// Titik merah di lonceng.
+  final bool hasUnread;
 
   static const double _maxWidth = 480;
 
@@ -55,6 +61,8 @@ class UstadzHeader extends StatelessWidget implements PreferredSizeWidget {
               child: Row(
                 children: [
                   Expanded(child: _buildBrand()),
+                  _buildBell(),
+                  const SizedBox(width: 2),
                   _buildAvatarButton(context),
                 ],
               ),
@@ -152,8 +160,35 @@ class UstadzHeader extends StatelessWidget implements PreferredSizeWidget {
   }
 
   // -------------------------------------------------------------------
-  // Kanan: avatar
+  // Kanan: lonceng + avatar
   // -------------------------------------------------------------------
+
+  Widget _buildBell() {
+    return IconButton(
+      tooltip: 'Notifikasi',
+      onPressed: onNotifikasi,
+      icon: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          const Icon(Icons.notifications_none_rounded, size: 26, color: PColors.ink),
+          if (hasUnread)
+            Positioned(
+              right: 1,
+              top: 1,
+              child: Container(
+                width: 9,
+                height: 9,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE53935),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: PColors.surface, width: 1.5),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
 
   Widget _buildAvatarButton(BuildContext context) {
     return InkWell(
@@ -258,15 +293,34 @@ class UstadzHeader extends StatelessWidget implements PreferredSizeWidget {
                 ],
               ),
               const SizedBox(height: 18),
-              _SheetButton(
-                icon: Icons.logout,
-                label: 'Keluar',
-                background: PColors.errorBg,
-                foreground: PColors.errorText,
-                onTap: () {
-                  Navigator.pop(sheetCtx);
-                  onLogout();
-                },
+              Row(
+                children: [
+                  Expanded(
+                    child: _SheetButton(
+                      icon: Icons.tune,
+                      label: 'Pengaturan',
+                      background: PColors.surfaceDim,
+                      foreground: PColors.primary,
+                      onTap: () {
+                        Navigator.pop(sheetCtx);
+                        onPengaturan();
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _SheetButton(
+                      icon: Icons.logout,
+                      label: 'Keluar',
+                      background: PColors.errorBg,
+                      foreground: PColors.errorText,
+                      onTap: () {
+                        Navigator.pop(sheetCtx);
+                        onLogout();
+                      },
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -344,7 +398,6 @@ class _SheetButton extends StatelessWidget {
         onTap: onTap,
         child: SizedBox(
           height: 46,
-          width: double.infinity,
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
