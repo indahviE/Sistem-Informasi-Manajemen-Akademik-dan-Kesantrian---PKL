@@ -12,10 +12,6 @@ export class CreateUstadzDto {
   @IsOptional()
   @IsString()
   noHp?: string;
-
-  @IsOptional()
-  @IsString()
-  userId?: string;
 }
 
 export class UpdateUstadzDto {

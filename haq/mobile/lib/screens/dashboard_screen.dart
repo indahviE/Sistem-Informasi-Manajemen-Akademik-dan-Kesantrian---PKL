@@ -7,6 +7,8 @@ import 'ui_utils.dart';
 import 'super_admin/tenants_screen.dart'; // TODO: sesuaikan path bila struktur foldernya beda
 import 'billing/billing_admin_screen.dart'; // TODO: sesuaikan nama class/path bila beda (asumsi: BillingAdminScreen)
 import 'santri/santri_form_screen.dart';
+import 'master/kelas_list_screen.dart'; // TODO: sesuaikan path & nama class (asumsi: KelasListScreen)
+import 'master/ustadz_list_screen.dart';
 import 'santri/santri_ui.dart';
 import 'wali/wali_dashboard_screen.dart';
 
@@ -179,6 +181,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
         const SnackBar(content: Text('Santri baru ditambahkan.')),
       );
     }
+  }
+
+  /// Buka layar Ustadz / Guru. Setelah kembali, angka dashboard dimuat ulang.
+  Future<void> _bukaUstadz() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const UstadzListScreen(showBack: true)),
+    );
+    if (mounted) _load();
+  }
+
+  /// Buka layar Rombel & Halaqah. Setelah kembali, angka dashboard dimuat ulang.
+  Future<void> _bukaKelas() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const KelasListScreen(showBack: true)),
+    );
+    if (mounted) _load();
   }
 
   @override
@@ -1242,7 +1262,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               icon: Icons.assignment_ind,
               iconBg: _WC.goldSurface,
               iconColor: _WC.gold,
-              onTap: _notAvailable,
+              onTap: _bukaUstadz,
             ),
             _QuickAction(
               title: 'Rombel & Halaqah',
@@ -1250,7 +1270,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               icon: Icons.meeting_room,
               iconBg: _TC.sage,
               iconColor: _TC.primary,
-              onTap: _notAvailable,
+              onTap: _bukaKelas,
             ),
             _QuickAction(
               title: 'Akun Pengguna',
