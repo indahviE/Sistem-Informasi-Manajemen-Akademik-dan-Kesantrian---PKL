@@ -203,16 +203,14 @@ class _NotifikasiWaliScreenState extends State<NotifikasiWaliScreen> {
                       constraints: const BoxConstraints(maxWidth: 480),
                       child: ListView(
                         physics: const AlwaysScrollableScrollPhysics(),
-                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
                         children: [
                           _buildHeader(),
                           const SizedBox(height: 14),
                           _buildStatusCard(),
-                          const SizedBox(height: 14),
+                          const SizedBox(height: 16),
                           _buildFilterChips(),
                           ..._buildGroupedList(),
-                          const SizedBox(height: 12),
-                          if (_unreadCount == 0 && _items.isNotEmpty) const _AllReadCard(),
                         ],
                       ),
                     ),
@@ -221,6 +219,7 @@ class _NotifikasiWaliScreenState extends State<NotifikasiWaliScreen> {
     );
   }
 
+  // ----------------------------------------------------------------- header
   Widget _buildHeader() {
     // Admin: 'Pusat Informasi & Peringatan'
     // Wali : 'Kabar tentang anak Anda'
@@ -228,27 +227,34 @@ class _NotifikasiWaliScreenState extends State<NotifikasiWaliScreen> {
     final unread = _unreadCount;
 
     return Container(
-      padding: const EdgeInsets.fromLTRB(8, 8, 10, 8),
+      padding: const EdgeInsets.fromLTRB(10, 10, 12, 10),
       decoration: BoxDecoration(
         color: _NC.surface,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(22),
         border: Border.all(color: _NC.border),
-        boxShadow: const [
-          BoxShadow(color: Color(0x0A0F172A), blurRadius: 12, offset: Offset(0, 4)),
+        boxShadow: [
+          BoxShadow(
+            color: _NC.primary.withOpacity(0.06),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
         ],
       ),
       child: Row(
         children: [
-          Material(
-            color: _NC.mint,
-            shape: const CircleBorder(),
-            child: InkWell(
-              onTap: widget.onBack,
-              customBorder: const CircleBorder(),
-              child: SizedBox(
-                width: 42,
-                height: 42,
-                child: Icon(Icons.arrow_back_rounded, size: 22, color: _NC.primary),
+          Tooltip(
+            message: 'Kembali',
+            child: Material(
+              color: _NC.mint,
+              borderRadius: BorderRadius.circular(16),
+              child: InkWell(
+                onTap: widget.onBack,
+                borderRadius: BorderRadius.circular(16),
+                child: SizedBox(
+                  width: 46,
+                  height: 46,
+                  child: Icon(Icons.arrow_back_ios_new_rounded, size: 18, color: _NC.primary),
+                ),
               ),
             ),
           ),
@@ -256,6 +262,7 @@ class _NotifikasiWaliScreenState extends State<NotifikasiWaliScreen> {
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Row(
                   children: [
@@ -265,10 +272,12 @@ class _NotifikasiWaliScreenState extends State<NotifikasiWaliScreen> {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w800,
-                            color: _NC.ink,
-                            height: 1.15),
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                          color: _NC.ink,
+                          height: 1.1,
+                          letterSpacing: -0.2,
+                        ),
                       ),
                     ),
                     if (unread > 0) ...[
@@ -279,254 +288,227 @@ class _NotifikasiWaliScreenState extends State<NotifikasiWaliScreen> {
                           color: _NC.dot,
                           borderRadius: BorderRadius.circular(999),
                         ),
-                        child: Text('$unread',
-                            style: const TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w800,
-                                color: Colors.white)),
+                        child: Text(
+                          unread > 99 ? '99+' : '$unread',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                          ),
+                        ),
                       ),
                     ],
                   ],
                 ),
-                const SizedBox(height: 2),
-                const Text(
-                  subtitle,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 12, color: _NC.inkSecondary),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    Container(
+                      width: 14,
+                      height: 3,
+                      decoration: BoxDecoration(
+                        color: _NC.gold,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    const Expanded(
+                      child: Text(
+                        subtitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w500,
+                          color: _NC.inkSecondary,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
           ),
-          if (unread > 0) ...[
-            const SizedBox(width: 8),
+          const SizedBox(width: 8),
+          if (unread > 0)
             Tooltip(
               message: 'Tandai semua dibaca',
               child: Material(
                 color: _NC.primary,
-                shape: const CircleBorder(),
+                borderRadius: BorderRadius.circular(16),
                 child: InkWell(
                   onTap: _markAllRead,
-                  customBorder: const CircleBorder(),
+                  borderRadius: BorderRadius.circular(16),
                   child: const SizedBox(
-                    width: 42,
-                    height: 42,
+                    width: 46,
+                    height: 46,
                     child: Icon(Icons.done_all_rounded, size: 20, color: Colors.white),
                   ),
                 ),
               ),
+            )
+          else
+            Container(
+              width: 46,
+              height: 46,
+              decoration: BoxDecoration(
+                color: _NC.surfaceDim,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: const Icon(Icons.notifications_none_rounded, size: 21, color: _NC.inkSecondary),
             ),
-          ],
         ],
       ),
     );
   }
 
-  // Header versi sebelumnya, tidak dipakai lagi. Boleh dihapus.
-  // ignore: unused_element
-  Widget _buildHeaderLama2() {
-    // Admin: 'Pusat Informasi & Peringatan'
-    // Wali : 'Kabar tentang anak Anda'
-    const subtitle = 'Kabar tentang anak Anda';
-    final unread = _unreadCount;
-
-    return Row(
-      children: [
-        InkResponse(
-          onTap: widget.onBack,
-          radius: 24,
-          child: const Padding(
-            padding: EdgeInsets.fromLTRB(0, 10, 14, 10),
-            child: Icon(Icons.arrow_back_rounded, size: 24, color: _NC.ink),
-          ),
-        ),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  const Flexible(
-                    child: Text(
-                      'Notifikasi',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                          fontSize: 21, fontWeight: FontWeight.w800, color: _NC.ink, height: 1.15),
-                    ),
-                  ),
-                  if (unread > 0) ...[
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: _NC.dot,
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: Text('$unread',
-                          style: const TextStyle(
-                              fontSize: 11, fontWeight: FontWeight.w800, color: Colors.white)),
-                    ),
-                  ],
-                ],
-              ),
-              const SizedBox(height: 2),
-              const Text(
-                subtitle,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: 12, color: _NC.inkSecondary),
-              ),
-            ],
-          ),
-        ),
-        if (unread > 0) ...[
-          const SizedBox(width: 8),
-          _HeaderIconButton(
-            icon: Icons.done_all_rounded,
-            tooltip: 'Tandai semua dibaca',
-            tinted: true,
-            onTap: _markAllRead,
-          ),
-        ],
-      ],
-    );
-  }
-
-  // Header lama, tidak dipakai lagi. Boleh dihapus.
-  Widget _buildHeaderLama() {
-    return Row(
-      children: [
-        IconButton(
-          onPressed: widget.onBack,
-          icon: const Icon(Icons.arrow_back, color: _NC.ink),
-        ),
-        const Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Notifikasi',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: _NC.ink)),
-              Text('Kabar tentang anak Anda',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 12, color: _NC.inkSecondary)),
-            ],
-          ),
-        ),
-        if (_unreadCount > 0)
-          Material(
-            color: _NC.surfaceDim,
-            borderRadius: BorderRadius.circular(999),
-            child: InkWell(
-              onTap: _markAllRead,
-              borderRadius: BorderRadius.circular(999),
-              child: const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.done_all, size: 16, color: _NC.ink),
-                    SizedBox(width: 6),
-                    Text('Tandai Dibaca',
-                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _NC.ink)),
-                  ],
-                ),
-              ),
-            ),
-          ),
-      ],
-    );
-  }
-
+  // ------------------------------------------------------------ status card
   Widget _buildStatusCard() {
     final urgent = _urgent;
+    final total = _items.length;
+    final progress = total == 0 ? 1.0 : (total - _unreadCount) / total;
+
     return Container(
-      padding: const EdgeInsets.all(16),
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [_NC.primary, _NC.primaryEnd],
         ),
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(22),
         boxShadow: [
-          BoxShadow(color: _NC.primary.withOpacity(0.18), blurRadius: 12, offset: const Offset(0, 4)),
+          BoxShadow(color: _NC.primary.withOpacity(0.22), blurRadius: 16, offset: const Offset(0, 6)),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Stack(
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(children: const [
-                Icon(Icons.circle, size: 8, color: _NC.gold),
-                SizedBox(width: 6),
-                Text('KABAR SANTRI',
-                    style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 0.5)),
-              ]),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.14), borderRadius: BorderRadius.circular(999)),
-                child: const Text('Mode Pantau', style: TextStyle(color: Colors.white, fontSize: 11)),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
-            children: [
-              Text('$_unreadCount',
-                  style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w800, color: Colors.white)),
-              const SizedBox(width: 8),
-              const Text('Belum Dibaca',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: Colors.white)),
-              const Spacer(),
-              Text('dari ${_items.length} notifikasi',
-                  style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.6))),
-            ],
-          ),
-          if (urgent.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
+          Positioned(
+            right: -30,
+            top: -34,
+            child: Container(
+              width: 120,
+              height: 120,
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.08),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Icon(Icons.priority_high_rounded, size: 18, color: _NC.gold),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text.rich(TextSpan(children: [
-                      TextSpan(
-                          text: '${urgent.length} Kabar Penting: ',
-                          style: const TextStyle(
-                              color: _NC.goldLight, fontWeight: FontWeight.w700, fontSize: 12.5)),
-                      const TextSpan(
-                          text: 'ada informasi keadaan darurat yang perlu Anda baca.',
-                          style: TextStyle(color: Colors.white, fontSize: 12.5)),
-                    ])),
-                  ),
-                ],
+                shape: BoxShape.circle,
+                color: Colors.white.withOpacity(0.06),
               ),
             ),
-          ],
+          ),
+          Positioned(
+            right: 36,
+            bottom: -44,
+            child: Container(
+              width: 90,
+              height: 90,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: _NC.gold.withOpacity(0.10),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(18),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(children: const [
+                      Icon(Icons.circle, size: 8, color: _NC.gold),
+                      SizedBox(width: 6),
+                      Text('KABAR SANTRI',
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.8)),
+                    ]),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.14),
+                          borderRadius: BorderRadius.circular(999)),
+                      child: const Text('Mode Pantau',
+                          style: TextStyle(color: Colors.white, fontSize: 11)),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.baseline,
+                  textBaseline: TextBaseline.alphabetic,
+                  children: [
+                    Text('$_unreadCount',
+                        style: const TextStyle(
+                            fontSize: 38,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                            height: 1)),
+                    const SizedBox(width: 8),
+                    const Text('Belum Dibaca',
+                        style: TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.w600, color: Colors.white)),
+                    const Spacer(),
+                    Text('dari $total notifikasi',
+                        style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.65))),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(999),
+                  child: LinearProgressIndicator(
+                    value: progress,
+                    minHeight: 6,
+                    backgroundColor: Colors.white.withOpacity(0.16),
+                    valueColor: const AlwaysStoppedAnimation<Color>(_NC.goldLight),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text('${(progress * 100).round()}% sudah dibaca',
+                    style: TextStyle(fontSize: 11, color: Colors.white.withOpacity(0.7))),
+                if (urgent.isNotEmpty) ...[
+                  const SizedBox(height: 14),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.10),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: _NC.gold.withOpacity(0.35)),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(Icons.priority_high_rounded, size: 18, color: _NC.gold),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text.rich(TextSpan(children: [
+                            TextSpan(
+                                text: '${urgent.length} Kabar Penting: ',
+                                style: const TextStyle(
+                                    color: _NC.goldLight,
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 12.5)),
+                            const TextSpan(
+                                text: 'ada informasi keadaan darurat yang perlu Anda baca.',
+                                style: TextStyle(color: Colors.white, fontSize: 12.5)),
+                          ])),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
         ],
       ),
     );
   }
 
+  // ------------------------------------------------------------ filter chips
   Widget _buildFilterChips() {
     const entries = <MapEntry<_Filter, String>>[
       MapEntry(_Filter.semua, 'Semua'),
@@ -539,7 +521,7 @@ class _NotifikasiWaliScreenState extends State<NotifikasiWaliScreen> {
       MapEntry(_Filter.darurat, 'Darurat'),
     ];
     return SizedBox(
-      height: 38,
+      height: 40,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: entries.length,
@@ -550,13 +532,23 @@ class _NotifikasiWaliScreenState extends State<NotifikasiWaliScreen> {
           final showDot = f == _Filter.belumDibaca && _unreadCount > 0;
           return GestureDetector(
             onTap: () => setState(() => _filter = f),
-            child: Container(
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
               alignment: Alignment.center,
-              padding: const EdgeInsets.symmetric(horizontal: 14),
+              padding: const EdgeInsets.only(left: 14, right: 6),
               decoration: BoxDecoration(
                 color: selected ? _NC.primary : _NC.surface,
                 borderRadius: BorderRadius.circular(999),
                 border: Border.all(color: selected ? _NC.primary : _NC.border),
+                boxShadow: selected
+                    ? [
+                        BoxShadow(
+                          color: _NC.primary.withOpacity(0.25),
+                          blurRadius: 8,
+                          offset: const Offset(0, 3),
+                        ),
+                      ]
+                    : null,
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -565,14 +557,30 @@ class _NotifikasiWaliScreenState extends State<NotifikasiWaliScreen> {
                     Container(
                         width: 6,
                         height: 6,
-                        decoration: const BoxDecoration(color: _NC.dot, shape: BoxShape.circle)),
+                        decoration: BoxDecoration(
+                            color: selected ? _NC.goldLight : _NC.dot, shape: BoxShape.circle)),
                     const SizedBox(width: 6),
                   ],
-                  Text('${entries[i].value} (${_countFor(f)})',
+                  Text(entries[i].value,
                       style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w700,
                           color: selected ? Colors.white : _NC.inkSecondary)),
+                  const SizedBox(width: 6),
+                  Container(
+                    constraints: const BoxConstraints(minWidth: 24),
+                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: selected ? Colors.white.withOpacity(0.2) : _NC.surfaceDim,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text('${_countFor(f)}',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            color: selected ? Colors.white : _NC.ink)),
+                  ),
                 ],
               ),
             ),
@@ -582,6 +590,7 @@ class _NotifikasiWaliScreenState extends State<NotifikasiWaliScreen> {
     );
   }
 
+  // -------------------------------------------------------------- daftar
   List<Widget> _buildGroupedList() {
     final items = _filtered;
     if (items.isEmpty) {
@@ -608,15 +617,38 @@ class _NotifikasiWaliScreenState extends State<NotifikasiWaliScreen> {
     final widgets = <Widget>[];
     groups.forEach((key, list) {
       widgets.add(Padding(
-        padding: const EdgeInsets.only(top: 18, bottom: 10),
+        padding: const EdgeInsets.only(top: 20, bottom: 10),
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(key,
-                style: const TextStyle(
-                    fontSize: 12, fontWeight: FontWeight.w600, color: _NC.inkSecondary)),
-            Text('${list.length} Kabar',
-                style: const TextStyle(fontSize: 12, color: _NC.inkSecondary)),
+            Container(
+              width: 4,
+              height: 14,
+              decoration: BoxDecoration(
+                color: _NC.gold,
+                borderRadius: BorderRadius.circular(999),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(key,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.4,
+                      color: _NC.inkSecondary)),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+              decoration: BoxDecoration(
+                color: _NC.surfaceDim,
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Text('${list.length} Kabar',
+                  style: const TextStyle(
+                      fontSize: 11, fontWeight: FontWeight.w600, color: _NC.inkSecondary)),
+            ),
           ],
         ),
       ));
@@ -640,13 +672,22 @@ class _NotifikasiWaliScreenState extends State<NotifikasiWaliScreen> {
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: unread ? _NC.surface : _NC.surfaceDim,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(color: unread ? _NC.border : Colors.transparent),
+        boxShadow: unread
+            ? [
+                BoxShadow(
+                  color: _NC.ink.withOpacity(0.04),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ]
+            : null,
       ),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(18),
           onTap: () => _markRead('${n['id']}'),
           child: Padding(
             padding: const EdgeInsets.all(14),
@@ -654,13 +695,13 @@ class _NotifikasiWaliScreenState extends State<NotifikasiWaliScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Container(
-                  width: 40,
-                  height: 40,
+                  width: 44,
+                  height: 44,
                   decoration: BoxDecoration(
                     color: unread ? st.bg : _NC.border.withOpacity(0.6),
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(14),
                   ),
-                  child: Icon(st.icon, size: 20, color: unread ? st.fg : _NC.inkSecondary),
+                  child: Icon(st.icon, size: 21, color: unread ? st.fg : _NC.inkSecondary),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -668,33 +709,34 @@ class _NotifikasiWaliScreenState extends State<NotifikasiWaliScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
                         decoration: BoxDecoration(
                           color: unread ? st.bg : _NC.border.withOpacity(0.6),
-                          borderRadius: BorderRadius.circular(6),
+                          borderRadius: BorderRadius.circular(999),
                         ),
                         child: Text(tag,
                             style: TextStyle(
                                 fontSize: 10.5,
-                                fontWeight: FontWeight.w700,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 0.2,
                                 color: unread ? st.fg : _NC.inkSecondary)),
                       ),
                       const SizedBox(height: 8),
                       Text('${n['pesan']}',
                           style: TextStyle(
                               fontSize: 13.5,
-                              height: 1.35,
+                              height: 1.4,
                               color: _NC.ink,
                               fontWeight: unread ? FontWeight.w700 : FontWeight.w400)),
                       const SizedBox(height: 8),
                       Row(children: [
-                        const Icon(Icons.schedule, size: 13, color: _NC.inkSecondary),
+                        const Icon(Icons.schedule_rounded, size: 13, color: _NC.inkSecondary),
                         const SizedBox(width: 5),
                         Text(dt == null ? '-' : _relativeTime(dt),
                             style: const TextStyle(fontSize: 11.5, color: _NC.inkSecondary)),
                       ]),
                       if (aksi.isNotEmpty) ...[
-                        const SizedBox(height: 10),
+                        const SizedBox(height: 12),
                         Wrap(
                           spacing: 8,
                           runSpacing: 6,
@@ -717,8 +759,8 @@ class _NotifikasiWaliScreenState extends State<NotifikasiWaliScreen> {
                 if (unread)
                   Container(
                     margin: const EdgeInsets.only(top: 4, left: 6),
-                    width: 8,
-                    height: 8,
+                    width: 9,
+                    height: 9,
                     decoration: BoxDecoration(
                         color: kat == _Kat.pelanggaran ? _NC.goldLight : _NC.dot,
                         shape: BoxShape.circle),
@@ -816,44 +858,6 @@ class _NotifikasiWaliScreenState extends State<NotifikasiWaliScreen> {
 // Widget kecil
 // ============================================================================
 
-class _HeaderIconButton extends StatelessWidget {
-  const _HeaderIconButton({
-    required this.icon,
-    required this.onTap,
-    required this.tooltip,
-    this.tinted = false,
-  });
-
-  final IconData icon;
-  final VoidCallback onTap;
-  final String tooltip;
-  final bool tinted;
-
-  @override
-  Widget build(BuildContext context) {
-    return Tooltip(
-      message: tooltip,
-      child: Material(
-        color: tinted ? _NC.mint : _NC.surface,
-        borderRadius: BorderRadius.circular(14),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(14),
-          child: Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: tinted ? _NC.primary.withOpacity(0.15) : _NC.border),
-            ),
-            child: Icon(icon, size: 20, color: tinted ? _NC.primary : _NC.ink),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _ActionPill extends StatelessWidget {
   const _ActionPill({required this.label, required this.filled, required this.onTap});
 
@@ -870,67 +874,36 @@ class _ActionPill extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(999),
         child: Container(
-          height: 32,
-          padding: const EdgeInsets.symmetric(horizontal: 14),
-          alignment: Alignment.center,
+          height: 34,
+          padding: const EdgeInsets.only(left: 14, right: 10),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(999),
             border: filled ? null : Border.all(color: _NC.border),
           ),
-          child: Text(label,
-              style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: filled ? Colors.white : _NC.inkSecondary)),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(label,
+                  style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: filled ? Colors.white : _NC.inkSecondary)),
+              const SizedBox(width: 4),
+              Icon(Icons.arrow_forward_rounded,
+                  size: 14, color: filled ? Colors.white : _NC.inkSecondary),
+            ],
+          ),
         ),
       ),
     );
   }
 }
 
-class _AllClearFooter extends StatelessWidget {
-  const _AllClearFooter();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: _NC.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _NC.border),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(color: _NC.mint, shape: BoxShape.circle),
-            child: Icon(Icons.check_circle_outline, color: _NC.primary),
-          ),
-          const SizedBox(width: 12),
-          const Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Semua Kabar Sudah Dibaca',
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _NC.ink)),
-                SizedBox(height: 2),
-                Text('Tidak ada kabar baru tentang anak Anda saat ini.',
-                    style: TextStyle(fontSize: 12, color: _NC.inkSecondary)),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
+/// Kartu "semua sudah dibaca" — tampil di bawah daftar kalau tidak ada yang belum dibaca.
 class _AllReadCard extends StatelessWidget {
   const _AllReadCard({
     this.title = 'Semua kabar sudah dibaca',
-    this.subtitle =
-        'Tidak ada kabar baru tentang anak Anda. Kami akan memberi tahu saat ada perkembangan.',
+    this.subtitle = 'Tidak ada kabar baru tentang anak Anda.',
   });
 
   final String title;
@@ -940,50 +913,48 @@ class _AllReadCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 26),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: _NC.mint,
-        borderRadius: BorderRadius.circular(22),
+        color: _NC.mint.withOpacity(0.55),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: _NC.primary.withOpacity(0.12)),
       ),
-      child: Column(
+      child: Row(
         children: [
           Container(
-            width: 78,
-            height: 78,
+            width: 42,
+            height: 42,
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: _NC.primary.withOpacity(0.10),
               shape: BoxShape.circle,
-            ),
-            child: Container(
-              width: 56,
-              height: 56,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: _NC.surface,
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: _NC.primary.withOpacity(0.18),
-                    blurRadius: 14,
-                    offset: const Offset(0, 5),
-                  ),
-                ],
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [_NC.primary, _NC.primaryEnd],
               ),
-              child: Icon(Icons.done_all_rounded, size: 28, color: _NC.primary),
             ),
+            child: const Icon(Icons.done_all_rounded, size: 20, color: Colors.white),
           ),
-          const SizedBox(height: 14),
-          Text(
-            title,
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: _NC.primary),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            subtitle,
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 12, color: _NC.inkSecondary, height: 1.45),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w800,
+                    color: _NC.ink,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: const TextStyle(fontSize: 12, color: _NC.inkSecondary, height: 1.4),
+                ),
+              ],
+            ),
           ),
         ],
       ),
