@@ -1,16 +1,19 @@
 // ustadz_header.dart
 //
-// Header (bar atas) untuk Ustadz/Guru, disamakan dengan AdminHeader:
-//   SIMEdu [USTADZ]                                        (avatar)
+// Header (bar atas) untuk Ustadz/Guru, disamakan dengan WaliHeader:
+//   SIMEdu [USTADZ]                              (lonceng)  (avatar)
 //   (ikon) Panel Ustadz / Guru • Beranda
 //
-// Klik avatar -> membuka kartu profil dengan tombol Keluar.
-// Lonceng notifikasi sengaja belum ada (belum ada pemicu notifikasi untuk
-// ustadz di backend/PRD). Kalau nanti dibutuhkan, tambahkan lagi parameter
-// onNotifikasi + hasUnread seperti di AdminHeader.
+// Klik avatar -> membuka kartu profil bertema branding pondok (logo, nama, warna)
+// dengan tombol Pengaturan & Keluar.
+//
+// Taruh di lib/screens/master/ustadz/ustadz_header.dart
 
 import 'package:flutter/material.dart';
+import '../../santri/santri_ui.dart' show SC;
+import '../../../services/app_scope.dart';
 import '../../super_admin/tenants_screen.dart' show PColors;
+import '../../ui_utils.dart';
 
 class UstadzHeader extends StatelessWidget implements PreferredSizeWidget {
   const UstadzHeader({
@@ -18,12 +21,16 @@ class UstadzHeader extends StatelessWidget implements PreferredSizeWidget {
     required this.subtitle,
     required this.nama,
     required this.email,
+    required this.onNotifikasi,
+    required this.onPengaturan,
     required this.onLogout,
     this.roleLabel = 'USTADZ',
+    this.hasUnread = false,
   });
 
-  /// Sama dengan AdminHeader.brandName supaya nama produknya konsisten.
-  static const String brandName = 'SIMpesantren';
+  /// Nama produk global (bukan nama pondok/sekolah tenant).
+  /// Harus sama dengan AdminHeader.brandName supaya nama produknya konsisten.
+  static const String brandName = 'SIMEdu';
 
   /// Baris kedua (nama menu aktif, mis. "Beranda").
   final String subtitle;
@@ -31,10 +38,15 @@ class UstadzHeader extends StatelessWidget implements PreferredSizeWidget {
   final String nama;
   final String email;
 
+  final VoidCallback onNotifikasi;
+  final VoidCallback onPengaturan;
   final VoidCallback onLogout;
 
   /// Label pill di sebelah nama produk.
   final String roleLabel;
+
+  /// Titik merah di lonceng.
+  final bool hasUnread;
 
   static const double _maxWidth = 480;
 
@@ -55,6 +67,8 @@ class UstadzHeader extends StatelessWidget implements PreferredSizeWidget {
               child: Row(
                 children: [
                   Expanded(child: _buildBrand()),
+                  _buildBell(),
+                  const SizedBox(width: 2),
                   _buildAvatarButton(context),
                 ],
               ),
@@ -66,7 +80,7 @@ class UstadzHeader extends StatelessWidget implements PreferredSizeWidget {
   }
 
   // -------------------------------------------------------------------
-  // Kiri: nama produk + pill role + menu aktif
+  // Kiri: brand + pill role + menu aktif
   // -------------------------------------------------------------------
 
   Widget _buildBrand() {
@@ -77,12 +91,12 @@ class UstadzHeader extends StatelessWidget implements PreferredSizeWidget {
       children: [
         Row(
           children: [
-            Flexible(
+            const Flexible(
               child: Text(
                 brandName,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
+                style: TextStyle(
                   fontFamily: 'Nunito',
                   fontSize: 19,
                   fontWeight: FontWeight.w800,
@@ -94,7 +108,7 @@ class UstadzHeader extends StatelessWidget implements PreferredSizeWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
               decoration: BoxDecoration(
-                color: PColors.primary,
+                color: SC.primary,
                 borderRadius: BorderRadius.circular(9999),
               ),
               child: Text(
@@ -129,7 +143,7 @@ class UstadzHeader extends StatelessWidget implements PreferredSizeWidget {
             Container(
               width: 6,
               height: 6,
-              decoration: const BoxDecoration(color: PColors.primary, shape: BoxShape.circle),
+              decoration: BoxDecoration(color: SC.primary, shape: BoxShape.circle),
             ),
             const SizedBox(width: 4),
             Flexible(
@@ -137,11 +151,11 @@ class UstadzHeader extends StatelessWidget implements PreferredSizeWidget {
                 subtitle,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
+                style: TextStyle(
                   fontFamily: 'Nunito',
                   fontSize: 11,
                   fontWeight: FontWeight.w700,
-                  color: PColors.primary,
+                  color: SC.primary,
                 ),
               ),
             ),
@@ -152,16 +166,43 @@ class UstadzHeader extends StatelessWidget implements PreferredSizeWidget {
   }
 
   // -------------------------------------------------------------------
-  // Kanan: avatar
+  // Kanan: lonceng + avatar
   // -------------------------------------------------------------------
+
+  Widget _buildBell() {
+    return IconButton(
+      tooltip: 'Notifikasi',
+      onPressed: onNotifikasi,
+      icon: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          const Icon(Icons.notifications_none_rounded, size: 26, color: PColors.ink),
+          if (hasUnread)
+            Positioned(
+              right: 1,
+              top: 1,
+              child: Container(
+                width: 9,
+                height: 9,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE53935),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: PColors.surface, width: 1.5),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
 
   Widget _buildAvatarButton(BuildContext context) {
     return InkWell(
       customBorder: const CircleBorder(),
       onTap: () => _showProfileSheet(context),
-      child: const Padding(
-        padding: EdgeInsets.all(4),
-        child: _ProfileAvatar(size: 40, badge: 10),
+      child: Padding(
+        padding: const EdgeInsets.all(4),
+        child: _InitialAvatar(nama: nama, size: 40),
       ),
     );
   }
@@ -171,6 +212,11 @@ class UstadzHeader extends StatelessWidget implements PreferredSizeWidget {
   // -------------------------------------------------------------------
 
   void _showProfileSheet(BuildContext context) {
+    final scope = AppScope.of(context);
+    final logo = scope.brandingLogo;
+    final tn = scope.user?.tenantNama;
+    final pondok = (tn != null && tn.isNotEmpty) ? tn : brandName;
+
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: PColors.surface,
@@ -195,12 +241,113 @@ class UstadzHeader extends StatelessWidget implements PreferredSizeWidget {
                   ),
                 ),
               ),
-              const SizedBox(height: 18),
+              const SizedBox(height: 16),
+
+              // Banner branding pondok
+              Container(
+                width: double.infinity,
+                clipBehavior: Clip.antiAlias,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [SC.primary, SC.primaryEnd],
+                  ),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Stack(
+                  children: [
+                    Positioned(
+                      right: -24,
+                      top: -28,
+                      child: Container(
+                        width: 100,
+                        height: 100,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.white.withOpacity(0.08),
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      right: 30,
+                      bottom: -34,
+                      child: Container(
+                        width: 70,
+                        height: 70,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.white.withOpacity(0.06),
+                        ),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 54,
+                            height: 54,
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            clipBehavior: Clip.antiAlias,
+                            child: (logo != null && logo.isNotEmpty)
+                                ? brandLogo(logo, width: 54, height: 54, radius: 16)
+                                : Icon(Icons.mosque, size: 28, color: SC.primary),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  pondok,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontFamily: 'Nunito',
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w800,
+                                    color: Colors.white,
+                                    height: 1.2,
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.18),
+                                    borderRadius: BorderRadius.circular(9999),
+                                  ),
+                                  child: const Text(
+                                    'Panel Ustadz / Guru',
+                                    style: TextStyle(
+                                      fontFamily: 'Nunito',
+                                      fontSize: 10.5,
+                                      fontWeight: FontWeight.w700,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 16),
+
+              // Info akun
               Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const _ProfileAvatar(size: 64, badge: 12),
-                  const SizedBox(width: 14),
+                  _InitialAvatar(nama: nama, size: 46),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -211,29 +358,12 @@ class UstadzHeader extends StatelessWidget implements PreferredSizeWidget {
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
                             fontFamily: 'Nunito',
-                            fontSize: 17,
+                            fontSize: 15,
                             fontWeight: FontWeight.w800,
                             color: PColors.ink,
                           ),
                         ),
-                        const SizedBox(height: 6),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: PColors.primary,
-                            borderRadius: BorderRadius.circular(9999),
-                          ),
-                          child: const Text(
-                            'Ustadz / Guru',
-                            style: TextStyle(
-                              fontFamily: 'Nunito',
-                              fontSize: 10,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 3),
                         Row(
                           children: [
                             const Icon(Icons.mail_outline, size: 14, color: PColors.inkSecondary),
@@ -257,16 +387,36 @@ class UstadzHeader extends StatelessWidget implements PreferredSizeWidget {
                   ),
                 ],
               ),
+
               const SizedBox(height: 18),
-              _SheetButton(
-                icon: Icons.logout,
-                label: 'Keluar',
-                background: PColors.errorBg,
-                foreground: PColors.errorText,
-                onTap: () {
-                  Navigator.pop(sheetCtx);
-                  onLogout();
-                },
+              Row(
+                children: [
+                  Expanded(
+                    child: _SheetButton(
+                      icon: Icons.tune,
+                      label: 'Pengaturan',
+                      background: SC.mint,
+                      foreground: SC.primary,
+                      onTap: () {
+                        Navigator.pop(sheetCtx);
+                        onPengaturan();
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _SheetButton(
+                      icon: Icons.logout,
+                      label: 'Keluar',
+                      background: PColors.errorBg,
+                      foreground: PColors.errorText,
+                      onTap: () {
+                        Navigator.pop(sheetCtx);
+                        onLogout();
+                      },
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -277,43 +427,44 @@ class UstadzHeader extends StatelessWidget implements PreferredSizeWidget {
 }
 
 // ============================================================================
-// Avatar (gaya sama dengan AdminHeader)
+// Avatar inisial (warna ikut branding pondok)
 // ============================================================================
 
-class _ProfileAvatar extends StatelessWidget {
-  const _ProfileAvatar({required this.size, required this.badge});
+class _InitialAvatar extends StatelessWidget {
+  const _InitialAvatar({required this.nama, required this.size});
 
+  final String nama;
   final double size;
-  final double badge;
+
+  static String _initials(String name) {
+    final parts = name.trim().split(RegExp(r'\s+'));
+    if (parts.isEmpty || parts.first.isEmpty) return '?';
+    if (parts.length == 1) return parts.first.substring(0, 1).toUpperCase();
+    return (parts.first[0] + parts.last[0]).toUpperCase();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
+    return Container(
       width: size,
       height: size,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          Container(
-            width: size,
-            height: size,
-            decoration: const BoxDecoration(color: PColors.sage, shape: BoxShape.circle),
-            child: Icon(Icons.person, color: PColors.primary, size: size * 0.5),
-          ),
-          Positioned(
-            right: -2,
-            bottom: -2,
-            child: Container(
-              padding: const EdgeInsets.all(3),
-              decoration: BoxDecoration(
-                color: PColors.primary,
-                shape: BoxShape.circle,
-                border: Border.all(color: PColors.surface, width: 1.5),
-              ),
-              child: Icon(Icons.verified_user, size: badge, color: Colors.white),
-            ),
-          ),
-        ],
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [SC.primary, SC.primaryEnd],
+        ),
+      ),
+      child: Text(
+        _initials(nama),
+        style: TextStyle(
+          fontFamily: 'Nunito',
+          fontSize: size * 0.34,
+          fontWeight: FontWeight.w800,
+          color: Colors.white,
+        ),
       ),
     );
   }
@@ -344,7 +495,6 @@ class _SheetButton extends StatelessWidget {
         onTap: onTap,
         child: SizedBox(
           height: 46,
-          width: double.infinity,
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [

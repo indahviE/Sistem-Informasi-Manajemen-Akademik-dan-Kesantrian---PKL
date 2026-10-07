@@ -111,8 +111,9 @@ export class TenantsController {
     return this.tenantsService.getBranding(kodeTenant);
   }
 
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.ADMIN, Role.PIMPINAN, Role.USTADZ)
+  // Semua role yang login (admin, pimpinan, ustadz, wali, santri) boleh baca
+  // branding tenant-nya sendiri. tenantId diambil dari token, bukan dari input.
+  @UseGuards(JwtAuthGuard)
   @Get('branding/me')
   getMyBranding(@TenantId() tenantId: string) {
     return this.tenantsService.getMyBranding(tenantId);

@@ -202,9 +202,89 @@ class _DirektoriSantriScreenState extends State<DirektoriSantriScreen> {
         .showSnackBar(const SnackBar(content: Text('Fitur ini akan segera tersedia.')));
   }
 
+  Future<void> _editKamarSantri(_SantriItem santri) async {
+    final kamarCtrl = TextEditingController(text: santri.kamar);
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Ubah Kamar: ${santri.nama}', style: _DT.headlineSm),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: kamarCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Kamar / Asrama',
+                hintText: 'Contoh: C-04, A-12, B-08',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Batal')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Simpan')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    
+    final newKamar = kamarCtrl.text.trim();
+    if (newKamar.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Kamar tidak boleh kosong.')));
+      return;
+    }
+    
+    try {
+      final api = AppScope.of(context).api;
+      await api.patch('${ApiUrl.santri}/${santri.id}', {'asrama': newKamar});
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Kamar berhasil diubah.')));
+      _load(showSpinner: false);
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Gagal mengubah kamar.')));
+    }
+  }
+
+  /// Grup kamar ke range: "Semua Kamar", "Kamar 1-10", "Kamar 11-20", dst
+  /// Extract nomor dari kamar (mis. "C-04" -> 4), group by 10an.
   List<String> get _rooms {
-    final set = _all.map((e) => e.kamar).toSet().toList()..sort();
-    return ['Semua Kamar', ...set];
+    final nums = <int>{};
+    for (final s in _all) {
+      final parts = s.kamar.split('-');
+      if (parts.length >= 2) {
+        final n = int.tryParse(parts[1].trim());
+        if (n != null) nums.add(n);
+      }
+    }
+    if (nums.isEmpty) return ['Semua Kamar'];
+    
+    final sorted = nums.toList()..sort();
+    final ranges = <String>['Semua Kamar'];
+    
+    int? rangeStart;
+    int? rangeLast;
+    for (final n in sorted) {
+      if (rangeStart == null) {
+        rangeStart = n;
+        rangeLast = n;
+      } else if (n - (rangeLast ?? 0) <= 10) {
+        rangeLast = n;
+      } else {
+        ranges.add('Kamar ${rangeStart!}-${rangeLast!}');
+        rangeStart = n;
+        rangeLast = n;
+      }
+    }
+    if (rangeStart != null && rangeLast != null) {
+      ranges.add('Kamar ${rangeStart}-${rangeLast}');
+    }
+    return ranges;
   }
 
   List<_SantriItem> get _filtered {
@@ -212,7 +292,22 @@ class _DirektoriSantriScreenState extends State<DirektoriSantriScreen> {
       final matchQuery = _query.isEmpty ||
           s.nama.toLowerCase().contains(_query) ||
           s.nis.toLowerCase().contains(_query);
-      final matchRoom = _roomFilter == 'Semua Kamar' || s.kamar == _roomFilter;
+      
+      // Handle room range filter (e.g. "Kamar 1-10")
+      bool matchRoom = _roomFilter == 'Semua Kamar';
+      if (!matchRoom && _roomFilter.startsWith('Kamar ')) {
+        final parts = _roomFilter.replaceFirst('Kamar ', '').split('-');
+        if (parts.length == 2) {
+          final start = int.tryParse(parts[0].trim()) ?? 0;
+          final end = int.tryParse(parts[1].trim()) ?? 999;
+          final kamarnums = s.kamar.split('-');
+          if (kamarnums.length >= 2) {
+            final n = int.tryParse(kamarnums[1].trim()) ?? 0;
+            matchRoom = n >= start && n <= end;
+          }
+        }
+      }
+      
       final matchStatus = _statusFilter == 'Semua' || s.status == _statusFilter;
       return matchQuery && matchRoom && matchStatus;
     }).toList();
@@ -655,21 +750,22 @@ class _DirektoriSantriScreenState extends State<DirektoriSantriScreen> {
         decoration: BoxDecoration(
           color: _DC.surfaceContainerLowest,
           borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: _DC.surfaceContainerHighest, width: 1),
           boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 6, offset: const Offset(0, 2))],
         ),
         child: Column(
           children: [
             Container(
-              width: 48, height: 48,
+              width: 56, height: 56,
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(16),
                 gradient: const LinearGradient(
                   begin: Alignment.topLeft, end: Alignment.bottomRight,
                   colors: [_DC.primaryContainer, _DC.primary],
                 ),
               ),
               alignment: Alignment.center,
-              child: Text(s.initials, style: const TextStyle(fontFamily: 'Nunito', fontSize: 17, fontWeight: FontWeight.w800, color: Colors.white)),
+              child: Text(s.initials, style: const TextStyle(fontFamily: 'Nunito', fontSize: 20, fontWeight: FontWeight.w800, color: Colors.white)),
             ),
             const SizedBox(height: 8),
             Text(s.nama, maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center, style: _DT.headlineXs),
@@ -739,6 +835,7 @@ class _DirektoriSantriScreenState extends State<DirektoriSantriScreen> {
         onIzin: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PerizinanScreen())),
         onKesehatan: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const KesehatanScreen())),
         onKunjungan: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const KunjunganScreen())),
+        onKelolaKamar: () => _editKamarSantri(s),
       ),
     );
   }
@@ -829,6 +926,7 @@ class _KelolaSantriSheet extends StatelessWidget {
   final VoidCallback onIzin;
   final VoidCallback onKesehatan;
   final VoidCallback onKunjungan;
+  final VoidCallback onKelolaKamar;
 
   const _KelolaSantriSheet({
     required this.santri,
@@ -839,6 +937,7 @@ class _KelolaSantriSheet extends StatelessWidget {
     required this.onIzin,
     required this.onKesehatan,
     required this.onKunjungan,
+    required this.onKelolaKamar,
   });
 
   @override
@@ -906,6 +1005,8 @@ class _KelolaSantriSheet extends StatelessWidget {
                       _DC.secondaryFixed, _DC.onSecondaryFixed, onIzin),
                   _action(context, Icons.health_and_safety, 'Catat Kesehatan', 'Periksa keluhan di Poskestren',
                       _DC.primaryFixedDim, _DC.primaryContainer, onKesehatan),
+                  _action(context, Icons.meeting_room, 'Kelola Kamar', 'Ubah nomor kamar santri',
+                      _DC.secondaryFixed, _DC.secondary, onKelolaKamar),
                   _action(context, Icons.diversity_1, 'Log Kunjungan Wali', 'Catat kedatangan orang tua atau tamu',
                       _DC.surfaceContainerHighest, _DC.onSurface, onKunjungan),
                 ],

@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { RequestUser } from '../common/decorators/current-user.decorator';
 import {
@@ -94,6 +94,22 @@ export class PembinaanService {
 
   async createPembinaanIbadah(tenantId: string, dto: CreatePembinaanIbadahDto, user: RequestUser) {
     await this.assertSantri(tenantId, dto.santriId);
+
+    // Cegah rekap ganda: satu santri, satu jenis ibadah, satu tanggal.
+    const duplikat = await this.prisma.pembinaanIbadah.findFirst({
+      where: {
+        tenantId,
+        santriId: dto.santriId,
+        jenisIbadah: dto.jenisIbadah,
+        tanggal: new Date(dto.tanggal),
+      },
+    });
+    if (duplikat) {
+      throw new ConflictException(
+        `Rekap "${dto.jenisIbadah}" untuk santri ini pada tanggal tersebut sudah dicatat.`,
+      );
+    }
+
     return this.prisma.pembinaanIbadah.create({
       data: {
         tenantId,

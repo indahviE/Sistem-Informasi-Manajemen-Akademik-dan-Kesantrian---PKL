@@ -34,14 +34,22 @@ import 'super_admin/pengaturan_screen.dart';
 import 'super_admin/super_admin_header.dart';
 import 'admin/admin_header.dart';
 import 'master/ustadz/ustadz_header.dart';
+import 'master/ustadz/pengaturan_ustadz_screen.dart';
+import 'master/ustadz/notifikasi_ustadz_screen.dart';
 import 'admin/pengaturan_admin_screen.dart';
 import 'wali/wali_screen.dart';
+import 'wali/wali_header.dart';
+import 'wali/pengaturan_wali_screen.dart';
+import 'wali/notifikasi_wali_screen.dart';
+import 'musyrif/musyrif_header.dart';
+import 'musyrif/notifikasi_screen.dart';
 import 'ppdb/ppdb_list_screen.dart';
 import 'kurikulum/kurikulum_screen.dart';
 import 'kesantrian/rekam_medis_screen.dart';
 import 'billing/billing_admin_screen.dart';
 import 'billing/billing_tenant_screen.dart';
 import 'branding/branding_screen.dart';
+import 'akademik/jurnal_mengajar_screen.dart';
 import 'santri/santri_ui.dart' show SC;
 
 class ShellScreen extends StatefulWidget {
@@ -63,6 +71,7 @@ class _ShellScreenState extends State<ShellScreen> {
   // (super admin's 5-item menu is shown in full, without this cap).
   static const _pinned = ['Dashboard', 'Santri', 'Absensi', 'Kurikulum'];
   static const _adminPinned = ['Dashboard', 'Santri', 'Absensi', 'Pengaturan'];
+  static const _waliPinned = ['Beranda', 'Anak Saya', 'Perizinan', 'Pelanggaran'];
 
   // Keeps the bottom nav pinned to a mobile-sized width and centered,
   // instead of stretching full-width on tablet/web/desktop screens.
@@ -73,9 +82,9 @@ class _ShellScreenState extends State<ShellScreen> {
   late List<_MenuItem> _moreItems;
   _MenuItem? _activeExtra;
 
-  // True kalau lagi nampilin Notifikasi Super Admin. Bukan route terpisah —
-  // cuma nge-swap `body`, jadi AppBar (SuperAdminHeader) & bottom nav Shell
-  // otomatis tetap kepakai (nggak ilang kayak kalau di-push).
+  // True kalau lagi nampilin Notifikasi (Super Admin / Admin / Wali / Ustadz).
+  // Bukan route terpisah — cuma nge-swap `body`, jadi AppBar (header role) &
+  // bottom nav Shell otomatis tetap kepakai (nggak ilang kayak kalau di-push).
   bool _notifikasiOpen = false;
   int _unreadCount = 0;
 
@@ -92,7 +101,7 @@ class _ShellScreenState extends State<ShellScreen> {
       chosen = List.of(all);
     } else {
       chosen = <_MenuItem>[];
-      for (final label in (user.isAdmin ? _adminPinned : _pinned)) {
+      for (final label in (user.isAdmin ? _adminPinned : (user.isWali ? _waliPinned : _pinned))) {
         final i = all.indexWhere((e) => e.label == label);
         if (i >= 0) chosen.add(all[i]);
       }
@@ -107,7 +116,9 @@ class _ShellScreenState extends State<ShellScreen> {
     if (_navIndex >= _navItems.length) _navIndex = 0;
     _activeExtra = null;
 
-    if (user.isSuperAdmin || user.isAdmin) _loadUnreadCount();
+    if (user.isSuperAdmin || user.isAdmin || user.isWali || user.isUstadz || user.isMusyrif) {
+      _loadUnreadCount();
+    }
   }
 
   Future<void> _loadUnreadCount() async {
@@ -127,7 +138,7 @@ class _ShellScreenState extends State<ShellScreen> {
     if (user.isSuperAdmin) {
       // Matches the Super Admin platform-control navigation:
       // Beranda, Tenant, Audit Log, Billing, Pengaturan.
-      m.add(_MenuItem('Beranda', Icons.space_dashboard, (_) =>  DashboardScreen(onNavigate: _goToMenu)));
+      m.add(_MenuItem('Beranda', Icons.space_dashboard, (_) => DashboardScreen(onNavigate: _goToMenu)));
       m.add(_MenuItem('Tenant', Icons.domain, (_) => const TenantsScreen()));
       m.add(_MenuItem('Audit Log', Icons.security, (_) => const AuditLogScreen()));
       m.add(_MenuItem('Billing', Icons.card_membership, (_) => const BillingAdminScreen()));
@@ -135,7 +146,11 @@ class _ShellScreenState extends State<ShellScreen> {
       return m;
     }
 
-    m.add(_MenuItem('Dashboard', Icons.dashboard, (_) => DashboardScreen(onNavigate: _goToMenu)));
+    m.add(_MenuItem(
+      user.isWali ? 'Beranda' : 'Dashboard',
+      user.isWali ? Icons.home_rounded : Icons.dashboard,
+      (_) => DashboardScreen(onNavigate: _goToMenu),
+    ));
 
     if (!user.isWali) {
       m.add(_MenuItem('Santri', Icons.groups, (_) => const SantriListScreen()));
@@ -160,6 +175,9 @@ class _ShellScreenState extends State<ShellScreen> {
       m.add(_MenuItem('Ujian & Remedial', Icons.fact_check, (_) => const UjianScreen()));
       m.add(_MenuItem('Rapor Digital', Icons.description, (_) => const RaporScreen()));
       m.add(_MenuItem('Kelulusan & Wisuda', Icons.military_tech, (_) => const KelulusanScreen()));
+    }
+    if (user.isAdmin || user.isUstadz || user.isPimpinan) {
+      m.add(_MenuItem('Jurnal Mengajar', Icons.menu_book_outlined, (_) => const JurnalMengajarScreen()));
     }
 
     if (user.isAdmin || user.isMusyrif || user.isUstadz || user.isPimpinan) {
@@ -199,12 +217,17 @@ class _ShellScreenState extends State<ShellScreen> {
       ));
     }
 
+    if (user.isUstadz) {
+      m.add(_MenuItem('Pengaturan', Icons.tune, (_) => const PengaturanUstadzScreen()));
+    }
+
     if (user.isWali) {
       m.add(_MenuItem('Anak Saya', Icons.family_restroom, (_) => const WaliScreen()));
       m.add(_MenuItem('Pelanggaran', Icons.gavel, (_) => const PelanggaranScreen()));
       m.add(_MenuItem('Perizinan', Icons.exit_to_app, (_) => const PerizinanScreen()));
       m.add(_MenuItem('Pembinaan Karakter', Icons.emoji_events, (_) => const PembinaanKarakterScreen()));
       m.add(_MenuItem('Pembinaan Ibadah', Icons.mosque, (_) => const PembinaanIbadahScreen()));
+      m.add(_MenuItem('Pengaturan', Icons.tune, (_) => const PengaturanWaliScreen()));
     }
 
     return m;
@@ -261,49 +284,74 @@ class _ShellScreenState extends State<ShellScreen> {
                   onNotifikasi: () => setState(() => _notifikasiOpen = true),
                   onLogout: _logout,
                 )
-                : user.isUstadz
+              : user.isUstadz
                   ? UstadzHeader(
                       subtitle: title == 'Dashboard' ? 'Beranda' : title,
                       nama: user.nama,
                       email: user.email,
+                      hasUnread: _unreadCount > 0,
+                      onNotifikasi: () => setState(() => _notifikasiOpen = true),
+                      onPengaturan: () => _goToMenu('Pengaturan'),
                       onLogout: _logout,
                     )
-              : AppBar(
-        title: _appBarTitle(user, title),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.notifications_outlined),
-            onPressed: () => Navigator.push(context,
-                MaterialPageRoute(builder: (_) => const NotifikasiScreen())),
-            tooltip: 'Notifikasi',
-          ),
-          Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: CircleAvatar(
-              radius: 16,
-              backgroundColor: _seed,
-              child: Text(_initials(user.nama),
-                  style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700)),
-            ),
-          ),
-          PopupMenuButton<String>(
-            onSelected: (v) {
-              if (v == 'logout') _logout();
-            },
-            icon: const Icon(Icons.more_vert),
-            itemBuilder: (_) => [
-              PopupMenuItem(
-                value: 'logout',
-                child: ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.logout),
-                  title: Text('Keluar (${user.nama})'),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
+                  : user.isWali
+                      ? WaliHeader(
+                          subtitle: title == 'Beranda' ? 'Portal Wali Santri' : title,
+                          nama: user.nama,
+                          email: user.email,
+                          hasUnread: _unreadCount > 0,
+                          onNotifikasi: () => setState(() => _notifikasiOpen = true),
+                          onPengaturan: () => _goToMenu('Pengaturan'),
+                          onLogout: _logout,
+                        )
+                      : user.isMusyrif
+                          ? MusyrifHeader(
+                              subtitle: title == 'Dashboard' ? 'Beranda' : title,
+                              nama: user.nama,
+                              email: user.email,
+                              hasUnread: _unreadCount > 0,
+                              onNotifikasi: () => setState(() => _notifikasiOpen = true),
+                              onLogout: _logout,
+                            )
+                      : AppBar(
+                          title: _appBarTitle(user, title),
+                          actions: [
+                            IconButton(
+                              icon: const Icon(Icons.notifications_outlined),
+                              onPressed: () => Navigator.push(context,
+                                  MaterialPageRoute(builder: (_) => const NotifikasiScreen())),
+                              tooltip: 'Notifikasi',
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: CircleAvatar(
+                                radius: 16,
+                                backgroundColor: _seed,
+                                child: Text(_initials(user.nama),
+                                    style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w700)),
+                              ),
+                            ),
+                            PopupMenuButton<String>(
+                              onSelected: (v) {
+                                if (v == 'logout') _logout();
+                              },
+                              icon: const Icon(Icons.more_vert),
+                              itemBuilder: (_) => [
+                                PopupMenuItem(
+                                  value: 'logout',
+                                  child: ListTile(
+                                    contentPadding: EdgeInsets.zero,
+                                    leading: const Icon(Icons.logout),
+                                    title: Text('Keluar (${user.nama})'),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
       body: (user.isSuperAdmin && _notifikasiOpen)
           ? NotifikasiSuperAdminScreen(
               onBack: () {
@@ -322,7 +370,34 @@ class _ShellScreenState extends State<ShellScreen> {
                   onNavigate: _goToMenu,
                   onReadStateChanged: _loadUnreadCount,
                 )
-              : active.builder(context),
+              : (user.isUstadz && _notifikasiOpen)
+                  ? NotifikasiUstadzScreen(
+                      onBack: () {
+                        setState(() => _notifikasiOpen = false);
+                        _loadUnreadCount();
+                      },
+                      onNavigate: _goToMenu,
+                      onReadStateChanged: _loadUnreadCount,
+                    )
+                  : (user.isWali && _notifikasiOpen)
+                      ? NotifikasiWaliScreen(
+                          onBack: () {
+                            setState(() => _notifikasiOpen = false);
+                            _loadUnreadCount();
+                          },
+                          onNavigate: _goToMenu,
+                          onReadStateChanged: _loadUnreadCount,
+                        )
+                      : (user.isMusyrif && _notifikasiOpen)
+                          ? NotifikasiMusyrifScreen(
+                              onBack: () {
+                                setState(() => _notifikasiOpen = false);
+                                _loadUnreadCount();
+                              },
+                              onNavigate: _goToMenu,
+                              onReadStateChanged: _loadUnreadCount,
+                            )
+                          : active.builder(context),
       bottomNavigationBar: Container(
         // Full-width fill supaya nggak ada strip abu-abu bawaan Scaffold yang
         // keliatan di kiri-kanan kotak nav 480px — warnanya disamain persis

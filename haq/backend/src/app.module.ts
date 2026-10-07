@@ -24,6 +24,7 @@ import { TenantIsolationGuard } from './auth/guards/tenant-isolation.guard';
 import { AuditLogInterceptor } from './common/interceptors/audit-log.interceptor';
 import { PembinaanModule } from './pembinaan/pembinaan.module';
 import { AuditModule } from './audit/audit.module';
+import { JurnalMengajarModule } from './jurnal-mengajar/jurnal-mengajar.module';
 
 import { ScheduleModule } from '@nestjs/schedule';
 
@@ -50,6 +51,7 @@ import { ScheduleModule } from '@nestjs/schedule';
     BillingModule,
     PembinaanModule,
     AuditModule,
+    JurnalMengajarModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtPublicGlobalGuard },

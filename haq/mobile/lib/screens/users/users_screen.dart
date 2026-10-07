@@ -42,7 +42,6 @@ const _kRoles = [
   _RoleInfo('MUSYRIF', 'Musyrif / Pembina', 'Musyrif', Icons.night_shelter_outlined),
   _RoleInfo('PIMPINAN', 'Pimpinan / Mudir', 'Pimpinan', Icons.workspace_premium_outlined),
   _RoleInfo('WALI_SANTRI', 'Wali Santri', 'Wali', Icons.family_restroom_outlined),
-  _RoleInfo('SANTRI', 'Santri', 'Santri', Icons.backpack_outlined),
 ];
 
 _RoleInfo _roleOf(String value) {

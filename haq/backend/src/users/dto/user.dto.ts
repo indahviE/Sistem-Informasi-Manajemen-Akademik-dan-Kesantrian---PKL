@@ -1,5 +1,15 @@
-import { IsEmail, IsEnum, IsNotEmpty, IsOptional, IsString, MinLength } from 'class-validator';
+import { IsEmail, IsIn, IsNotEmpty, IsOptional, IsString, MinLength } from 'class-validator';
 import { Role } from '@prisma/client';
+
+/** Role yang boleh dibuat/diubah admin tenant. SUPER_ADMIN sengaja tidak ada. */
+export const ROLE_TENANT: string[] = [
+  Role.ADMIN,
+  Role.USTADZ,
+  Role.MUSYRIF,
+  Role.PIMPINAN,
+  Role.WALI_SANTRI,
+  Role.SANTRI,
+];
 
 export class CreateUserDto {
   @IsString()
@@ -13,7 +23,7 @@ export class CreateUserDto {
   @MinLength(6, { message: 'Password minimal 6 karakter' })
   password: string;
 
-  @IsEnum(Role, { message: 'Role tidak valid' })
+  @IsIn(ROLE_TENANT, { message: 'Role tidak valid' })
   role: Role;
 
   @IsOptional()
@@ -35,6 +45,6 @@ export class UpdateUserDto {
   email?: string;
 
   @IsOptional()
-  @IsEnum(Role, { message: 'Role tidak valid' })
+  @IsIn(ROLE_TENANT, { message: 'Role tidak valid' })
   role?: Role;
 }

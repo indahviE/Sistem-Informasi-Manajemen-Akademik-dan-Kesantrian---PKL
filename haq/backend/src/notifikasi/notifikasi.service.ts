@@ -17,6 +17,43 @@ const ADMIN_NOTIF_DEFAULT: Record<AdminNotifKey, boolean> = {
   rekapAbsensiShalat: false,
 };
 
+type WaliNotifKey =
+  | 'perizinanAnak'
+  | 'pelanggaranAnak'
+  | 'kesehatanAnak'
+  | 'nilaiRapor'
+  | 'absensiAnak';
+
+const WALI_NOTIF_DEFAULT: Record<WaliNotifKey, boolean> = {
+  perizinanAnak: true,
+  pelanggaranAnak: true,
+  kesehatanAnak: true,
+  nilaiRapor: true,
+  absensiAnak: true,
+};
+
+// DARURAT sengaja tidak ada di sini: selalu tampil untuk wali.
+const WALI_NOTIF_JENIS: Record<WaliNotifKey, JenisNotifikasi[]> = {
+  perizinanAnak: [JenisNotifikasi.PERIZINAN],
+  pelanggaranAnak: [JenisNotifikasi.PELANGGARAN],
+  kesehatanAnak: [JenisNotifikasi.KESEHATAN],
+  nilaiRapor: [JenisNotifikasi.NILAI],
+  absensiAnak: [JenisNotifikasi.ABSENSI],
+};
+
+type UstadzNotifKey =
+  | 'pengingatAbsensi'
+  | 'pengingatNilai'
+  | 'jadwalMengajar'
+  | 'pengumumanPondok';
+
+const USTADZ_NOTIF_DEFAULT: Record<UstadzNotifKey, boolean> = {
+  pengingatAbsensi: true,
+  pengingatNilai: true,
+  jadwalMengajar: true,
+  pengumumanPondok: true,
+};
+
 @Injectable()
 export class NotifikasiService {
   private readonly logger = new Logger(NotifikasiService.name);
@@ -35,9 +72,34 @@ export class NotifikasiService {
       : { userId };
   }
 
+  /** Jenis yang dimatikan user wali di Pengaturan. Role lain: kosong. */
+  private async jenisDimatikan(userId: string): Promise<JenisNotifikasi[]> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true, notifSetting: true },
+    });
+    if (!user || user.role !== Role.WALI_SANTRI) return [];
+
+    const off: JenisNotifikasi[] = [];
+    for (const key of Object.keys(WALI_NOTIF_JENIS) as WaliNotifKey[]) {
+      const aktif = user.notifSetting ? user.notifSetting[key] : WALI_NOTIF_DEFAULT[key];
+      if (!aktif) off.push(...WALI_NOTIF_JENIS[key]);
+    }
+    return off;
+  }
+
+  private async scopeTampil(
+    userId: string,
+    tenantId: string | undefined,
+  ): Promise<Prisma.NotifikasiWhereInput> {
+    const base = this.scope(userId, tenantId);
+    const off = await this.jenisDimatikan(userId);
+    return off.length ? { AND: [base, { jenis: { notIn: off } }] } : base;
+  }
+
   async myNotifikasis(userId: string, tenantId: string | undefined) {
     return this.prisma.notifikasi.findMany({
-      where: this.scope(userId, tenantId),
+      where: await this.scopeTampil(userId, tenantId),
       orderBy: { tanggal: 'desc' },
       take: 100,
     });
@@ -45,7 +107,7 @@ export class NotifikasiService {
 
   async unreadCount(userId: string, tenantId: string | undefined) {
     return this.prisma.notifikasi.count({
-      where: { ...this.scope(userId, tenantId), statusBaca: false },
+      where: { AND: [await this.scopeTampil(userId, tenantId), { statusBaca: false }] },
     });
   }
 
@@ -124,6 +186,36 @@ export class NotifikasiService {
       });
     } catch (e) {
       this.logger.error(`Gagal kirim notifikasi admin ${jenis}: ${(e as Error).message}`);
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // Pengiriman notifikasi ke Ustadz (per akun)
+  // -------------------------------------------------------------------------
+
+  /**
+   * Kirim satu notifikasi ke satu ustadz, hanya kalau toggle-nya menyala di
+   * Pengaturan Ustadz. Ustadz yang belum pernah membuka Pengaturan (belum ada
+   * baris setting) memakai nilai default. Mengembalikan true kalau terkirim.
+   * Tidak pernah melempar error.
+   */
+  async kirimKeUstadz(
+    tenantId: string,
+    userId: string,
+    jenis: JenisNotifikasi,
+    kunci: UstadzNotifKey,
+    pesan: string,
+  ): Promise<boolean> {
+    try {
+      const setting = await this.prisma.userNotifSetting.findUnique({ where: { userId } });
+      const aktif = setting ? setting[kunci] : USTADZ_NOTIF_DEFAULT[kunci];
+      if (!aktif) return false;
+
+      await this.prisma.notifikasi.create({ data: { tenantId, userId, jenis, pesan } });
+      return true;
+    } catch (e) {
+      this.logger.error(`Gagal kirim notifikasi ustadz ${jenis}: ${(e as Error).message}`);
+      return false;
     }
   }
 

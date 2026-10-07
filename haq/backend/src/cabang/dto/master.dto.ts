@@ -1,4 +1,4 @@
-import { IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsEnum, IsNotEmpty, IsNumber, IsOptional, IsString, Max, Min } from 'class-validator';
 import { JenisUstadz } from '@prisma/client';
 
 export class CreateUstadzDto {
@@ -12,10 +12,6 @@ export class CreateUstadzDto {
   @IsOptional()
   @IsString()
   noHp?: string;
-
-  @IsOptional()
-  @IsString()
-  userId?: string;
 }
 
 export class UpdateUstadzDto {
@@ -80,6 +76,12 @@ export class CreateMapelDto {
   @IsOptional()
   @IsString()
   jenis?: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  kkm?: number;
 }
 
 export class UpdateMapelDto {
@@ -94,6 +96,12 @@ export class UpdateMapelDto {
   @IsOptional()
   @IsString()
   jenis?: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  kkm?: number;
 }
 
 export class CreateTahunAjaranDto {

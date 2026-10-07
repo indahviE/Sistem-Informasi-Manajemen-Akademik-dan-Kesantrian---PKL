@@ -9,6 +9,10 @@ import '../santri/santri_ui.dart' show SC;
 //
 // Alur: Tahap 1 pilih santri -> Tahap 2 input nilai.
 // Remedial dikerjakan di halaman tersendiri.
+//
+// Catatan kunci: saat ujian terkunci, layar TIDAK lagi memblokir input.
+// Backend yang memutuskan boleh/tidaknya (mis. nilai susulan santri
+// sakit/izin/alpa). Pesan penolakan dari backend ditampilkan apa adanya.
 
 class _C {
   // Ikut tema pondok (diatur admin).
@@ -202,25 +206,32 @@ class _UjianInputScreenState extends State<UjianInputScreen> {
   /// Data ujian dari daftar digabung dengan data endpoint detail.
   Map<String, dynamic> get _ujian => {...widget.ujian, ...?_data};
 
-  /// KKM milik ujian ini (jatuh ke bawaan bila belum ada).
+  /// KKM ujian ini. Backend mengirim KKM mapel di field `kkm`
+  /// (jatuh ke bawaan bila belum ada).
   double get _kkm =>
       (_ujian['kkm'] is num) ? (_ujian['kkm'] as num).toDouble() : _kkmDefault;
 
   String get _kkmText =>
       _kkm == _kkm.roundToDouble() ? _kkm.toStringAsFixed(0) : _kkm.toStringAsFixed(1);
-        bool get _terkunci => _ujian['dikunciPada'] != null;
 
-  /// Daftar santri di kelas ujian ini.
+  /// Hanya untuk menampilkan banner; TIDAK dipakai untuk memblokir input.
+  bool get _terkunci => _ujian['dikunciPada'] != null;
+
+  bool _aktif(Map<String, dynamic> s) {
+    final st = s['status'];
+    return st == null || '$st'.toUpperCase() == 'AKTIF';
+  }
+
   List<Map<String, dynamic>> get _santris {
     // Kalau backend sudah mengirim santri di detail ujian, pakai itu.
     final embedded = _listOf(_data?['santris'] ?? _data?['kelas']?['santris']);
-    if (embedded.isNotEmpty) return embedded;
+    if (embedded.isNotEmpty) return embedded.where(_aktif).toList();
 
     // Kalau tidak, saring dari daftar semua santri berdasarkan kelas ujian.
     final kelasId = _ujian['kelasId'] ?? _ujian['kelas']?['id'];
-    if (kelasId == null) return _santriAll; // ujian untuk "Semua kelas"
+    if (kelasId == null) return _santriAll.where(_aktif).toList(); // "Semua kelas"
     return _santriAll
-        .where((s) => (s['kelasId'] ?? s['kelas']?['id']) == kelasId)
+        .where((s) => _aktif(s) && (s['kelasId'] ?? s['kelas']?['id']) == kelasId)
         .toList();
   }
 
@@ -243,20 +254,82 @@ class _UjianInputScreenState extends State<UjianInputScreen> {
     return v;
   }
 
-  void _msg(String text) =>
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+  /// Notifikasi melayang bertema, gaya sama dengan _toast di absensi_screen.dart.
+  /// Sukses = emerald + emas, gagal = merah lembut.
+  void _toast(String title, {String? subtitle, bool error = false}) {
+    if (!mounted) return;
+    final w = MediaQuery.of(context).size.width;
+    final side = w > 472 ? (w - 440) / 2 : 16.0;
+    final fg = error ? _C.badFg : Colors.white;
+
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: error ? _C.badBg : _C.emerald,
+          elevation: 6,
+          // SnackBar melayang otomatis berada di atas bottomNavigationBar,
+          // jadi jarak bawah cukup 16.
+          margin: EdgeInsets.fromLTRB(side, 0, side, 16),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          duration: Duration(seconds: error ? 4 : 3),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(
+              color: error ? _C.badFg.withOpacity(0.25) : _C.gold.withOpacity(0.5),
+            ),
+          ),
+          content: Row(
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: error ? Colors.white : _C.gold.withOpacity(0.18),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  error ? Icons.error_outline : Icons.check_rounded,
+                  size: 18,
+                  color: error ? _C.badFg : _C.gold,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title,
+                        style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: fg)),
+                    if (subtitle != null) ...[
+                      const SizedBox(height: 2),
+                      Text(subtitle,
+                          style: TextStyle(fontSize: 11.5, color: fg.withOpacity(0.75))),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+  }
 
   // ───────────────────────────── AKSI ─────────────────────────────
 
-    void _select(Map<String, dynamic> s) {
-    if (_terkunci) {
-      _msg('Nilai ujian dikunci. Buka kunci di halaman Detail Ujian untuk mengubah.');
-      return;
-    }
+  void _select(Map<String, dynamic> s) {
     final existing = _nilaiOf(s['id']);
+    var status = '${existing?['status'] ?? 'HADIR'}'.toUpperCase();
+
+    // Ujian terkunci + santri tercatat sakit/izin/alpa: kemungkinan besar
+    // yang ingin diisi adalah nilai susulan, jadi mulai dari "Hadir".
+    if (_terkunci && status != 'HADIR') status = 'HADIR';
+
     setState(() {
       _selected = s;
-      _kehadiran = '${existing?['status'] ?? 'HADIR'}'.toUpperCase();
+      _kehadiran = status;
       _nilaiCtrl.text = existing == null ? '' : _fmtNum(existing['nilai']);
       _catCtrl.text = '${existing?['catatan'] ?? ''}';
     });
@@ -271,7 +344,7 @@ class _UjianInputScreenState extends State<UjianInputScreen> {
   }
 
   void _clearSelection() {
-      setState(() {
+    setState(() {
       _selected = null;
       _kehadiran = 'HADIR';
       _nilaiCtrl.clear();
@@ -280,20 +353,19 @@ class _UjianInputScreenState extends State<UjianInputScreen> {
   }
 
   Future<void> _saveNilai() async {
-        final s = _selected;
+    final s = _selected;
     if (s == null) return;
-    if (_terkunci) {
-      _msg('Nilai ujian dikunci. Buka kunci di halaman Detail Ujian untuk mengubah.');
-      return;
-    }
+
     final hadir = _kehadiran == 'HADIR';
     final v = _nilaiVal;
     if (hadir && v == null) {
-      _msg('Masukkan nilai antara 0 – 100.');
+      _toast('Nilai belum valid', subtitle: 'Masukkan nilai antara 0 – 100.', error: true);
       return;
     }
     setState(() => _savingNilai = true);
     try {
+      // Tidak ada pemblokiran di sini: kalau ujian terkunci dan backend
+      // menolak, ApiException berisi alasannya dan ditampilkan di bawah.
       await AppScope.of(context).api.post('${ApiUrl.ujian}/$_id/nilai', {
         'santriId': s['id'],
         'status': _kehadiran,
@@ -302,14 +374,19 @@ class _UjianInputScreenState extends State<UjianInputScreen> {
       });
       await _load(silent: true);
       if (!mounted) return;
-      _msg(!hadir
-          ? '${s['nama']} dicatat ${_labelKehadiran(_kehadiran).toLowerCase()} (jalur susulan).'
-          : ((v ?? 0) >= _kkm
-              ? 'Nilai ${s['nama']} tersimpan.'
-              : 'Nilai ${s['nama']} tersimpan (belum tuntas).'));
+      final nama = '${s['nama']}';
+      if (!hadir) {
+        _toast('$nama dicatat ${_labelKehadiran(_kehadiran).toLowerCase()}',
+            subtitle: 'Masuk jalur susulan');
+      } else if ((v ?? 0) >= _kkm) {
+        _toast('Nilai $nama tersimpan', subtitle: 'Nilai ${_fmtNum(v)} • Tuntas');
+      } else {
+        _toast('Nilai $nama tersimpan',
+            subtitle: 'Nilai ${_fmtNum(v)} • Belum tuntas, masuk remedial');
+      }
       _clearSelection();
     } on ApiException catch (e) {
-      if (mounted) _msg(e.message);
+      if (mounted) _toast(e.message, error: true);
     } finally {
       if (mounted) setState(() => _savingNilai = false);
     }
@@ -584,7 +661,7 @@ class _UjianInputScreenState extends State<UjianInputScreen> {
     final kelas = '${s['kelas']?['namaKelas'] ?? _kelasNama}';
 
     Widget status;
-      if (n != null) {
+    if (n != null) {
       final v = n['nilai'] is num ? (n['nilai'] as num).toDouble() : null;
       if (v == null) {
         status = _pill(_labelKehadiran('${n['status']}'), _C.goldChip, _C.goldText,
@@ -826,7 +903,7 @@ class _UjianInputScreenState extends State<UjianInputScreen> {
     );
   }
 
-    Widget _kehadiranPicker() {
+  Widget _kehadiranPicker() {
     const opsi = [
       ['HADIR', 'Hadir'],
       ['SAKIT', 'Sakit'],
@@ -871,7 +948,7 @@ class _UjianInputScreenState extends State<UjianInputScreen> {
             SizedBox(width: 8),
             Expanded(
               child: Text(
-                  'Santri tidak ikut ujian. Nilai dikosongkan dan santri masuk jalur ujian susulan, bukan remedial.',
+                  'Santri tidak ikut ujian. Nilai dikosongkan dan santri masuk jalur ujian susulan, bukan remedial. Setelah ikut susulan, pilih "Hadir" lalu isi nilainya.',
                   style: TextStyle(fontSize: 12, height: 1.35, color: _C.goldText)),
             ),
           ],
@@ -892,14 +969,13 @@ class _UjianInputScreenState extends State<UjianInputScreen> {
             SizedBox(width: 10),
             Expanded(
               child: Text(
-                  'Nilai ujian ini sudah dikunci. Buka kunci di halaman Detail Ujian (alasan wajib diisi) jika perlu perbaikan.',
+                  'Nilai ujian ini sudah dikunci. Santri susulan (sakit/izin/alpa) tetap bisa diisi nilainya. Untuk koreksi nilai lain, buka kunci di halaman Detail Ujian (alasan wajib diisi).',
                   style: TextStyle(fontSize: 12, height: 1.35, color: _C.goldText)),
             ),
           ],
         ),
       );
 
-  
   Widget _presetChip(int p, double? current) {
     final sel = current != null && current == p.toDouble();
     final isKkm = p == _kkm.round();
@@ -970,7 +1046,7 @@ class _UjianInputScreenState extends State<UjianInputScreen> {
   // ── Bar bawah: progres + kirim rekap ──
   Widget _bottomBar() {
     final total = _santris.length;
-    final done = _nilais.length;
+    final done = _santris.where((s) => _nilaiOf(s['id']) != null).length;
 
     return Center(
       heightFactor: 1,
@@ -1024,7 +1100,8 @@ class _UjianInputScreenState extends State<UjianInputScreen> {
                       shape: const StadiumBorder(),
                       textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
                     ),
-                    onPressed: () => _msg('Kirim rekap segera hadir.'),
+                    onPressed: () => _toast('Kirim rekap segera hadir',
+                        subtitle: 'Fitur ini sedang disiapkan'),
                     icon: const Icon(Icons.send_outlined, size: 17),
                     label: const Text('Kirim Rekap'),
                   ),

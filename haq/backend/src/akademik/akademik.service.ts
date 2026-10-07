@@ -19,10 +19,19 @@ export class AkademikService {
   }
 
   // ===== Absensi =====
-  async findAllAbsensi(tenantId: string, query: QueryAbsensiDto) {
+  async findAllAbsensi(tenantId: string, query: QueryAbsensiDto, allowedSantriIds?: string[]) {
+    // Wali: hanya boleh melihat anaknya sendiri
+    const santriFilter = allowedSantriIds
+      ? query.santriId
+        ? { santriId: query.santriId }
+        : { santriId: { in: allowedSantriIds } }
+      : query.santriId
+        ? { santriId: query.santriId }
+        : {};
+
     const where: any = {
       tenantId,
-      ...(query.santriId ? { santriId: query.santriId } : {}),
+      ...santriFilter,
       ...(query.kelasId ? { santri: { kelasId: query.kelasId } } : {}),
       ...(query.mapelId ? { mapelId: query.mapelId } : {}),
       ...(query.startDate || query.endDate
