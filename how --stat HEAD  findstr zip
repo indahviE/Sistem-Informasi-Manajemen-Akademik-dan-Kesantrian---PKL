@@ -1,0 +1,22 @@
+[33mcommit 30a7ba5dc31cebdc083b7701c0001a04b92a0ef6[m[33m ([m[1;36mHEAD -> [m[1;32mmain[m[33m)[m
+Author: 란티카 <ve3rss@gmail.com>
+Date:   Wed Oct 7 08:10:04 2026 +0700
+
+    add notif&pengaturan
+
+ .gitignore                                         |    1 [32m+[m
+ .../20261006103704_add_notif_ustadz/migration.sql  |    5 [32m+[m
+ haq/backend/prisma/schema.prisma                   |    6 [32m+[m
+ haq/backend/src/notifikasi/notifikasi.module.ts    |    3 [32m+[m[31m-[m
+ haq/backend/src/notifikasi/notifikasi.scheduler.ts |  245 [32m++++[m[31m-[m
+ haq/backend/src/notifikasi/notifikasi.service.ts   |   43 [32m+[m
+ .../src/pengaturan/pengaturan-ustadz.dto.ts        |    8 [32m+[m
+ .../src/pengaturan/pengaturan-ustadz.service.ts    |   52 [32m+[m
+ .../src/pengaturan/pengaturan.controller.ts        |   30 [32m+[m[31m-[m
+ haq/backend/src/pengaturan/pengaturan.module.ts    |    3 [32m+[m[31m-[m
+ haq/mobile/lib/screens/dashboard_screen.dart       |   17 [32m+[m[31m-[m
+ .../master/ustadz/notifikasi_ustadz_screen.dart    |  733 [32m+++++++++++++[m
+ .../master/ustadz/pengaturan_ustadz_screen.dart    | 1137 [32m++++++++++++++++++++[m
+ .../lib/screens/master/ustadz/ustadz_header.dart   |   89 [32m+[m[31m-[m
+ haq/mobile/lib/screens/shell_screen.dart           |  125 [32m++[m[31m-[m
+ 15 files changed, 2414 insertions(+), 83 deletions(-)

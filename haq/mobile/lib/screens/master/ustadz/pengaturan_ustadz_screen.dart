@@ -12,7 +12,6 @@
 //   PATCH /pengaturan/profil, PATCH /pengaturan/ubah-password
 
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../../../services/api_client.dart';
 import '../../../services/app_scope.dart';
 import '../../santri/santri_ui.dart';
@@ -42,9 +41,6 @@ class _PU {
 
 TextStyle _t(double size, FontWeight w, Color c, {double? height}) =>
     TextStyle(fontFamily: 'Nunito', fontSize: size, fontWeight: w, color: c, height: height);
-
-// Nomor WhatsApp bantuan (format internasional tanpa +). Kosong = "belum diatur".
-const String _kNomorBantuan = '628996733553';
 
 // Toggle notifikasi ustadz (key = nama field di backend / UserNotifSetting).
 const List<({String key, String title, String desc})> _notifItems = [
@@ -136,13 +132,6 @@ class _PengaturanUstadzScreenState extends State<PengaturanUstadzScreen> {
     AppToast.error(context, message);
   }
 
-  void _showInfo(String message) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
-  }
-
   // ---------------------------------------------------------------- profil
 
   Future<void> _editProfil() async {
@@ -198,19 +187,7 @@ class _PengaturanUstadzScreenState extends State<PengaturanUstadzScreen> {
     }
   }
 
-  // --------------------------------------------------------- bantuan & logout
-
-  Future<void> _hubungiBantuan() async {
-    if (_kNomorBantuan.isEmpty) {
-      _showInfo('Nomor bantuan belum diatur.');
-      return;
-    }
-    final ok = await launchUrl(
-      Uri.parse('https://wa.me/$_kNomorBantuan'),
-      mode: LaunchMode.externalApplication,
-    );
-    if (!ok) _showError('Tidak bisa membuka WhatsApp.');
-  }
+  // ----------------------------------------------------------------- logout
 
   void _confirmLogout() {
     showDialog(
@@ -302,34 +279,6 @@ class _PengaturanUstadzScreenState extends State<PengaturanUstadzScreen> {
           const SizedBox(height: 16),
           _Reveal(
             index: 3,
-            child: _PanduanCard(
-              items: [
-                _PanduanItem(
-                  icon: Icons.menu_book_outlined,
-                  title: 'Panduan Ustadz / Guru',
-                  subtitle: 'Cara input absensi, nilai, dan tahfidz',
-                  onTap: () => _showInfo('Segera hadir.'),
-                ),
-                _PanduanItem(
-                  icon: Icons.shield_outlined,
-                  title: 'Kebijakan Privasi Data Santri',
-                  subtitle: 'Standar perlindungan data pribadi',
-                  onTap: () => _showInfo('Segera hadir.'),
-                ),
-                _PanduanItem(
-                  icon: Icons.support_agent_outlined,
-                  title: 'Hubungi Bantuan Aplikasi',
-                  subtitle: 'Layanan bantuan via WhatsApp',
-                  external: true,
-                  highlight: true,
-                  onTap: _hubungiBantuan,
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-          _Reveal(
-            index: 4,
             child: Container(
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
@@ -353,10 +302,10 @@ class _PengaturanUstadzScreenState extends State<PengaturanUstadzScreen> {
             ),
           ),
           const SizedBox(height: 16),
-          _Reveal(index: 5, child: _LogoutButton(onPressed: _confirmLogout)),
+          _Reveal(index: 4, child: _LogoutButton(onPressed: _confirmLogout)),
           const SizedBox(height: 18),
           _Reveal(
-            index: 6,
+            index: 5,
             child: Center(
               child: Column(
                 children: [
@@ -980,116 +929,6 @@ class _NotifRow extends StatelessWidget {
           const SizedBox(width: 12),
           _Toggle(value: value, onChanged: onChanged),
         ],
-      ),
-    );
-  }
-}
-
-// ============================================================================
-// Panduan & Bantuan
-// ============================================================================
-
-class _PanduanItem {
-  const _PanduanItem({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.onTap,
-    this.external = false,
-    this.highlight = false,
-  });
-
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final VoidCallback onTap;
-  final bool external;
-  final bool highlight;
-}
-
-class _PanduanCard extends StatelessWidget {
-  const _PanduanCard({required this.items});
-
-  final List<_PanduanItem> items;
-
-  @override
-  Widget build(BuildContext context) {
-    return _SectionCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const _SectionHeader(
-            icon: Icons.help_outline_rounded,
-            title: 'Panduan & Bantuan',
-            subtitle: 'Dokumen resmi dan dukungan',
-          ),
-          const SizedBox(height: 8),
-          for (var i = 0; i < items.length; i++) ...[
-            if (i > 0) const Divider(height: 1, color: _PU.line, indent: 52),
-            _PanduanRow(item: items[i]),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _PanduanRow extends StatelessWidget {
-  const _PanduanRow({required this.item});
-
-  final _PanduanItem item;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: item.onTap,
-      borderRadius: BorderRadius.circular(14),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 2),
-        child: Row(
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: item.highlight ? _PU.primary : _PU.surfaceDim,
-                shape: BoxShape.circle,
-              ),
-              child: Icon(item.icon, size: 20, color: item.highlight ? _PU.gold : _PU.primary),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(item.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: _t(13, FontWeight.w800, _PU.primary)),
-                  const SizedBox(height: 1),
-                  Text(item.subtitle,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: _t(11.5, FontWeight.w500, _PU.inkSecondary)),
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            Container(
-              width: 28,
-              height: 28,
-              decoration: BoxDecoration(
-                color: item.highlight ? _PU.sage : _PU.surfaceDim,
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                item.external ? Icons.open_in_new_rounded : Icons.chevron_right_rounded,
-                size: 17,
-                color: item.highlight ? _PU.primary : _PU.inkSecondary,
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }

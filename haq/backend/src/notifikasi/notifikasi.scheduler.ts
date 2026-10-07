@@ -100,11 +100,11 @@ export class NotifikasiScheduler {
   }
 
   /**
-   * Senin-Sabtu 10:00 WIB: ingatkan ustadz wali kelas yang absensi kelasnya
+   * Senin-Sabtu 08:00 WIB: ingatkan ustadz wali kelas yang absensi kelasnya
    * hari ini belum diisi. Hanya terkirim kalau toggle "Pengingat Absensi"
    * ustadz menyala, dan maksimal sekali per kelas per hari.
    */
-  @Cron('0 10 * * 1-6', { timeZone: 'Asia/Jakarta' })
+  @Cron('0 8 * * 1-6', { timeZone: 'Asia/Jakarta' })
   async pengingatAbsensiUstadz() {
     try {
       // Awal hari ini menurut WIB, dalam UTC.
@@ -165,7 +165,7 @@ export class NotifikasiScheduler {
   }
 
   /**
-   * Tiap hari 10:00 WIB: ingatkan pemilik ujian yang nilainya belum lengkap.
+   * Tiap hari 08:00 WIB: ingatkan pemilik ujian yang nilainya belum lengkap.
    *
    * - Ujian sudah lewat dan belum dikunci. Ujian kelas tertentu maupun "semua kelas".
    * - Dikirim di H+1, H+3, H+7 setelah tanggal ujian, lalu berhenti.
@@ -174,7 +174,7 @@ export class NotifikasiScheduler {
    * - Penerima: pembuat ujian (kalau ustadz) -> wali kelas -> admin tenant.
    * - Penerima ustadz hanya dapat kalau toggle "Pengingat Input Nilai" menyala.
    */
-  @Cron('0 10 * * *', { timeZone: 'Asia/Jakarta' })
+  @Cron('0 8 * * *', { timeZone: 'Asia/Jakarta' })
   async pengingatNilaiUstadz() {
     try {
       const hariIni = Math.floor((Date.now() + MS_WIB) / MS_HARI);
