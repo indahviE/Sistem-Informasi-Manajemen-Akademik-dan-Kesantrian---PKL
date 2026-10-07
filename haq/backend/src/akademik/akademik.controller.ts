@@ -23,10 +23,21 @@ export class AkademikController {
   ) {}
 
   // ===== Absensi =====
-  @Roles(Role.ADMIN, Role.PIMPINAN, Role.USTADZ, Role.MUSYRIF, Role.MUSYRIF)
+  @Roles(Role.ADMIN, Role.PIMPINAN, Role.USTADZ, Role.MUSYRIF, Role.WALI_SANTRI)
   @Get('absensi')
-  findAllAbsensi(@TenantId() tenantId: string, @Query() q: QueryAbsensiDto) {
-    return this.akademikService.findAllAbsensi(tenantId, q);
+  async findAllAbsensi(
+    @TenantId() tenantId: string,
+    @CurrentUser() user: RequestUser,
+    @Query() q: QueryAbsensiDto,
+  ) {
+    let allowed: string[] | undefined;
+    if (user.role === Role.WALI_SANTRI) {
+      allowed = await this.waliService.getSantriIds(user.userId);
+      if (q.santriId && !allowed.includes(q.santriId)) {
+        throw new ForbiddenException('Anda tidak memiliki akses ke data santri ini.');
+      }
+    }
+    return this.akademikService.findAllAbsensi(tenantId, q, allowed);
   }
 
   @Roles(Role.ADMIN, Role.USTADZ, Role.MUSYRIF)

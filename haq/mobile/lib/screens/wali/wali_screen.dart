@@ -111,7 +111,8 @@ class _WaliScreenState extends State<WaliScreen> {
     Future<List<Map<String, dynamic>>?> ambil(String url) async {
       try {
         return _asList(await api.get(url, query: {'santriId': id}));
-      } catch (_) {
+      } catch (e) {
+        debugPrint('GAGAL muat $url: $e');
         return null;
       }
     }
