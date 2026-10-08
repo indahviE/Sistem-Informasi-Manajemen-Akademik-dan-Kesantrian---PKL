@@ -10,7 +10,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { NotifikasiService } from './notifikasi.service';
 
-/** Hari ke-berapa setelah tanggal ujian pengingat nilai dikirim. */
+/** Hari ke-berapa setelah tanggal ujian pengingat nilai dikirim (mode cron). */
 const HARI_PENGINGAT_NILAI = [1, 3, 7];
 const MS_HARI = 24 * 3600 * 1000;
 const MS_WIB = 7 * 3600 * 1000;
@@ -23,6 +23,16 @@ export class NotifikasiScheduler {
     private prisma: PrismaService,
     private notifikasi: NotifikasiService,
   ) {}
+
+  /**
+   * Dipanggil saat ustadz membuka dashboard / aplikasi.
+   * Menjalankan pengecekan absensi & nilai khusus untuk satu user.
+   * Aman dipanggil berulang: dedupe per hari mencegah notifikasi dobel.
+   */
+  async cekPengingatUntukUser(userId: string, tenantId: string) {
+    await this.pengingatAbsensiUstadz(userId, tenantId);
+    await this.pengingatNilaiUstadz(userId, tenantId);
+  }
 
   /** Tiap hari 08:00 WIB: ingatkan wali yang belum punya akun (maks sekali per 7 hari per tenant). */
   @Cron('0 8 * * *', { timeZone: 'Asia/Jakarta' })
@@ -103,21 +113,29 @@ export class NotifikasiScheduler {
    * Senin-Sabtu 08:00 WIB: ingatkan ustadz wali kelas yang absensi kelasnya
    * hari ini belum diisi. Hanya terkirim kalau toggle "Pengingat Absensi"
    * ustadz menyala, dan maksimal sekali per kelas per hari.
+   *
+   * Mode on-open: kalau filterUserId diisi, hanya memproses kelas milik user
+   * itu (Senin-Sabtu saja), tanpa menunggu jam cron.
    */
   @Cron('0 8 * * 1-6', { timeZone: 'Asia/Jakarta' })
-  async pengingatAbsensiUstadz() {
+  async pengingatAbsensiUstadz(filterUserId?: string, filterTenantId?: string) {
     try {
       // Awal hari ini menurut WIB, dalam UTC.
-      const wib = new Date(Date.now() + 7 * 3600 * 1000);
+      const wib = new Date(Date.now() + MS_WIB);
+
+      // Cron sudah dibatasi Senin-Sabtu; mode on-open harus dicek manual (Minggu = 0).
+      if (filterUserId && wib.getUTCDay() === 0) return;
+
       const mulai = new Date(
-        Date.UTC(wib.getUTCFullYear(), wib.getUTCMonth(), wib.getUTCDate()) - 7 * 3600 * 1000,
+        Date.UTC(wib.getUTCFullYear(), wib.getUTCMonth(), wib.getUTCDate()) - MS_WIB,
       );
-      const besok = new Date(mulai.getTime() + 24 * 3600 * 1000);
+      const besok = new Date(mulai.getTime() + MS_HARI);
 
       const kelasList = await this.prisma.kelas.findMany({
         where: {
           tenant: { status: TenantStatus.AKTIF, deletedAt: null },
-          waliKelas: { is: { userId: { not: null } } },
+          ...(filterTenantId ? { tenantId: filterTenantId } : {}),
+          waliKelas: { is: { userId: filterUserId ?? { not: null } } },
         },
         select: {
           id: true,
@@ -168,14 +186,16 @@ export class NotifikasiScheduler {
    * Tiap hari 08:00 WIB: ingatkan pemilik ujian yang nilainya belum lengkap.
    *
    * - Ujian sudah lewat dan belum dikunci. Ujian kelas tertentu maupun "semua kelas".
-   * - Dikirim di H+1, H+3, H+7 setelah tanggal ujian, lalu berhenti.
+   * - Mode cron: dikirim di H+1, H+3, H+7 setelah tanggal ujian, lalu berhenti.
+   * - Mode on-open (filterUserId diisi): semua ujian dalam 7 hari terakhir yang
+   *   belum lengkap dan milik user itu, maksimal sekali per hari per ujian.
    * - "Belum diinput": santri aktif tanpa baris nilai, atau HADIR dengan nilai kosong.
    * - "Susulan": SAKIT/IZIN dengan nilai kosong. ALPA dianggap selesai.
    * - Penerima: pembuat ujian (kalau ustadz) -> wali kelas -> admin tenant.
    * - Penerima ustadz hanya dapat kalau toggle "Pengingat Input Nilai" menyala.
    */
   @Cron('0 8 * * *', { timeZone: 'Asia/Jakarta' })
-  async pengingatNilaiUstadz() {
+  async pengingatNilaiUstadz(filterUserId?: string, filterTenantId?: string) {
     try {
       const hariIni = Math.floor((Date.now() + MS_WIB) / MS_HARI);
       // Awal hari ini menurut WIB, dalam UTC.
@@ -185,6 +205,7 @@ export class NotifikasiScheduler {
       const ujians = await this.prisma.ujian.findMany({
         where: {
           tenant: { status: TenantStatus.AKTIF, deletedAt: null },
+          ...(filterTenantId ? { tenantId: filterTenantId } : {}),
           dikunciPada: null,
           tanggal: { gte: batasAwal, lt: mulai },
         },
@@ -206,7 +227,17 @@ export class NotifikasiScheduler {
           if (!u.tanggal) continue;
 
           const selisih = hariIni - Math.floor((u.tanggal.getTime() + MS_WIB) / MS_HARI);
-          if (!HARI_PENGINGAT_NILAI.includes(selisih)) continue;
+          // Mode cron: hanya H+1/3/7. Mode on-open: semua yang masih dalam rentang 7 hari.
+          if (!filterUserId && !HARI_PENGINGAT_NILAI.includes(selisih)) continue;
+
+          // Tentukan penerima lebih awal supaya mode on-open bisa langsung skip
+          // ujian yang bukan milik user ini (tanpa query santri/nilai).
+          const userId = await this.cariPenerimaNilai(
+            u.tenantId,
+            u.dibuatOleh,
+            u.kelas?.waliKelas?.userId ?? null,
+          );
+          if (filterUserId && userId !== filterUserId) continue;
 
           // kelasId kosong = ujian untuk semua kelas -> semua santri aktif di tenant.
           const santriAktif = await this.prisma.santri.findMany({
@@ -256,12 +287,6 @@ export class NotifikasiScheduler {
             .join(', ');
           const pesan = `${awalan} ${dinilai} dari ${total} santri sudah dinilai, ${rincian}.`;
 
-          const userId = await this.cariPenerimaNilai(
-            u.tenantId,
-            u.dibuatOleh,
-            u.kelas?.waliKelas?.userId ?? null,
-          );
-
           if (userId) {
             const sudahKirim = await this.prisma.notifikasi.count({
               where: {
@@ -282,6 +307,7 @@ export class NotifikasiScheduler {
             );
           } else {
             // Tidak ada ustadz yang bisa dituju (mis. ujian semua kelas dibuat admin).
+            // Tidak pernah tercapai di mode on-open karena sudah di-skip di atas.
             const sudahKirim = await this.prisma.notifikasi.count({
               where: {
                 tenantId: u.tenantId,
@@ -303,7 +329,7 @@ export class NotifikasiScheduler {
       this.logger.error(`Cron pengingat nilai ustadz gagal: ${(e as Error).message}`);
     }
   }
-  
+
   /**
    * Cari akun penerima pengingat nilai.
    * 1) dibuatOleh = User.id berperan USTADZ di tenant itu

@@ -126,29 +126,39 @@ class _DashboardScreenState extends State<DashboardScreen> {
     super.dispose();
   }
 
-  Future<void> _load() async {
+Future<void> _load() async {
+  setState(() {
+    _syncing = true;
+    _error = null;
+  });
+  try {
+    final api = AppScope.of(context).api;
+    final res = await api.get(ApiUrl.dashboard);
+    if (!mounted) return;
     setState(() {
-      _syncing = true;
-      _error = null;
+      _data = res as Map<String, dynamic>;
+      _lastLoaded = DateTime.now();
     });
-    try {
-      final api = AppScope.of(context).api;
-      final res = await api.get(ApiUrl.dashboard);
-      if (!mounted) return;
-      setState(() {
-        _data = res as Map<String, dynamic>;
-        _lastLoaded = DateTime.now();
-      });
-      _loadUjian();
-    } on ApiException catch (e) {
-      if (mounted) setState(() => _error = 'ApiException: ${e.message}');
-    } catch (e) {
-      if (mounted) setState(() => _error = 'Gagal memuat dashboard: $e');
-    } finally {
-      if (mounted) setState(() => _syncing = false);
-    }
-  }
 
+    // BARU: ustadz -> minta server cek pengingat absensi & nilai saat dashboard dibuka.
+    final role = (_data?['role'] ?? '').toString();
+    if (role != 'WALI_SANTRI' && role != 'SUPER_ADMIN' && _isUstadzUser(role)) {
+      try {
+        await api.post('/notifikasi/cek-pengingat', {});
+      } catch (e) {
+        debugPrint('cek-pengingat gagal: $e');
+      }
+    }
+
+    _loadUjian();
+  } on ApiException catch (e) {
+    if (mounted) setState(() => _error = 'ApiException: ${e.message}');
+  } catch (e) {
+    if (mounted) setState(() => _error = 'Gagal memuat dashboard: $e');
+  } finally {
+    if (mounted) setState(() => _syncing = false);
+  }
+}
   /// Ambil daftar ujian untuk beranda ustadz. Gagal = diam-diam diabaikan
   /// (section Ujian cukup tampil kosong), supaya dashboard tidak ikut error.
   /// Setelah data ujian siap, alert ustadz (kalau ada yang belum beres) ditampilkan.
