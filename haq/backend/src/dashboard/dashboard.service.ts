@@ -325,10 +325,45 @@ const jumlahMapel = await this.prisma.mataPelajaran.count({ where: { tenantId } 
       this.prisma.nilai.aggregate({ _avg: { nilai: true }, where: { santriId: { in: anakIds } } }),
     ]);
 
+    const anak = await Promise.all(
+      wali.santris.map(async (s) => {
+        const [totalAbsen, hadir, poin, izinAktif, juzList] = await Promise.all([
+          this.prisma.absensi.count({ where: { santriId: s.id } }),
+          this.prisma.absensi.count({ where: { santriId: s.id, status: 'HADIR' } }),
+          this.prisma.pelanggaran.aggregate({
+            where: { santriId: s.id },
+            _sum: { poin: true },
+          }),
+          this.prisma.perizinan.count({
+            where: {
+              santriId: s.id,
+              statusApproval: { in: ['DISETUJUI', 'TELAT'] },
+            },
+          }),
+          this.prisma.capaianTahfidz.findMany({
+            where: { santriId: s.id, jenis: 'ZIYADAH' },
+            distinct: ['juz'],
+            select: { juz: true },
+          }),
+        ]);
+
+        return {
+          ...s,
+          ringkasan: {
+            kehadiranPersen: totalAbsen > 0 ? Math.round((hadir / totalAbsen) * 100) : null,
+            poinPelanggaran: poin._sum.poin ?? 0,
+            izinAktif,
+            juzTahfidz: juzList.length > 0 ? juzList.length : null,
+          },
+        };
+      }),
+    );
+
     return {
       role: 'WALI_SANTRI',
+      namaPengguna: wali.nama,
       wali: { id: wali.id, nama: wali.nama, hubungan: wali.hubungan },
-      anak: wali.santris,
+      anak,
       statistik: {
         jumlahAnak: anakIds.length,
         pelanggaranTotal,
