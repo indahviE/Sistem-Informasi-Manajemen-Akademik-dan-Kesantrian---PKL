@@ -2,6 +2,7 @@ import { BadRequestException, ForbiddenException, Injectable, NotFoundException 
 import { PrismaService } from '../prisma/prisma.service';
 import {
   BulkAbsensiDto,
+  BulkNilaiDto,
   CreateAbsensiDto,
   CreateNilaiDto,
   CreateTahfidzDto,
@@ -183,20 +184,88 @@ export class AkademikService {
     });
   }
 
+  // DIUBAH: dari create() menjadi upsert(), supaya nilai yang sama di hari yang
+  // sama tidak lagi error karena unique constraint (santri + mapel + jenis + tanggal).
   async createNilai(tenantId: string, dto: CreateNilaiDto, user: RequestUser) {
     await this.assertSantriInTenant(tenantId, dto.santriId);
-    return this.prisma.nilai.create({
-      data: {
+    const tanggal = new Date(String(dto.tanggal).slice(0, 10)); // tanggal saja, tanpa jam
+    return this.prisma.nilai.upsert({
+      where: {
+        santriId_mapelId_jenis_tanggal: {
+          santriId: dto.santriId,
+          mapelId: dto.mapelId,
+          jenis: dto.jenis,
+          tanggal,
+        },
+      },
+      create: {
         tenantId,
         santriId: dto.santriId,
         mapelId: dto.mapelId,
         jenis: dto.jenis,
         nilai: dto.nilai,
         keterangan: dto.keterangan,
-        tanggal: new Date(dto.tanggal),
+        tanggal,
+        inputOleh: user.userId,
+      },
+      update: {
+        nilai: dto.nilai,
+        keterangan: dto.keterangan,
         inputOleh: user.userId,
       },
     });
+  }
+
+  // BARU: simpan banyak nilai sekaligus. Satu transaksi, upsert per santri.
+  // Tanggal selalu hari ini menurut WIB (ditentukan server, bukan dari HP).
+  async bulkNilai(tenantId: string, dto: BulkNilaiDto, user: RequestUser) {
+    const mapel = await this.prisma.mataPelajaran.findFirst({
+      where: { id: dto.mapelId, tenantId },
+      select: { id: true },
+    });
+    if (!mapel) throw new NotFoundException('Mata pelajaran tidak ditemukan di pondok ini.');
+
+    // 1 santri = 1 entri (kalau dobel, yang terakhir dipakai)
+    const itemMap = new Map<string, BulkNilaiDto['items'][number]>();
+    for (const i of dto.items) itemMap.set(i.santriId, i);
+    const ids = [...itemMap.keys()];
+
+    const valid = await this.prisma.santri.count({ where: { tenantId, id: { in: ids } } });
+    if (valid !== ids.length) {
+      throw new NotFoundException('Ada santri yang tidak ditemukan di pondok ini.');
+    }
+
+    const tanggal = this.tanggalHariIniWib();
+
+    // Satu transaksi: semua tersimpan, atau tidak sama sekali
+    await this.prisma.$transaction(
+      [...itemMap.values()].map((item) => {
+        const keterangan = item.catatan?.trim() || null;
+        return this.prisma.nilai.upsert({
+          where: {
+            santriId_mapelId_jenis_tanggal: {
+              santriId: item.santriId,
+              mapelId: dto.mapelId,
+              jenis: dto.jenis,
+              tanggal,
+            },
+          },
+          create: {
+            tenantId,
+            santriId: item.santriId,
+            mapelId: dto.mapelId,
+            jenis: dto.jenis,
+            nilai: item.nilai,
+            keterangan,
+            tanggal,
+            inputOleh: user.userId,
+          },
+          update: { nilai: item.nilai, keterangan, inputOleh: user.userId },
+        });
+      }),
+    );
+
+    return { count: itemMap.size, message: 'Nilai disimpan.' };
   }
 
   // ===== Tahfidz =====

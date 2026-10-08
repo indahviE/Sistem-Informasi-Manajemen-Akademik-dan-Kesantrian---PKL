@@ -60,6 +60,9 @@ class SantriListScreen extends StatefulWidget {
 class _SantriListScreenState extends State<SantriListScreen> {
   static const _tanpaKelas = '__tanpa_kelas__';
 
+  /// Pimpinan/Mudir hanya memantau: tombol tambah/hapus disembunyikan.
+  bool get _readOnly => AppScope.of(context).user?.isPimpinan == true;
+
   List<Map<String, dynamic>> _items = [];
   bool _loading = true;
   String? _error;
@@ -402,6 +405,7 @@ class _SantriListScreenState extends State<SantriListScreen> {
                   ],
                 ),
               ),
+              if (!_readOnly)
               Positioned(
                 right: 16,
                 bottom: 16,
@@ -648,7 +652,9 @@ class _SantriListScreenState extends State<SantriListScreen> {
             judul: mencari ? 'Tidak ada hasil' : 'Belum ada data santri',
             pesan: mencari
                 ? 'Tidak ada santri dengan nama atau NIS "${_search.text.trim()}". Coba kata kunci lain.'
-                : 'Tambahkan santri lewat tombol di bawah, atau terima pendaftar dari menu PPDB.',
+                : (_readOnly
+                    ? 'Belum ada santri terdaftar.'
+                    : 'Tambahkan santri lewat tombol di bawah, atau terima pendaftar dari menu PPDB.'),
           ),
         ),
       ];
@@ -830,6 +836,7 @@ class _SantriListScreenState extends State<SantriListScreen> {
                         Text('Lihat profil', style: sty(13, FontWeight.w600, SC.ink)),
                       ]),
                     ),
+                    if (!_readOnly)
                     PopupMenuItem(
                       value: 'hapus',
                       child: Row(children: [

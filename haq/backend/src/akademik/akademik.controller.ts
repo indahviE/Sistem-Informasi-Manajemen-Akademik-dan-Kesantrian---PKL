@@ -6,6 +6,7 @@ import { Roles, Public } from '../common/decorators/roles.decorator';
 import { CurrentUser, RequestUser, TenantId } from '../common/decorators/current-user.decorator';
 import {
   BulkAbsensiDto,
+  BulkNilaiDto,
   CreateAbsensiDto,
   CreateNilaiDto,
   CreateTahfidzDto,
@@ -53,7 +54,7 @@ export class AkademikController {
   }
 
   // ===== Nilai =====
-    @Roles(Role.ADMIN, Role.PIMPINAN, Role.USTADZ, Role.WALI_SANTRI)
+  @Roles(Role.ADMIN, Role.PIMPINAN, Role.USTADZ, Role.WALI_SANTRI)
   @Get('nilai')
   async findAllNilai(
     @TenantId() tenantId: string,
@@ -76,6 +77,13 @@ export class AkademikController {
   @Post('nilai')
   createNilai(@TenantId() tenantId: string, @Body() dto: CreateNilaiDto, @CurrentUser() user: RequestUser) {
     return this.akademikService.createNilai(tenantId, dto, user);
+  }
+
+  // BARU: simpan banyak nilai sekaligus (satu transaksi, upsert)
+  @Roles(Role.ADMIN, Role.USTADZ)
+  @Post('nilai/bulk')
+  bulkNilai(@TenantId() tenantId: string, @Body() dto: BulkNilaiDto, @CurrentUser() user: RequestUser) {
+    return this.akademikService.bulkNilai(tenantId, dto, user);
   }
 
   // ===== Tahfidz =====

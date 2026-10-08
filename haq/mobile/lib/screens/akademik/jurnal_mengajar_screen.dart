@@ -78,7 +78,11 @@ class _JurnalMengajarScreenState extends State<JurnalMengajarScreen> {
   // ---- peran & kepemilikan ----
   dynamic get _user => AppScope.of(context).user;
   bool get _isAdmin => _user?.isAdmin == true;
-  bool get _canWrite => _isAdmin || _user?.isUstadz == true;
+
+  /// Pimpinan/Mudir hanya memantau jurnal: tidak bisa menambah, mengubah, atau menghapus.
+  bool get _readOnly => _user?.isPimpinan == true;
+
+  bool get _canWrite => !_readOnly && (_isAdmin || _user?.isUstadz == true);
 
   String? get _myId {
     final dynamic u = _user;
@@ -91,7 +95,8 @@ class _JurnalMengajarScreenState extends State<JurnalMengajarScreen> {
     return null;
   }
 
-  bool _canEdit(Map<String, dynamic> j) => _isAdmin || (_myId != null && j['inputOleh'] == _myId);
+  bool _canEdit(Map<String, dynamic> j) =>
+      !_readOnly && (_isAdmin || (_myId != null && j['inputOleh'] == _myId));
 
   // ---- data ----
   Future<void> _loadMaster() async {
@@ -317,6 +322,7 @@ class _JurnalMengajarScreenState extends State<JurnalMengajarScreen> {
 
   // ---- form tambah / ubah ----
   Future<void> _form([Map<String, dynamic>? old]) async {
+    if (_readOnly) return;
     if (_kelas.isEmpty) await _loadMaster();
     if (_kelas.isEmpty) {
       _toast('Belum ada data kelas', error: true);
@@ -521,6 +527,7 @@ class _JurnalMengajarScreenState extends State<JurnalMengajarScreen> {
   }
 
   Future<void> _hapus(Map<String, dynamic> j) async {
+    if (_readOnly) return;
     final yakin = await showDialog<bool>(
       context: context,
       builder: (ctx) => Dialog(

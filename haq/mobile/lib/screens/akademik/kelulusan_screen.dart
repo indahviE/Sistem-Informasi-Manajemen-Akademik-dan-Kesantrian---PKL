@@ -18,6 +18,9 @@ class _KelulusanScreenState extends State<KelulusanScreen> {
   bool _loading = true;
   String? _error;
 
+  /// Pimpinan/Mudir hanya memantau: tidak bisa mencatat atau menghapus kelulusan.
+  bool get _readOnly => AppScope.of(context).user?.isPimpinan == true;
+
   @override
   void initState() {
     super.initState();
@@ -48,6 +51,7 @@ class _KelulusanScreenState extends State<KelulusanScreen> {
   }
 
   Future<void> _add() async {
+    if (_readOnly) return;
     final santri = await showDialog<Map<String, dynamic>>(
       context: context,
       builder: (_) => _PilihSantri(),
@@ -75,6 +79,7 @@ class _KelulusanScreenState extends State<KelulusanScreen> {
   }
 
   Future<void> _delete(Map<String, dynamic> k) async {
+    if (_readOnly) return;
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -100,11 +105,13 @@ class _KelulusanScreenState extends State<KelulusanScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      floatingActionButton: FloatingActionButton(
-        onPressed: _add,
-        tooltip: 'Catat Kelulusan',
-        child: const Icon(Icons.add),
-      ),
+      floatingActionButton: _readOnly
+          ? null
+          : FloatingActionButton(
+              onPressed: _add,
+              tooltip: 'Catat Kelulusan',
+              child: const Icon(Icons.add),
+            ),
       body: _loading
           ? loadingView()
           : _error != null
@@ -145,11 +152,13 @@ class _KelulusanScreenState extends State<KelulusanScreen> {
                                   if (predikat != null)
                                     twBadge(ctx, predikat,
                                         color: Tw.purple, soft: Tw.indigoSoft),
-                                  const SizedBox(width: 4),
-                                  IconButton(
-                                    icon: const Icon(Icons.delete_outline, color: Tw.gray400, size: 20),
-                                    onPressed: () => _delete(k),
-                                  ),
+                                  if (!_readOnly) ...[
+                                    const SizedBox(width: 4),
+                                    IconButton(
+                                      icon: const Icon(Icons.delete_outline, color: Tw.gray400, size: 20),
+                                      onPressed: () => _delete(k),
+                                    ),
+                                  ],
                                 ],
                               ),
                             ),

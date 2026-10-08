@@ -373,13 +373,14 @@ model Nilai {
   jenis    JenisNilai
   nilai    Float
   keterangan String?
-  tanggal  DateTime
+  tanggal  DateTime      @db.Date
   inputOleh String
   createdAt DateTime     @default(now())
 
   santri   Santri        @relation(fields: [santriId], references: [id], onDelete: Cascade)
   mapel    MataPelajaran @relation(fields: [mapelId], references: [id])
 
+  @@unique([santriId, mapelId, jenis, tanggal])
   @@index([tenantId, santriId, mapelId])
   @@index([tenantId])
   @@map("nilais")

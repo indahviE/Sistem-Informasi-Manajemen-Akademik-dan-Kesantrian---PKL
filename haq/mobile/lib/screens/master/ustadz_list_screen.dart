@@ -117,6 +117,9 @@ class UstadzListScreen extends StatefulWidget {
 }
 
 class _UstadzListScreenState extends State<UstadzListScreen> {
+   /// Pimpinan/Mudir hanya memantau: tombol tambah/ubah/hapus disembunyikan.
+  bool get _readOnly => AppScope.of(context).user?.isPimpinan == true;
+  
   List<Map<String, dynamic>> _items = [];
   bool _loading = true;
   bool _busy = false; // true selama simpan/hapus/buat akun berjalan
@@ -499,6 +502,7 @@ class _UstadzListScreenState extends State<UstadzListScreen> {
                     backgroundColor: Colors.transparent,
                   ),
                 ),
+              if (!_readOnly)
               Positioned(
                 right: 16,
                 bottom: 16,
@@ -706,8 +710,8 @@ class _UstadzListScreenState extends State<UstadzListScreen> {
 
   /// Pengingat akun: muncul hanya kalau ada ustadz yang belum punya akun login.
   Widget _noticeAkun() {
-    final n = _tanpaAkunCount;
-    if (n == 0) return const SizedBox.shrink();
+        final n = _tanpaAkunCount;
+    if (n == 0 || _readOnly) return const SizedBox.shrink();
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 2, 16, 12),
       child: Material(
@@ -759,7 +763,9 @@ class _UstadzListScreenState extends State<UstadzListScreen> {
           child: _kosong(
             icon: Icons.assignment_ind_outlined,
             judul: 'Belum ada ustadz',
-            pesan: 'Tambahkan ustadz atau musyrif lewat tombol "Ustadz baru" di bawah.',
+                        pesan: _readOnly
+                ? 'Belum ada ustadz atau musyrif terdaftar.'
+                : 'Tambahkan ustadz atau musyrif lewat tombol "Ustadz baru" di bawah.',
           ),
         ),
       ];
@@ -856,7 +862,7 @@ class _UstadzListScreenState extends State<UstadzListScreen> {
         color: Colors.transparent,
         child: InkWell(
           borderRadius: BorderRadius.circular(18),
-          onTap: _busy ? null : () => _edit(u),
+            onTap: (_busy || _readOnly) ? null : () => _edit(u),
           child: Padding(
             padding: const EdgeInsets.fromLTRB(12, 12, 2, 12),
             child: Row(
@@ -922,6 +928,7 @@ class _UstadzListScreenState extends State<UstadzListScreen> {
                                     style: sty(11.5, FontWeight.w700, SC.goldDark)),
                               ),
                               const SizedBox(width: 8),
+                              if (!_readOnly)
                               OutlinedButton(
                                 onPressed: _busy ? null : () => _buatAkun(u),
                                 style: OutlinedButton.styleFrom(
@@ -943,6 +950,7 @@ class _UstadzListScreenState extends State<UstadzListScreen> {
                     ],
                   ),
                 ),
+                 if (!_readOnly)
                 PopupMenuButton<String>(
                   tooltip: 'Opsi',
                   enabled: !_busy,

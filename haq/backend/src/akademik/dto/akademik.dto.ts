@@ -1,4 +1,5 @@
 import {
+  ArrayMaxSize,
   ArrayMinSize,
   IsArray,
   IsDateString,
@@ -97,6 +98,45 @@ export class CreateNilaiDto {
 
   @IsDateString()
   tanggal: string;
+}
+
+// BARU: satu baris nilai santri di dalam kiriman bulk
+export class BulkNilaiItemDto {
+  @IsString()
+  @IsNotEmpty()
+  santriId: string;
+
+  @IsNumber({}, { message: 'Nilai harus angka' })
+  @Min(0, { message: 'Nilai minimal 0' })
+  @Max(100, { message: 'Nilai maksimal 100' })
+  nilai: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(150, { message: 'Catatan maksimal 150 karakter' })
+  catatan?: string;
+}
+
+// BARU: simpan banyak nilai sekaligus (satu mapel, satu jenis, hari ini)
+export class BulkNilaiDto {
+  @IsString()
+  @IsNotEmpty()
+  mapelId: string;
+
+  @IsEnum(JenisNilai, { message: 'Jenis nilai tidak valid' })
+  jenis: JenisNilai;
+
+  // Dikirim aplikasi tapi diabaikan: server memakai tanggal hari ini (WIB).
+  @IsOptional()
+  @IsDateString({}, { message: 'Tanggal tidak valid' })
+  tanggal?: string;
+
+  @IsArray()
+  @ArrayMinSize(1, { message: 'Daftar santri tidak boleh kosong' })
+  @ArrayMaxSize(300, { message: 'Terlalu banyak santri dalam satu kiriman' })
+  @ValidateNested({ each: true })
+  @Type(() => BulkNilaiItemDto)
+  items: BulkNilaiItemDto[];
 }
 
 export class CreateTahfidzDto {

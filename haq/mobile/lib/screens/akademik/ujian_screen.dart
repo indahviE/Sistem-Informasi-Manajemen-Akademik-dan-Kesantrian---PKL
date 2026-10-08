@@ -246,6 +246,9 @@ class _UjianScreenState extends State<UjianScreen> {
   String _sort = 'TERBARU';
   String _query = '';
 
+  /// Pimpinan/Mudir hanya memantau: tidak bisa membuat ujian atau menginput nilai.
+  bool get _readOnly => AppScope.of(context).user?.isPimpinan == true;
+
   static const _filters = [
     ['SEMUA', 'Semua'],
     ['ULANGAN', 'Ulangan'],
@@ -410,6 +413,7 @@ class _UjianScreenState extends State<UjianScreen> {
                         ? errorView(_error!, _load)
                         : RefreshIndicator(onRefresh: _load, child: _buildList()),
               ),
+              if (!_readOnly)
               Positioned(
                 right: 12,
                 bottom: 12 + MediaQuery.of(context).padding.bottom,
@@ -643,18 +647,22 @@ class _UjianScreenState extends State<UjianScreen> {
             const Text('Belum ada ujian',
                 style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _C.ink)),
             const SizedBox(height: 4),
-            const Text(
-              'Buat ujian pertama untuk mulai menilai santri, mengunci nilai, dan menjadwalkan remedial.',
+            Text(
+              _readOnly
+                  ? 'Belum ada ujian yang dibuat oleh ustadz.'
+                  : 'Buat ujian pertama untuk mulai menilai santri, mengunci nilai, dan menjadwalkan remedial.',
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 12.5, height: 1.4, color: _C.ink2),
             ),
-            const SizedBox(height: 16),
-            FilledButton.icon(
-              style: _primaryBtn(h: 44),
-              onPressed: _addUjian,
-              icon: const Icon(Icons.add, size: 18),
-              label: const Text('Buat Ujian Pertama'),
-            ),
+            if (!_readOnly) ...[
+              const SizedBox(height: 16),
+              FilledButton.icon(
+                style: _primaryBtn(h: 44),
+                onPressed: _addUjian,
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text('Buat Ujian Pertama'),
+              ),
+            ],
           ],
         ),
       );
@@ -920,9 +928,11 @@ class _UjianScreenState extends State<UjianScreen> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
-                            count == 0
-                                ? 'Input Nilai'
-                                : (complete ? 'Detail Nilai' : 'Lanjutkan Nilai'),
+                            _readOnly
+                                ? 'Lihat Nilai'
+                                : count == 0
+                                    ? 'Input Nilai'
+                                    : (complete ? 'Detail Nilai' : 'Lanjutkan Nilai'),
                             style: const TextStyle(
                                 fontWeight: FontWeight.w700, fontSize: 12, color: _C.ink)),
                         const Icon(Icons.chevron_right, size: 16, color: _C.ink),

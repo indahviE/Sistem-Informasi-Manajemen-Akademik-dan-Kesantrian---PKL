@@ -269,6 +269,7 @@ class _ListHero extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = counts;
+        final readOnly = AppScope.of(context).user?.isPimpinan == true;
     final totalAll = c?.values.fold<int>(0, (a, b) => a + b);
 
     return Stack(
@@ -373,7 +374,7 @@ class _ListHero extends StatelessWidget {
                     Text(
                       total == null
                           ? 'Memuat data pendaftar...'
-                          : '$total pendaftar ditampilkan. Ketuk untuk melihat detail dan mengambil keputusan.',
+                          : '$total pendaftar ditampilkan. ${readOnly ? 'Ketuk untuk melihat detail.' : 'Ketuk untuk melihat detail dan mengambil keputusan.'}',
                       style: TextStyle(
                         fontFamily: 'Nunito',
                         fontSize: 12.5,
@@ -638,6 +639,9 @@ class _PendaftarDetail extends StatefulWidget {
 }
 
 class _PendaftarDetailState extends State<_PendaftarDetail> {
+  /// Pimpinan/Mudir hanya memantau: tidak bisa input tes atau mengubah status.
+  bool get _readOnly => AppScope.of(context).user?.isPimpinan == true;
+
   late Map<String, dynamic> _p;
   final _testNilai = TextEditingController();
   final _testHasil = TextEditingController();
@@ -1422,14 +1426,18 @@ class _PendaftarDetailState extends State<_PendaftarDetail> {
               _card(
                 title: 'Placement Test',
                 icon: Icons.quiz_outlined,
-                subtitle: ujian == null
-                    ? 'Belum ada hasil tes. Isi nilai dan rekomendasi kelas di bawah.'
-                    : (_editingTest
-                        ? 'Mode ubah: perbarui hasil tes lalu simpan.'
-                        : 'Hasil tes sudah tersimpan dan terkunci.'),
+                                subtitle: _readOnly
+                    ? (ujian == null ? 'Belum ada hasil tes.' : 'Hasil placement test.')
+                    : ujian == null
+                        ? 'Belum ada hasil tes. Isi nilai dan rekomendasi kelas di bawah.'
+                        : (_editingTest
+                            ? 'Mode ubah: perbarui hasil tes lalu simpan.'
+                            : 'Hasil tes sudah tersimpan dan terkunci.'),
                 children: [
-                  if (ujian != null) _hasilTesBox(ujian),
-                  if (ujian != null && !_editingTest)
+                                    if (ujian != null) _hasilTesBox(ujian),
+                  if (_readOnly)
+                    const SizedBox.shrink()
+                  else if (ujian != null && !_editingTest)
                     SizedBox(
                       height: 48,
                       child: OutlinedButton.icon(
@@ -1541,7 +1549,8 @@ class _PendaftarDetailState extends State<_PendaftarDetail> {
                 ],
               ),
 
-              // ---------- Tindak lanjut ----------
+                            // ---------- Tindak lanjut ----------
+              if (!_readOnly)
               _card(
                 title: 'Tindak Lanjut Pendaftaran',
                 icon: Icons.fact_check_outlined,

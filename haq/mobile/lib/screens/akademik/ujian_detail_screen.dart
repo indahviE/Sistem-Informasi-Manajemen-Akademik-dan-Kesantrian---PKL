@@ -16,6 +16,8 @@ import '../santri/santri_ui.dart' show SC;
 //   - di bawah KKM, remedial BELUM_TUNTAS-> Belum Tuntas (final)
 //   - di bawah KKM, remedial belum ada/selesai -> Belum Tuntas (menunggu remedial)
 //   - tanpa nilai (sakit/izin/alpa)      -> Susulan
+//
+// Pimpinan/Mudir: mode baca saja (tanpa input nilai, kunci, atau remedial).
 
 class _C {
   // Ikut tema pondok (diatur admin).
@@ -260,6 +262,9 @@ class _UjianDetailScreenState extends State<UjianDetailScreen> {
   String _query = '';
   bool _busyKunci = false;
 
+  /// Pimpinan/Mudir hanya memantau: tidak bisa input nilai, kunci, atau remedial.
+  bool get _readOnly => AppScope.of(context).user?.isPimpinan == true;
+
   @override
   void initState() {
     super.initState();
@@ -319,6 +324,7 @@ class _UjianDetailScreenState extends State<UjianDetailScreen> {
 
   // Buka halaman Input Nilai, lalu muat ulang data setelah kembali.
   Future<void> _openInput() async {
+    if (_readOnly) return;
     await Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => UjianInputScreen(ujian: _ujian)),
     );
@@ -334,7 +340,7 @@ class _UjianDetailScreenState extends State<UjianDetailScreen> {
   }
 
   Future<void> _kunci() async {
-    if (_busyKunci) return;
+    if (_busyKunci || _readOnly) return;
     final ok = await showDialog<bool>(
       context: context,
       builder: (c) => AlertDialog(
@@ -377,7 +383,7 @@ class _UjianDetailScreenState extends State<UjianDetailScreen> {
   }
 
   Future<void> _bukaKunci() async {
-    if (_busyKunci) return;
+    if (_busyKunci || _readOnly) return;
     final alasan = await showDialog<String>(
       context: context,
       builder: (_) => const _AlasanDialog(),
@@ -468,22 +474,24 @@ class _UjianDetailScreenState extends State<UjianDetailScreen> {
               ],
             ),
           ),
-          const SizedBox(width: 8),
-          _busyKunci
-              ? const SizedBox(
-                  width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-              : FilledButton(
-                  style: FilledButton.styleFrom(
-                    backgroundColor: locked ? _C.chipGray : _C.emerald,
-                    foregroundColor: locked ? _C.ink : Colors.white,
-                    minimumSize: const Size(0, 36),
-                    padding: const EdgeInsets.symmetric(horizontal: 14),
-                    shape: const StadiumBorder(),
-                    textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+          if (!_readOnly) ...[
+            const SizedBox(width: 8),
+            _busyKunci
+                ? const SizedBox(
+                    width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                : FilledButton(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: locked ? _C.chipGray : _C.emerald,
+                      foregroundColor: locked ? _C.ink : Colors.white,
+                      minimumSize: const Size(0, 36),
+                      padding: const EdgeInsets.symmetric(horizontal: 14),
+                      shape: const StadiumBorder(),
+                      textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+                    ),
+                    onPressed: locked ? _bukaKunci : _kunci,
+                    child: Text(locked ? 'Buka Kunci' : 'Kunci'),
                   ),
-                  onPressed: locked ? _bukaKunci : _kunci,
-                  child: Text(locked ? 'Buka Kunci' : 'Kunci'),
-                ),
+          ],
         ],
       ),
     );
@@ -1063,10 +1071,10 @@ class _UjianDetailScreenState extends State<UjianDetailScreen> {
       'ALPA' => 'Alpa',
       _ => 'Belum ada nilai',
     };
-    // Ketuk untuk mengisi nilai susulan di halaman Input Nilai.
+    // Ketuk untuk mengisi nilai susulan di halaman Input Nilai (tidak untuk Mudir).
     return InkWell(
       borderRadius: BorderRadius.circular(16),
-      onTap: _openInput,
+      onTap: _readOnly ? null : _openInput,
       child: Container(
         margin: const EdgeInsets.only(bottom: 8),
         padding: const EdgeInsets.all(10),
@@ -1099,7 +1107,10 @@ class _UjianDetailScreenState extends State<UjianDetailScreen> {
                     ],
                   ),
                   const SizedBox(height: 3),
-                  Text('NIS: ${santri['nis']} • Ketuk untuk isi nilai susulan',
+                  Text(
+                      _readOnly
+                          ? 'NIS: ${santri['nis']} • Menunggu ujian susulan'
+                          : 'NIS: ${santri['nis']} • Ketuk untuk isi nilai susulan',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(fontSize: 11.5, color: _C.ink2)),
@@ -1144,32 +1155,36 @@ class _UjianDetailScreenState extends State<UjianDetailScreen> {
                   Expanded(
                     child: FilledButton.icon(
                       style: FilledButton.styleFrom(
-                        backgroundColor: _C.chipGray,
-                        foregroundColor: _C.ink,
+                        backgroundColor: _readOnly ? _C.emerald : _C.chipGray,
+                        foregroundColor: _readOnly ? Colors.white : _C.ink,
                         minimumSize: const Size.fromHeight(44),
                         shape: const StadiumBorder(),
                         textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
                       ),
                       onPressed: _openRemedial,
-                      icon: const Icon(Icons.replay, size: 18),
-                      label: Text(remedial > 0 ? 'Remedial ($remedial)' : 'Remedial'),
+                      icon: Icon(_readOnly ? Icons.visibility_outlined : Icons.replay, size: 18),
+                      label: Text(_readOnly
+                          ? (remedial > 0 ? 'Lihat Remedial ($remedial)' : 'Lihat Remedial')
+                          : (remedial > 0 ? 'Remedial ($remedial)' : 'Remedial')),
                     ),
                   ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: FilledButton.icon(
-                      style: FilledButton.styleFrom(
-                        backgroundColor: _C.emerald,
-                        foregroundColor: Colors.white,
-                        minimumSize: const Size.fromHeight(44),
-                        shape: const StadiumBorder(),
-                        textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                  if (!_readOnly) ...[
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: FilledButton.icon(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: _C.emerald,
+                          foregroundColor: Colors.white,
+                          minimumSize: const Size.fromHeight(44),
+                          shape: const StadiumBorder(),
+                          textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                        ),
+                        onPressed: _openInput,
+                        icon: const Icon(Icons.edit_note, size: 20),
+                        label: const Text('Input Nilai'),
                       ),
-                      onPressed: _openInput,
-                      icon: const Icon(Icons.edit_note, size: 20),
-                      label: const Text('Input Nilai'),
                     ),
-                  ),
+                  ],
                 ],
               ),
             ),

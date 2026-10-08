@@ -35,14 +35,14 @@ export class KesantrianController {
     return this.kesantrianService.createPelanggaran(tenantId, dto, user);
   }
 
-  @Roles(Role.ADMIN, Role.PIMPINAN, Role.MUSYRIF)
+  @Roles(Role.ADMIN, Role.MUSYRIF)
   @Patch('pelanggaran/:id')
   updatePelanggaran(@TenantId() tenantId: string, @Param('id') id: string, @Body() dto: UpdatePelanggaranDto) {
     return this.kesantrianService.updatePelanggaran(tenantId, id, dto);
   }
 
   // ===== Perizinan =====
-  @Roles(Role.ADMIN, Role.PIMPINAN, Role.MUSYRIF, Role.WALI_SANTRI)
+  @Roles(Role.ADMIN, Role.MUSYRIF, Role.PIMPINAN, Role.WALI_SANTRI)
   @Get('perizinan')
     findAllPerizinan(@TenantId() tenantId: string, @Query() q: QueryKesantrianDto, @CurrentUser() user: RequestUser) {
     return this.kesantrianService.findAllPerizinan(tenantId, q, user);
@@ -54,7 +54,7 @@ export class KesantrianController {
     return this.kesantrianService.createPerizinan(tenantId, dto, user);
   }
 
-  @Roles(Role.ADMIN, Role.PIMPINAN, Role.MUSYRIF)
+  @Roles(Role.ADMIN, Role.MUSYRIF)
   @Patch('perizinan/:id')
   updatePerizinan(@TenantId() tenantId: string, @Param('id') id: string, @Body() dto: UpdatePerizinanDto, @CurrentUser() user: RequestUser) {
     return this.kesantrianService.updatePerizinan(tenantId, id, dto, user);
@@ -80,13 +80,13 @@ export class KesantrianController {
   }
 
   // ===== Rekam Medis =====
-  @Roles(Role.ADMIN, Role.PIMPINAN, Role.MUSYRIF, Role.WALI_SANTRI)
+  @Roles(Role.ADMIN, Role.MUSYRIF, Role.WALI_SANTRI, Role.PIMPINAN)
   @Get('rekam-medis/:santriId')
   getRekamMedis(@TenantId() tenantId: string, @Param('santriId') santriId: string, @CurrentUser() user: RequestUser) {
     return this.kesantrianService.getRekamMedis(tenantId, santriId, user);
   }
 
-  @Roles(Role.ADMIN, Role.PIMPINAN, Role.MUSYRIF)
+  @Roles(Role.ADMIN, Role.MUSYRIF)
   @Put('rekam-medis/:santriId')
   upsertRekamMedis(@TenantId() tenantId: string, @Param('santriId') santriId: string, @Body() dto: any) {
     return this.kesantrianService.upsertRekamMedis(tenantId, santriId, dto);

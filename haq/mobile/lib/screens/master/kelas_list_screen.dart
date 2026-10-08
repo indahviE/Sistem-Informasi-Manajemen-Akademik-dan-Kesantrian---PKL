@@ -17,6 +17,9 @@ class KelasListScreen extends StatefulWidget {
 }
 
 class _KelasListScreenState extends State<KelasListScreen> {
+  /// Pimpinan/Mudir hanya memantau: tombol tambah/ubah/hapus disembunyikan.
+  bool get _readOnly => AppScope.of(context).user?.isPimpinan == true;
+
   List<dynamic> _items = [];
   bool _loading = true;
   bool _busy = false; // true selama simpan/hapus/muat daftar ustadz berjalan
@@ -405,6 +408,7 @@ class _KelasListScreenState extends State<KelasListScreen> {
                     backgroundColor: Colors.transparent,
                   ),
                 ),
+              if (!_readOnly)
               Positioned(
                 right: 16,
                 bottom: 16,
@@ -433,7 +437,9 @@ class _KelasListScreenState extends State<KelasListScreen> {
   Widget _body() {
     if (_loading) return loadingView();
     if (_error != null) return errorView(_error!, _load);
-    if (_items.isEmpty) return emptyView('Belum ada kelas. Tap "Kelas baru" untuk menambah.');
+    if (_items.isEmpty) return emptyView(_readOnly
+        ? 'Belum ada kelas.'
+        : 'Belum ada kelas. Tap "Kelas baru" untuk menambah.');
 
     final list = _filtered();
     return RefreshIndicator(
@@ -613,7 +619,7 @@ class _KelasListScreenState extends State<KelasListScreen> {
         borderRadius: BorderRadius.circular(16),
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
-          onTap: _busy ? null : () => _edit(k),
+          onTap: (_busy || _readOnly) ? null : () => _edit(k),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(16),
             child: Container(
@@ -666,6 +672,7 @@ class _KelasListScreenState extends State<KelasListScreen> {
                                     ],
                                   ),
                                 ),
+                                if (!_readOnly)
                                 PopupMenuButton<String>(
                                   tooltip: 'Opsi',
                                   enabled: !_busy,

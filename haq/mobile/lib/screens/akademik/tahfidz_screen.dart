@@ -282,6 +282,9 @@ class _TahfidzScreenState extends State<TahfidzScreen> {
   String? _error;
   String _query = '';
   String _filter = 'semua'; // semua | belum | sudah
+
+  /// Pimpinan/Mudir hanya memantau: tidak bisa membuka form input setoran.
+  bool get _readOnly => AppScope.of(context).user?.isPimpinan == true;
   String _urut = 'progres'; // progres | nama
   final _searchCtrl = TextEditingController();
 
@@ -392,6 +395,7 @@ class _TahfidzScreenState extends State<TahfidzScreen> {
   }
 
   Future<void> _bukaSheet(Map<String, dynamic> santri) async {
+    if (_readOnly) return;
     final ok = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
@@ -525,13 +529,13 @@ class _TahfidzScreenState extends State<TahfidzScreen> {
                 else
                   for (final s in tampil)
                     Padding(
-                      padding: EdgeInsets.only(bottom: 12, top: '${s['id']}' == giliranId ? 8 : 0),
+                      padding: EdgeInsets.only(bottom: 12, top: !_readOnly && '${s['id']}' == giliranId ? 8 : 0),
                       child: _SantriCard(
                         santri: s,
                         ringkas: _ringkas['${s['id']}'],
                         khatamJuz: _khatamJuzPerSantri['${s['id']}'],
-                        giliran: '${s['id']}' == giliranId,
-                        onInput: () => _bukaSheet(s),
+                        giliran: !_readOnly && '${s['id']}' == giliranId,
+                        onInput: _readOnly ? () => _detail(s) : () => _bukaSheet(s),
                         onDetail: () => _detail(s),
                         onSegera: _segera,
                       ),

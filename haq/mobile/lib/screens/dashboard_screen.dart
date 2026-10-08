@@ -7,8 +7,6 @@ import 'ui_utils.dart';
 import 'super_admin/tenants_screen.dart'; // TODO: sesuaikan path bila struktur foldernya beda
 import 'billing/billing_admin_screen.dart'; // TODO: sesuaikan nama class/path bila beda (asumsi: BillingAdminScreen)
 import 'santri/santri_form_screen.dart';
-import 'master/kelas_list_screen.dart'; // TODO: sesuaikan path & nama class (asumsi: KelasListScreen)
-import 'master/ustadz_list_screen.dart';
 import 'santri/santri_ui.dart';
 import 'wali/wali_dashboard_screen.dart';
 
@@ -92,6 +90,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
   // Filter untuk section "Direktori Tenant Platform" di dashboard Super Admin.
   String _tenantFilter = 'semua'; // semua | aktif | pending | suspended
 
+  // Data ringkas untuk beranda Pimpinan/Mudir (izin, pelanggaran, darurat).
+  // Null = gagal dimuat / belum ada akses, ditampilkan sebagai "–".
+  List<Map<String, dynamic>>? _pimIzin;
+  List<Map<String, dynamic>>? _pimPelanggaran;
+  List<Map<String, dynamic>>? _pimDarurat;
+
+  bool get _isPimpinan => AppScope.of(context).user?.isPimpinan == true;
+
   // Daftar ujian (GET ApiUrl.ujian) — dipakai section "Ujian Terdekat" di beranda ustadz.
   List<Map<String, dynamic>> _ujianList = [];
   // Alert ustadz cukup tampil sekali per sesi, bukan tiap pull-to-refresh.
@@ -125,39 +131,30 @@ class _DashboardScreenState extends State<DashboardScreen> {
     super.dispose();
   }
 
-Future<void> _load() async {
-  setState(() {
-    _syncing = true;
-    _error = null;
-  });
-  try {
-    final api = AppScope.of(context).api;
-    final res = await api.get(ApiUrl.dashboard);
-    if (!mounted) return;
+  Future<void> _load() async {
     setState(() {
-      _data = res as Map<String, dynamic>;
-      _lastLoaded = DateTime.now();
+      _syncing = true;
+      _error = null;
     });
-
-    // BARU: ustadz -> minta server cek pengingat absensi & nilai saat dashboard dibuka.
-    final role = (_data?['role'] ?? '').toString();
-    if (role != 'WALI_SANTRI' && role != 'SUPER_ADMIN' && _isUstadzUser(role)) {
-      try {
-        await api.post('/notifikasi/cek-pengingat', {});
-      } catch (e) {
-        debugPrint('cek-pengingat gagal: $e');
-      }
+    try {
+      final api = AppScope.of(context).api;
+      final res = await api.get(ApiUrl.dashboard);
+      if (!mounted) return;
+      setState(() {
+        _data = res as Map<String, dynamic>;
+        _lastLoaded = DateTime.now();
+      });
+      _loadUjian();
+      if (_isPimpinan) _loadPimpinan();
+    } on ApiException catch (e) {
+      if (mounted) setState(() => _error = 'ApiException: ${e.message}');
+    } catch (e) {
+      if (mounted) setState(() => _error = 'Gagal memuat dashboard: $e');
+    } finally {
+      if (mounted) setState(() => _syncing = false);
     }
-
-    _loadUjian();
-  } on ApiException catch (e) {
-    if (mounted) setState(() => _error = 'ApiException: ${e.message}');
-  } catch (e) {
-    if (mounted) setState(() => _error = 'Gagal memuat dashboard: $e');
-  } finally {
-    if (mounted) setState(() => _syncing = false);
   }
-}
+
   /// Ambil daftar ujian untuk beranda ustadz. Gagal = diam-diam diabaikan
   /// (section Ujian cukup tampil kosong), supaya dashboard tidak ikut error.
   /// Setelah data ujian siap, alert ustadz (kalau ada yang belum beres) ditampilkan.
@@ -171,6 +168,34 @@ Future<void> _load() async {
       setState(() => _ujianList = items.whereType<Map<String, dynamic>>().toList());
     } catch (_) {}
     _tampilkanAlertUstadz();
+  }
+
+  /// Muat daftar izin, pelanggaran & keadaan darurat untuk antrean Mudir.
+  /// Tiap endpoint dimuat terpisah: satu gagal tidak menggagalkan yang lain.
+  Future<void> _loadPimpinan() async {
+    final api = AppScope.of(context).api;
+
+    Future<List<Map<String, dynamic>>?> ambil(String url) async {
+      try {
+        final res = await api.get(url);
+        final raw = res is List ? res : (res is Map ? (res['items'] as List? ?? const []) : const []);
+        return raw.whereType<Map>().map((e) => e.cast<String, dynamic>()).toList();
+      } catch (_) {
+        return null;
+      }
+    }
+
+    final hasil = await Future.wait([
+      ambil(ApiUrl.perizinan),
+      ambil(ApiUrl.pelanggaran),
+      ambil(ApiUrl.keadaanDarurat),
+    ]);
+    if (!mounted) return;
+    setState(() {
+      _pimIzin = hasil[0];
+      _pimPelanggaran = hasil[1];
+      _pimDarurat = hasil[2];
+    });
   }
 
   void _notAvailable() {
@@ -193,24 +218,6 @@ Future<void> _load() async {
     }
   }
 
-  /// Buka layar Ustadz / Guru. Setelah kembali, angka dashboard dimuat ulang.
-  Future<void> _bukaUstadz() async {
-    await Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => const UstadzListScreen(showBack: true)),
-    );
-    if (mounted) _load();
-  }
-
-  /// Buka layar Rombel & Halaqah. Setelah kembali, angka dashboard dimuat ulang.
-  Future<void> _bukaKelas() async {
-    await Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => const KelasListScreen(showBack: true)),
-    );
-    if (mounted) _load();
-  }
-
   @override
   Widget build(BuildContext context) {
     final err = _error;
@@ -222,7 +229,8 @@ Future<void> _load() async {
     final isSuperAdmin = role == 'SUPER_ADMIN';
     // Hanya ustadz yang punya beranda sendiri. Wali, Super Admin, dan Admin
     // Lembaga tetap memakai tampilan lama (tidak diubah).
-    final isUstadz = !isWali && !isSuperAdmin && _isUstadzUser(role);
+    final isPimpinan = !isWali && !isSuperAdmin && _isPimpinan;
+    final isUstadz = !isWali && !isSuperAdmin && !isPimpinan && _isUstadzUser(role);
     final isTenantAdmin = !isWali && !isSuperAdmin && !isUstadz;
 
     return Container(
@@ -244,6 +252,8 @@ Future<void> _load() async {
                   WaliHero(data: data)
                 else if (isUstadz)
                   _ustadzHeroHeader()
+                else if (isPimpinan)
+                  _heroHeader('PIMPINAN')
                 else if (isTenantAdmin)
                   _heroHeader(role)
                 else if (isSuperAdmin)
@@ -257,6 +267,8 @@ Future<void> _load() async {
                   WaliBody(data: data, onNavigate: _goto)
                 else if (isUstadz)
                   _ustadzBody()
+                else if (isPimpinan)
+                  _pimpinanBody()
                 else
                   _tenantBody(),
               ],
@@ -1272,7 +1284,7 @@ Future<void> _load() async {
               icon: Icons.assignment_ind,
               iconBg: _WC.goldSurface,
               iconColor: _WC.gold,
-              onTap: _bukaUstadz,
+              onTap: _notAvailable,
             ),
             _QuickAction(
               title: 'Rombel & Halaqah',
@@ -1280,7 +1292,7 @@ Future<void> _load() async {
               icon: Icons.meeting_room,
               iconBg: _TC.sage,
               iconColor: _TC.primary,
-              onTap: _bukaKelas,
+              onTap: _notAvailable,
             ),
             _QuickAction(
               title: 'Akun Pengguna',
@@ -1324,7 +1336,7 @@ Future<void> _load() async {
                 ),
                 TextSpan(
                   text:
-                      'Pengajuan perizinan kepulangan santri dan evaluasi mutaba\'ah kelulusan diproses secara terpisah oleh Mudir Pesantren & Dewan Asatidz. Modul Anda difokuskan penuh pada integritas master data pondok.',
+                       'Pengajuan perizinan kepulangan santri diproses oleh Musyrif, sedangkan evaluasi mutaba\'ah kelulusan oleh Dewan Asatidz. Modul Anda difokuskan penuh pada integritas master data pondok.',
                 ),
               ],
             ),
@@ -1333,6 +1345,255 @@ Future<void> _load() async {
       ],
     );
   }
+
+  // =========================================================================
+  // PIMPINAN / MUDIR — ringkasan eksekutif: antrean keputusan, kondisi
+  // lembaga, pemantauan akademik & kesantrian. Tema sama dengan Admin
+  // (palet `_WC`/`_TC`, lebar maks 480 di tengah, hero emerald).
+  // =========================================================================
+  String _namaSantriDari(Map<String, dynamic> e) {
+    final s = e['santri'];
+    if (s is Map && s['nama'] != null) return s['nama'].toString();
+    return _pick(e, ['namaSantri', 'santriNama', 'nama']) ?? 'Santri';
+  }
+
+  Widget _pimpinanBody() {
+    final s = (_data!['statistik'] as Map?)?.cast<String, dynamic>() ?? <String, dynamic>{};
+
+    final santriAktif = _num(s, ['santriAktif', 'totalSantriAktif']);
+    final santriPutra = _num(s, ['santriPutra', 'santriBanin']);
+    final santriPutri = _num(s, ['santriPutri', 'santriBanat']);
+    final totalUstadz = _num(s, ['totalUstadz', 'jumlahUstadz', 'ustadzAktif']);
+    final totalKelas = _num(s, ['totalKelas', 'totalRombel']);
+
+    final absensi = (_data!['kepatuhanAbsensi'] as Map?)?.cast<String, dynamic>();
+    final terisi = absensi != null ? _num(absensi, ['terisi', 'sudah']) : null;
+    final total = absensi != null ? _num(absensi, ['total']) : null;
+    final pct = (terisi != null && total != null && total > 0) ? (terisi / total) : null;
+
+    final izinMenunggu =
+        _pimIzin?.where((e) => (e['statusApproval'] ?? '').toString() == 'DIAJUKAN').toList();
+    final daruratBaru =
+        _pimDarurat?.where((e) => (e['status'] ?? 'BARU').toString() == 'BARU').toList();
+    final pelanggaranBuka =
+        _pimPelanggaran?.where((e) => (e['status'] ?? 'DICATAT').toString() == 'DICATAT').toList();
+
+    final logs = ((_data!['logAktivitas'] as List?) ?? const []).cast<Map<String, dynamic>>();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // ---- 1. Perlu keputusan / perhatian ----
+_SectionLabel(
+  title: 'Pantauan Kesantrian',
+  trailing: 'Ringkasan',
+  trailingColor: _WC.goldDark,
+),
+const SizedBox(height: 10),
+_Card(
+  child: Column(
+    children: [
+      _pimAntrean(
+        icon: Icons.emergency,
+        title: 'Keadaan Darurat Baru',
+        subtitle: daruratBaru == null
+            ? 'Data belum dapat dimuat'
+            : (daruratBaru.isEmpty
+                ? 'Tidak ada laporan baru'
+                : 'Terbaru: ${_namaSantriDari(daruratBaru.first)}'),
+        count: daruratBaru?.length,
+        accent: _WC.errorText,
+        onTap: () => _goto('Keadaan Darurat'), // tetap, ada di menu Mudir
+      ),
+      const SizedBox(height: 8),
+      _pimAntrean(
+        icon: Icons.exit_to_app,
+        title: 'Pengajuan Izin Menunggu',
+        subtitle: izinMenunggu == null
+            ? 'Data belum dapat dimuat'
+            : (izinMenunggu.isEmpty
+                ? 'Semua pengajuan sudah diproses'
+                : 'Terbaru: ${_namaSantriDari(izinMenunggu.first)}'),
+        count: izinMenunggu?.length,
+        accent: _WC.goldDark,
+        // onTap dihapus
+      ),
+      const SizedBox(height: 8),
+      _pimAntrean(
+        icon: Icons.gavel,
+        title: 'Pelanggaran Belum Selesai',
+        subtitle: pelanggaranBuka == null
+            ? 'Data belum dapat dimuat'
+            : (pelanggaranBuka.isEmpty
+                ? 'Tidak ada kasus terbuka'
+                : 'Terbaru: ${_namaSantriDari(pelanggaranBuka.first)}'),
+        count: pelanggaranBuka?.length,
+        accent: _TC.primary,
+        // onTap dihapus
+      ),
+    ],
+  ),
+),
+        const SizedBox(height: 20),
+
+        // ---- 2. Kondisi lembaga ----
+        _SectionLabel(title: 'Kondisi Lembaga', trailing: 'Cakupan Lembaga Sendiri', trailingAsPill: true),
+        const SizedBox(height: 10),
+        _TwoColGrid(
+          children: [
+            _MetricCard(
+              label: 'Santri Aktif',
+              value: _fmtInt(santriAktif),
+              icon: Icons.school,
+              iconColor: _WC.primary,
+              iconBg: _WC.sage,
+              caption: (santriPutra > 0 || santriPutri > 0)
+                  ? '${_fmtInt(santriPutra)} Putra • ${_fmtInt(santriPutri)} Putri'
+                  : 'Data santri aktif pondok',
+            ),
+            _MetricCard(
+              label: 'Ustadz / Pembina',
+              value: _fmtInt(totalUstadz),
+              icon: Icons.badge,
+              iconColor: _WC.gold,
+              iconBg: _WC.goldSurface,
+              caption: 'Tenaga pendidik aktif',
+            ),
+            _MetricCard(
+              label: 'Kelas & Halaqah',
+              value: '${_fmtInt(totalKelas)} Rombel',
+              icon: Icons.menu_book,
+              iconColor: _WC.primary,
+              iconBg: _WC.sage,
+              caption: 'Rombongan belajar aktif',
+            ),
+            _MetricCard(
+              label: 'Kepatuhan Absensi',
+              value: pct != null ? '${(pct * 100).round()}%' : '–',
+              icon: Icons.fact_check,
+              iconColor: _WC.gold,
+              iconBg: _WC.goldSurface,
+              caption: pct != null
+                  ? '${_fmtInt(terisi!)} / ${_fmtInt(total!)} rombel hari ini'
+                  : 'Belum ada data absensi',
+            ),
+          ],
+        ),
+        const SizedBox(height: 20),
+
+        // ---- 3. Pemantauan ----
+        _SectionLabel(title: 'Pemantauan', trailing: 'Buka Modul', trailingColor: _WC.goldDark),
+        const SizedBox(height: 10),
+        _TwoColGrid(
+          children: [
+            _QuickAction(
+              title: 'Nilai & Rapor',
+              subtitle: 'Hasil belajar & penerbitan rapor',
+              icon: Icons.description,
+              iconBg: _WC.sage,
+              iconColor: _WC.primary,
+              onTap: () => _goto('Rapor Digital'),
+            ),
+            _QuickAction(
+              title: 'Tahfidz',
+              subtitle: 'Setoran & progres hafalan',
+              icon: Icons.auto_stories,
+              iconBg: _WC.goldSurface,
+              iconColor: _WC.gold,
+              onTap: () => _goto('Tahfidz'),
+            ),
+            _QuickAction(
+              title: 'Kelulusan & Wisuda',
+              subtitle: 'Evaluasi mutaba\'ah kelulusan',
+              icon: Icons.military_tech,
+              iconBg: _WC.sage,
+              iconColor: _WC.primary,
+              onTap: () => _goto('Kelulusan & Wisuda'),
+            ),
+            _QuickAction(
+              title: 'Pembinaan Ibadah',
+              subtitle: 'Kedisiplinan ibadah santri',
+              icon: Icons.mosque,
+              iconBg: _WC.goldSurface,
+              iconColor: _WC.gold,
+              onTap: () => _goto('Pembinaan Ibadah'),
+            ),
+            _QuickAction(
+              title: 'Pembinaan Karakter',
+              subtitle: 'Catatan pembinaan santri',
+              icon: Icons.volunteer_activism,
+              iconBg: _WC.sage,
+              iconColor: _WC.primary,
+              onTap: () => _goto('Pembinaan Karakter'),
+            ),
+            _QuickAction(
+              title: 'Konseling',
+              subtitle: 'Pendampingan santri',
+              icon: Icons.support_agent,
+              iconBg: _WC.goldSurface,
+              iconColor: _WC.gold,
+              onTap: () => _goto('Konseling'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 20),
+
+        // ---- 4. Aktivitas terbaru ----
+        _Card(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: const [
+                  Expanded(
+                    child: Text('Aktivitas Terbaru',
+                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _WC.ink)),
+                  ),
+                  Text("Internal Ma'had",
+                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: _WC.inkSecondary)),
+                ],
+              ),
+              const SizedBox(height: 10),
+              if (logs.isEmpty)
+                const _EmptyRow(text: 'Belum ada aktivitas tercatat.')
+              else
+                Column(children: [for (final log in logs) _logRow(log)]),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Satu baris antrean keputusan Mudir: ikon, judul, keterangan, badge jumlah.
+Widget _pimAntrean({
+  required IconData icon,
+  required String title,
+  required String subtitle,
+  required int? count,
+  required Color accent,
+  VoidCallback? onTap, // null = hanya pantauan
+}) {
+  final adaIsi = (count ?? 0) > 0;
+  return InkWell(
+    onTap: onTap,
+    borderRadius: BorderRadius.circular(12),
+    child: Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(color: _WC.surfaceDim, borderRadius: BorderRadius.circular(12)),
+      child: Row(
+        children: [
+          // ... ikon, judul, subtitle, badge (tidak berubah) ...
+          if (onTap != null) ...[
+            const SizedBox(width: 2),
+            const Icon(Icons.chevron_right, size: 18, color: _WC.inkSecondary),
+          ],
+        ],
+      ),
+    ),
+  );
+}
 
   Widget _buildAuditCard() {
     final items = ((_data!['auditKelengkapan'] as List?) ?? []).cast<Map<String, dynamic>>();
@@ -1794,7 +2055,7 @@ Future<void> _load() async {
           SnackBar(
           behavior: SnackBarBehavior.floating,
           persist: false, // baru: tetap hilang otomatis walau ada action
-          backgroundColor: _TC.primary,
+          backgroundColor: _WC.primary,
           elevation: 6,
           margin: EdgeInsets.fromLTRB(side, 0, side, 16),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -2031,13 +2292,9 @@ Future<void> _load() async {
             Expanded(
               child: _UQuickTile(icon: Icons.auto_stories_outlined, label: 'Tahfidz', onTap: () => _goto('Tahfidz')),
             ),
-            Expanded(
-              child: _UQuickTile(icon: Icons.cast_for_education_outlined, label: 'Jurnal', onTap: () => _goto('Jurnal Mengajar')),
-            ),
           ],
         ),
         const SizedBox(height: 22),
-        
 
         // ---- Kelas yang Diampu ----
         _ustadzSection(

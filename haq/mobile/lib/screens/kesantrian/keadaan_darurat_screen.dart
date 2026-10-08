@@ -120,6 +120,13 @@ class _KeadaanDaruratScreenState extends State<KeadaanDaruratScreen> {
   final Set<String> _open = {}; // id laporan yang sedang dibuka
   bool _firstLoad = true;
 
+  /// Wali tidak boleh melapor. Pimpinan/Mudir bertugas menerima & menindaklanjuti
+  /// laporan, bukan membuatnya. Admin dan role lain tetap bisa melapor.
+  bool get _bisaLapor {
+    final user = AppScope.of(context).user;
+    return user?.isWali != true && user?.isPimpinan != true;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -223,6 +230,7 @@ class _KeadaanDaruratScreenState extends State<KeadaanDaruratScreen> {
 
   // ---- Lapor ----
   Future<void> _lapor() async {
+    if (!_bisaLapor) return;
     final api = AppScope.of(context).api;
     final payload = await showModalBottomSheet<Map<String, dynamic>>(
       context: context,
@@ -271,8 +279,8 @@ class _KeadaanDaruratScreenState extends State<KeadaanDaruratScreen> {
   @override
   Widget build(BuildContext context) {
     final user = AppScope.of(context).user;
-    final bisaTangani = user?.isAdmin == true || user?.isPimpinan == true;
-    final bisaLapor = user?.isWali != true;
+   final bisaTangani = user?.isAdmin == true || user?.isMusyrif == true;
+    final bisaLapor = _bisaLapor;
 
     final konten = _loading
         ? Center(child: CircularProgressIndicator(color: _DC.primary, strokeWidth: 2.5))
@@ -326,7 +334,7 @@ class _KeadaanDaruratScreenState extends State<KeadaanDaruratScreen> {
 
     return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.only(bottom: 110),
+      padding: EdgeInsets.only(bottom: _bisaLapor ? 110 : 24),
       children: [
         _hero(),
         Padding(
@@ -697,7 +705,7 @@ class _KeadaanDaruratScreenState extends State<KeadaanDaruratScreen> {
               ),
               const SizedBox(height: 6),
               const Center(
-                child: Text("Akses: Admin & Pimpinan Ma'had",
+                child: Text("Akses: Admin & Musyrif Ma'had",
                     style: TextStyle(color: _DC.inkSecondary, fontSize: 11.5)),
               ),
             ] else if (open && status != 'SELESAI') ...[
@@ -707,7 +715,7 @@ class _KeadaanDaruratScreenState extends State<KeadaanDaruratScreen> {
                   Icon(Icons.info_outline_rounded, size: 15, color: _DC.inkSecondary),
                   SizedBox(width: 6),
                   Expanded(
-                    child: Text('Tindak lanjut dilakukan oleh Admin & Pimpinan.',
+                    child: Text('Tindak lanjut dilakukan oleh Admin & Musyrif.',
                         style: TextStyle(color: _DC.inkSecondary, fontSize: 12)),
                   ),
                 ],
