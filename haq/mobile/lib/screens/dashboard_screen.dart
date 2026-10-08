@@ -9,6 +9,7 @@ import 'billing/billing_admin_screen.dart'; // TODO: sesuaikan nama class/path b
 import 'santri/santri_form_screen.dart';
 import 'master/kelas_list_screen.dart'; // TODO: sesuaikan path & nama class (asumsi: KelasListScreen)
 import 'master/ustadz_list_screen.dart';
+import 'users/users_screen.dart'; // TODO: sesuaikan path kalau users_screen.dart ada di folder lain
 import 'santri/santri_ui.dart';
 import 'wali/wali_dashboard_screen.dart';
 
@@ -190,6 +191,32 @@ class _DashboardScreenState extends State<DashboardScreen> {
       MaterialPageRoute(builder: (_) => const UstadzListScreen(showBack: true)),
     );
     if (mounted) _load();
+  }
+
+  /// Buka layar Akun Pengguna. Setelah kembali, angka dashboard dimuat ulang.
+  Future<void> _bukaUsers() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const UsersScreen(showBack: true)),
+    );
+    if (mounted) _load();
+  }
+
+  /// Arahkan tombol di Audit Kelengkapan ke layar yang relevan.
+  void _bukaAudit(String? tujuan) {
+    switch (tujuan) {
+      case 'santri':
+        _goto('Santri');
+        break;
+      case 'kelas':
+        _bukaKelas();
+        break;
+      case 'ustadz':
+        _bukaUstadz();
+        break;
+      default:
+        _notAvailable();
+    }
   }
 
   /// Buka layar Rombel & Halaqah. Setelah kembali, angka dashboard dimuat ulang.
@@ -1278,7 +1305,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               icon: Icons.lock_person,
               iconBg: _WC.goldSurface,
               iconColor: _WC.gold,
-              onTap: _notAvailable,
+              onTap: _bukaUsers,
             ),
           ],
         ),
@@ -1374,6 +1401,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final title = _pick(item, ['judul', 'title']) ?? 'Tindakan diperlukan';
     final subtitle = _pick(item, ['deskripsi', 'subtitle']) ?? '';
     final actionLabel = _pick(item, ['aksi', 'actionLabel']) ?? 'Lihat';
+    final tujuan = _pick(item, ['tujuan']);
 
     // Warna tombol aksi bergantian seperti screen.png: merah, cokelat emas, hijau tua.
     final accents = [_WC.errorText, _WC.goldDark, _TC.primary];
@@ -1406,7 +1434,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
           SizedBox(width: 8),
           InkWell(
-            onTap: _notAvailable,
+            onTap: () => _bukaAudit(tujuan),
             borderRadius: BorderRadius.circular(999),
             child: Container(
               padding: EdgeInsets.symmetric(horizontal: 12, vertical: 7),
@@ -1490,19 +1518,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
           _academicShortcut(
             icon: Icons.fact_check,
             label: 'Input Rekap Absensi Terpusat',
-            onTap: _notAvailable,
+            onTap: () => _goto('Absensi'),
           ),
           SizedBox(height: 8),
           _academicShortcut(
             icon: Icons.upload_file,
             label: 'Unggah Nilai Kolektif (Excel/CSV)',
-            onTap: _notAvailable,
+            onTap: () => _goto('Nilai'),
           ),
           SizedBox(height: 8),
           _academicShortcut(
             icon: Icons.auto_stories,
             label: 'Katalog Mata Pelajaran & Kitab Turats',
-            onTap: _notAvailable,
+            onTap: () => _goto('Mata Pelajaran'),
           ),
         ],
       ),
@@ -1568,7 +1596,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           else
             Column(
               children: [
-                for (final log in logs) _logRow(log),
+                for (final log in logs.take(5)) _logRow(log),
               ],
             ),
         ],

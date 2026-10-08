@@ -435,28 +435,6 @@ class _UstadzListScreenState extends State<UstadzListScreen> {
 
     return Scaffold(
       backgroundColor: SC.background,
-      appBar: widget.showBack
-          ? AppBar(
-              // Tombol kembali eksplisit supaya selalu tampil dan tidak ikut
-              // tergulir, juga di web setelah halaman di-refresh.
-              automaticallyImplyLeading: false,
-              backgroundColor: SC.background,
-              foregroundColor: SC.ink,
-              surfaceTintColor: Colors.transparent,
-              elevation: 0,
-              scrolledUnderElevation: 0,
-              leading: IconButton(
-                tooltip: 'Kembali',
-                icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
-                onPressed: () => Navigator.of(context).maybePop(),
-              ),
-              title: Text('Ustadz / Guru', style: sty(16, FontWeight.w800, SC.ink)),
-              bottom: const PreferredSize(
-                preferredSize: Size.fromHeight(1),
-                child: Divider(height: 1, thickness: 1, color: SC.border),
-              ),
-            )
-          : null,
       body: Align(
         alignment: Alignment.topCenter,
         child: ConstrainedBox(
@@ -563,6 +541,24 @@ class _UstadzListScreenState extends State<UstadzListScreen> {
         children: [
           Row(
             children: [
+              if (widget.showBack) ...[
+                InkWell(
+                  onTap: () => Navigator.of(context).maybePop(),
+                  customBorder: const CircleBorder(),
+                  child: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.14),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white.withOpacity(0.25)),
+                    ),
+                    child: const Icon(Icons.arrow_back_ios_new_rounded,
+                        size: 16, color: Colors.white),
+                  ),
+                ),
+                const SizedBox(width: 10),
+              ],
               Container(
                 width: 48,
                 height: 48,

@@ -147,6 +147,37 @@ export class AuditService {
     return this.toDtos(rows);
   }
 
+  /** Aktivitas data master terbaru milik satu tenant — untuk kartu log di dashboard admin. */
+  async recentTenant(tenantId: string, n = 5) {
+    const rows = await this.prisma.auditLog.findMany({
+      where: {
+        tenantId,
+        kategori: AuditKategori.DATA,
+        action: { in: ['POST', 'PATCH', 'PUT', 'DELETE'] },
+      },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: n,
+    });
+
+    return rows.map((r) => {
+      const judul = r.judul ?? `${VERB[r.action] ?? r.action} data ${r.entity}`;
+      const detail = (r.deskripsi ?? '').replace(/`/g, '').trim();
+      return {
+        pesan: detail ? `${judul}: ${detail}` : judul,
+        oleh: r.userNama ?? roleLabel(r.userRole),
+        waktu: this.elapsed(r.createdAt),
+      };
+    });
+  }
+
+  private elapsed(t: Date): string {
+    const s = Math.floor((Date.now() - t.getTime()) / 1000);
+    if (s < 60) return 'baru saja';
+    if (s < 3600) return `${Math.floor(s / 60)} menit lalu`;
+    if (s < 86400) return `${Math.floor(s / 3600)} jam lalu`;
+    return `${Math.floor(s / 86400)} hari lalu`;
+  }
+
   // -------------------------------------------------------------------------
 
   private async toDtos(rows: AuditLog[]) {

@@ -362,26 +362,6 @@ class _KelasListScreenState extends State<KelasListScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: SC.background,
-      appBar: widget.showBack
-          ? AppBar(
-              automaticallyImplyLeading: false,
-              backgroundColor: SC.background,
-              foregroundColor: SC.ink,
-              surfaceTintColor: Colors.transparent,
-              elevation: 0,
-              scrolledUnderElevation: 0,
-              leading: IconButton(
-                tooltip: 'Kembali',
-                icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
-                onPressed: () => Navigator.of(context).maybePop(),
-              ),
-              title: Text('Rombel & Halaqah', style: sty(16, FontWeight.w800, SC.ink)),
-              bottom: const PreferredSize(
-                preferredSize: Size.fromHeight(1),
-                child: Divider(height: 1, thickness: 1, color: SC.border),
-              ),
-            )
-          : null,
       body: Align(
         alignment: Alignment.topCenter,
         child: ConstrainedBox(
@@ -430,10 +410,42 @@ class _KelasListScreenState extends State<KelasListScreen> {
     );
   }
 
+    /// Bungkus tampilan loading/error/kosong supaya tombol kembali tetap ada.
+  Widget _withBack(Widget child) {
+    if (!widget.showBack) return child;
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: InkWell(
+              onTap: () => Navigator.of(context).maybePop(),
+              customBorder: const CircleBorder(),
+              child: Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: SC.surface,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: SC.border),
+                ),
+                child: Icon(Icons.arrow_back_ios_new_rounded, size: 15, color: SC.ink),
+              ),
+            ),
+          ),
+        ),
+        Expanded(child: child),
+      ],
+    );
+  }
+
   Widget _body() {
-    if (_loading) return loadingView();
-    if (_error != null) return errorView(_error!, _load);
-    if (_items.isEmpty) return emptyView('Belum ada kelas. Tap "Kelas baru" untuk menambah.');
+    if (_loading) return _withBack(loadingView());
+    if (_error != null) return _withBack(errorView(_error!, _load));
+    if (_items.isEmpty) {
+      return _withBack(emptyView('Belum ada kelas. Tap "Kelas baru" untuk menambah.'));
+    }
 
     final list = _filtered();
     return RefreshIndicator(
@@ -504,6 +516,24 @@ class _KelasListScreenState extends State<KelasListScreen> {
         children: [
           Row(
             children: [
+              if (widget.showBack) ...[
+                InkWell(
+                  onTap: () => Navigator.of(context).maybePop(),
+                  customBorder: const CircleBorder(),
+                  child: Container(
+                    width: 34,
+                    height: 34,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.14),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white.withOpacity(0.25)),
+                    ),
+                    child: const Icon(Icons.arrow_back_ios_new_rounded,
+                        size: 14, color: Colors.white),
+                  ),
+                ),
+                const SizedBox(width: 10),
+              ],
               Container(
                 width: 6,
                 height: 6,
