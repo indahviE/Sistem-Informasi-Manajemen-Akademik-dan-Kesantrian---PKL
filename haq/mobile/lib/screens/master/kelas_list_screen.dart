@@ -61,7 +61,9 @@ class _KelasListScreenState extends State<KelasListScreen> {
       final res = await api.get(ApiUrl.kelas);
       if (!mounted) return;
       setState(() {
-        _items = res is List ? res : ((res is Map ? res['items'] : null) as List? ?? []);
+        _items = res is List
+            ? res
+            : ((res is Map ? res['items'] : null) as List? ?? []);
         _loading = false;
         _error = null;
       });
@@ -90,7 +92,11 @@ class _KelasListScreenState extends State<KelasListScreen> {
 
   /// Satu pola untuk semua aksi tulis: kunci tombol, tampilkan progress di atas,
   /// tangkap error, lalu muat ulang daftar tanpa spinner penuh.
-  Future<void> _jalankan(Future<void> Function() aksi, String sukses, {String? sub}) async {
+  Future<void> _jalankan(
+    Future<void> Function() aksi,
+    String sukses, {
+    String? sub,
+  }) async {
     if (_busy) return;
     setState(() => _busy = true);
     try {
@@ -110,7 +116,9 @@ class _KelasListScreenState extends State<KelasListScreen> {
   Future<List<Map<String, dynamic>>?> _loadUstadz() async {
     try {
       final res = await AppScope.of(context).api.get(ApiUrl.ustadz);
-      final list = res is List ? res : ((res is Map ? res['items'] : null) as List? ?? []);
+      final list = res is List
+          ? res
+          : ((res is Map ? res['items'] : null) as List? ?? []);
       return list.whereType<Map<String, dynamic>>().toList();
     } catch (_) {
       return null;
@@ -135,9 +143,13 @@ class _KelasListScreenState extends State<KelasListScreen> {
     );
     if (result == null || !mounted) return;
     final api = AppScope.of(context).api;
-    await _jalankan(() async {
-      await api.post(ApiUrl.kelas, result);
-    }, 'Kelas ditambahkan', sub: result['namaKelas']?.toString());
+    await _jalankan(
+      () async {
+        await api.post(ApiUrl.kelas, result);
+      },
+      'Kelas ditambahkan',
+      sub: result['namaKelas']?.toString(),
+    );
   }
 
   Future<void> _edit(Map<String, dynamic> kelas) async {
@@ -150,9 +162,13 @@ class _KelasListScreenState extends State<KelasListScreen> {
     );
     if (result == null || !mounted) return;
     final api = AppScope.of(context).api;
-    await _jalankan(() async {
-      await api.patch('${ApiUrl.kelas}/${kelas['id']}', result);
-    }, 'Kelas diperbarui', sub: result['namaKelas']?.toString());
+    await _jalankan(
+      () async {
+        await api.patch('${ApiUrl.kelas}/${kelas['id']}', result);
+      },
+      'Kelas diperbarui',
+      sub: result['namaKelas']?.toString(),
+    );
   }
 
   Future<void> _delete(Map<String, dynamic> kelas) async {
@@ -166,11 +182,21 @@ class _KelasListScreenState extends State<KelasListScreen> {
         icon: Container(
           width: 52,
           height: 52,
-          decoration: const BoxDecoration(color: SC.errorBg, shape: BoxShape.circle),
-          child: const Icon(Icons.delete_outline_rounded, color: SC.errorText, size: 26),
+          decoration: const BoxDecoration(
+            color: SC.errorBg,
+            shape: BoxShape.circle,
+          ),
+          child: const Icon(
+            Icons.delete_outline_rounded,
+            color: SC.errorText,
+            size: 26,
+          ),
         ),
-        title: Text('Hapus kelas?',
-            textAlign: TextAlign.center, style: sty(17, FontWeight.w800, SC.ink)),
+        title: Text(
+          'Hapus kelas?',
+          textAlign: TextAlign.center,
+          style: sty(17, FontWeight.w800, SC.ink),
+        ),
         content: Text(
           'Kelas "${kelas['namaKelas']}" akan dihapus permanen.',
           textAlign: TextAlign.center,
@@ -183,28 +209,42 @@ class _KelasListScreenState extends State<KelasListScreen> {
             style: OutlinedButton.styleFrom(
               side: const BorderSide(color: SC.border),
               padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(999),
+              ),
             ),
             onPressed: () => Navigator.pop(ctx, false),
-            child: Text('Batal', style: sty(13, FontWeight.w700, SC.inkSecondary)),
+            child: Text(
+              'Batal',
+              style: sty(13, FontWeight.w700, SC.inkSecondary),
+            ),
           ),
           FilledButton(
             style: FilledButton.styleFrom(
               backgroundColor: SC.errorText,
               padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(999),
+              ),
             ),
             onPressed: () => Navigator.pop(ctx, true),
-            child: Text('Ya, hapus', style: sty(13, FontWeight.w700, Colors.white)),
+            child: Text(
+              'Ya, hapus',
+              style: sty(13, FontWeight.w700, Colors.white),
+            ),
           ),
         ],
       ),
     );
     if (ok != true || !mounted) return;
     final api = AppScope.of(context).api;
-    await _jalankan(() async {
-      await api.delete('${ApiUrl.kelas}/${kelas['id']}');
-    }, 'Kelas dihapus', sub: kelas['namaKelas']?.toString());
+    await _jalankan(
+      () async {
+        await api.delete('${ApiUrl.kelas}/${kelas['id']}');
+      },
+      'Kelas dihapus',
+      sub: kelas['namaKelas']?.toString(),
+    );
   }
 
   // ---------------------------------------------------------------------
@@ -244,7 +284,9 @@ class _KelasListScreenState extends State<KelasListScreen> {
                 color: error ? SC.errorBg : SC.primary,
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
-                  color: error ? SC.errorText.withOpacity(0.25) : SC.gold.withOpacity(0.5),
+                  color: error
+                      ? SC.errorText.withOpacity(0.25)
+                      : SC.gold.withOpacity(0.5),
                 ),
               ),
               child: Row(
@@ -271,8 +313,14 @@ class _KelasListScreenState extends State<KelasListScreen> {
                         Text(title, style: sty(13.5, FontWeight.w800, fg)),
                         if (_bannerSub != null && _bannerSub!.isNotEmpty) ...[
                           const SizedBox(height: 2),
-                          Text(_bannerSub!,
-                              style: sty(11.5, FontWeight.w500, fg.withOpacity(0.75))),
+                          Text(
+                            _bannerSub!,
+                            style: sty(
+                              11.5,
+                              FontWeight.w500,
+                              fg.withOpacity(0.75),
+                            ),
+                          ),
                         ],
                       ],
                     ),
@@ -281,7 +329,11 @@ class _KelasListScreenState extends State<KelasListScreen> {
                     onPressed: _closeBanner,
                     visualDensity: VisualDensity.compact,
                     tooltip: 'Tutup',
-                    icon: Icon(Icons.close_rounded, size: 18, color: fg.withOpacity(0.7)),
+                    icon: Icon(
+                      Icons.close_rounded,
+                      size: 18,
+                      color: fg.withOpacity(0.7),
+                    ),
                   ),
                 ],
               ),
@@ -292,7 +344,8 @@ class _KelasListScreenState extends State<KelasListScreen> {
   // ---------------------------------------------------------------------
   // Helper data (semua null-safe)
   // ---------------------------------------------------------------------
-  List<Map<String, dynamic>> get _all => _items.whereType<Map<String, dynamic>>().toList();
+  List<Map<String, dynamic>> get _all =>
+      _items.whereType<Map<String, dynamic>>().toList();
 
   int _santriCount(Map<String, dynamic> k) {
     final c = k['_count'];
@@ -320,8 +373,9 @@ class _KelasListScreenState extends State<KelasListScreen> {
 
   /// Backend sudah kirim info wali kelas atau belum. Kalau belum, baris wali
   /// disembunyikan supaya tidak muncul "Belum ada wali" di semua kartu.
-  bool get _adaDataWali =>
-      _all.any((k) => k.containsKey('waliKelas') || k.containsKey('waliKelasNama'));
+  bool get _adaDataWali => _all.any(
+    (k) => k.containsKey('waliKelas') || k.containsKey('waliKelasNama'),
+  );
 
   int? _kapasitas(Map<String, dynamic> k) {
     final v = k['kapasitas'];
@@ -348,7 +402,8 @@ class _KelasListScreenState extends State<KelasListScreen> {
   List<Map<String, dynamic>> _filtered() {
     final q = _query.trim().toLowerCase();
     return _all.where((k) {
-      if (_tingkatFilter != 'Semua' && (k['tingkat']?.toString().trim() ?? '') != _tingkatFilter) {
+      if (_tingkatFilter != 'Semua' &&
+          (k['tingkat']?.toString().trim() ?? '') != _tingkatFilter) {
         return false;
       }
       if (q.isEmpty) return true;
@@ -365,26 +420,6 @@ class _KelasListScreenState extends State<KelasListScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: SC.background,
-      appBar: widget.showBack
-          ? AppBar(
-              automaticallyImplyLeading: false,
-              backgroundColor: SC.background,
-              foregroundColor: SC.ink,
-              surfaceTintColor: Colors.transparent,
-              elevation: 0,
-              scrolledUnderElevation: 0,
-              leading: IconButton(
-                tooltip: 'Kembali',
-                icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
-                onPressed: () => Navigator.of(context).maybePop(),
-              ),
-              title: Text('Rombel & Halaqah', style: sty(16, FontWeight.w800, SC.ink)),
-              bottom: const PreferredSize(
-                preferredSize: Size.fromHeight(1),
-                child: Divider(height: 1, thickness: 1, color: SC.border),
-              ),
-            )
-          : null,
       body: Align(
         alignment: Alignment.topCenter,
         child: ConstrainedBox(
@@ -409,24 +444,31 @@ class _KelasListScreenState extends State<KelasListScreen> {
                   ),
                 ),
               if (!_readOnly)
-              Positioned(
-                right: 16,
-                bottom: 16,
-                child: FloatingActionButton.extended(
-                  heroTag: null,
-                  onPressed: _busy ? null : _add,
-                  tooltip: 'Tambah kelas',
-                  backgroundColor: SC.primary,
-                  foregroundColor: Colors.white,
-                  elevation: 4,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(999),
-                    side: BorderSide(color: SC.gold.withOpacity(0.6)),
+                Positioned(
+                  right: 16,
+                  bottom: 16,
+                  child: FloatingActionButton.extended(
+                    heroTag: null,
+                    onPressed: _busy ? null : _add,
+                    tooltip: 'Tambah kelas',
+                    backgroundColor: SC.primary,
+                    foregroundColor: Colors.white,
+                    elevation: 4,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(999),
+                      side: BorderSide(color: SC.gold.withOpacity(0.6)),
+                    ),
+                    icon: const Icon(
+                      Icons.add_rounded,
+                      size: 18,
+                      color: SC.gold,
+                    ),
+                    label: Text(
+                      'Kelas baru',
+                      style: sty(13, FontWeight.w700, Colors.white),
+                    ),
                   ),
-                  icon: const Icon(Icons.add_rounded, size: 18, color: SC.gold),
-                  label: Text('Kelas baru', style: sty(13, FontWeight.w700, Colors.white)),
                 ),
-              ),
             ],
           ),
         ),
@@ -434,12 +476,56 @@ class _KelasListScreenState extends State<KelasListScreen> {
     );
   }
 
+  /// Bungkus tampilan loading/error/kosong supaya tombol kembali tetap ada.
+  Widget _withBack(Widget child) {
+    if (!widget.showBack) return child;
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: InkWell(
+              onTap: () => Navigator.of(context).maybePop(),
+              customBorder: const CircleBorder(),
+              child: Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: SC.surface,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: SC.border),
+                ),
+                child: Icon(
+                  Icons.arrow_back_ios_new_rounded,
+                  size: 15,
+                  color: SC.ink,
+                ),
+              ),
+            ),
+          ),
+        ),
+        Expanded(child: child),
+      ],
+    );
+  }
+
   Widget _body() {
     if (_loading) return loadingView();
     if (_error != null) return errorView(_error!, _load);
-    if (_items.isEmpty) return emptyView(_readOnly
-        ? 'Belum ada kelas.'
-        : 'Belum ada kelas. Tap "Kelas baru" untuk menambah.');
+    if (_items.isEmpty)
+      return emptyView(
+        _readOnly
+            ? 'Belum ada kelas.'
+            : 'Belum ada kelas. Tap "Kelas baru" untuk menambah.',
+      );
+    if (_loading) return _withBack(loadingView());
+    if (_error != null) return _withBack(errorView(_error!, _load));
+    if (_items.isEmpty) {
+      return _withBack(
+        emptyView('Belum ada kelas. Tap "Kelas baru" untuk menambah.'),
+      );
+    }
 
     final list = _filtered();
     return RefreshIndicator(
@@ -459,8 +545,10 @@ class _KelasListScreenState extends State<KelasListScreen> {
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 32),
               child: Center(
-                child: Text('Tidak ada kelas yang cocok.',
-                    style: sty(12.5, FontWeight.w500, SC.inkSecondary)),
+                child: Text(
+                  'Tidak ada kelas yang cocok.',
+                  style: sty(12.5, FontWeight.w500, SC.inkSecondary),
+                ),
               ),
             )
           else
@@ -484,9 +572,15 @@ class _KelasListScreenState extends State<KelasListScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(value, style: sty(22, FontWeight.w800, warn ? SC.gold : Colors.white)),
+            Text(
+              value,
+              style: sty(22, FontWeight.w800, warn ? SC.gold : Colors.white),
+            ),
             const SizedBox(height: 2),
-            Text(label, style: sty(11, FontWeight.w500, Colors.white.withOpacity(0.72))),
+            Text(
+              label,
+              style: sty(11, FontWeight.w500, Colors.white.withOpacity(0.72)),
+            ),
           ],
         ),
       );
@@ -502,7 +596,11 @@ class _KelasListScreenState extends State<KelasListScreen> {
         ),
         borderRadius: BorderRadius.circular(18),
         boxShadow: [
-          BoxShadow(color: SC.primary.withOpacity(0.18), blurRadius: 12, offset: const Offset(0, 4)),
+          BoxShadow(
+            color: SC.primary.withOpacity(0.18),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
         ],
       ),
       child: Column(
@@ -510,14 +608,40 @@ class _KelasListScreenState extends State<KelasListScreen> {
         children: [
           Row(
             children: [
+              if (widget.showBack) ...[
+                InkWell(
+                  onTap: () => Navigator.of(context).maybePop(),
+                  customBorder: const CircleBorder(),
+                  child: Container(
+                    width: 34,
+                    height: 34,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.14),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white.withOpacity(0.25)),
+                    ),
+                    child: const Icon(
+                      Icons.arrow_back_ios_new_rounded,
+                      size: 14,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+              ],
               Container(
                 width: 6,
                 height: 6,
-                decoration: const BoxDecoration(color: SC.gold, shape: BoxShape.circle),
+                decoration: const BoxDecoration(
+                  color: SC.gold,
+                  shape: BoxShape.circle,
+                ),
               ),
               const SizedBox(width: 6),
-              Text('Rombel & Halaqah',
-                  style: sty(11.5, FontWeight.w700, SC.gold)),
+              Text(
+                'Rombel & Halaqah',
+                style: sty(11.5, FontWeight.w700, SC.gold),
+              ),
             ],
           ),
           const SizedBox(height: 12),
@@ -525,7 +649,8 @@ class _KelasListScreenState extends State<KelasListScreen> {
             children: [
               stat('${all.length}', 'Total Kelas'),
               stat('$totalSantri', 'Total Santri'),
-              if (_adaDataWali) stat('$tanpaWali', 'Tanpa Wali Kelas', warn: tanpaWali > 0),
+              if (_adaDataWali)
+                stat('$tanpaWali', 'Tanpa Wali Kelas', warn: tanpaWali > 0),
             ],
           ),
         ],
@@ -535,20 +660,25 @@ class _KelasListScreenState extends State<KelasListScreen> {
 
   Widget _searchField() {
     OutlineInputBorder b(Color c, [double w = 1]) => OutlineInputBorder(
-          borderRadius: BorderRadius.circular(999),
-          borderSide: BorderSide(color: c, width: w),
-        );
+      borderRadius: BorderRadius.circular(999),
+      borderSide: BorderSide(color: c, width: w),
+    );
     return TextField(
       onChanged: (v) => setState(() => _query = v),
       style: sty(13.5, FontWeight.w600, SC.ink),
       decoration: InputDecoration(
-        hintText: _adaDataWali ? 'Cari nama kelas atau wali kelas' : 'Cari nama kelas',
+        hintText: _adaDataWali
+            ? 'Cari nama kelas atau wali kelas'
+            : 'Cari nama kelas',
         hintStyle: sty(13, FontWeight.w500, SC.inkMuted),
         prefixIcon: Icon(Icons.search_rounded, size: 20, color: SC.primary),
         filled: true,
         fillColor: SC.surface,
         isDense: true,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 14,
+          vertical: 12,
+        ),
         border: b(SC.border),
         enabledBorder: b(SC.border),
         focusedBorder: b(SC.primary, 1.4),
@@ -581,7 +711,11 @@ class _KelasListScreenState extends State<KelasListScreen> {
               ),
               child: Text(
                 l == 'Semua' ? l : 'Tingkat $l',
-                style: sty(12, FontWeight.w700, selected ? Colors.white : SC.inkSecondary),
+                style: sty(
+                  12,
+                  FontWeight.w700,
+                  selected ? Colors.white : SC.inkSecondary,
+                ),
               ),
             ),
           );
@@ -593,7 +727,10 @@ class _KelasListScreenState extends State<KelasListScreen> {
   Widget _chip(String label, {Color? bg, Color? fg}) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(color: bg ?? SC.mint, borderRadius: BorderRadius.circular(999)),
+      decoration: BoxDecoration(
+        color: bg ?? SC.mint,
+        borderRadius: BorderRadius.circular(999),
+      ),
       child: Text(label, style: sty(10, FontWeight.w700, fg ?? SC.primary)),
     );
   }
@@ -624,14 +761,19 @@ class _KelasListScreenState extends State<KelasListScreen> {
             borderRadius: BorderRadius.circular(16),
             child: Container(
               decoration: BoxDecoration(
-                border: Border.all(color: perluWali ? SC.gold.withOpacity(0.5) : SC.border),
+                border: Border.all(
+                  color: perluWali ? SC.gold.withOpacity(0.5) : SC.border,
+                ),
                 borderRadius: BorderRadius.circular(16),
               ),
               child: IntrinsicHeight(
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Container(width: 4, color: perluWali ? SC.gold : SC.primary),
+                    Container(
+                      width: 4,
+                      color: perluWali ? SC.gold : SC.primary,
+                    ),
                     Expanded(
                       child: Padding(
                         padding: const EdgeInsets.fromLTRB(12, 12, 4, 12),
@@ -648,65 +790,105 @@ class _KelasListScreenState extends State<KelasListScreen> {
                                     color: SC.sage,
                                     borderRadius: BorderRadius.circular(12),
                                   ),
-                                  child: Icon(Icons.class_, size: 20, color: SC.primary),
+                                  child: Icon(
+                                    Icons.class_,
+                                    size: 20,
+                                    color: SC.primary,
+                                  ),
                                 ),
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
-                                      Text(nama,
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: sty(15, FontWeight.w800, SC.ink)),
+                                      Text(
+                                        nama,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: sty(15, FontWeight.w800, SC.ink),
+                                      ),
                                       const SizedBox(height: 5),
                                       Wrap(
                                         spacing: 6,
                                         runSpacing: 4,
                                         children: [
-                                          if (tingkat.isNotEmpty) _chip('Tingkat $tingkat'),
+                                          if (tingkat.isNotEmpty)
+                                            _chip('Tingkat $tingkat'),
                                           if (jenis != null)
-                                            _chip(jenis, bg: SC.goldSurface, fg: SC.goldDark),
+                                            _chip(
+                                              jenis,
+                                              bg: SC.goldSurface,
+                                              fg: SC.goldDark,
+                                            ),
                                         ],
                                       ),
                                     ],
                                   ),
                                 ),
                                 if (!_readOnly)
-                                PopupMenuButton<String>(
-                                  tooltip: 'Opsi',
-                                  enabled: !_busy,
-                                  icon: const Icon(Icons.more_vert_rounded,
-                                      size: 20, color: SC.inkSecondary),
-                                  color: SC.surface,
-                                  surfaceTintColor: Colors.transparent,
-                                  shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(16)),
-                                  onSelected: (v) {
-                                    if (v == 'edit') _edit(k);
-                                    if (v == 'hapus') _delete(k);
-                                  },
-                                  itemBuilder: (_) => [
-                                    PopupMenuItem(
-                                      value: 'edit',
-                                      child: Row(children: [
-                                        const Icon(Icons.edit_outlined, size: 18, color: SC.ink),
-                                        const SizedBox(width: 10),
-                                        Text('Edit data', style: sty(13, FontWeight.w600, SC.ink)),
-                                      ]),
+                                  PopupMenuButton<String>(
+                                    tooltip: 'Opsi',
+                                    enabled: !_busy,
+                                    icon: const Icon(
+                                      Icons.more_vert_rounded,
+                                      size: 20,
+                                      color: SC.inkSecondary,
                                     ),
-                                    PopupMenuItem(
-                                      value: 'hapus',
-                                      child: Row(children: [
-                                        const Icon(Icons.delete_outline,
-                                            size: 18, color: SC.errorText),
-                                        const SizedBox(width: 10),
-                                        Text('Hapus',
-                                            style: sty(13, FontWeight.w600, SC.errorText)),
-                                      ]),
+                                    color: SC.surface,
+                                    surfaceTintColor: Colors.transparent,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(16),
                                     ),
-                                  ],
-                                ),
+                                    onSelected: (v) {
+                                      if (v == 'edit') _edit(k);
+                                      if (v == 'hapus') _delete(k);
+                                    },
+                                    itemBuilder: (_) => [
+                                      PopupMenuItem(
+                                        value: 'edit',
+                                        child: Row(
+                                          children: [
+                                            const Icon(
+                                              Icons.edit_outlined,
+                                              size: 18,
+                                              color: SC.ink,
+                                            ),
+                                            const SizedBox(width: 10),
+                                            Text(
+                                              'Edit data',
+                                              style: sty(
+                                                13,
+                                                FontWeight.w600,
+                                                SC.ink,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      PopupMenuItem(
+                                        value: 'hapus',
+                                        child: Row(
+                                          children: [
+                                            const Icon(
+                                              Icons.delete_outline,
+                                              size: 18,
+                                              color: SC.errorText,
+                                            ),
+                                            const SizedBox(width: 10),
+                                            Text(
+                                              'Hapus',
+                                              style: sty(
+                                                13,
+                                                FontWeight.w600,
+                                                SC.errorText,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                               ],
                             ),
                             const SizedBox(height: 12),
@@ -714,19 +896,27 @@ class _KelasListScreenState extends State<KelasListScreen> {
                               Row(
                                 children: [
                                   Icon(
-                                    wali != null ? Icons.person_outline : Icons.person_off_outlined,
+                                    wali != null
+                                        ? Icons.person_outline
+                                        : Icons.person_off_outlined,
                                     size: 15,
-                                    color: wali != null ? SC.inkSecondary : SC.goldDark,
+                                    color: wali != null
+                                        ? SC.inkSecondary
+                                        : SC.goldDark,
                                   ),
                                   const SizedBox(width: 6),
                                   Expanded(
                                     child: Text(
-                                      wali != null ? 'Wali Kelas: $wali' : 'Belum ada wali kelas',
+                                      wali != null
+                                          ? 'Wali Kelas: $wali'
+                                          : 'Belum ada wali kelas',
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                       style: sty(
                                         12,
-                                        wali != null ? FontWeight.w600 : FontWeight.w700,
+                                        wali != null
+                                            ? FontWeight.w600
+                                            : FontWeight.w700,
                                         wali != null ? SC.ink : SC.goldDark,
                                       ),
                                     ),
@@ -737,12 +927,21 @@ class _KelasListScreenState extends State<KelasListScreen> {
                             ],
                             Row(
                               children: [
-                                const Icon(Icons.groups_2_outlined,
-                                    size: 15, color: SC.inkSecondary),
+                                const Icon(
+                                  Icons.groups_2_outlined,
+                                  size: 15,
+                                  color: SC.inkSecondary,
+                                ),
                                 const SizedBox(width: 6),
                                 Text(
-                                  kapasitas != null ? '$jumlah / $kapasitas santri' : '$jumlah santri',
-                                  style: sty(12, FontWeight.w500, SC.inkSecondary),
+                                  kapasitas != null
+                                      ? '$jumlah / $kapasitas santri'
+                                      : '$jumlah santri',
+                                  style: sty(
+                                    12,
+                                    FontWeight.w500,
+                                    SC.inkSecondary,
+                                  ),
                                 ),
                               ],
                             ),
@@ -757,7 +956,9 @@ class _KelasListScreenState extends State<KelasListScreen> {
                                     minHeight: 6,
                                     backgroundColor: SC.surfaceDim,
                                     valueColor: AlwaysStoppedAnimation(
-                                      jumlah > kapasitas ? SC.errorText : SC.primary,
+                                      jumlah > kapasitas
+                                          ? SC.errorText
+                                          : SC.primary,
                                     ),
                                   ),
                                 ),
@@ -798,12 +999,20 @@ class _KelasFormDialogState extends State<_KelasFormDialog> {
   @override
   void initState() {
     super.initState();
-    _nama = TextEditingController(text: widget.existing?['namaKelas']?.toString() ?? '');
-    _tingkat = TextEditingController(text: widget.existing?['tingkat']?.toString() ?? '');
-    final w = widget.existing?['waliKelasId'] ??
-        (widget.existing?['waliKelas'] is Map ? widget.existing!['waliKelas']['id'] : null);
+    _nama = TextEditingController(
+      text: widget.existing?['namaKelas']?.toString() ?? '',
+    );
+    _tingkat = TextEditingController(
+      text: widget.existing?['tingkat']?.toString() ?? '',
+    );
+    final w =
+        widget.existing?['waliKelasId'] ??
+        (widget.existing?['waliKelas'] is Map
+            ? widget.existing!['waliKelas']['id']
+            : null);
     final id = w?.toString();
-    final ada = widget.ustadzList?.any((u) => u['id']?.toString() == id) ?? false;
+    final ada =
+        widget.ustadzList?.any((u) => u['id']?.toString() == id) ?? false;
     _waliId = ada ? id : null;
   }
 
@@ -848,9 +1057,9 @@ class _KelasFormDialogState extends State<_KelasFormDialog> {
 
   InputDecoration _dec(String hint) {
     OutlineInputBorder b(Color c, [double w = 1]) => OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: c, width: w),
-        );
+      borderRadius: BorderRadius.circular(14),
+      borderSide: BorderSide(color: c, width: w),
+    );
     return InputDecoration(
       hintText: hint,
       hintStyle: sty(13.5, FontWeight.w500, SC.inkMuted),
@@ -865,9 +1074,9 @@ class _KelasFormDialogState extends State<_KelasFormDialog> {
   }
 
   Widget _label(String text) => Padding(
-        padding: const EdgeInsets.only(left: 2, bottom: 6),
-        child: Text(text, style: sty(12, FontWeight.w700, SC.inkSecondary)),
-      );
+    padding: const EdgeInsets.only(left: 2, bottom: 6),
+    child: Text(text, style: sty(12, FontWeight.w700, SC.inkSecondary)),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -889,10 +1098,17 @@ class _KelasFormDialogState extends State<_KelasFormDialog> {
               shape: BoxShape.circle,
               border: Border.all(color: SC.gold.withOpacity(0.45)),
             ),
-            child: Icon(Icons.meeting_room_rounded, size: 18, color: SC.primary),
+            child: Icon(
+              Icons.meeting_room_rounded,
+              size: 18,
+              color: SC.primary,
+            ),
           ),
           const SizedBox(width: 10),
-          Text(isEdit ? 'Edit kelas' : 'Tambah kelas', style: sty(16, FontWeight.w800, SC.ink)),
+          Text(
+            isEdit ? 'Edit kelas' : 'Tambah kelas',
+            style: sty(16, FontWeight.w800, SC.ink),
+          ),
         ],
       ),
       content: SizedBox(
@@ -917,7 +1133,10 @@ class _KelasFormDialogState extends State<_KelasFormDialog> {
                 const SizedBox(height: 6),
                 Padding(
                   padding: const EdgeInsets.only(left: 2),
-                  child: Text(_err!, style: sty(11.5, FontWeight.w600, SC.errorText)),
+                  child: Text(
+                    _err!,
+                    style: sty(11.5, FontWeight.w600, SC.errorText),
+                  ),
                 ),
               ],
               const SizedBox(height: 12),
@@ -942,17 +1161,25 @@ class _KelasFormDialogState extends State<_KelasFormDialog> {
                   dropdownColor: SC.surface,
                   style: sty(14, FontWeight.w600, SC.ink),
                   items: [
-                    const DropdownMenuItem<String?>(value: null, child: Text('Belum ditentukan')),
-                    for (final u in widget.ustadzList!
-                        .where((u) => u['jenis'] != 'MUSYRIF' || u['id']?.toString() == _waliId))
+                    const DropdownMenuItem<String?>(
+                      value: null,
+                      child: Text('Belum ditentukan'),
+                    ),
+                    for (final u in widget.ustadzList!.where(
+                      (u) =>
+                          u['jenis'] != 'MUSYRIF' ||
+                          u['id']?.toString() == _waliId,
+                    ))
                       _ustadzItem(u),
                   ],
                   onChanged: (v) => setState(() => _waliId = v),
                 ),
                 Padding(
                   padding: const EdgeInsets.only(top: 6, left: 2),
-                  child: Text('Satu ustadz hanya bisa jadi wali satu kelas.',
-                      style: sty(11, FontWeight.w500, SC.inkSecondary)),
+                  child: Text(
+                    'Satu ustadz hanya bisa jadi wali satu kelas.',
+                    style: sty(11, FontWeight.w500, SC.inkSecondary),
+                  ),
                 ),
               ],
             ],
@@ -964,16 +1191,23 @@ class _KelasFormDialogState extends State<_KelasFormDialog> {
           style: OutlinedButton.styleFrom(
             side: const BorderSide(color: SC.border),
             padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(999),
+            ),
           ),
           onPressed: () => Navigator.pop(context),
-          child: Text('Batal', style: sty(13, FontWeight.w700, SC.inkSecondary)),
+          child: Text(
+            'Batal',
+            style: sty(13, FontWeight.w700, SC.inkSecondary),
+          ),
         ),
         FilledButton(
           style: FilledButton.styleFrom(
             backgroundColor: SC.primary,
             padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(999),
+            ),
           ),
           onPressed: _submit,
           child: Text('Simpan', style: sty(13, FontWeight.w700, Colors.white)),
@@ -986,7 +1220,8 @@ class _KelasFormDialogState extends State<_KelasFormDialog> {
   /// redup dan tidak bisa dipilih, lengkap dengan nama kelasnya.
   DropdownMenuItem<String?> _ustadzItem(Map<String, dynamic> u) {
     final lain = _kelasLain(u);
-    final label = '${u['nama'] ?? '-'}${u['jenis'] == 'MUSYRIF' ? ' (Musyrif)' : ''}'
+    final label =
+        '${u['nama'] ?? '-'}${u['jenis'] == 'MUSYRIF' ? ' (Musyrif)' : ''}'
         '${lain != null ? '  •  wali $lain' : ''}';
     return DropdownMenuItem<String?>(
       value: u['id']?.toString(),
@@ -994,7 +1229,11 @@ class _KelasFormDialogState extends State<_KelasFormDialog> {
       child: Text(
         label,
         overflow: TextOverflow.ellipsis,
-        style: sty(14, FontWeight.w600, lain == null ? SC.ink : SC.inkSecondary.withOpacity(0.6)),
+        style: sty(
+          14,
+          FontWeight.w600,
+          lain == null ? SC.ink : SC.inkSecondary.withOpacity(0.6),
+        ),
       ),
     );
   }

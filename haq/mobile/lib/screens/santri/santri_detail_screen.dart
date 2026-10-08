@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../services/api_client.dart';
 import '../../services/app_scope.dart';
 import '../ui_utils.dart';
+import 'santri_form_screen.dart';
 import 'santri_ui.dart';
 
 class SantriDetailScreen extends StatefulWidget {
@@ -70,6 +71,14 @@ class _SantriDetailScreenState extends State<SantriDetailScreen> {
   // ---------------------------------------------------------------------
   // Hero + statistik
   // ---------------------------------------------------------------------
+  Future<void> _edit(Map<String, dynamic> d) async {
+    final ok = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (_) => SantriFormScreen(existing: d)),
+    );
+    if (ok == true && mounted) _load();
+  }
+
   Widget _hero(Map<String, dynamic> d, {required int setoran, required int poin}) {
     final nama = _str(d['nama'], 'Santri');
     final nis = _str(d['nis']);
@@ -91,7 +100,29 @@ class _SantriDetailScreenState extends State<SantriDetailScreen> {
                   children: [
                     const HeroBackButton(),
                     const SizedBox(width: 12),
-                    Text('Profil santri', style: sty(16, FontWeight.w800, Colors.white)),
+                    Expanded(
+                      child: Text('Profil santri', style: sty(16, FontWeight.w800, Colors.white)),
+                    ),
+                    InkWell(
+                      onTap: () => _edit(d),
+                      borderRadius: BorderRadius.circular(999),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.14),
+                          borderRadius: BorderRadius.circular(999),
+                          border: Border.all(color: SC.gold.withOpacity(0.55)),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.edit_outlined, size: 15, color: SC.gold),
+                            const SizedBox(width: 6),
+                            Text('Edit', style: sty(12.5, FontWeight.w700, Colors.white)),
+                          ],
+                        ),
+                      ),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 20),
@@ -383,6 +414,8 @@ class _SantriDetailScreenState extends State<SantriDetailScreen> {
                     _row(Icons.tag_rounded, 'NIS', _str(d['nis'])),
                     _row(Icons.person_outline, 'Nama', _str(d['nama'])),
                     _row(Icons.wc_rounded, 'Jenis kelamin', _jk(d['jenisKelamin'])),
+                    _row(Icons.cake_outlined, 'Tanggal lahir',
+                        _tgl(d['tanggalLahir']).isEmpty ? 'Belum diisi' : _tgl(d['tanggalLahir'])),
                     _row(Icons.class_outlined, 'Kelas', _str((d['kelas'] as Map?)?['namaKelas'])),
                     if (asrama.isNotEmpty) _row(Icons.bed_outlined, 'Asrama', asrama),
                     _row(Icons.event_available_outlined, 'Tahun masuk', _str(d['tahunMasuk'])),

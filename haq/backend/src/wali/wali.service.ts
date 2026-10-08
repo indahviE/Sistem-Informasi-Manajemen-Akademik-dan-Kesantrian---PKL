@@ -64,4 +64,55 @@ export class WaliService {
     if (!wali) return [];
     return wali.santris.map((s) => s.id);
   }
+
+  async dashboard(userId: string) {
+    const wali = await this.prisma.waliSantri.findFirst({
+      where: { userId },
+      include: {
+        santris: { include: { kelas: { select: { namaKelas: true } } } },
+      },
+    });
+    if (!wali) throw new NotFoundException('Akun wali belum terhubung ke data santri.');
+
+    const anak = await Promise.all(
+      wali.santris.map(async (s) => {
+        // SESUAIKAN nama model & field dengan schema.prisma kamu
+        const [totalAbsen, hadir, poin, izinAktif, hafalan] = await Promise.all([
+          this.prisma.absensi.count({ where: { santriId: s.id } }),
+          this.prisma.absensi.count({ where: { santriId: s.id, status: 'HADIR' } }),
+          this.prisma.pelanggaran.aggregate({
+            where: { santriId: s.id },
+            _sum: { poin: true },
+          }),
+          this.prisma.perizinan.count({
+            where: {
+              santriId: s.id,
+              statusApproval: { in: ['DISETUJUI', 'TELAT'] },
+            },
+          }),
+          this.prisma.capaianTahfidz.findMany({
+            where: { santriId: s.id, jenis: 'ZIYADAH' },
+            distinct: ['juz'],
+            select: { juz: true },
+          }),
+        ]);
+
+        return {
+          id: s.id,
+          nama: s.nama,
+          nis: s.nis,
+          status: s.status,
+          kelas: s.kelas,
+          ringkasan: {
+            kehadiranPersen: totalAbsen > 0 ? Math.round((hadir / totalAbsen) * 100) : null,
+            poinPelanggaran: poin._sum.poin ?? 0,
+            izinAktif,
+            juzTahfidz: hafalan.length > 0 ? hafalan.length : null,
+          },
+        };
+      }),
+    );
+
+    return { namaPengguna: wali.nama, anak };
+  }
 }

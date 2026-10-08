@@ -164,6 +164,7 @@ class ApiUrl {
   static const notifikasiUnreadCount = '/notifikasi/unread-count';
   static const wali = '/wali';
   static const waliMe = '/wali/me';
+  static const waliDashboard = '/wali/dashboard';
 
   static const ppdb = '/ppdb';
   static const ppdbDaftar = '/ppdb/daftar';

@@ -209,6 +209,71 @@ const jumlahMapel = await this.prisma.mataPelajaran.count({ where: { tenantId } 
       orderBy: { tanggal: 'asc' },
     });
 
+    // Kepatuhan rekap absensi: rombel yang punya minimal 1 data absensi hari ini
+    const absensiHariIni = await this.prisma.absensi.findMany({
+      where: {
+        tenantId,
+        kelasId: { not: null },
+        tanggal: { gte: todayStart, lte: todayEnd },
+      },
+      select: { kelasId: true },
+      distinct: ['kelasId'],
+    });
+    const logAktivitas = await this.audit.recentTenant(tenantId, 5);
+
+    // Audit kelengkapan data master
+    const [
+      santriTanpaKelas,
+      santriTanpaWali,
+      santriTanpaTglLahir,
+      kelasTanpaWali,
+      ustadzTanpaAkun,
+    ] = await Promise.all([
+      this.prisma.santri.count({ where: { tenantId, status: 'AKTIF', kelasId: null } }),
+      this.prisma.santri.count({ where: { tenantId, status: 'AKTIF', waliId: null } }),
+      this.prisma.santri.count({ where: { tenantId, status: 'AKTIF', tanggalLahir: null } }),
+      this.prisma.kelas.count({ where: { tenantId, waliKelasId: null } }),
+      this.prisma.ustadz.count({ where: { tenantId, userId: null } }),
+    ]);
+
+    const auditKelengkapan = [
+      santriTanpaKelas > 0 && {
+        judul: `${santriTanpaKelas} santri aktif belum punya kelas`,
+        deskripsi: 'Plot santri ke rombel',
+        aksi: 'Lihat',
+        tujuan: 'santri',
+      },
+      santriTanpaWali > 0 && {
+        judul: `${santriTanpaWali} santri aktif belum punya wali`,
+        deskripsi: 'Data wali wajib diisi',
+        aksi: 'Lengkapi',
+        tujuan: 'santri',
+      },
+      santriTanpaTglLahir > 0 && {
+        judul: `${santriTanpaTglLahir} santri belum ada tanggal lahir`,
+        deskripsi: 'Dibutuhkan untuk penomoran ijazah',
+        aksi: 'Lengkapi',
+        tujuan: 'santri',
+      },
+      kelasTanpaWali > 0 && {
+        judul: `${kelasTanpaWali} kelas belum punya wali kelas`,
+        deskripsi: 'Tentukan wali kelas di rombel',
+        aksi: 'Atur',
+        tujuan: 'kelas',
+      },
+      ustadzTanpaAkun > 0 && {
+        judul: `${ustadzTanpaAkun} ustadz belum punya akun login`,
+        deskripsi: 'Buat akun agar bisa masuk',
+        aksi: 'Buat',
+        tujuan: 'ustadz',
+      },
+    ].filter(Boolean);
+    const idKelasTenant = new Set(distribusiKelas.map((k) => k.id));
+    const kepatuhanAbsensi = {
+      terisi: absensiHariIni.filter((a) => a.kelasId && idKelasTenant.has(a.kelasId)).length,
+      total: distribusiKelas.length,
+    };
+
     return {
       role: 'TENANT',
       statistik: {
@@ -223,6 +288,9 @@ const jumlahMapel = await this.prisma.mataPelajaran.count({ where: { tenantId } 
       },
       distribusiKelas,
       pelanggaranPerHari,
+      kepatuhanAbsensi,
+      logAktivitas,
+      auditKelengkapan,
     };
   }
 
@@ -257,10 +325,45 @@ const jumlahMapel = await this.prisma.mataPelajaran.count({ where: { tenantId } 
       this.prisma.nilai.aggregate({ _avg: { nilai: true }, where: { santriId: { in: anakIds } } }),
     ]);
 
+    const anak = await Promise.all(
+      wali.santris.map(async (s) => {
+        const [totalAbsen, hadir, poin, izinAktif, juzList] = await Promise.all([
+          this.prisma.absensi.count({ where: { santriId: s.id } }),
+          this.prisma.absensi.count({ where: { santriId: s.id, status: 'HADIR' } }),
+          this.prisma.pelanggaran.aggregate({
+            where: { santriId: s.id },
+            _sum: { poin: true },
+          }),
+          this.prisma.perizinan.count({
+            where: {
+              santriId: s.id,
+              statusApproval: { in: ['DISETUJUI', 'TELAT'] },
+            },
+          }),
+          this.prisma.capaianTahfidz.findMany({
+            where: { santriId: s.id, jenis: 'ZIYADAH' },
+            distinct: ['juz'],
+            select: { juz: true },
+          }),
+        ]);
+
+        return {
+          ...s,
+          ringkasan: {
+            kehadiranPersen: totalAbsen > 0 ? Math.round((hadir / totalAbsen) * 100) : null,
+            poinPelanggaran: poin._sum.poin ?? 0,
+            izinAktif,
+            juzTahfidz: juzList.length > 0 ? juzList.length : null,
+          },
+        };
+      }),
+    );
+
     return {
       role: 'WALI_SANTRI',
+      namaPengguna: wali.nama,
       wali: { id: wali.id, nama: wali.nama, hubungan: wali.hubungan },
-      anak: wali.santris,
+      anak,
       statistik: {
         jumlahAnak: anakIds.length,
         pelanggaranTotal,

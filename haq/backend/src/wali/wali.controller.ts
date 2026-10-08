@@ -41,4 +41,10 @@ export class WaliController {
   myProfile(@CurrentUser() user: RequestUser) {
     return this.waliService.myProfile(user.userId);
   }
+
+  @Roles(Role.WALI_SANTRI)
+  @Get('dashboard')
+  dashboard(@CurrentUser() user: RequestUser) {
+    return this.waliService.dashboard(user.userId);
+  }
 }

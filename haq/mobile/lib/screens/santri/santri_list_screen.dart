@@ -72,6 +72,9 @@ class _SantriListScreenState extends State<SantriListScreen> {
   /// null = semua, [_tanpaKelas] = santri tanpa kelas, selain itu = nama kelas.
   String? _kelasFilter;
 
+  /// true = hanya santri yang tanggal lahirnya belum diisi.
+  bool _tanpaTglLahir = false;
+
   /// Banner notifikasi inline (di bawah hero), hilang otomatis.
   String? _bannerTitle;
   String? _bannerSub;
@@ -166,10 +169,15 @@ class _SantriListScreenState extends State<SantriListScreen> {
   int get _totalAktif =>
       _items.where((s) => (s['status']?.toString().toUpperCase() ?? 'AKTIF') == 'AKTIF').length;
 
+  int get _countTglKosong => _items.where((s) => s['tanggalLahir'] == null).length;
+
   List<Map<String, dynamic>> get _filtered {
-    if (_kelasFilter == null) return _items;
-    if (_kelasFilter == _tanpaKelas) return _items.where((s) => _kelasOf(s) == null).toList();
-    return _items.where((s) => _kelasOf(s) == _kelasFilter).toList();
+    final base = _tanpaTglLahir
+        ? _items.where((s) => s['tanggalLahir'] == null).toList()
+        : _items;
+    if (_kelasFilter == null) return base;
+    if (_kelasFilter == _tanpaKelas) return base.where((s) => _kelasOf(s) == null).toList();
+    return base.where((s) => _kelasOf(s) == _kelasFilter).toList();
   }
 
   List<_Entry> _buildEntries() {
@@ -352,6 +360,17 @@ class _SantriListScreenState extends State<SantriListScreen> {
     ).then((_) {
       if (mounted) _load(spinner: false);
     });
+  }
+
+  Future<void> _edit(Map<String, dynamic> s) async {
+    final ok = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (_) => SantriFormScreen(existing: s)),
+    );
+    if (ok == true) {
+      _toast('Data santri diperbarui');
+      _load(spinner: false);
+    }
   }
 
   Future<void> _tambah() async {
@@ -586,6 +605,28 @@ class _SantriListScreenState extends State<SantriListScreen> {
           _chip(null, 'Semua', _countKelas(null)),
           for (final k in kelas) _chip(k, k, _countKelas(k)),
           if (_adaTanpaKelas) _chip(_tanpaKelas, 'Tanpa kelas', _countKelas(_tanpaKelas)),
+          if (_countTglKosong > 0 || _tanpaTglLahir)
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: GestureDetector(
+                onTap: () => setState(() => _tanpaTglLahir = !_tanpaTglLahir),
+                child: Container(
+                  alignment: Alignment.center,
+                  padding: const EdgeInsets.symmetric(horizontal: 13),
+                  decoration: BoxDecoration(
+                    color: _tanpaTglLahir ? SC.primary : SC.goldSurface,
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(
+                        color: _tanpaTglLahir ? SC.primary : SC.gold.withOpacity(0.5)),
+                  ),
+                  child: Text(
+                    'Tanpa tgl lahir ($_countTglKosong)',
+                    style: sty(12, FontWeight.w700,
+                        _tanpaTglLahir ? Colors.white : SC.goldDark),
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -825,6 +866,7 @@ class _SantriListScreenState extends State<SantriListScreen> {
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                   onSelected: (v) {
                     if (v == 'detail') _buka(s);
+                    if (v == 'edit') _edit(s);
                     if (v == 'hapus') _hapus(s);
                   },
                   itemBuilder: (_) => [
@@ -837,6 +879,14 @@ class _SantriListScreenState extends State<SantriListScreen> {
                       ]),
                     ),
                     if (!_readOnly)
+                    PopupMenuItem(
+                      value: 'edit',
+                      child: Row(children: [
+                        const Icon(Icons.edit_outlined, size: 18, color: SC.ink),
+                        const SizedBox(width: 10),
+                        Text('Edit data', style: sty(13, FontWeight.w600, SC.ink)),
+                      ]),
+                    ),
                     PopupMenuItem(
                       value: 'hapus',
                       child: Row(children: [
