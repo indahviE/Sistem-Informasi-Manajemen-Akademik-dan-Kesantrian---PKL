@@ -51,6 +51,7 @@ import 'billing/billing_admin_screen.dart';
 import 'billing/billing_tenant_screen.dart';
 import 'branding/branding_screen.dart';
 import 'akademik/jurnal_mengajar_screen.dart';
+import 'mudir/pengaturan_mudir_screen.dart';
 import 'santri/santri_ui.dart' show SC;
 
 class ShellScreen extends StatefulWidget {
@@ -217,6 +218,7 @@ class _ShellScreenState extends State<ShellScreen> {
       m.add(_MenuItem('Kesehatan', Icons.medical_services, (_) => const KesehatanScreen()));
       m.add(_MenuItem('Rekam Medis', Icons.health_and_safety, (_) => const RekamMedisScreen()));
       m.add(_MenuItem('Kunjungan Wali', Icons.people, (_) => const KunjunganScreen()));
+      m.add(_MenuItem('Pengaturan', Icons.tune, (_) => const PengaturanMudirScreen()));
     }
 
     if (user.isAdmin) {
@@ -305,7 +307,7 @@ class _ShellScreenState extends State<ShellScreen> {
                         context,
                         MaterialPageRoute(builder: (_) => const NotifikasiScreen()),
                       ).then((_) => _loadUnreadCount()),
-                      onPengaturan: () {}, // diputuskan di langkah 3
+                      onPengaturan: () => _goToMenu('Pengaturan'),
                       onLogout: _logout,
                     )
               : user.isUstadz
