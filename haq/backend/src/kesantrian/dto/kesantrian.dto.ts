@@ -65,6 +65,10 @@ export class CreatePerizinanDto {
   @IsDateString()
   tanggalKembali?: string;
 
+  @IsOptional()
+  @IsDateString()
+  rencanaKembali?: string;
+
   @IsString()
   @IsNotEmpty()
   alasan: string;

@@ -113,11 +113,13 @@ class _KunjunganScreenState extends State<KunjunganScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      floatingActionButton: FloatingActionButton(
-        onPressed: _add,
-        tooltip: 'Catat Kunjungan',
-        child: const Icon(Icons.add),
-      ),
+            floatingActionButton: _isPimpinan
+          ? null
+          : FloatingActionButton(
+              onPressed: _add,
+              tooltip: 'Catat Kunjungan',
+              child: const Icon(Icons.add),
+            ),
       body: _loading
           ? loadingView()
           : _error != null
@@ -127,7 +129,7 @@ class _KunjunganScreenState extends State<KunjunganScreen> {
                   : RefreshIndicator(
                       onRefresh: _load,
                       child: ListView.builder(
-                        padding: const EdgeInsets.only(bottom: 88),
+                                                padding: EdgeInsets.only(bottom: _isPimpinan ? 16 : 88),
                         itemCount: _items.length,
                         itemBuilder: (ctx, i) {
                           final k = _items[i] as Map<String, dynamic>;

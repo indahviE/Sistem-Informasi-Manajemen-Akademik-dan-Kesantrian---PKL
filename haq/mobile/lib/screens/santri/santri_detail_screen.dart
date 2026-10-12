@@ -15,7 +15,9 @@ class SantriDetailScreen extends StatefulWidget {
 
 class _SantriDetailScreenState extends State<SantriDetailScreen> {
   Map<String, dynamic>? _data;
-  String? _error;
+    String? _error;
+
+  bool get _isPimpinan => AppScope.of(context).user?.isPimpinan == true;
 
   @override
   void initState() {

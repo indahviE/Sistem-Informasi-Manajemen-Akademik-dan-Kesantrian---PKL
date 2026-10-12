@@ -141,6 +141,7 @@ private async buildSantriScope(
         jenis: dto.jenis,
         tanggalKeluar: new Date(dto.tanggalKeluar),
         tanggalKembali: dto.tanggalKembali ? new Date(dto.tanggalKembali) : null,
+        rencanaKembali: dto.rencanaKembali ? new Date(dto.rencanaKembali) : null,
         alasan: dto.alasan,
         catatan: dto.catatan,
       },
@@ -164,6 +165,16 @@ private async buildSantriScope(
     let tanggalKembali = dto.tanggalKembali ? new Date(dto.tanggalKembali) : found.tanggalKembali;
     let statusApproval = dto.statusApproval;
 
+    // Saat pertama kali ditandai kembali: pakai jam server (bukan tanggal polos dari klien),
+    // lalu bandingkan dengan rencanaKembali untuk menentukan TELAT.
+    const barusajaKembali = !found.tanggalKembali && !!dto.tanggalKembali;
+    if (barusajaKembali) {
+      tanggalKembali = new Date();
+      if (found.rencanaKembali && tanggalKembali > found.rencanaKembali) {
+        statusApproval = 'TELAT' as typeof dto.statusApproval;
+      }
+    }
+
     // CATATAN: deteksi telat otomatis sebelumnya membandingkan tanggalKembali > tanggalKeluar,
     // yang SELALU true untuk kepulangan normal (kembali memang selalu setelah keluar).
     // Sampai kolom rencanaKembali/tenggat ditambahkan ke schema, status TELAT dipilih
@@ -183,7 +194,7 @@ private async buildSantriScope(
       tenantId,
       found.santri.wali,
       JenisNotifikasi.PERIZINAN,
-      `Status izin ${found.santri.nama} diperbarui menjadi ${statusApproval}.`,
+      `Status izin ${found.santri.nama} diperbarui menjadi ${updated.statusApproval}.`,
     );
     return updated;
   }

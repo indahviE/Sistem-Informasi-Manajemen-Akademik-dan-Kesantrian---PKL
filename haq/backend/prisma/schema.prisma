@@ -433,6 +433,7 @@ model Perizinan {
   jenis         JenisPerizinan
   tanggalKeluar DateTime
   tanggalKembali DateTime?
+  rencanaKembali DateTime?
   alasan        String
   statusApproval StatusApproval @default(DIAJUKAN)
   disetujuiOleh String?

@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { RequestUser } from '../common/decorators/current-user.decorator';
 import { Role } from '@prisma/client';
@@ -11,6 +11,10 @@ export class DashboardService {
     private audit: AuditService,
   ) {}
 
+    // Hanya role ini yang menerima nama santri (rekap pelanggaran,
+  // tahfidz tertinggal) dan log aktivitas.
+  private static readonly ROLE_LIHAT_NAMA: Role[] = [Role.ADMIN, Role.PIMPINAN];
+
   async getDashboard(user: RequestUser) {
     if (user.role === Role.SUPER_ADMIN) {
       return this.superAdminDashboard();
@@ -18,11 +22,25 @@ export class DashboardService {
     if (user.role === Role.WALI_SANTRI) {
       return this.waliDashboard(user.userId, user.tenantId);
     }
+
+    // Semua role di bawah ini wajib terikat ke satu pondok.
+    if (!user.tenantId) {
+      throw new ForbiddenException('Akun tidak terhubung ke pondok manapun.');
+    }
+
+    // Santri tidak boleh menerima payload tenant sama sekali.
+    if (user.role === Role.SANTRI) {
+      return { role: 'SANTRI', statistik: {}, pesan: 'Dashboard santri belum tersedia.' };
+    }
+
     if (user.role === Role.USTADZ) {
-    const payload = await this.ustadzDashboard(user.userId, user.tenantId);
-    if (payload) return payload;
-  }
-    return this.tenantDashboard(user.tenantId);
+      const payload = await this.ustadzDashboard(user.userId, user.tenantId);
+      if (payload) return payload;
+      // Ustadz non-GURU jatuh ke dashboard tenant, tanpa nama santri.
+    }
+
+    const lihatNama = DashboardService.ROLE_LIHAT_NAMA.includes(user.role);
+    return this.tenantDashboard(user.tenantId, lihatNama);
   }
 
     // [BARU] Beranda Ustadz (GURU)
@@ -158,7 +176,7 @@ const jumlahMapel = await this.prisma.mataPelajaran.count({ where: { tenantId } 
     };
   }
 
-  private async tenantDashboard(tenantId: string) {
+  private async tenantDashboard(tenantId: string, lihatNama: boolean) {
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
     const todayEnd = new Date();
@@ -219,7 +237,8 @@ const jumlahMapel = await this.prisma.mataPelajaran.count({ where: { tenantId } 
       select: { kelasId: true },
       distinct: ['kelasId'],
     });
-    const logAktivitas = await this.audit.recentTenant(tenantId, 5);
+    // Log aktivitas memuat nama pengguna/aksi, jadi hanya untuk Admin & Pimpinan.
+    const logAktivitas = lihatNama ? await this.audit.recentTenant(tenantId, 5) : [];
 
     // Audit kelengkapan data master
     const [
@@ -274,6 +293,165 @@ const jumlahMapel = await this.prisma.mataPelajaran.count({ where: { tenantId } 
       total: distribusiKelas.length,
     };
 
+    // ---- BARU: kehadiran hari ini per status ----
+    const absensiPerStatus = await this.prisma.absensi.groupBy({
+      by: ['status'],
+      where: { tenantId, tanggal: { gte: todayStart, lte: todayEnd } },
+      _count: true,
+    });
+    const kehadiranHariIni: Record<string, number> = { hadir: 0, izin: 0, sakit: 0, alpa: 0 };
+    for (const r of absensiPerStatus) kehadiranHariIni[r.status.toLowerCase()] = r._count;
+
+    // ---- BARU: santri sakit yang masih aktif (unik per santri) ----
+    const logKesehatanTerakhir = await this.prisma.kesehatanLog.findMany({
+      where: { tenantId },
+      orderBy: [{ tanggal: 'desc' }, { createdAt: 'desc' }],
+      distinct: ['santriId'],
+      select: { santriId: true, status: true },
+    });
+    const sakitAktif = logKesehatanTerakhir.filter(
+      (l) => l.status === 'RAWAT_JALAN' || l.status === 'DIRUJUK',
+    );
+
+    // ---- BARU: izin di luar, terlambat, kunjungan wali ----
+    const sekarang = new Date();
+    const awalBulan = new Date(sekarang.getFullYear(), sekarang.getMonth(), 1);
+    const [izinDiLuar, izinTerlambat, kunjunganBulanIni] = await Promise.all([
+    // Sedang di luar: disetujui, belum tercatat kembali
+      this.prisma.perizinan.count({
+        where: { tenantId, statusApproval: 'DISETUJUI', tanggalKembali: null },
+      }),
+      // Tercatat telat (sudah ditandai TELAT oleh Musyrif/Admin)
+            // Terlambat: sudah ditandai TELAT, atau masih di luar dan lewat batas kembali
+      this.prisma.perizinan.count({
+        where: {
+          tenantId,
+          tanggalKembali: null, // hanya yang belum kembali
+          OR: [
+            { statusApproval: 'TELAT' },
+            { statusApproval: 'DISETUJUI', rencanaKembali: { lt: sekarang } },
+          ],
+        },
+      }),
+      this.prisma.kunjunganWali.count({ where: { tenantId, tanggal: { gte: awalBulan } } }),
+    ]);
+
+        // ---- BARU: rekap pelanggaran per kelas & per santri (berdasarkan poin) ----
+    const semuaPelanggaran = await this.prisma.pelanggaran.findMany({
+    where: { tenantId },
+    orderBy: { tanggal: 'desc' },
+    select: {
+      poin: true,
+      jenisPelanggaran: true,
+      santri: {
+        select: {
+          id: true,
+          nama: true,
+          kelas: { select: { id: true, namaKelas: true } },
+        },
+      },
+    },
+  });
+
+    const perKelasMap = new Map<string, { kelas: string; jumlah: number; poin: number }>();
+    const perSantriMap = new Map<
+    string,
+    {
+      santriId: string;
+      nama: string;
+      kelas: string;
+      jumlah: number;
+      poin: number;
+      jenis: string[];
+    }
+  >();
+    for (const p of semuaPelanggaran) {
+      const namaKelas = p.santri.kelas?.namaKelas ?? 'Tanpa kelas';
+      const kKey = p.santri.kelas?.id ?? '_tanpa';
+      const k = perKelasMap.get(kKey) ?? { kelas: namaKelas, jumlah: 0, poin: 0 };
+      k.jumlah += 1;
+      k.poin += p.poin;
+      perKelasMap.set(kKey, k);
+
+      const s = perSantriMap.get(p.santri.id) ?? {
+        santriId: p.santri.id,
+        nama: p.santri.nama,
+        kelas: namaKelas,
+        jumlah: 0,
+        poin: 0,
+        jenis: [] as string[],
+      };
+      s.jumlah += 1;
+      s.poin += p.poin;
+      if (
+        s.jenis.length < 2 &&
+        p.jenisPelanggaran &&
+        !s.jenis.includes(p.jenisPelanggaran)
+      ) {
+        s.jenis.push(p.jenisPelanggaran);
+      }
+      perSantriMap.set(p.santri.id, s);
+    }
+    const rekapPelanggaran = {
+      perKelas: [...perKelasMap.values()].sort((a, b) => b.poin - a.poin),
+            topSantri: lihatNama
+        ? [...perSantriMap.values()].sort((a, b) => b.poin - a.poin).slice(0, 5)
+        : [],
+    };
+
+    // ---- BARU: capaian tahfidz ----
+    const HARI_TERTINGGAL = 14;
+    const batasTertinggal = new Date(Date.now() - HARI_TERTINGGAL * 24 * 60 * 60 * 1000);
+    const tigaPuluhHariLalu = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+    const santriAktifList = await this.prisma.santri.findMany({
+      where: { tenantId, status: 'AKTIF' },
+      select: { id: true, nama: true, kelas: { select: { namaKelas: true } } },
+    });
+    const idAktif = santriAktifList.map((s) => s.id);
+
+    const [juzDistinct, terakhirSetor, setoran30Hari] = await Promise.all([
+      this.prisma.capaianTahfidz.findMany({
+        where: { tenantId, santriId: { in: idAktif }, jenis: 'ZIYADAH' },
+        distinct: ['santriId', 'juz'],
+        select: { santriId: true },
+      }),
+      this.prisma.capaianTahfidz.groupBy({
+        by: ['santriId'],
+        where: { tenantId, santriId: { in: idAktif } },
+        _max: { tanggalSetor: true },
+      }),
+      this.prisma.capaianTahfidz.count({
+        where: { tenantId, santriId: { in: idAktif }, tanggalSetor: { gte: tigaPuluhHariLalu } },
+      }),
+    ]);
+
+    const terakhirMap = new Map(terakhirSetor.map((r) => [r.santriId, r._max.tanggalSetor]));
+    const tertinggalAll = santriAktifList
+      .map((s) => {
+        const t = terakhirMap.get(s.id) ?? null;
+        return {
+          nama: s.nama,
+          kelas: s.kelas?.namaKelas ?? 'Tanpa kelas',
+          hariSejak: t ? Math.floor((Date.now() - t.getTime()) / 86400000) : null,
+          _belum: t === null || t < batasTertinggal,
+        };
+      })
+      .filter((s) => s._belum)
+      // yang belum pernah setor paling atas, lalu yang paling lama
+      .sort((a, b) => (b.hariSejak ?? 1e9) - (a.hariSejak ?? 1e9));
+
+    const tahfidz = {
+      rataJuz: idAktif.length > 0 ? juzDistinct.length / idAktif.length : 0,
+      jumlahSantri: idAktif.length,
+      setoran30Hari,
+      hariTertinggal: HARI_TERTINGGAL,
+      jumlahTertinggal: tertinggalAll.length,
+      tertinggal: lihatNama
+        ? tertinggalAll.slice(0, 5).map(({ _belum, ...r }) => r)
+        : [],
+    };
+
     return {
       role: 'TENANT',
       statistik: {
@@ -285,14 +463,21 @@ const jumlahMapel = await this.prisma.mataPelajaran.count({ where: { tenantId } 
         pelanggaranMingguIni,
         izinPending,
         santriSakit,
+        santriSakitAktif: sakitAktif.length, // BARU
+        izinDiLuar,                          // BARU
+        izinTerlambat,                       // BARU
+        kunjunganBulanIni,                   // BARU
       },
+      kehadiranHariIni, // BARU
+      rekapPelanggaran, // BARU
+      tahfidz,          // BARU
       distribusiKelas,
       pelanggaranPerHari,
       kepatuhanAbsensi,
       logAktivitas,
       auditKelengkapan,
     };
-  }
+    }
 
   private async waliDashboard(userId: string, tenantId: string | undefined) {
     const wali = await this.prisma.waliSantri.findFirst({

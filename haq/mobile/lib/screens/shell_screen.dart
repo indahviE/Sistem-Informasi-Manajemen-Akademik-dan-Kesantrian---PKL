@@ -34,6 +34,7 @@ import 'super_admin/pengaturan_screen.dart';
 import 'super_admin/super_admin_header.dart';
 import 'admin/admin_header.dart';
 import 'master/ustadz/ustadz_header.dart';
+import 'mudir_header.dart';
 import 'master/ustadz/pengaturan_ustadz_screen.dart';
 import 'master/ustadz/notifikasi_ustadz_screen.dart';
 import 'admin/pengaturan_admin_screen.dart';
@@ -116,7 +117,7 @@ class _ShellScreenState extends State<ShellScreen> {
     if (_navIndex >= _navItems.length) _navIndex = 0;
     _activeExtra = null;
 
-    if (user.isSuperAdmin || user.isAdmin || user.isWali || user.isUstadz || user.isMusyrif) {
+    if (user.isSuperAdmin || user.isAdmin || user.isWali || user.isUstadz || user.isMusyrif || user.isPimpinan) {
       _loadUnreadCount();
     }
   }
@@ -210,6 +211,14 @@ class _ShellScreenState extends State<ShellScreen> {
       m.add(_MenuItem('Kunjungan Wali', Icons.people, (_) => const KunjunganScreen()));
     }
 
+    if (user.isPimpinan) {
+      m.add(_MenuItem('Pelanggaran', Icons.gavel, (_) => const PelanggaranScreen(subtitle: 'Pimpinan • Riwayat Pelanggaran')));
+      m.add(_MenuItem('Perizinan', Icons.exit_to_app, (_) => const PerizinanScreen()));
+      m.add(_MenuItem('Kesehatan', Icons.medical_services, (_) => const KesehatanScreen()));
+      m.add(_MenuItem('Rekam Medis', Icons.health_and_safety, (_) => const RekamMedisScreen()));
+      m.add(_MenuItem('Kunjungan Wali', Icons.people, (_) => const KunjunganScreen()));
+    }
+
     if (user.isAdmin) {
       m.add(_MenuItem('Kelola User', Icons.admin_panel_settings, (_) => const UsersScreen()));
       m.add(_MenuItem(
@@ -286,6 +295,19 @@ class _ShellScreenState extends State<ShellScreen> {
                   onNotifikasi: () => setState(() => _notifikasiOpen = true),
                   onLogout: _logout,
                 )
+                 : user.isPimpinan
+                  ? MudirHeader(
+                      subtitle: title == 'Dashboard' ? 'Beranda' : title,
+                      nama: user.nama,
+                      email: user.email,
+                      hasUnread: _unreadCount > 0,
+                      onNotifikasi: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const NotifikasiScreen()),
+                      ).then((_) => _loadUnreadCount()),
+                      onPengaturan: () {}, // diputuskan di langkah 3
+                      onLogout: _logout,
+                    )
               : user.isUstadz
                   ? UstadzHeader(
                       subtitle: title == 'Dashboard' ? 'Beranda' : title,

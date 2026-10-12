@@ -49,6 +49,8 @@ class _KesehatanScreenState extends State<KesehatanScreen> {
   _KFilter _filter = _KFilter.semua;
   String? _updatingId; // id catatan yang statusnya sedang diubah
 
+  bool get _isPimpinan => AppScope.of(context).user?.isPimpinan == true;
+
   @override
   void initState() {
     super.initState();
@@ -568,7 +570,7 @@ class _KesehatanScreenState extends State<KesehatanScreen> {
               ),
             ),
           ],
-          if (k['id'] != null) ...[
+          if (k['id'] != null && !_isPimpinan) ...[
             const SizedBox(height: 12),
             SizedBox(
               width: double.infinity,
@@ -627,12 +629,14 @@ class _KesehatanScreenState extends State<KesehatanScreen> {
         onRefresh: _load,
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(12, 12, 12, 96),
+          padding: EdgeInsets.fromLTRB(12, 12, 12, _isPimpinan ? 24 : 96),
           children: [
             _header(),
             const SizedBox(height: 14),
             if (_items.isEmpty)
-              _emptyCard('Belum ada catatan kesehatan.\nKetuk "Catat Sakit" untuk menambah.')
+                  _emptyCard(_isPimpinan
+                  ? 'Belum ada catatan kesehatan.'
+                  : 'Belum ada catatan kesehatan.\nKetuk "Catat Sakit" untuk menambah.')
             else ...[
               _summaryCard(),
               const SizedBox(height: 14),
@@ -670,6 +674,7 @@ class _KesehatanScreenState extends State<KesehatanScreen> {
           child: Stack(
             children: [
               Positioned.fill(child: content),
+              if (!_isPimpinan)
               Positioned(
                 right: 16,
                 bottom: 16,

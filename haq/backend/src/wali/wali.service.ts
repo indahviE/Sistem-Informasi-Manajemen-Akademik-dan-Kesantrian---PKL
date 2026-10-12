@@ -85,9 +85,10 @@ export class WaliService {
             _sum: { poin: true },
           }),
           this.prisma.perizinan.count({
-            where: {
+              where: {
               santriId: s.id,
-              statusApproval: { in: ['DISETUJUI', 'TELAT'] },
+              statusApproval: 'DISETUJUI',
+              tanggalKembali: null,
             },
           }),
           this.prisma.capaianTahfidz.findMany({

@@ -1682,6 +1682,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return _pick(e, ['namaSantri', 'santriNama', 'nama']) ?? 'Santri';
   }
 
+  DateTime? _tglDari(Map<String, dynamic> e, List<String> keys) {
+  final s = _pick(e, keys);
+  return s == null ? null : DateTime.tryParse(s)?.toLocal();
+}
+
+List<(String, int)> _topPelanggar(
+  List<Map<String, dynamic>> list, {
+  int n = 3,
+}) {
+  final hitung = <String, int>{};
+  for (final e in list) {
+    final nama = _namaSantriDari(e);
+    hitung[nama] = (hitung[nama] ?? 0) + 1;
+  }
+  final urut = hitung.entries.toList()
+    ..sort((a, b) => b.value.compareTo(a.value));
+  return [for (final e in urut.take(n)) (e.key, e.value)];
+}
+
   Widget _pimpinanBody() {
     final s =
         (_data!['statistik'] as Map?)?.cast<String, dynamic>() ??
@@ -1711,8 +1730,37 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ?.where((e) => (e['status'] ?? 'DICATAT').toString() == 'DICATAT')
         .toList();
 
-    final logs = ((_data!['logAktivitas'] as List?) ?? const [])
+        final logs = ((_data!['logAktivitas'] as List?) ?? const [])
         .cast<Map<String, dynamic>>();
+
+    // Angka izin, sakit, dan kunjungan kini datang dari backend (statistik).
+    int? angka(String k) => s.containsKey(k) ? _num(s, [k]).round() : null;
+    final izinDiLuarN = angka('izinDiLuar');
+    final izinTerlambatN = angka('izinTerlambat');
+    final sakitAktif = angka('santriSakitAktif');
+    final kunjunganBulan = angka('kunjunganBulanIni');
+    final pelanggaranMingguN = angka('pelanggaranMingguIni');
+
+    final kh = (_data!['kehadiranHariIni'] as Map?)?.cast<String, dynamic>();
+        final rekap = (_data!['rekapPelanggaran'] as Map?)?.cast<String, dynamic>();
+    final perKelas = ((rekap?['perKelas'] as List?) ?? const [])
+        .cast<Map<String, dynamic>>();
+    final topSantri = ((rekap?['topSantri'] as List?) ?? const [])
+        .cast<Map<String, dynamic>>();
+    final maxPoinKelas = [
+          1,
+          ...perKelas.map((e) => _num(e, ['poin']).toInt()),
+        ].reduce((a, b) => a > b ? a : b);
+
+    final th = (_data!['tahfidz'] as Map?)?.cast<String, dynamic>();
+    final thTertinggal = ((th?['tertinggal'] as List?) ?? const [])
+        .cast<Map<String, dynamic>>();
+    final khHadir = kh != null ? _num(kh, ['hadir']) : 0;
+    final khTidak = kh != null
+        ? _num(kh, ['izin']) + _num(kh, ['sakit']) + _num(kh, ['alpa'])
+        : 0;
+    final khTotal = khHadir + khTidak;
+    final khPct = khTotal > 0 ? (khHadir / khTotal * 100).round() : null;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1764,13 +1812,334 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           : 'Terbaru: ${_namaSantriDari(pelanggaranBuka.first)}'),
                 count: pelanggaranBuka?.length,
                 accent: _TC.primary,
-                // onTap dihapus
+                onTap: () => _goto('Pelanggaran'),
               ),
+                        ],
+          ),
+        ),
+        const SizedBox(height: 20),
+
+        // ---- 1b. Ringkasan minggu ini ----
+        _SectionLabel(
+          title: 'Ringkasan Kesantrian',
+          trailing: '7 Hari Terakhir',
+          trailingAsPill: true,
+        ),
+        const SizedBox(height: 10),
+        _TwoColGrid(
+          children: [
+           _MetricCard(
+              label: 'Pelanggaran Minggu Ini',
+              value: pelanggaranMingguN == null ? '–' : '$pelanggaranMingguN',
+              icon: Icons.gavel,
+              iconColor: _WC.primary,
+              iconBg: _WC.sage,
+              caption: pelanggaranMingguN == null
+                  ? 'Data belum dapat dimuat'
+                  : 'Dicatat 7 hari terakhir',
+            ),
+            _MetricCard(
+              label: 'Santri Sedang Izin',
+              value: izinDiLuarN == null ? '–' : '$izinDiLuarN',
+              icon: Icons.directions_walk,
+              iconColor: _WC.gold,
+              iconBg: _WC.goldSurface,
+              caption: 'Disetujui, belum tercatat kembali',
+            ),
+            _MetricCard(
+              label: 'Terlambat Kembali',
+              value: izinTerlambatN == null ? '–' : '$izinTerlambatN',
+              icon: Icons.schedule,
+              iconColor: _WC.errorText,
+              iconBg: _WC.goldSurface,
+              caption: 'Lewat Est. Kembali, belum kembali',
+            ),
+            _MetricCard(
+              label: 'Darurat Tercatat',
+              value: _pimDarurat == null ? '–' : '${_pimDarurat!.length}',
+              icon: Icons.emergency,
+              iconColor: _WC.errorText,
+              iconBg: _WC.goldSurface,
+              caption: daruratBaru == null
+                  ? 'Data belum dapat dimuat'
+                  : '${daruratBaru.length} masih baru',
+            ),
+          ],
+        ),
+        const SizedBox(height: 20),
+        // ---- 1b2. Kehadiran & kesehatan (BARU) ----
+        _SectionLabel(
+          title: 'Kehadiran & Kesehatan',
+          trailing: 'Hari Ini',
+          trailingAsPill: true,
+        ),
+        const SizedBox(height: 10),
+        _TwoColGrid(
+          children: [
+            _MetricCard(
+              label: 'Kehadiran Hari Ini',
+              value: khPct != null ? '$khPct%' : '–',
+              icon: Icons.fact_check,
+              iconColor: _WC.primary,
+              iconBg: _WC.sage,
+              caption: khTotal > 0
+                  ? '${_fmtInt(khHadir)} dari ${_fmtInt(khTotal)} data absensi'
+                  : 'Belum ada absensi hari ini',
+            ),
+            _MetricCard(
+              label: 'Tidak Hadir',
+              value: kh != null ? _fmtInt(khTidak) : '–',
+              icon: Icons.person_off,
+              iconColor: _WC.goldDark,
+              iconBg: _WC.goldSurface,
+              caption: kh != null
+                  ? '${_fmtInt(_num(kh, ['izin']))} izin • ${_fmtInt(_num(kh, ['sakit']))} sakit • ${_fmtInt(_num(kh, ['alpa']))} alpa'
+                  : 'Data belum dapat dimuat',
+            ),
+            _MetricCard(
+              label: 'Santri Sakit',
+              value: sakitAktif == null ? '–' : '$sakitAktif',
+              icon: Icons.medical_services,
+              iconColor: _WC.errorText,
+              iconBg: _WC.goldSurface,
+              caption: 'Rawat jalan / dirujuk',
+            ),
+            _MetricCard(
+              label: 'Kunjungan Wali',
+              value: kunjunganBulan == null ? '–' : '$kunjunganBulan',
+              icon: Icons.family_restroom,
+              iconColor: _WC.primary,
+              iconBg: _WC.sage,
+              caption: 'Bulan ini',
+            ),
+          ],
+        ),
+        const SizedBox(height: 20),
+
+        // ---- 1c. Santri perlu pembinaan (berdasarkan poin) ----
+        _Card(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Text('Santri Perlu Pembinaan',
+                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _WC.ink)),
+                  ),
+                  Text('Poin terbanyak',
+                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: _WC.inkSecondary)),
+                ],
+              ),
+              const SizedBox(height: 10),
+              if (rekap == null)
+                const _EmptyRow(text: 'Data belum dapat dimuat.')
+              else if (topSantri.isEmpty)
+                const _EmptyRow(text: 'Belum ada pelanggaran tercatat.')
+              else
+                for (final (i, p) in topSantri.indexed)
+                  Padding(
+                    padding: EdgeInsets.only(top: i == 0 ? 0 : 8),
+                    child: Row(
+                      children: [
+                        CircleAvatar(
+                          radius: 13,
+                          backgroundColor: _WC.sage,
+                          child: Text('${i + 1}',
+                              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: _WC.primary)),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('${p['nama'] ?? '-'}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: _WC.ink)),
+                              Text(
+                                '${p['kelas'] ?? '-'} • ${_num(p, ['jumlah']).toInt()} kasus',
+                                style: const TextStyle(fontSize: 10.5, color: _WC.inkSecondary),
+                              ),
+                              if (((p['jenis'] as List?) ?? const []).isNotEmpty)
+                                Text(
+                                  (p['jenis'] as List).join(', '),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(fontSize: 10.5, color: _WC.errorText),
+                                ),
+                            ],
+                          ),
+                        ),
+                        Text('${_num(p, ['poin']).toInt()} poin',
+                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: _WC.errorText)),
+                      ],
+                    ),
+                  ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+
+        // ---- 1d. Rekap pelanggaran per kelas ----
+        _Card(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Text('Pelanggaran per Kelas',
+                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _WC.ink)),
+                  ),
+                  Text('Total poin',
+                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: _WC.inkSecondary)),
+                ],
+              ),
+              const SizedBox(height: 10),
+              if (rekap == null)
+                const _EmptyRow(text: 'Data belum dapat dimuat.')
+              else if (perKelas.isEmpty)
+                const _EmptyRow(text: 'Belum ada pelanggaran tercatat.')
+              else
+                for (final k in perKelas)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text('${k['kelas'] ?? '-'}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: _WC.ink)),
+                            ),
+                            Text('${_num(k, ['jumlah']).toInt()} kasus • ${_num(k, ['poin']).toInt()} poin',
+                                style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: _WC.primary)),
+                          ],
+                        ),
+                        const SizedBox(height: 5),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(999),
+                          child: LinearProgressIndicator(
+                            value: _num(k, ['poin']).toDouble() / maxPoinKelas,
+                            minHeight: 6,
+                            backgroundColor: _WC.surfaceDim,
+                            valueColor: const AlwaysStoppedAnimation(_WC.errorText),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
             ],
           ),
         ),
         const SizedBox(height: 20),
 
+        // ---- 1e. Capaian tahfidz ----
+        _SectionLabel(
+          title: 'Capaian Tahfidz',
+          trailing: 'Santri Aktif',
+          trailingAsPill: true,
+        ),
+        const SizedBox(height: 10),
+        _TwoColGrid(
+          children: [
+            _MetricCard(
+              label: 'Rata-rata Hafalan',
+              value: th == null
+                  ? '–'
+                  : '${_num(th, ['rataJuz']).toDouble().toStringAsFixed(1)} juz',
+              icon: Icons.auto_stories,
+              iconColor: _WC.gold,
+              iconBg: _WC.goldSurface,
+              caption: th == null
+                  ? 'Data belum dapat dimuat'
+                  : 'Rata-rata juz ziyadah per santri',
+            ),
+            _MetricCard(
+              label: 'Setoran 30 Hari',
+              value: th == null ? '–' : _fmtInt(_num(th, ['setoran30Hari'])),
+              icon: Icons.menu_book,
+              iconColor: _WC.primary,
+              iconBg: _WC.sage,
+              caption: 'Ziyadah & murajaah',
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        _Card(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Expanded(
+                    child: Text('Santri Tertinggal',
+                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _WC.ink)),
+                  ),
+                  Text(
+                    th == null
+                        ? ''
+                        : 'Tanpa setoran > ${_num(th, ['hariTertinggal']).toInt()} hari',
+                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: _WC.inkSecondary),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              if (th == null)
+                const _EmptyRow(text: 'Data belum dapat dimuat.')
+              else if (thTertinggal.isEmpty)
+                const _EmptyRow(
+                  text: 'Semua santri aktif sudah setor.',
+                  icon: Icons.check_circle_outline,
+                )
+              else ...[
+                for (final (i, s) in thTertinggal.indexed)
+                  Padding(
+                    padding: EdgeInsets.only(top: i == 0 ? 0 : 8),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('${s['nama'] ?? '-'}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: _WC.ink)),
+                              Text('${s['kelas'] ?? '-'}',
+                                  style: const TextStyle(fontSize: 10.5, color: _WC.inkSecondary)),
+                            ],
+                          ),
+                        ),
+                        Text(
+                          s['hariSejak'] == null
+                              ? 'Belum pernah'
+                              : '${_num(s, ['hariSejak']).toInt()} hari lalu',
+                          style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: _WC.errorText),
+                        ),
+                      ],
+                    ),
+                  ),
+                if (_num(th, ['jumlahTertinggal']) > thTertinggal.length)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 10),
+                    child: Text(
+                      '+ ${_num(th, ['jumlahTertinggal']).toInt() - thTertinggal.length} santri lainnya',
+                      style: const TextStyle(fontSize: 11, color: _WC.inkSecondary),
+                    ),
+                  ),
+              ],
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
         // ---- 2. Kondisi lembaga ----
         _SectionLabel(
           title: 'Kondisi Lembaga',
