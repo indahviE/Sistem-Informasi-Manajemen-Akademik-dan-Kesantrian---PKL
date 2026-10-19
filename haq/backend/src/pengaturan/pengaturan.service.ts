@@ -232,4 +232,51 @@ export class PengaturanService {
       select: NOTIF_WALI_SELECT,
     });
   }
+
+  // ===== Musyrif Asrama =====
+
+  async getMusyrifSettings(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        nama: true,
+        email: true,
+        noHp: true,
+        role: true,
+        tenantId: true,
+        tenant: { select: { namaPondok: true, kodeTenant: true } },
+      },
+    });
+    if (!user) throw new NotFoundException('Pengguna tidak ditemukan.');
+    if (!user.tenantId) throw new BadRequestException('Akun ini tidak terhubung ke pondok.');
+
+    const notif = await this.prisma.userNotifSetting.upsert({
+      where: { userId },
+      create: { userId },
+      update: {},
+      select: NOTIF_ADMIN_SELECT,
+    });
+
+    return {
+      profil: {
+        id: user.id,
+        nama: user.nama,
+        email: user.email,
+        noHp: user.noHp,
+        role: user.role,
+      },
+      tenant: user.tenant,
+      notifikasi: notif,
+    };
+  }
+
+  async updateMusyrifNotifikasi(userId: string, dto: UpdateNotifikasiAdminDto) {
+    return this.prisma.userNotifSetting.upsert({
+      where: { userId },
+      create: { userId, ...dto },
+      update: dto,
+      select: NOTIF_ADMIN_SELECT,
+    });
+  }
 }

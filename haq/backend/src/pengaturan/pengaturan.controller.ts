@@ -46,13 +46,13 @@ export class PengaturanController {
 
   // ===== Dipakai bersama (Super Admin + Admin Lembaga) =====
 
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.PIMPINAN, Role.WALI_SANTRI, Role.USTADZ)
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.PIMPINAN, Role.WALI_SANTRI, Role.USTADZ, Role.MUSYRIF)
   @Patch('profil')
   updateProfil(@CurrentUser() user: RequestUser, @Body() dto: UpdateProfilDto) {
     return this.pengaturanService.updateProfil(user.userId, dto);
   }
 
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.PIMPINAN, Role.WALI_SANTRI, Role.USTADZ)
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.PIMPINAN, Role.WALI_SANTRI, Role.USTADZ, Role.MUSYRIF)
   @Patch('ubah-password')
   ubahPassword(@CurrentUser() user: RequestUser, @Body() dto: UbahPasswordDto) {
     return this.pengaturanService.ubahPassword(user.userId, dto);
@@ -107,5 +107,22 @@ export class PengaturanController {
     @Body() dto: UpdateNotifikasiUstadzDto,
   ) {
     return this.pengaturanUstadzService.updateNotifikasi(user.userId, dto);
+  }
+
+  // ===== Khusus Musyrif Asrama =====
+
+  @Roles(Role.MUSYRIF)
+  @Get('musyrif')
+  getMusyrifSettings(@CurrentUser() user: RequestUser) {
+    return this.pengaturanService.getMusyrifSettings(user.userId);
+  }
+
+  @Roles(Role.MUSYRIF)
+  @Patch('musyrif/notifikasi')
+  updateMusyrifNotifikasi(
+    @CurrentUser() user: RequestUser,
+    @Body() dto: UpdateNotifikasiAdminDto,
+  ) {
+    return this.pengaturanService.updateMusyrifNotifikasi(user.userId, dto);
   }
 }
