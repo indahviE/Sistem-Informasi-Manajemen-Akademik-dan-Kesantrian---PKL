@@ -44,6 +44,7 @@ import 'wali/pengaturan_wali_screen.dart';
 import 'wali/notifikasi_wali_screen.dart';
 import 'musyrif/musyrif_header.dart';
 import 'musyrif/notifikasi_screen.dart';
+import 'musyrif/pengaturan_musyrif_screen.dart';
 import 'ppdb/ppdb_list_screen.dart';
 import 'kurikulum/kurikulum_screen.dart';
 import 'kesantrian/rekam_medis_screen.dart';
@@ -90,9 +91,16 @@ class _ShellScreenState extends State<ShellScreen> {
   bool _notifikasiOpen = false;
   int _unreadCount = 0;
 
+  // Menu hanya disusun sekali. didChangeDependencies juga jalan setiap AuthState
+  // memanggil notifyListeners() (mis. setelah edit profil), dan tanpa guard ini
+  // tab yang sedang dibuka (mis. Pengaturan) ikut direset ke Dashboard.
+  bool _menuBuilt = false;
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    if (_menuBuilt) return;
+    _menuBuilt = true;
     final user = AppScope.of(context).user!;
     final all = _buildMenu(user);
 
@@ -190,6 +198,10 @@ class _ShellScreenState extends State<ShellScreen> {
 
     if (user.isMusyrif) {
       m.add(_MenuItem('Direktori Santri', Icons.groups, (_) => const DirektoriSantriScreen()));
+    }
+
+    if (user.isMusyrif) {
+      m.add(_MenuItem('Pengaturan', Icons.tune, (_) => PengaturanMusyrifScreen(onBack: () => _goToMenu('Dashboard'))));
     }
 
     if (user.isAdmin || user.isMusyrif || user.isUstadz || user.isPimpinan) {

@@ -3054,14 +3054,14 @@ Widget _pimAntrean({
     return Container(
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
+        gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [_WC.primary, Color(0xFF164E3D)],
+          colors: [SC.primary, SC.primaryEnd],
         ),
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
-          BoxShadow(color: _WC.primary.withOpacity(0.18), blurRadius: 12, offset: const Offset(0, 4)),
+          BoxShadow(color: SC.primary.withOpacity(0.18), blurRadius: 12, offset: Offset(0, 4)),
         ],
       ),
       child: Stack(
@@ -3084,7 +3084,7 @@ Widget _pimAntrean({
             ),
           ),
           Padding(
-            padding: const EdgeInsets.all(16),
+            padding: EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -3092,7 +3092,7 @@ Widget _pimAntrean({
                 Row(
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                       decoration: BoxDecoration(
                         color: Colors.white.withOpacity(0.15),
                         borderRadius: BorderRadius.circular(999),
@@ -3101,8 +3101,8 @@ Widget _pimAntrean({
                         mainAxisSize: MainAxisSize.min,
                         children: [
                         Icon(Icons.admin_panel_settings, size: 14, color: _WC.gold),
-                          const SizedBox(width: 6),
-                          const Text(
+                          SizedBox(width: 6),
+                          Text(
                             'MUSYRIF ASRAMA',
                             style: TextStyle(
                               fontSize: 10,
@@ -3114,7 +3114,7 @@ Widget _pimAntrean({
                         ],
                       ),
                     ),
-                    const Spacer(),
+                    Spacer(),
                     Container(
                       width: 36,
                       height: 36,
@@ -3122,27 +3122,27 @@ Widget _pimAntrean({
                         color: Colors.white.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(999),
                       ),
-                      child: const Icon(Icons.notifications_outlined, size: 18, color: Colors.white),
+                      child: Icon(Icons.notifications_outlined, size: 18, color: Colors.white),
                     ),
                   ],
                 ),
-                const SizedBox(height: 12),
+                SizedBox(height: 12),
                 // Greeting
                 Text(
-                  "Assalamu'alaikum, Ustadz\n$nama",
-                  style: const TextStyle(
+                  "Assalamu'alaikum, \n$nama",
+                  style: TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.w700,
                     height: 1.2,
                     color: Colors.white,
                   ),
                 ),
-                const SizedBox(height: 6),
+                SizedBox(height: 6),
                 // Date
                 Row(
                   children: [
                     Icon(Icons.calendar_today_outlined, size: 13, color: Colors.white.withOpacity(0.7)),
-                    const SizedBox(width: 6),
+                    SizedBox(width: 6),
                     Text(
                       tanggal,
                       style: TextStyle(
@@ -3152,13 +3152,13 @@ Widget _pimAntrean({
                     ),
                   ],
                 ),
-                const SizedBox(height: 12),
+                SizedBox(height: 12),
                 // Divider
                 Container(height: 1, color: Colors.white.withOpacity(0.15)),
-                const SizedBox(height: 12),
+                SizedBox(height: 12),
                 // Dormitory info with santri count
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                   decoration: BoxDecoration(
                     color: Colors.white.withOpacity(0.08),
                     borderRadius: BorderRadius.circular(12),
@@ -3166,20 +3166,20 @@ Widget _pimAntrean({
                   child: Row(
                     children: [
                       Icon(Icons.meeting_room, size: 18, color: _WC.gold),
-                      const SizedBox(width: 10),
+                      SizedBox(width: 10),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
                               '$asramaName • $blokInfo',
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 12.5,
                                 fontWeight: FontWeight.w700,
                                 color: Colors.white,
                               ),
                             ),
-                            const SizedBox(height: 2),
+                            SizedBox(height: 2),
                             Text(
                               'Zona Pengawasan Utama',
                               style: TextStyle(
@@ -3191,7 +3191,7 @@ Widget _pimAntrean({
                         ),
                       ),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                         decoration: BoxDecoration(
                           color: Colors.white.withOpacity(0.12),
                           borderRadius: BorderRadius.circular(999),
@@ -3200,10 +3200,10 @@ Widget _pimAntrean({
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Icon(Icons.groups, size: 14, color: _WC.gold),
-                            const SizedBox(width: 4),
+                            SizedBox(width: 4),
                             Text(
                               '$jumlahSantri Santri',
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w700,
                                 color: Colors.white,
@@ -3284,7 +3284,7 @@ Widget _pimAntrean({
             ),
           ],
         ),
-        const SizedBox(height: 22),
+        SizedBox(height: 22),
 
         // ---- Action Buttons ----
         _MusyrifActionButton(
@@ -3292,7 +3292,7 @@ Widget _pimAntrean({
           label: 'Catat Pelanggaran',
           onTap: () => _goto('Pelanggaran'),
         ),
-        const SizedBox(height: 10),
+        SizedBox(height: 10),
         Row(
           children: [
             Expanded(
@@ -3302,7 +3302,7 @@ Widget _pimAntrean({
                 onTap: () => _goto('Absensi'),
               ),
             ),
-            const SizedBox(width: 10),
+            SizedBox(width: 10),
             Expanded(
               child: _MusyrifSmallActionButton(
                 icon: Icons.notifications_active,
@@ -3312,11 +3312,11 @@ Widget _pimAntrean({
             ),
           ],
         ),
-        const SizedBox(height: 22),
+        SizedBox(height: 22),
 
         // ---- Jadwal Hari Ini ----
         _ustadzSection('Jadwal Hari Ini', trailing: 'Lihat Semua'),
-        const SizedBox(height: 10),
+        SizedBox(height: 10),
         _MusyrifScheduleCard(
           time: '13:00',
           title: 'Kelas Tajweed & Tahfidz',
@@ -3326,7 +3326,7 @@ Widget _pimAntrean({
           statusColor: _WC.successText,
           statusBg: _WC.successBg,
         ),
-        const SizedBox(height: 8),
+        SizedBox(height: 8),
         _MusyrifScheduleCard(
           time: 'Menunggu',
           title: "Ta'lim Muta",
@@ -3336,11 +3336,11 @@ Widget _pimAntrean({
           statusColor: _WC.pendingText,
           statusBg: _WC.pendingBg,
         ),
-        const SizedBox(height: 22),
+        SizedBox(height: 22),
 
         // ---- Pengumuman Terbaru ----
         _ustadzSection('Pengumuman Terbaru', trailing: 'Internal Asrama'),
-        const SizedBox(height: 10),
+        SizedBox(height: 10),
         _MusyrifAnnouncementCard(
           status: 'BARU',
           statusBg: _WC.pendingBg,
@@ -3352,7 +3352,7 @@ Widget _pimAntrean({
           icon: Icons.medical_services,
           iconBg: _WC.pendingBg,
         ),
-        const SizedBox(height: 8),
+        SizedBox(height: 8),
         _MusyrifAnnouncementCard(
           status: 'PENTING',
           statusBg: _WC.errorBg,
@@ -3364,7 +3364,7 @@ Widget _pimAntrean({
           icon: Icons.warning,
           iconBg: _WC.errorBg,
         ),
-        const SizedBox(height: 22),
+        SizedBox(height: 22),
 
         // ---- Daily Pastoral Quote ----
         _MusyrifQuoteCard(),
@@ -3407,7 +3407,7 @@ Widget _pimAntrean({
           BoxShadow(
             color: _TC.primary.withOpacity(0.18),
             blurRadius: 12,
-            offset: const Offset(0, 4),
+            offset: Offset(0, 4),
           ),
         ],
       ),
@@ -3423,7 +3423,7 @@ Widget _pimAntrean({
             ),
           ),
           Padding(
-            padding: const EdgeInsets.all(16),
+            padding: EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -3432,17 +3432,17 @@ Widget _pimAntrean({
                     Container(
                       width: 6,
                       height: 6,
-                      decoration: const BoxDecoration(
+                      decoration: BoxDecoration(
                         color: _WC.gold,
                         shape: BoxShape.circle,
                       ),
                     ),
-                    const SizedBox(width: 6),
+                    SizedBox(width: 6),
                     Flexible(
                       child: Text(
                         '$tagline • ${namaPondok.toUpperCase()}',
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 9.5,
                           fontWeight: FontWeight.w700,
                           letterSpacing: 0.3,
@@ -3452,17 +3452,17 @@ Widget _pimAntrean({
                     ),
                   ],
                 ),
-                const SizedBox(height: 10),
+                SizedBox(height: 10),
                 Text(
                   "Assalamu'alaikum, $sapaan",
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.w700,
                     height: 1.25,
                     color: Colors.white,
                   ),
                 ),
-                const SizedBox(height: 4),
+                SizedBox(height: 4),
                 Row(
                   children: [
                     Icon(
@@ -3470,7 +3470,7 @@ Widget _pimAntrean({
                       size: 13,
                       color: Colors.white.withOpacity(0.7),
                     ),
-                    const SizedBox(width: 6),
+                    SizedBox(width: 6),
                     Expanded(
                       child: Text(
                         tanggal,
@@ -3482,9 +3482,9 @@ Widget _pimAntrean({
                     ),
                   ],
                 ),
-                const SizedBox(height: 12),
+                SizedBox(height: 12),
                 Divider(height: 1, color: Colors.white.withOpacity(0.15)),
-                const SizedBox(height: 12),
+                SizedBox(height: 12),
                 Row(
                   children: [
                     Container(
@@ -3500,22 +3500,22 @@ Widget _pimAntrean({
                         color: _TC.mint,
                       ),
                     ),
-                    const SizedBox(width: 10),
+                    SizedBox(width: 10),
                     Expanded(
                       child: Text(
                         kelas.isEmpty
                             ? 'Belum ada kelas yang Anda ampu'
                             : 'Anda mengampu ${kelas.length} kelas',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 12.5,
                           fontWeight: FontWeight.w600,
                           color: Colors.white,
                         ),
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    SizedBox(width: 8),
                     Container(
-                      padding: const EdgeInsets.symmetric(
+                      padding: EdgeInsets.symmetric(
                         horizontal: 12,
                         vertical: 8,
                       ),
@@ -3529,7 +3529,7 @@ Widget _pimAntrean({
                             : (belumAbsen == 0
                                   ? 'Semua Ada Rekap'
                                   : '$belumAbsen Belum Ada Rekap'),
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
                           color: Colors.white,
@@ -3556,14 +3556,14 @@ Widget _pimAntrean({
       children: [
         Text(
           title,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 15,
             fontWeight: FontWeight.w700,
             color: _WC.ink,
           ),
         ),
-        if (badge != null) ...[const SizedBox(width: 8), badge],
-        const Spacer(),
+        if (badge != null) ...[SizedBox(width: 8), badge],
+        Spacer(),
         if (trailing != null)
           GestureDetector(
             onTap: onTap,
@@ -6440,7 +6440,7 @@ class _MusyrifStatCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: _WC.surface,
         borderRadius: BorderRadius.circular(12),
@@ -6459,7 +6459,7 @@ class _MusyrifStatCard extends StatelessWidget {
                 child: Icon(icon, size: 16, color: iconColor),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(color: badgeBg, borderRadius: BorderRadius.circular(6)),
                 child: Text(
                   badge,
@@ -6468,10 +6468,10 @@ class _MusyrifStatCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 10),
-          Text(value, style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w800, color: _WC.ink)),
-          const SizedBox(height: 2),
-          Text(label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: _WC.inkSecondary)),
+          SizedBox(height: 10),
+          Text(value, style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800, color: _WC.ink)),
+          SizedBox(height: 2),
+          Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: _WC.inkSecondary)),
         ],
       ),
     );
@@ -6492,13 +6492,13 @@ class _MusyrifActionButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: _WC.primary,
+      color: SC.primary,
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+          padding: EdgeInsets.symmetric(vertical: 14, horizontal: 16),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
           ),
@@ -6506,10 +6506,10 @@ class _MusyrifActionButton extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(icon, size: 20, color: Colors.white),
-              const SizedBox(width: 8),
+              SizedBox(width: 8),
               Text(
                 label,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
                   color: Colors.white,
@@ -6543,19 +6543,19 @@ class _MusyrifSmallActionButton extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+          padding: EdgeInsets.symmetric(vertical: 12, horizontal: 12),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: _WC.border),
           ),
           child: Column(
             children: [
-              Icon(icon, size: 24, color: _WC.primary),
-              const SizedBox(height: 6),
+              Icon(icon, size: 24, color: SC.primary),
+              SizedBox(height: 6),
               Text(
                 label,
                 textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: _WC.ink),
+                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: _WC.ink),
               ),
             ],
           ),
@@ -6587,7 +6587,7 @@ class _MusyrifScheduleCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: _WC.surface,
         borderRadius: BorderRadius.circular(12),
@@ -6605,7 +6605,7 @@ class _MusyrifScheduleCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(2),
             ),
           ),
-          const SizedBox(width: 12),
+          SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -6617,7 +6617,7 @@ class _MusyrifScheduleCard extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          padding: EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                           decoration: BoxDecoration(
                             color: time == 'Menunggu' ? _WC.pendingBg : _WC.successBg,
                             borderRadius: BorderRadius.circular(4),
@@ -6625,7 +6625,7 @@ class _MusyrifScheduleCard extends StatelessWidget {
                           child: Row(
                             children: [
                               Icon(Icons.schedule, size: 12, color: time == 'Menunggu' ? _WC.pendingText : _WC.successText),
-                              const SizedBox(width: 3),
+                              SizedBox(width: 3),
                               Text(
                                 time,
                                 style: TextStyle(
@@ -6637,23 +6637,23 @@ class _MusyrifScheduleCard extends StatelessWidget {
                             ],
                           ),
                         ),
-                        const SizedBox(height: 4),
-                        Text(title, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _WC.ink)),
-                        const SizedBox(height: 2),
-                        Text(location, style: const TextStyle(fontSize: 10.5, color: _WC.inkSecondary)),
+                        SizedBox(height: 4),
+                        Text(title, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _WC.ink)),
+                        SizedBox(height: 2),
+                        Text(location, style: TextStyle(fontSize: 10.5, color: _WC.inkSecondary)),
                       ],
                     ),
                   ],
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: 8),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Row(
                       children: [
                         Icon(Icons.bed, size: 13, color: _WC.inkSecondary),
-                        const SizedBox(width: 4),
-                        Text('$santriCount santri', style: const TextStyle(fontSize: 10, color: _WC.inkSecondary)),
+                        SizedBox(width: 4),
+                        Text('$santriCount santri', style: TextStyle(fontSize: 10, color: _WC.inkSecondary)),
                       ],
                     ),
                     if (status.isNotEmpty)
@@ -6695,7 +6695,7 @@ class _MusyrifAnnouncementCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: _WC.surface,
         borderRadius: BorderRadius.circular(12),
@@ -6713,7 +6713,7 @@ class _MusyrifAnnouncementCard extends StatelessWidget {
             ),
             child: Icon(icon, size: 20, color: statusColor),
           ),
-          const SizedBox(width: 12),
+          SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -6722,7 +6722,7 @@ class _MusyrifAnnouncementCard extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                       decoration: BoxDecoration(
                         color: statusBg,
                         borderRadius: BorderRadius.circular(4),
@@ -6732,24 +6732,24 @@ class _MusyrifAnnouncementCard extends StatelessWidget {
                         style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w700, color: statusColor),
                       ),
                     ),
-                    Text(date, style: const TextStyle(fontSize: 10, color: _WC.inkSecondary)),
+                    Text(date, style: TextStyle(fontSize: 10, color: _WC.inkSecondary)),
                   ],
                 ),
-                const SizedBox(height: 6),
-                Text(title, style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: _WC.ink)),
-                const SizedBox(height: 4),
+                SizedBox(height: 6),
+                Text(title, style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: _WC.ink)),
+                SizedBox(height: 4),
                 Text(
                   description,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 10.5, color: _WC.inkSecondary, height: 1.4),
+                  style: TextStyle(fontSize: 10.5, color: _WC.inkSecondary, height: 1.4),
                 ),
-                const SizedBox(height: 6),
+                SizedBox(height: 6),
                 Row(
                   children: [
                     Icon(Icons.person_pin, size: 12, color: _WC.inkSecondary),
-                    const SizedBox(width: 4),
-                    Text(author, style: const TextStyle(fontSize: 9.5, color: _WC.inkSecondary)),
+                    SizedBox(width: 4),
+                    Text(author, style: TextStyle(fontSize: 9.5, color: _WC.inkSecondary)),
                   ],
                 ),
               ],
@@ -6767,7 +6767,7 @@ class _MusyrifQuoteCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: _WC.goldSurface,
         borderRadius: BorderRadius.circular(12),
@@ -6785,7 +6785,7 @@ class _MusyrifQuoteCard extends StatelessWidget {
             ),
             child: Icon(Icons.format_quote, size: 16, color: _WC.gold),
           ),
-          const SizedBox(width: 10),
+          SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
