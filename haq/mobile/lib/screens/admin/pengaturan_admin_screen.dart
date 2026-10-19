@@ -33,6 +33,7 @@ class _AC {
   static Color get mint => SC.mint;
   static const gold = Color(0xFFF9D77E); // emas terang khusus tombol upgrade (sesuai screen.png)
   static const goldDark = Color(0xFF7A5B10);
+  static const goldAntique = Color(0xFFC5A059); // emas yang sama dengan _WC.gold di dashboard
   static const background = Color(0xFFFAF9F5);
   static const surface = Colors.white;
   static const surfaceDim = Color(0xFFF5F4EE);
@@ -169,11 +170,50 @@ class _PengaturanAdminScreenState extends State<PengaturanAdminScreen> {
     AppToast.error(context, message);
   }
 
-  void _showInfo(String message) {
+  void _showInfo(
+    String message, {
+    IconData icon = Icons.hourglass_top_rounded,
+  }) {
     if (!mounted) return;
+    final w = MediaQuery.of(context).size.width;
+    final side = w > 472 ? (w - 440) / 2 : 16.0;
+
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
+      ..showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: _AC.primary,
+          elevation: 6,
+          margin: EdgeInsets.fromLTRB(side, 0, side, 16),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          duration: const Duration(seconds: 3),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(color: _AC.goldAntique.withOpacity(0.5)),
+          ),
+          content: Row(
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: _AC.goldAntique.withOpacity(0.18),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, size: 18, color: _AC.goldAntique),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  message,
+                  style: _t(13.5, FontWeight.w800, Colors.white, height: 1.3),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
   }
 
   // -------------------------------------------------------------------
@@ -240,7 +280,10 @@ class _PengaturanAdminScreenState extends State<PengaturanAdminScreen> {
 
   Future<void> _hubungiBantuan() async {
     if (_kNomorBantuan.isEmpty) {
-      _showInfo('Nomor bantuan teknis belum diatur.');
+      _showInfo(
+        'Nomor bantuan teknis belum diatur.',
+        icon: Icons.info_outline_rounded,
+      );
       return;
     }
     final ok = await launchUrl(
@@ -357,19 +400,19 @@ class _PengaturanAdminScreenState extends State<PengaturanAdminScreen> {
                   icon: Icons.description_outlined,
                   title: 'Pedoman & Tata Tertib',
                   subtitle: 'Format PDF resmi Mudir Ma\'had',
-                  onTap: () => _showInfo('Segera hadir.'),
+                  onTap: () => _showInfo('Fitur ini akan segera tersedia.'),
                 ),
                 _PanduanItem(
                   icon: Icons.menu_book_outlined,
                   title: 'Buku Panduan Admin',
                   subtitle: 'Tata cara input nilai, mutaba\'ah & SPP',
-                  onTap: () => _showInfo('Segera hadir.'),
+                  onTap: () => _showInfo('Fitur ini akan segera tersedia.'),
                 ),
                 _PanduanItem(
                   icon: Icons.shield_outlined,
                   title: 'Kebijakan Privasi & Enkripsi Santri',
                   subtitle: 'Standar perlindungan data pribadi',
-                  onTap: () => _showInfo('Segera hadir.'),
+                  onTap: () => _showInfo('Fitur ini akan segera tersedia.'),
                 ),
                 _PanduanItem(
                   icon: Icons.support_agent_outlined,

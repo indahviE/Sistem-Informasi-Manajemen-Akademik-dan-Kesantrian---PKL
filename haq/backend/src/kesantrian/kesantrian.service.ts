@@ -13,9 +13,13 @@ import {
   UpdatePerizinanDto,
 } from './dto/kesantrian.dto';
 import { JenisNotifikasi, Prisma, Role } from '@prisma/client';
+import { NotifikasiService } from '../notifikasi/notifikasi.service'; // sesuaikan path kalau beda
 @Injectable()
 export class KesantrianService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private notifikasi: NotifikasiService,
+  ) {}
 
   private async assertSantri(tenantId: string, santriId: string) {
     const found = await this.prisma.santri.findFirst({ where: { id: santriId, tenantId }, include: { wali: true } });
@@ -95,6 +99,11 @@ private async buildSantriScope(
       JenisNotifikasi.PELANGGARAN,
       `${santri.nama} tercatat pelanggaran: ${dto.jenisPelanggaran} (${dto.poin} poin).`,
     );
+    await this.notifikasi.kirimKeAdminTenant(
+      tenantId,
+      JenisNotifikasi.PELANGGARAN,
+      `${santri.nama} tercatat pelanggaran: ${dto.jenisPelanggaran} (${dto.poin} poin).`,
+    );
     return created;
   }
 
@@ -149,6 +158,11 @@ private async buildSantriScope(
     await this.notifyWali(
       tenantId,
       santri.wali,
+      JenisNotifikasi.PERIZINAN,
+      `${santri.nama} mengajukan izin ${dto.jenis === 'PULANG' ? 'pulang' : 'keluar'} dengan alasan: ${dto.alasan}.`,
+    );
+    await this.notifikasi.kirimKeAdminTenant(
+      tenantId,
       JenisNotifikasi.PERIZINAN,
       `${santri.nama} mengajukan izin ${dto.jenis === 'PULANG' ? 'pulang' : 'keluar'} dengan alasan: ${dto.alasan}.`,
     );
@@ -232,6 +246,11 @@ private async buildSantriScope(
     await this.notifyWali(
       tenantId,
       santri.wali,
+      JenisNotifikasi.KESEHATAN,
+      `${santri.nama} sedang sakit: ${dto.keluhan}.`,
+    );
+    await this.notifikasi.kirimKeAdminTenant(
+      tenantId,
       JenisNotifikasi.KESEHATAN,
       `${santri.nama} sedang sakit: ${dto.keluhan}.`,
     );
