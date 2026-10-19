@@ -195,6 +195,10 @@ class ApiUrl {
   static const tenantSlugCheck = '/tenants/check-slug'; 
 
   static const auditLog = '/audit-log';
+  static const auditLogPondok = '/audit-log/pondok';
+  static const mudirAkademik = '/mudir/akademik';
+  static const mudirTren = '/mudir/tren';
+  static const mudirLaporan = '/mudir/laporan';
   static const pengaturan = '/pengaturan';
   static const pengaturanProfil = '/pengaturan/profil';
   static const pengaturanUbahPassword = '/pengaturan/ubah-password';

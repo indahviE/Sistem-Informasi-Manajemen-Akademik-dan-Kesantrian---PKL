@@ -96,6 +96,12 @@ export class CreateNilaiDto {
   @IsString()
   keterangan?: string;
 
+  // Hanya dipakai kalau jenis = BAHASA_ARAB (mis. muhadatsah, qiraah)
+  @IsOptional()
+  @IsString()
+  @MaxLength(30, { message: 'Skill maksimal 30 karakter' })
+  skill?: string;
+
   @IsDateString()
   tanggal: string;
 }
@@ -125,6 +131,12 @@ export class BulkNilaiDto {
 
   @IsEnum(JenisNilai, { message: 'Jenis nilai tidak valid' })
   jenis: JenisNilai;
+
+  // Hanya dipakai kalau jenis = BAHASA_ARAB
+  @IsOptional()
+  @IsString()
+  @MaxLength(30, { message: 'Skill maksimal 30 karakter' })
+  skill?: string;
 
   // Dikirim aplikasi tapi diabaikan: server memakai tanggal hari ini (WIB).
   @IsOptional()

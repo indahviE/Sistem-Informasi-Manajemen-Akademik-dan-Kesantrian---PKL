@@ -124,68 +124,69 @@ enum StatusDarurat {
 }
 
 model Tenant {
-  id             String       @id @default(cuid())
-  kodeTenant     String       @unique
-  namaPondok     String
-  logoUrl        String?       @db.MediumText
-  warnaTema      String?
-  alamat              String?              @db.Text
+  id                  String              @id @default(cuid())
+  kodeTenant          String              @unique
+  namaPondok          String
+  logoUrl             String?             @db.MediumText
+  warnaTema           String?
+  alamat              String?             @db.Text
   karakteristik       Json?
-  status              TenantStatus         @default(PENDING)
+  status              TenantStatus        @default(PENDING)
   kuotaSantriPpdb     Int?
-  statusGelombangPpdb StatusGelombangPpdb  @default(DITUTUP)
+  statusGelombangPpdb StatusGelombangPpdb @default(DITUTUP)
   adminAwalId         String?
-  adminAwal           User?                @relation("TenantAdminAwal", fields: [adminAwalId], references: [id])
-  tanggalDaftar  DateTime     @default(now())
+  adminAwal           User?               @relation("TenantAdminAwal", fields: [adminAwalId], references: [id])
+  tanggalDaftar       DateTime            @default(now())
 
-  users          User[]
-  santris        Santri[]
-  ustadzs        Ustadz[]
-  kelas          Kelas[]
-  waliSantris    WaliSantri[]
-  mapels         MataPelajaran[]
-  tataTertib     TataTertib[]
-  tahunAjaran    TahunAjaran[]
-  pendaftarans   Pendaftaran[]
-  kurikulums     Kurikulum[]
-  silabus        Silabus[]
-  rpps           Rpp[]
-  rekamMedis     RekamMedis[]
-  subscriptions  Subscription[]
-  invoices       Invoice[]
-  ujians         Ujian[]
-  nilaiUjians    NilaiUjian[]
-  remedials      Remedial[]
-  rapors         Rapor[]
-  kelulusans     Kelulusan[]
-  konselings     Konseling[]
+  users              User[]
+  santris            Santri[]
+  ustadzs            Ustadz[]
+  kelas              Kelas[]
+  waliSantris        WaliSantri[]
+  mapels             MataPelajaran[]
+  tataTertib         TataTertib[]
+  tahunAjaran        TahunAjaran[]
+  pendaftarans       Pendaftaran[]
+  kurikulums         Kurikulum[]
+  silabus            Silabus[]
+  rpps               Rpp[]
+  rekamMedis         RekamMedis[]
+  subscriptions      Subscription[]
+  invoices           Invoice[]
+  ujians             Ujian[]
+  nilaiUjians        NilaiUjian[]
+  remedials          Remedial[]
+  rapors             Rapor[]
+  kelulusans         Kelulusan[]
+  konselings         Konseling[]
   pembinaanKarakters PembinaanKarakter[]
   pembinaanIbadahs   PembinaanIbadah[]
   keadaanDarurats    KeadaanDarurat[]
-  jurnalMengajars    JurnalMengajar[] 
-  deletedAt DateTime?
+  jurnalMengajars    JurnalMengajar[]
+  deletedAt          DateTime?
+  UstadzMengajar     UstadzMengajar[]
 
   @@map("tenants")
 }
 
 model User {
-  id           String     @id @default(cuid())
+  id           String           @id @default(cuid())
   tenantId     String?
   nama         String
   email        String
   passwordHash String
   role         Role
-  status       UserStatus @default(AKTIF)
+  status       UserStatus       @default(AKTIF)
   noHp         String?
-  isRootAdmin  Boolean    @default(false)
+  isRootAdmin  Boolean          @default(false)
   subRole      PlatformSubRole?
-  createdAt    DateTime   @default(now())
+  createdAt    DateTime         @default(now())
 
-  tenant       Tenant?    @relation(fields: [tenantId], references: [id])
-  notifikasis  Notifikasi[]
-  waliSantris  WaliSantri[]
-  tenantSebagaiAdminAwal Tenant[] @relation("TenantAdminAwal")
-  notifSetting UserNotifSetting?
+  tenant                 Tenant?           @relation(fields: [tenantId], references: [id])
+  notifikasis            Notifikasi[]
+  waliSantris            WaliSantri[]
+  tenantSebagaiAdminAwal Tenant[]          @relation("TenantAdminAwal")
+  notifSetting           UserNotifSetting?
 
   @@unique([tenantId, email])
   @@index([tenantId])
@@ -193,34 +194,34 @@ model User {
 }
 
 model Santri {
-  id            String        @id @default(cuid())
-  tenantId      String
-  nis           String
-  nama          String
-  jenisKelamin  String
-  tanggalLahir  DateTime?
-  kelasId       String?
-  asrama        String?
-  waliId        String?
-  status        SantriStatus  @default(AKTIF)
-  tahunMasuk    Int
+  id           String       @id @default(cuid())
+  tenantId     String
+  nis          String
+  nama         String
+  jenisKelamin String
+  tanggalLahir DateTime?
+  kelasId      String?
+  asrama       String?
+  waliId       String?
+  status       SantriStatus @default(AKTIF)
+  tahunMasuk   Int
 
-  tenant        Tenant        @relation(fields: [tenantId], references: [id])
-  kelas         Kelas?        @relation(fields: [kelasId], references: [id])
-  wali          WaliSantri?   @relation(fields: [waliId], references: [id])
-  absensis      Absensi[]
-  nilais        Nilai[]
-  capaianTahfidzs CapaianTahfidz[]
-  pelanggarans  Pelanggaran[]
-  perizinan     Perizinan[]
-  kesehatanLogs KesehatanLog[]
-  kunjunganWali KunjunganWali[]
-  rekamMedis    RekamMedis?
-  nilaiUjians   NilaiUjian[]
-  remedials     Remedial[]
-  rapors        Rapor[]
-  kelulusans    Kelulusan[]
-  konselings    Konseling[]
+  tenant             Tenant              @relation(fields: [tenantId], references: [id])
+  kelas              Kelas?              @relation(fields: [kelasId], references: [id])
+  wali               WaliSantri?         @relation(fields: [waliId], references: [id])
+  absensis           Absensi[]
+  nilais             Nilai[]
+  capaianTahfidzs    CapaianTahfidz[]
+  pelanggarans       Pelanggaran[]
+  perizinan          Perizinan[]
+  kesehatanLogs      KesehatanLog[]
+  kunjunganWali      KunjunganWali[]
+  rekamMedis         RekamMedis?
+  nilaiUjians        NilaiUjian[]
+  remedials          Remedial[]
+  rapors             Rapor[]
+  kelulusans         Kelulusan[]
+  konselings         Konseling[]
   pembinaanKarakters PembinaanKarakter[]
   pembinaanIbadahs   PembinaanIbadah[]
   keadaanDarurats    KeadaanDarurat[]
@@ -232,56 +233,77 @@ model Santri {
 }
 
 model Ustadz {
-  id           String        @id @default(cuid())
-  tenantId     String
-  nama         String
-  jenis        JenisUstadz   @default(GURU)
-  noHp         String?
-  userId       String?
+  id       String      @id @default(cuid())
+  tenantId String
+  nama     String
+  jenis    JenisUstadz @default(GURU)
+  noHp     String?
+  userId   String?
 
-  tenant       Tenant        @relation(fields: [tenantId], references: [id])
-  kelasDiampu  Kelas[]
+  tenant            Tenant           @relation(fields: [tenantId], references: [id])
+  kelasDiampu       Kelas[]
   konselingKonselor Konseling[]
+  UstadzMengajar    UstadzMengajar[]
 
   @@index([tenantId])
   @@map("ustadzs")
 }
 
 model Kelas {
-  id            String     @id @default(cuid())
+  id            String  @id @default(cuid())
   tenantId      String
   namaKelas     String
   tingkat       String
   waliKelasId   String?
   tahunAjaranId String?
 
-  tenant        Tenant     @relation(fields: [tenantId], references: [id])
-  waliKelas     Ustadz?    @relation(fields: [waliKelasId], references: [id])
-  tahunAjaran   TahunAjaran? @relation(fields: [tahunAjaranId], references: [id])
-  santris       Santri[]
-  ujians        Ujian[]
-   jurnalMengajars JurnalMengajar[]
+  tenant          Tenant           @relation(fields: [tenantId], references: [id])
+  waliKelas       Ustadz?          @relation(fields: [waliKelasId], references: [id])
+  tahunAjaran     TahunAjaran?     @relation(fields: [tahunAjaranId], references: [id])
+  santris         Santri[]
+  ujians          Ujian[]
+  jurnalMengajars JurnalMengajar[]
+  UstadzMengajar  UstadzMengajar[]
 
   @@unique([tenantId, namaKelas, tahunAjaranId])
   @@index([tenantId])
   @@map("kelas")
 }
 
-model JurnalMengajar {
-  id         String         @id @default(cuid())
-  tenantId   String
-  kelasId    String
-  mapelId    String?
-  tanggal    DateTime
-  materi     String         @db.VarChar(500)
-  catatan    String?        @db.VarChar(300)
-  inputOleh  String
-  createdAt  DateTime       @default(now())
-  updatedAt  DateTime       @updatedAt
+model UstadzMengajar {
+  id        String   @id @default(cuid())
+  tenantId  String
+  ustadzId  String
+  kelasId   String
+  mapelId   String
+  createdAt DateTime @default(now())
 
-  tenant     Tenant         @relation(fields: [tenantId], references: [id])
-  kelas      Kelas          @relation(fields: [kelasId], references: [id])
-  mapel      MataPelajaran? @relation(fields: [mapelId], references: [id])
+  tenant Tenant        @relation(fields: [tenantId], references: [id])
+  ustadz Ustadz        @relation(fields: [ustadzId], references: [id], onDelete: Cascade)
+  kelas  Kelas         @relation(fields: [kelasId], references: [id], onDelete: Cascade)
+  mapel  MataPelajaran @relation(fields: [mapelId], references: [id], onDelete: Cascade)
+
+  @@unique([ustadzId, kelasId, mapelId])
+  @@index([tenantId, kelasId])
+  @@index([tenantId, mapelId])
+  @@map("ustadz_mengajar")
+}
+
+model JurnalMengajar {
+  id        String   @id @default(cuid())
+  tenantId  String
+  kelasId   String
+  mapelId   String?
+  tanggal   DateTime
+  materi    String   @db.VarChar(500)
+  catatan   String?  @db.VarChar(300)
+  inputOleh String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant Tenant         @relation(fields: [tenantId], references: [id])
+  kelas  Kelas          @relation(fields: [kelasId], references: [id])
+  mapel  MataPelajaran? @relation(fields: [mapelId], references: [id])
 
   @@index([tenantId, tanggal])
   @@index([tenantId, kelasId])
@@ -290,17 +312,17 @@ model JurnalMengajar {
 }
 
 model WaliSantri {
-  id         String   @id @default(cuid())
-  tenantId   String
-  nama       String
-  noHp       String?
-  email      String?
-  hubungan   String
-  userId     String?
+  id       String  @id @default(cuid())
+  tenantId String
+  nama     String
+  noHp     String?
+  email    String?
+  hubungan String
+  userId   String?
 
-  tenant     Tenant   @relation(fields: [tenantId], references: [id])
-  santris    Santri[]
-  user       User?    @relation(fields: [userId], references: [id])
+  tenant           Tenant          @relation(fields: [tenantId], references: [id])
+  santris          Santri[]
+  user             User?           @relation(fields: [userId], references: [id])
   kunjunganWalinya KunjunganWali[]
 
   @@index([tenantId])
@@ -308,22 +330,23 @@ model WaliSantri {
 }
 
 model MataPelajaran {
-  id       String   @id @default(cuid())
-  tenantId String
+  id        String  @id @default(cuid())
+  tenantId  String
   namaMapel String
-  kode     String?
-  jenis    String?
-  kkm      Float    @default(75)
+  kode      String?
+  jenis     String?
+  kkm       Float   @default(75)
 
-  tenant   Tenant   @relation(fields: [tenantId], references: [id])
-  absensis Absensi[]
-  nilais   Nilai[]
-  silabus  Silabus[]
-  rpps     Rpp[]
-  placementTests PlacementTest[]
-  ujians        Ujian[]
-  remedials     Remedial[]
-   jurnalMengajars JurnalMengajar[]
+  tenant          Tenant           @relation(fields: [tenantId], references: [id])
+  absensis        Absensi[]
+  nilais          Nilai[]
+  silabus         Silabus[]
+  rpps            Rpp[]
+  placementTests  PlacementTest[]
+  ujians          Ujian[]
+  remedials       Remedial[]
+  jurnalMengajars JurnalMengajar[]
+  UstadzMengajar  UstadzMengajar[]
 
   @@unique([tenantId, namaMapel])
   @@index([tenantId])
@@ -331,13 +354,13 @@ model MataPelajaran {
 }
 
 model TahunAjaran {
-  id       String   @id @default(cuid())
+  id       String  @id @default(cuid())
   tenantId String
   nama     String
-  aktif    Boolean  @default(true)
+  aktif    Boolean @default(true)
 
-  tenant   Tenant   @relation(fields: [tenantId], references: [id])
-  kelas    Kelas[]
+  tenant     Tenant      @relation(fields: [tenantId], references: [id])
+  kelas      Kelas[]
   kurikulums Kurikulum[]
 
   @@unique([tenantId, nama])
@@ -345,7 +368,7 @@ model TahunAjaran {
 }
 
 model Absensi {
-  id        String         @id @default(cuid())
+  id        String        @id @default(cuid())
   tenantId  String
   santriId  String
   kelasId   String?
@@ -354,10 +377,10 @@ model Absensi {
   status    AbsensiStatus
   catatan   String?
   inputOleh String
-  createdAt DateTime       @default(now())
+  createdAt DateTime      @default(now())
 
-  santri    Santri         @relation(fields: [santriId], references: [id], onDelete: Cascade)
-  mapel     MataPelajaran? @relation(fields: [mapelId], references: [id])
+  santri Santri         @relation(fields: [santriId], references: [id], onDelete: Cascade)
+  mapel  MataPelajaran? @relation(fields: [mapelId], references: [id])
 
   @@index([tenantId, santriId, tanggal])
   @@index([tenantId, tanggal])
@@ -366,21 +389,22 @@ model Absensi {
 }
 
 model Nilai {
-  id       String        @id @default(cuid())
-  tenantId String
-  santriId String
-  mapelId  String
-  jenis    JenisNilai
-  nilai    Float
+  id         String     @id @default(cuid())
+  tenantId   String
+  santriId   String
+  mapelId    String
+  jenis      JenisNilai
+  nilai      Float
   keterangan String?
-  tanggal  DateTime      @db.Date
-  inputOleh String
-  createdAt DateTime     @default(now())
+  skill      String     @default("")
+  tanggal    DateTime   @db.Date
+  inputOleh  String
+  createdAt  DateTime   @default(now())
 
-  santri   Santri        @relation(fields: [santriId], references: [id], onDelete: Cascade)
-  mapel    MataPelajaran @relation(fields: [mapelId], references: [id])
+  santri Santri        @relation(fields: [santriId], references: [id], onDelete: Cascade)
+  mapel  MataPelajaran @relation(fields: [mapelId], references: [id])
 
-  @@unique([santriId, mapelId, jenis, tanggal])
+  @@unique([santriId, mapelId, jenis, skill, tanggal])
   @@index([tenantId, santriId, mapelId])
   @@index([tenantId])
   @@map("nilais")
@@ -391,7 +415,7 @@ model CapaianTahfidz {
   tenantId       String
   santriId       String
   juz            Int
-  halaman        Int              // kolom lama, tetap ada supaya Flutter lama tidak rusak
+  halaman        Int // kolom lama, tetap ada supaya Flutter lama tidak rusak
   halamanMulai   Int?
   halamanSelesai Int?
   jenis          JenisSetoran     @default(ZIYADAH)
@@ -401,7 +425,7 @@ model CapaianTahfidz {
   inputOleh      String
   createdAt      DateTime         @default(now())
 
-  santri         Santri           @relation(fields: [santriId], references: [id], onDelete: Cascade)
+  santri Santri @relation(fields: [santriId], references: [id], onDelete: Cascade)
 
   @@index([tenantId, santriId])
   @@map("capaian_tahfidzs")
@@ -419,7 +443,7 @@ model Pelanggaran {
   status           String   @default("DICATAT")
   createdAt        DateTime @default(now())
 
-  santri           Santri   @relation(fields: [santriId], references: [id], onDelete: Cascade)
+  santri Santri @relation(fields: [santriId], references: [id], onDelete: Cascade)
 
   @@index([tenantId, santriId])
   @@index([tenantId, tanggal])
@@ -427,20 +451,20 @@ model Pelanggaran {
 }
 
 model Perizinan {
-  id            String         @id @default(cuid())
-  tenantId      String
-  santriId      String
-  jenis         JenisPerizinan
-  tanggalKeluar DateTime
+  id             String         @id @default(cuid())
+  tenantId       String
+  santriId       String
+  jenis          JenisPerizinan
+  tanggalKeluar  DateTime
   tanggalKembali DateTime?
   rencanaKembali DateTime?
-  alasan        String
+  alasan         String
   statusApproval StatusApproval @default(DIAJUKAN)
-  disetujuiOleh String?
-  catatan       String?
-  createdAt     DateTime       @default(now())
+  disetujuiOleh  String?
+  catatan        String?
+  createdAt      DateTime       @default(now())
 
-  santri        Santri         @relation(fields: [santriId], references: [id], onDelete: Cascade)
+  santri Santri @relation(fields: [santriId], references: [id], onDelete: Cascade)
 
   @@index([tenantId, santriId])
   @@index([tenantId])
@@ -448,20 +472,20 @@ model Perizinan {
 }
 
 model KesehatanLog {
-  id         String          @id @default(cuid())
-  tenantId   String
-  santriId   String
-  keluhan    String
-  diagnosa   String?
-  tindakan   String?
-  obat       String?
-  tempat     String          @default("UKS")
-  tanggal    DateTime
-  status     StatusKesehatan @default(RAWAT_JALAN)
-  inputOleh  String
-  createdAt  DateTime        @default(now())
+  id        String          @id @default(cuid())
+  tenantId  String
+  santriId  String
+  keluhan   String
+  diagnosa  String?
+  tindakan  String?
+  obat      String?
+  tempat    String          @default("UKS")
+  tanggal   DateTime
+  status    StatusKesehatan @default(RAWAT_JALAN)
+  inputOleh String
+  createdAt DateTime        @default(now())
 
-  santri     Santri          @relation(fields: [santriId], references: [id], onDelete: Cascade)
+  santri Santri @relation(fields: [santriId], references: [id], onDelete: Cascade)
 
   @@index([tenantId, santriId])
   @@index([tenantId])
@@ -469,45 +493,45 @@ model KesehatanLog {
 }
 
 model KunjunganWali {
-  id       String   @id @default(cuid())
-  tenantId String
-  santriId String
-  waliId   String?
-  tanggal  DateTime
-  catatan  String?
+  id        String   @id @default(cuid())
+  tenantId  String
+  santriId  String
+  waliId    String?
+  tanggal   DateTime
+  catatan   String?
   createdAt DateTime @default(now())
 
-  santri   Santri   @relation(fields: [santriId], references: [id], onDelete: Cascade)
-  wali     WaliSantri? @relation(fields: [waliId], references: [id])
+  santri Santri      @relation(fields: [santriId], references: [id], onDelete: Cascade)
+  wali   WaliSantri? @relation(fields: [waliId], references: [id])
 
   @@index([tenantId, santriId])
   @@map("kunjungan_walis")
 }
 
 model Notifikasi {
-  id         String   @id @default(cuid())
+  id         String          @id @default(cuid())
   tenantId   String?
   userId     String?
   jenis      JenisNotifikasi
   pesan      String
-  statusBaca Boolean  @default(false)
-  tanggal    DateTime @default(now())
+  statusBaca Boolean         @default(false)
+  tanggal    DateTime        @default(now())
 
-  user       User?    @relation(fields: [userId], references: [id])
+  user User? @relation(fields: [userId], references: [id])
 
   @@index([tenantId, userId, statusBaca])
   @@map("notifikasis")
 }
 
 model TataTertib {
-  id       String   @id @default(cuid())
-  tenantId String
-  judul    String
-  isi      String
-  aktif    Boolean  @default(true)
+  id        String   @id @default(cuid())
+  tenantId  String
+  judul     String
+  isi       String
+  aktif     Boolean  @default(true)
   createdAt DateTime @default(now())
 
-  tenant   Tenant   @relation(fields: [tenantId], references: [id])
+  tenant Tenant @relation(fields: [tenantId], references: [id])
 
   @@index([tenantId])
   @@map("tata_tertibs")
@@ -574,25 +598,25 @@ enum StatusInvoice {
 }
 
 model Pendaftaran {
-  id                String             @id @default(cuid())
-  tenantId          String
-  nama              String
-  jenisKelamin      String
-  tanggalLahir      DateTime?
-  asalSekolah       String?
-  noHp              String?
-  email             String?
-  alamat            String?
-  jalur             String?
-  fotoUrl           String?            @db.MediumText
-  kartuKeluargaUrl  String?            @db.MediumText
-  aktaLahirUrl      String?            @db.MediumText
-  status            StatusPendaftaran  @default(DIAJUKAN)
-  catatan           String?
-  tanggalDaftar     DateTime           @default(now())
-  ujian             PlacementTest?
+  id               String            @id @default(cuid())
+  tenantId         String
+  nama             String
+  jenisKelamin     String
+  tanggalLahir     DateTime?
+  asalSekolah      String?
+  noHp             String?
+  email            String?
+  alamat           String?
+  jalur            String?
+  fotoUrl          String?           @db.MediumText
+  kartuKeluargaUrl String?           @db.MediumText
+  aktaLahirUrl     String?           @db.MediumText
+  status           StatusPendaftaran @default(DIAJUKAN)
+  catatan          String?
+  tanggalDaftar    DateTime          @default(now())
+  ujian            PlacementTest?
 
-  tenant            Tenant             @relation(fields: [tenantId], references: [id])
+  tenant Tenant @relation(fields: [tenantId], references: [id])
 
   @@index([tenantId, status])
   @@index([tenantId])
@@ -600,92 +624,92 @@ model Pendaftaran {
 }
 
 model PlacementTest {
-  id            String          @id @default(cuid())
+  id            String   @id @default(cuid())
   tenantId      String
-  pendaftaranId String         @unique
+  pendaftaranId String   @unique
   mapelId       String?
   nilai         Float?
   hasil         String?
   catatan       String?
-  tanggal       DateTime        @default(now())
+  tanggal       DateTime @default(now())
 
-  pendaftaran   Pendaftaran     @relation(fields: [pendaftaranId], references: [id])
-  mapel         MataPelajaran?  @relation(fields: [mapelId], references: [id])
+  pendaftaran Pendaftaran    @relation(fields: [pendaftaranId], references: [id])
+  mapel       MataPelajaran? @relation(fields: [mapelId], references: [id])
 
   @@index([tenantId])
   @@map("placement_tests")
 }
 
 model Kurikulum {
-  id             String       @id @default(cuid())
-  tenantId       String
-  nama           String
-  tahunAjaranId  String?
-  deskripsi      String?
-  aktif          Boolean      @default(true)
-  createdAt      DateTime     @default(now())
+  id            String   @id @default(cuid())
+  tenantId      String
+  nama          String
+  tahunAjaranId String?
+  deskripsi     String?
+  aktif         Boolean  @default(true)
+  createdAt     DateTime @default(now())
 
-  tenant         Tenant       @relation(fields: [tenantId], references: [id])
-  tahunAjaran    TahunAjaran? @relation(fields: [tahunAjaranId], references: [id])
-  silabus        Silabus[]
+  tenant      Tenant       @relation(fields: [tenantId], references: [id])
+  tahunAjaran TahunAjaran? @relation(fields: [tahunAjaranId], references: [id])
+  silabus     Silabus[]
 
   @@index([tenantId])
   @@map("kurikulums")
 }
 
 model Silabus {
-  id             String      @id @default(cuid())
-  tenantId       String
-  kurikulumId    String?
-  mapelId        String?
-  judul          String
+  id              String   @id @default(cuid())
+  tenantId        String
+  kurikulumId     String?
+  mapelId         String?
+  judul           String
   kompetensiDasar String?
-  materiPokok    String?
-  alokasiWaktu   String?
-  fileUrl        String?
-  createdAt      DateTime    @default(now())
+  materiPokok     String?
+  alokasiWaktu    String?
+  fileUrl         String?
+  createdAt       DateTime @default(now())
 
-  tenant         Tenant      @relation(fields: [tenantId], references: [id])
-  kurikulum      Kurikulum?  @relation(fields: [kurikulumId], references: [id])
-  mapel          MataPelajaran? @relation(fields: [mapelId], references: [id])
+  tenant    Tenant         @relation(fields: [tenantId], references: [id])
+  kurikulum Kurikulum?     @relation(fields: [kurikulumId], references: [id])
+  mapel     MataPelajaran? @relation(fields: [mapelId], references: [id])
 
   @@index([tenantId])
   @@map("silabus")
 }
 
 model Rpp {
-  id          String           @id @default(cuid())
-  tenantId    String
-  mapelId     String?
-  pertemuan   Int
-  judul       String
-  tujuan      String?
-  kegiatan    String?
-  penilaian   String?
-  fileUrl     String?
-  createdAt   DateTime         @default(now())
+  id        String   @id @default(cuid())
+  tenantId  String
+  mapelId   String?
+  pertemuan Int
+  judul     String
+  tujuan    String?
+  kegiatan  String?
+  penilaian String?
+  fileUrl   String?
+  createdAt DateTime @default(now())
 
-  tenant      Tenant           @relation(fields: [tenantId], references: [id])
-  mapel       MataPelajaran?   @relation(fields: [mapelId], references: [id])
+  tenant Tenant         @relation(fields: [tenantId], references: [id])
+  mapel  MataPelajaran? @relation(fields: [mapelId], references: [id])
 
   @@index([tenantId])
   @@map("rpps")
 }
 
 model RekamMedis {
-  id             String   @id @default(cuid())
-  tenantId       String
-  santriId       String   @unique
-  golonganDarah  String?
-  alergi         String?
+  id              String   @id @default(cuid())
+  tenantId        String
+  santriId        String   @unique
+  golonganDarah   String?
+  alergi          String?
   riwayatPenyakit String?
-  tinggiBadan    Int?
-  beratBadan     Int?
-  catatanKhusus  String?
-  updatedAt      DateTime @updatedAt
+  tinggiBadan     Int?
+  beratBadan      Int?
+  catatanKhusus   String?
+  updatedAt       DateTime @updatedAt
 
-  tenant         Tenant   @relation(fields: [tenantId], references: [id])
-  santri         Santri   @relation(fields: [santriId], references: [id], onDelete: Cascade)
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  santri Santri @relation(fields: [santriId], references: [id], onDelete: Cascade)
 
   @@index([tenantId])
   @@map("rekam_medis")
@@ -713,15 +737,15 @@ model Paket {
 }
 
 model Subscription {
-  id            String          @id @default(cuid())
-  tenantId      String
-  paketId       String
-  tanggalMulai  DateTime        @default(now())
-  tanggalAkhir  DateTime?
-  status        StatusSubscription @default(AKTIF)
+  id           String             @id @default(cuid())
+  tenantId     String
+  paketId      String
+  tanggalMulai DateTime           @default(now())
+  tanggalAkhir DateTime?
+  status       StatusSubscription @default(AKTIF)
 
-  tenant        Tenant          @relation(fields: [tenantId], references: [id])
-  paket         Paket           @relation(fields: [paketId], references: [id])
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  paket  Paket  @relation(fields: [paketId], references: [id])
 
   @@index([tenantId])
   @@map("subscriptions")
@@ -738,7 +762,7 @@ model Invoice {
   metodeBayar       String?
   createdAt         DateTime      @default(now())
 
-  tenant            Tenant        @relation(fields: [tenantId], references: [id])
+  tenant Tenant @relation(fields: [tenantId], references: [id])
 
   @@unique([tenantId, noInvoice])
   @@index([tenantId])
@@ -746,33 +770,33 @@ model Invoice {
 }
 
 model Ujian {
-  id          String     @id @default(cuid())
+  id          String    @id @default(cuid())
   tenantId    String
   nama        String
-  jenis       String     @default("ULANGAN")
+  jenis       String    @default("ULANGAN")
   mapelId     String?
   kelasId     String?
   tanggal     DateTime?
   durasiMenit Int?
-  kkm         Float      @default(75)
+  kkm         Float     @default(75)
   dibuatOleh  String?
   periode     String?
   dikunciPada DateTime?
   dikunciOleh String?
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
-  tenant       Tenant       @relation(fields: [tenantId], references: [id])
-  mapel        MataPelajaran? @relation(fields: [mapelId], references: [id])
-  kelas        Kelas?       @relation(fields: [kelasId], references: [id])
-  nilais       NilaiUjian[]
-  remedials    Remedial[]
+  tenant    Tenant         @relation(fields: [tenantId], references: [id])
+  mapel     MataPelajaran? @relation(fields: [mapelId], references: [id])
+  kelas     Kelas?         @relation(fields: [kelasId], references: [id])
+  nilais    NilaiUjian[]
+  remedials Remedial[]
 
   @@index([tenantId])
   @@map("ujians")
 }
 
-enum StatusKehadiranUjian {   
+enum StatusKehadiranUjian {
   HADIR
   SAKIT
   IZIN
@@ -780,7 +804,7 @@ enum StatusKehadiranUjian {
 }
 
 model NilaiUjian {
-  id        String   @id @default(cuid())
+  id        String               @id @default(cuid())
   tenantId  String
   ujianId   String
   santriId  String
@@ -788,8 +812,8 @@ model NilaiUjian {
   status    StatusKehadiranUjian @default(HADIR)
   catatan   String?
   inputOleh String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @updatedAt
 
   tenant Tenant @relation(fields: [tenantId], references: [id])
   ujian  Ujian  @relation(fields: [ujianId], references: [id])
@@ -870,16 +894,16 @@ enum PredikatKelulusan {
 }
 
 model Kelulusan {
-  id               String            @id @default(cuid())
+  id               String             @id @default(cuid())
   tenantId         String
   santriId         String
-  status           String            @default("LULUS")
-  tanggalKelulusan DateTime          @default(now())
+  status           String             @default("LULUS")
+  tanggalKelulusan DateTime           @default(now())
   predikat         PredikatKelulusan?
   juzYangDiHafal   Int?
   catatan          String?
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
 
   tenant Tenant @relation(fields: [tenantId], references: [id])
   santri Santri @relation(fields: [santriId], references: [id], onDelete: Cascade)
@@ -890,21 +914,21 @@ model Kelulusan {
 }
 
 model Konseling {
-  id          String    @id @default(cuid())
-  tenantId    String
-  santriId    String
-  tanggal     DateTime  @default(now())
-  konselorId  String?
-  topik       String
-  catatan     String
+  id           String   @id @default(cuid())
+  tenantId     String
+  santriId     String
+  tanggal      DateTime @default(now())
+  konselorId   String?
+  topik        String
+  catatan      String
   tindakLanjut String?
-  privat      Boolean   @default(true)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  privat       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  tenant   Tenant   @relation(fields: [tenantId], references: [id])
-  santri   Santri   @relation(fields: [santriId], references: [id], onDelete: Cascade)
-  konselor Ustadz?  @relation(fields: [konselorId], references: [id])
+  tenant   Tenant  @relation(fields: [tenantId], references: [id])
+  santri   Santri  @relation(fields: [santriId], references: [id], onDelete: Cascade)
+  konselor Ustadz? @relation(fields: [konselorId], references: [id])
 
   @@index([tenantId])
   @@map("konselings")
@@ -970,30 +994,36 @@ model KeadaanDarurat {
 }
 
 model UserNotifSetting {
-  id                 String   @id @default(cuid())
-  userId             String   @unique
-  perizinanBaru      Boolean  @default(true)
-  pelanggaranBaru    Boolean  @default(true)
-  waliBelumAktivasi  Boolean  @default(true)
-  eskalasiDarurat    Boolean  @default(true)
-  rekapAbsensiShalat Boolean  @default(false)
+  id                 String  @id @default(cuid())
+  userId             String  @unique
+  perizinanBaru      Boolean @default(true)
+  pelanggaranBaru    Boolean @default(true)
+  waliBelumAktivasi  Boolean @default(true)
+  eskalasiDarurat    Boolean @default(true)
+  rekapAbsensiShalat Boolean @default(false)
 
   // Wali Santri
-  perizinanAnak      Boolean  @default(true)
-  pelanggaranAnak    Boolean  @default(true)
-  kesehatanAnak      Boolean  @default(true)
-  nilaiRapor         Boolean  @default(true)
-  absensiAnak        Boolean  @default(true)
+  perizinanAnak   Boolean @default(true)
+  pelanggaranAnak Boolean @default(true)
+  kesehatanAnak   Boolean @default(true)
+  nilaiRapor      Boolean @default(true)
+  absensiAnak     Boolean @default(true)
 
   // Ustadz
-  pengingatAbsensi   Boolean  @default(true)
-  pengingatNilai     Boolean  @default(true)
-  jadwalMengajar     Boolean  @default(true)
-  pengumumanPondok   Boolean  @default(true)
+  pengingatAbsensi Boolean @default(true)
+  pengingatNilai   Boolean @default(true)
+  jadwalMengajar   Boolean @default(true)
+  pengumumanPondok Boolean @default(true)
 
-  updatedAt          DateTime @updatedAt
+  // Mudir
+  ringkasanHarian   Boolean @default(true)
+  laporanKesantrian Boolean @default(true)
+  pendaftaranBaru   Boolean @default(true)
+  laporanKeuangan   Boolean @default(true)
 
-  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("user_notif_settings")
 }

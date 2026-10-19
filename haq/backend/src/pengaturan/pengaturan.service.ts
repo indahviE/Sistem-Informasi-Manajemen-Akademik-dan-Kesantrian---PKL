@@ -8,6 +8,7 @@ import {
   UpdateNotifikasiAdminDto,
   UpdateNotifikasiDto,
   UpdateNotifikasiWaliDto,
+  UpdateNotifikasiMudirDto,
   UpdateProfilDto,
 } from './dto/pengaturan.dto';
 
@@ -25,6 +26,13 @@ const NOTIF_WALI_SELECT = {
   kesehatanAnak: true,
   nilaiRapor: true,
   absensiAnak: true,
+} as const;
+
+const NOTIF_MUDIR_SELECT = {
+  ringkasanHarian: true,
+  laporanKesantrian: true,
+  pendaftaranBaru: true,
+  laporanKeuangan: true,
 } as const;
 
 @Injectable()
@@ -177,7 +185,7 @@ export class PengaturanService {
       select: NOTIF_ADMIN_SELECT,
     });
   }
-  
+
   // ===== Wali Santri =====
 
   async getWaliSettings(userId: string) {
@@ -239,13 +247,11 @@ export class PengaturanService {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       select: {
-        id: true,
         nama: true,
         email: true,
         noHp: true,
-        role: true,
         tenantId: true,
-        tenant: { select: { namaPondok: true, kodeTenant: true } },
+        tenant: { select: { namaPondok: true } },
       },
     });
     if (!user) throw new NotFoundException('Pengguna tidak ditemukan.');
@@ -256,6 +262,47 @@ export class PengaturanService {
       create: { userId },
       update: {},
       select: NOTIF_ADMIN_SELECT,
+    });
+
+    return {
+      profil: { nama: user.nama, email: user.email, noHp: user.noHp },
+      tenant: { namaPondok: user.tenant?.namaPondok ?? 'Pondok' },
+      notifikasi: notif,
+    };
+  }
+
+  async updateMusyrifNotifikasi(userId: string, dto: UpdateNotifikasiAdminDto) {
+    return this.prisma.userNotifSetting.upsert({
+      where: { userId },
+      create: { userId, ...dto },
+      update: dto,
+      select: NOTIF_ADMIN_SELECT,
+    });
+  }
+
+  // ===== Mudir (Pimpinan) =====
+
+  async getMudirSettings(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        nama: true,
+        email: true,
+        noHp: true,
+        role: true,
+        tenantId: true,
+        tenant: { select: { namaPondok: true } },
+      },
+    });
+    if (!user) throw new NotFoundException('Pengguna tidak ditemukan.');
+    if (!user.tenantId) throw new BadRequestException('Akun ini tidak terhubung ke pondok.');
+
+    const notif = await this.prisma.userNotifSetting.upsert({
+      where: { userId },
+      create: { userId },
+      update: {},
+      select: NOTIF_MUDIR_SELECT,
     });
 
     return {
@@ -271,12 +318,12 @@ export class PengaturanService {
     };
   }
 
-  async updateMusyrifNotifikasi(userId: string, dto: UpdateNotifikasiAdminDto) {
+  async updateMudirNotifikasi(userId: string, dto: UpdateNotifikasiMudirDto) {
     return this.prisma.userNotifSetting.upsert({
       where: { userId },
       create: { userId, ...dto },
       update: dto,
-      select: NOTIF_ADMIN_SELECT,
+      select: NOTIF_MUDIR_SELECT,
     });
   }
 }

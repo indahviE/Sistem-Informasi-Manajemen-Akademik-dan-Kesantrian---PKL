@@ -5,6 +5,7 @@ import '../../services/api_client.dart';
 import '../../services/app_scope.dart';
 import '../santri/santri_ui.dart';
 import '../ui_utils.dart';
+import 'ustadz/penugasan_mengajar_screen.dart';
 
 /// Bar pencarian + filter yang menempel di atas saat digulir.
 class _PinnedBar extends SliverPersistentHeaderDelegate {
@@ -325,6 +326,15 @@ class _UstadzListScreenState extends State<UstadzListScreen> {
     await _jalankan(() async {
       await api.delete('${ApiUrl.ustadz}/${u['id']}');
     }, '${u['nama']} dihapus');
+  }
+
+    void _penugasan(Map<String, dynamic> u) {
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => PenugasanMengajarScreen(
+        ustadzId: u['id'] as String,
+        ustadzNama: '${u['nama']}',
+      ),
+    ));
   }
 
   Future<void> _buatAkun(Map<String, dynamic> u) async {
@@ -956,6 +966,7 @@ class _UstadzListScreenState extends State<UstadzListScreen> {
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                   onSelected: (v) {
                     if (v == 'edit') _edit(u);
+                    if (v == 'mengajar') _penugasan(u);
                     if (v == 'akun') _buatAkun(u);
                     if (v == 'hapus') _hapus(u);
                   },
@@ -968,6 +979,15 @@ class _UstadzListScreenState extends State<UstadzListScreen> {
                         Text('Edit data', style: sty(13, FontWeight.w600, SC.ink)),
                       ]),
                     ),
+                    if ((u['jenis'] ?? 'GURU').toString() == 'GURU')
+                      PopupMenuItem(
+                        value: 'mengajar',
+                        child: Row(children: [
+                          const Icon(Icons.menu_book_outlined, size: 18, color: SC.ink),
+                          const SizedBox(width: 10),
+                          Text('Penugasan mengajar', style: sty(13, FontWeight.w600, SC.ink)),
+                        ]),
+                      ),
                     if (akun == null)
                       PopupMenuItem(
                         value: 'akun',

@@ -63,6 +63,14 @@ const _kJenis = [
   MapEntry('BAHASA_ARAB', 'Bahasa Arab'),
 ];
 
+// Kunci huruf kecil, sama dengan yang disimpan backend.
+const _kSkill = [
+  MapEntry('muhadatsah', 'Muhadatsah'),
+  MapEntry('qiraah', "Qira'ah"),
+  MapEntry('kitabah', 'Kitabah'),
+  MapEntry('istima', "Istima'"),
+];
+
 const _kMaxCatatan = 150;
 
 class NilaiScreen extends StatefulWidget {
@@ -82,6 +90,20 @@ class _NilaiScreenState extends State<NilaiScreen> {
   String? _kelasId;
   String? _mapelId;
   String _jenis = 'HARIAN';
+  String _skill = 'muhadatsah'; // hanya dipakai kalau _jenis == 'BAHASA_ARAB'
+
+  bool get _pakaiSkill => _jenis == 'BAHASA_ARAB';
+  String get _skillLabel => _kSkill.firstWhere((e) => e.key == _skill).value;
+
+  /// Respons /nilai membawa kolom skill; untuk Bahasa Arab hanya ambil skill terpilih.
+  bool _cocokSkill(dynamic r) =>
+      !_pakaiSkill || (r['skill'] ?? '').toString() == _skill;
+
+  /// "BAHASA_ARAB (muhadatsah)" untuk tampilan riwayat.
+  String _jenisSkill(dynamic r) {
+    final s = (r['skill'] ?? '').toString();
+    return s.isEmpty ? '${r['jenis']}' : '${r['jenis']} ($s)';
+  }
 
   final Map<String, TextEditingController> _ctrl = {}; // santriId -> nilai
   final Map<String, String> _catatan = {}; // santriId -> catatan lisan
@@ -219,7 +241,8 @@ class _NilaiScreenState extends State<NilaiScreen> {
 
       final hariIni = _iso(DateTime.now());
       final byId = <String, Map<String, dynamic>>{};
-      for (final r in _asList(res)) {
+            for (final r in _asList(res)) {
+        if (!_cocokSkill(r)) continue;
         final t = (r['tanggal'] ?? '').toString();
         if (t.length >= 10 && t.substring(0, 10) == hariIni) {
           byId[r['santriId'].toString()] = r;
@@ -334,9 +357,10 @@ class _NilaiScreenState extends State<NilaiScreen> {
     try {
       final api = AppScope.of(context).api;
       // Satu request, satu transaksi: semua tersimpan atau tidak sama sekali.
-      await api.post('${ApiUrl.nilai}/bulk', {
+            await api.post('${ApiUrl.nilai}/bulk', {
         'mapelId': _mapelId,
         'jenis': _jenis,
+        if (_pakaiSkill) 'skill': _skill,
         'tanggal': hariIni,
         'items': items,
       });
@@ -682,18 +706,34 @@ class _NilaiScreenState extends State<NilaiScreen> {
               title: 'Pilih Jenis Penilaian',
               items: _kJenis,
               selectedId: _jenis,
-              onSelect: (v) {
+                            onSelect: (v) {
                 setState(() => _jenis = v);
                 _loadTersimpan();
                 if (_tab == 1) _loadRiwayat();
               },
             ),
           ),
+          if (_pakaiSkill) ...[
+            const SizedBox(height: 10),
+            _selectField(
+              label: 'Skill',
+              value: _skillLabel,
+              onTap: () => _showPicker(
+                title: 'Pilih Skill',
+                items: _kSkill,
+                selectedId: _skill,
+                onSelect: (v) {
+                  setState(() => _skill = v);
+                  _loadTersimpan();
+                  if (_tab == 1) _loadRiwayat();
+                },
+              ),
+            ),
+          ],
         ],
       ),
     );
   }
-
   Widget _stat(String label, String value) {
     return Expanded(
       child: Column(

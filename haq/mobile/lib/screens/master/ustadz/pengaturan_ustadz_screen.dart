@@ -15,8 +15,7 @@ import 'package:flutter/material.dart';
 import '../../../services/api_client.dart';
 import '../../../services/app_scope.dart';
 import '../../santri/santri_ui.dart';
-import '../../super_admin/pengaturan_dialogs.dart';
-
+import 'pengaturan_ustadz_dialogs.dart';
 // ============================================================================
 // Token warna lokal (private, nilai sama dengan _PW di pengaturan_wali_screen)
 // ============================================================================

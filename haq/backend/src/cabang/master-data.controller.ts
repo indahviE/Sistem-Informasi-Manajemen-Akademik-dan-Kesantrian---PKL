@@ -12,6 +12,7 @@ import {
   UpdateKelasDto,
   UpdateMapelDto,
   UpdateUstadzDto,
+  CreateMengajarDto
 } from './dto/master.dto';
 import { Role } from '@prisma/client';
 
@@ -116,5 +117,23 @@ export class MasterDataController {
   @Post('tahun-ajaran/:id/aktif')
   setAktif(@TenantId() tenantId: string, @Param('id') id: string) {
     return this.masterService.setTahunAjaranAktif(tenantId, id);
+  }
+
+    @Roles(Role.ADMIN, Role.PIMPINAN)
+  @Get('ustadz/:id/mengajar')
+  findMengajar(@TenantId() tenantId: string, @Param('id') id: string) {
+    return this.masterService.findMengajar(tenantId, id);
+  }
+
+  @Roles(Role.ADMIN)
+  @Post('ustadz/:id/mengajar')
+  addMengajar(@TenantId() tenantId: string, @Param('id') id: string, @Body() dto: CreateMengajarDto) {
+    return this.masterService.addMengajar(tenantId, id, dto);
+  }
+
+  @Roles(Role.ADMIN)
+  @Delete('mengajar/:id')
+  removeMengajar(@TenantId() tenantId: string, @Param('id') id: string) {
+    return this.masterService.removeMengajar(tenantId, id);
   }
 }

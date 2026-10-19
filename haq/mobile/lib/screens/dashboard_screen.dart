@@ -99,10 +99,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   List<Map<String, dynamic>>? _pimPelanggaran;
   List<Map<String, dynamic>>? _pimDarurat;
 
-  // Angka beranda musyrif, dihitung dari data asli (santri, pelanggaran, perizinan).
-  // Kosong sampai _loadMusyrifStat selesai.
-  Map<String, int> _musyrifStat = {};
-
   bool get _isPimpinan => AppScope.of(context).user?.isPimpinan == true;
 
   // Daftar ujian (GET ApiUrl.ujian) — dipakai section "Ujian Terdekat" di beranda ustadz.
@@ -152,7 +148,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
         _lastLoaded = DateTime.now();
       });
       _loadUjian();
-      if (_isMusyrifUser((res['role'] ?? '').toString())) _loadMusyrifStat();
       if (_isPimpinan) _loadPimpinan();
     } on ApiException catch (e) {
       if (mounted) setState(() => _error = 'ApiException: ${e.message}');
@@ -326,51 +321,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     if (mounted) _load();
   }
 
-  Future<List<Map<String, dynamic>>> _fetchList(String url, {Map<String, String>? query}) async {
-    try {
-      final api = AppScope.of(context).api;
-      final res = query == null ? await api.get(url) : await api.get(url, query: query);
-      final raw = res is List ? res : (res is Map ? (res['items'] ?? res['data']) : null);
-      return (raw is List ? raw : const []).whereType<Map<String, dynamic>>().toList();
-    } catch (_) {
-      return [];
-    }
-  }
-
-  /// Hitung angka beranda musyrif dari data asli.
-  Future<void> _loadMusyrifStat() async {
-    final santri = await _fetchList(ApiUrl.santri, query: {'perPage': '100'});
-    final pelanggaran = await _fetchList(ApiUrl.pelanggaran);
-    final izin = await _fetchList(ApiUrl.perizinan);
-    if (!mounted) return;
-
-    final now = DateTime.now();
-    bool hariIni(dynamic v) {
-      final t = DateTime.tryParse(v?.toString() ?? '')?.toLocal();
-      return t != null && t.year == now.year && t.month == now.month && t.day == now.day;
-    }
-
-    setState(() {
-      _musyrifStat = {
-        'santri': santri.length,
-        'pelanggaran': pelanggaran.where((p) => p['status'] != 'SELESAI').length,
-        'pelanggaranHariIni': pelanggaran.where((p) => hariIni(p['tanggal'])).length,
-        'izinPending': izin.where((p) => p['statusApproval'] == 'DIAJUKAN').length,
-      };
-    });
-  }
-
-  bool _isMusyrifUser(String? role) {
-    bool m(String? v) => (v ?? '').toUpperCase().contains('MUSYRIF');
-    if (m(role)) return true;
-    for (final k in const ['jabatan', 'peran', 'tipeUser', 'jenisUser', 'subRole', 'roleDetail', 'posisi']) {
-      final v = _data?[k];
-      if (v is String && m(v)) return true;
-    }
-    final user = AppScope.of(context).user;
-    return user?.isMusyrif == true;
-  }
-
   @override
   Widget build(BuildContext context) {
     final err = _error;
@@ -382,16 +332,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final isSuperAdmin = role == 'SUPER_ADMIN';
     // Hanya ustadz yang punya beranda sendiri. Wali, Super Admin, dan Admin
     // Lembaga tetap memakai tampilan lama (tidak diubah).
-    // Musyrif dicek lebih dulu supaya tidak tertangkap sebagai ustadz/admin.
-    final isMusyrif = !isWali && !isSuperAdmin && _isMusyrifUser(role);
-    final isPimpinan = !isWali && !isSuperAdmin && !isMusyrif && _isPimpinan;
-    final isUstadz = !isWali &&
-        !isSuperAdmin &&
-        !isMusyrif &&
-        !isPimpinan &&
-        _isUstadzUser(role);
-    final isTenantAdmin =
-        !isWali && !isSuperAdmin && !isUstadz && !isMusyrif && !isPimpinan;
+    final isPimpinan = !isWali && !isSuperAdmin && _isPimpinan;
+    final isUstadz =
+        !isWali && !isSuperAdmin && !isPimpinan && _isUstadzUser(role);
+    final isTenantAdmin = !isWali && !isSuperAdmin && !isUstadz;
 
     return Container(
       // Background ivory yang sama untuk Super Admin, Admin Lembaga & Ustadz
@@ -410,8 +354,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
               children: [
                 if (isWali)
                   WaliHero(data: data)
-                else if (isMusyrif)
-                  _musyrifHeroHeader()
                 else if (isUstadz)
                   _ustadzHeroHeader()
                 else if (isPimpinan)
@@ -430,8 +372,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   _superBody()
                 else if (isWali)
                   WaliBody(data: data, onNavigate: _goto)
-                else if (isMusyrif)
-                  _musyrifBody()
                 else if (isUstadz)
                   _ustadzBody()
                 else if (isPimpinan)
@@ -504,7 +444,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       case 'PIMPINAN':
         return 'Pimpinan / Mudir';
       default:
-        return 'Pengguna SIMPesantren';
+        return 'Pengguna SIMEdu';
     }
   }
 
@@ -1661,7 +1601,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               icon: Icons.assignment_ind,
               iconBg: _WC.goldSurface,
               iconColor: _WC.gold,
-              onTap: _bukaUstadz,
+              onTap: _notAvailable,
             ),
             _QuickAction(
               title: 'Rombel & Halaqah',
@@ -1669,7 +1609,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               icon: Icons.meeting_room,
               iconBg: _TC.sage,
               iconColor: _TC.primary,
-              onTap: _bukaKelas,
+              onTap: _notAvailable,
             ),
             _QuickAction(
               title: 'Akun Pengguna',
@@ -3042,337 +2982,6 @@ Widget _pimAntrean({
     });
   }
 
-  Widget _musyrifHeroHeader() {
-    final nama = _pick(_data!, ['namaPengguna', 'nama', 'userName']) ??
-        AppScope.of(context).user?.nama ??
-        'Musyrif';
-    final asramaName = _pick(_data!, ['asramaNama', 'blok', 'lokasiAsrama']) ?? 'Asrama Putra';
-    final blokInfo = _pick(_data!, ['blokInfo', 'zonaNama']) ?? 'Blok A-C';
-    final jumlahSantri = _musyrifStat['santri'] ?? _pick(_data!, ['totalSantri', 'jumlahSantri']) ?? 0;
-    final tanggal = _formatIndoDate(DateTime.now());
-
-    return Container(
-      clipBehavior: Clip.antiAlias,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [SC.primary, SC.primaryEnd],
-        ),
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(color: SC.primary.withOpacity(0.18), blurRadius: 12, offset: Offset(0, 4)),
-        ],
-      ),
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          // Islamic geometric background pattern
-          Positioned(
-            right: -40,
-            top: -40,
-            child: Opacity(
-              opacity: 0.06,
-              child: Container(
-                width: 200,
-                height: 200,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white, width: 2),
-                ),
-              ),
-            ),
-          ),
-          Padding(
-            padding: EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Top bar with role label & notification
-                Row(
-                  children: [
-                    Container(
-                      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.15),
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                        Icon(Icons.admin_panel_settings, size: 14, color: _WC.gold),
-                          SizedBox(width: 6),
-                          Text(
-                            'MUSYRIF ASRAMA',
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 0.5,
-                              color: _WC.gold,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Spacer(),
-                    Container(
-                      width: 36,
-                      height: 36,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: Icon(Icons.notifications_outlined, size: 18, color: Colors.white),
-                    ),
-                  ],
-                ),
-                SizedBox(height: 12),
-                // Greeting
-                Text(
-                  "Assalamu'alaikum, \n$nama",
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.w700,
-                    height: 1.2,
-                    color: Colors.white,
-                  ),
-                ),
-                SizedBox(height: 6),
-                // Date
-                Row(
-                  children: [
-                    Icon(Icons.calendar_today_outlined, size: 13, color: Colors.white.withOpacity(0.7)),
-                    SizedBox(width: 6),
-                    Text(
-                      tanggal,
-                      style: TextStyle(
-                        fontSize: 11.5,
-                        color: Colors.white.withOpacity(0.7),
-                      ),
-                    ),
-                  ],
-                ),
-                SizedBox(height: 12),
-                // Divider
-                Container(height: 1, color: Colors.white.withOpacity(0.15)),
-                SizedBox(height: 12),
-                // Dormitory info with santri count
-                Container(
-                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.08),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.meeting_room, size: 18, color: _WC.gold),
-                      SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              '$asramaName • $blokInfo',
-                              style: TextStyle(
-                                fontSize: 12.5,
-                                fontWeight: FontWeight.w700,
-                                color: Colors.white,
-                              ),
-                            ),
-                            SizedBox(height: 2),
-                            Text(
-                              'Zona Pengawasan Utama',
-                              style: TextStyle(
-                                fontSize: 10,
-                                color: Colors.white.withOpacity(0.7),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Container(
-                        padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.12),
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.groups, size: 14, color: _WC.gold),
-                            SizedBox(width: 4),
-                            Text(
-                              '$jumlahSantri Santri',
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w700,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-
-  Widget _musyrifBody() {
-    final r = (_data!['ringkasan'] as Map?)?.cast<String, dynamic>() ?? <String, dynamic>{};
-    final santriAktif = _musyrifStat['santri'] ?? _pick(r, ['santriAktif', 'totalSantri']) ?? 0;
-    final pelanggaran = _musyrifStat['pelanggaran'] ?? _pick(r, ['pelanggaranHariIni', 'jumlahPelanggaran']) ?? 0;
-    final perizinanPending = _musyrifStat['izinPending'] ?? _pick(r, ['perizinanPending', 'jumlahPerizinan']) ?? 0;
-    final santriSakit = _pick(r, ['santriSakit', 'jumlahSakit']) ?? 0;
-    final pelanggaranTambah = _musyrifStat['pelanggaranHariIni'] ?? _pick(r, ['pelanggaranTambahHariIni']) ?? 0;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // ---- Quick Stats Grid (2x2) ----
-        _TwoColGrid(
-          children: [
-            // Santri Aktif
-            _MusyrifStatCard(
-              icon: Icons.person,
-              iconBg: _WC.successBg,
-              iconColor: _WC.successText,
-              value: '$santriAktif',
-              label: 'Santri Aktif',
-              badge: 'Terdaftar',
-              badgeColor: _WC.successText,
-              badgeBg: _WC.successBg,
-            ),
-            // Pelanggaran
-            _MusyrifStatCard(
-              icon: Icons.gavel,
-              iconBg: _WC.errorBg,
-              iconColor: _WC.errorText,
-              value: '$pelanggaran',
-              label: 'Pelanggaran',
-              badge: '+$pelanggaranTambah hari ini',
-              badgeColor: _WC.errorText,
-              badgeBg: _WC.errorBg,
-            ),
-            // Izin Pending
-            _MusyrifStatCard(
-              icon: Icons.card_giftcard,
-              iconBg: _WC.pendingBg,
-              iconColor: _WC.pendingText,
-              value: '$perizinanPending',
-              label: 'Perizinan',
-              badge: 'Approval',
-              badgeColor: _WC.pendingText,
-              badgeBg: _WC.pendingBg,
-            ),
-            // Santri Sakit
-            _MusyrifStatCard(
-              icon: Icons.local_hospital,
-              iconBg: _WC.errorBg,
-              iconColor: _WC.errorText,
-              value: '$santriSakit',
-              label: 'Santri Sakit',
-              badge: 'Klinik',
-              badgeColor: _WC.errorText,
-              badgeBg: _WC.errorBg,
-            ),
-          ],
-        ),
-        SizedBox(height: 22),
-
-        // ---- Action Buttons ----
-        _MusyrifActionButton(
-          icon: Icons.gavel,
-          label: 'Catat Pelanggaran',
-          onTap: () => _goto('Pelanggaran'),
-        ),
-        SizedBox(height: 10),
-        Row(
-          children: [
-            Expanded(
-              child: _MusyrifSmallActionButton(
-                icon: Icons.fact_check_outlined,
-                label: 'Cek Absensi',
-                onTap: () => _goto('Absensi'),
-              ),
-            ),
-            SizedBox(width: 10),
-            Expanded(
-              child: _MusyrifSmallActionButton(
-                icon: Icons.notifications_active,
-                label: 'Berita',
-                onTap: () => _notAvailable(),
-              ),
-            ),
-          ],
-        ),
-        SizedBox(height: 22),
-
-        // ---- Jadwal Hari Ini ----
-        _ustadzSection('Jadwal Hari Ini', trailing: 'Lihat Semua'),
-        SizedBox(height: 10),
-        _MusyrifScheduleCard(
-          time: '13:00',
-          title: 'Kelas Tajweed & Tahfidz',
-          location: 'Kelas 7A • Masjid Utama',
-          santriCount: 22,
-          status: 'Hadir',
-          statusColor: _WC.successText,
-          statusBg: _WC.successBg,
-        ),
-        SizedBox(height: 8),
-        _MusyrifScheduleCard(
-          time: 'Menunggu',
-          title: "Ta'lim Muta",
-          location: "Kelas 8B • Aula",
-          santriCount: 26,
-          status: '',
-          statusColor: _WC.pendingText,
-          statusBg: _WC.pendingBg,
-        ),
-        SizedBox(height: 22),
-
-        // ---- Pengumuman Terbaru ----
-        _ustadzSection('Pengumuman Terbaru', trailing: 'Internal Asrama'),
-        SizedBox(height: 10),
-        _MusyrifAnnouncementCard(
-          status: 'BARU',
-          statusBg: _WC.pendingBg,
-          statusColor: _WC.pendingText,
-          date: '27 Sep 2026',
-          title: 'Pemeriksaan Kesehatan Rutin Ganjil',
-          description: 'Pemeriksaan fisik menyeluruh santri blok A-C oleh tim Poskestren akan dimulai esok hari ba\'da Subuh di pendopo utama.',
-          author: 'dr. Ridwan (Poskestren)',
-          icon: Icons.medical_services,
-          iconBg: _WC.pendingBg,
-        ),
-        SizedBox(height: 8),
-        _MusyrifAnnouncementCard(
-          status: 'PENTING',
-          statusBg: _WC.errorBg,
-          statusColor: _WC.errorText,
-          date: '25 Sep 2026',
-          title: 'Batas Pengembalian Izin Pulang',
-          description: 'Maksimal pukul 17:00 WIB hari Ahad, santri wajib melapor absensi di pos Musyrif dengan kartu izin berstempel.',
-          author: 'Bagian Kesantrian',
-          icon: Icons.warning,
-          iconBg: _WC.errorBg,
-        ),
-        SizedBox(height: 22),
-
-        // ---- Daily Pastoral Quote ----
-        _MusyrifQuoteCard(),
-      ],
-    );
-  }
-
-
   Widget _ustadzHeroHeader() {
     final nama =
         _pick(_data!, ['namaPengguna', 'nama', 'userName']) ??
@@ -3407,7 +3016,7 @@ Widget _pimAntrean({
           BoxShadow(
             color: _TC.primary.withOpacity(0.18),
             blurRadius: 12,
-            offset: Offset(0, 4),
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -3423,7 +3032,7 @@ Widget _pimAntrean({
             ),
           ),
           Padding(
-            padding: EdgeInsets.all(16),
+            padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -3432,17 +3041,17 @@ Widget _pimAntrean({
                     Container(
                       width: 6,
                       height: 6,
-                      decoration: BoxDecoration(
+                      decoration: const BoxDecoration(
                         color: _WC.gold,
                         shape: BoxShape.circle,
                       ),
                     ),
-                    SizedBox(width: 6),
+                    const SizedBox(width: 6),
                     Flexible(
                       child: Text(
                         '$tagline • ${namaPondok.toUpperCase()}',
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontSize: 9.5,
                           fontWeight: FontWeight.w700,
                           letterSpacing: 0.3,
@@ -3452,17 +3061,17 @@ Widget _pimAntrean({
                     ),
                   ],
                 ),
-                SizedBox(height: 10),
+                const SizedBox(height: 10),
                 Text(
                   "Assalamu'alaikum, $sapaan",
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.w700,
                     height: 1.25,
                     color: Colors.white,
                   ),
                 ),
-                SizedBox(height: 4),
+                const SizedBox(height: 4),
                 Row(
                   children: [
                     Icon(
@@ -3470,7 +3079,7 @@ Widget _pimAntrean({
                       size: 13,
                       color: Colors.white.withOpacity(0.7),
                     ),
-                    SizedBox(width: 6),
+                    const SizedBox(width: 6),
                     Expanded(
                       child: Text(
                         tanggal,
@@ -3482,9 +3091,9 @@ Widget _pimAntrean({
                     ),
                   ],
                 ),
-                SizedBox(height: 12),
+                const SizedBox(height: 12),
                 Divider(height: 1, color: Colors.white.withOpacity(0.15)),
-                SizedBox(height: 12),
+                const SizedBox(height: 12),
                 Row(
                   children: [
                     Container(
@@ -3500,22 +3109,22 @@ Widget _pimAntrean({
                         color: _TC.mint,
                       ),
                     ),
-                    SizedBox(width: 10),
+                    const SizedBox(width: 10),
                     Expanded(
                       child: Text(
                         kelas.isEmpty
                             ? 'Belum ada kelas yang Anda ampu'
                             : 'Anda mengampu ${kelas.length} kelas',
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontSize: 12.5,
                           fontWeight: FontWeight.w600,
                           color: Colors.white,
                         ),
                       ),
                     ),
-                    SizedBox(width: 8),
+                    const SizedBox(width: 8),
                     Container(
-                      padding: EdgeInsets.symmetric(
+                      padding: const EdgeInsets.symmetric(
                         horizontal: 12,
                         vertical: 8,
                       ),
@@ -3529,7 +3138,7 @@ Widget _pimAntrean({
                             : (belumAbsen == 0
                                   ? 'Semua Ada Rekap'
                                   : '$belumAbsen Belum Ada Rekap'),
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
                           color: Colors.white,
@@ -3556,14 +3165,14 @@ Widget _pimAntrean({
       children: [
         Text(
           title,
-          style: TextStyle(
+          style: const TextStyle(
             fontSize: 15,
             fontWeight: FontWeight.w700,
             color: _WC.ink,
           ),
         ),
-        if (badge != null) ...[SizedBox(width: 8), badge],
-        Spacer(),
+        if (badge != null) ...[const SizedBox(width: 8), badge],
+        const Spacer(),
         if (trailing != null)
           GestureDetector(
             onTap: onTap,
@@ -6411,403 +6020,6 @@ class _WaliContactCard extends StatelessWidget {
     );
   }
 }
-
-/// ---------------------------------------------------------------------------
-/// Musyrif Dashboard Widgets
-/// ---------------------------------------------------------------------------
-
-class _MusyrifStatCard extends StatelessWidget {
-  final IconData icon;
-  final Color iconBg;
-  final Color iconColor;
-  final String value;
-  final String label;
-  final String badge;
-  final Color badgeColor;
-  final Color badgeBg;
-
-  const _MusyrifStatCard({
-    required this.icon,
-    required this.iconBg,
-    required this.iconColor,
-    required this.value,
-    required this.label,
-    required this.badge,
-    required this.badgeColor,
-    required this.badgeBg,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: _WC.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _WC.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Container(
-                width: 32,
-                height: 32,
-                decoration: BoxDecoration(color: iconBg, borderRadius: BorderRadius.circular(8)),
-                child: Icon(icon, size: 16, color: iconColor),
-              ),
-              Container(
-                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(color: badgeBg, borderRadius: BorderRadius.circular(6)),
-                child: Text(
-                  badge,
-                  style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: badgeColor),
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: 10),
-          Text(value, style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800, color: _WC.ink)),
-          SizedBox(height: 2),
-          Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: _WC.inkSecondary)),
-        ],
-      ),
-    );
-  }
-}
-
-class _MusyrifActionButton extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-
-  const _MusyrifActionButton({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: SC.primary,
-      borderRadius: BorderRadius.circular(12),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          padding: EdgeInsets.symmetric(vertical: 14, horizontal: 16),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, size: 20, color: Colors.white),
-              SizedBox(width: 8),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.white,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _MusyrifSmallActionButton extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-
-  const _MusyrifSmallActionButton({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: _WC.surface,
-      borderRadius: BorderRadius.circular(12),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          padding: EdgeInsets.symmetric(vertical: 12, horizontal: 12),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: _WC.border),
-          ),
-          child: Column(
-            children: [
-              Icon(icon, size: 24, color: SC.primary),
-              SizedBox(height: 6),
-              Text(
-                label,
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: _WC.ink),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _MusyrifScheduleCard extends StatelessWidget {
-  final String time;
-  final String title;
-  final String location;
-  final int santriCount;
-  final String status;
-  final Color statusColor;
-  final Color statusBg;
-
-  const _MusyrifScheduleCard({
-    required this.time,
-    required this.title,
-    required this.location,
-    required this.santriCount,
-    required this.status,
-    required this.statusColor,
-    required this.statusBg,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: _WC.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _WC.border),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Left accent bar
-          Container(
-            width: 4,
-            height: 80,
-            decoration: BoxDecoration(
-              color: time == 'Menunggu' ? _WC.pendingBg : _WC.successBg,
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-          SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Container(
-                          padding: EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: time == 'Menunggu' ? _WC.pendingBg : _WC.successBg,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(Icons.schedule, size: 12, color: time == 'Menunggu' ? _WC.pendingText : _WC.successText),
-                              SizedBox(width: 3),
-                              Text(
-                                time,
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w700,
-                                  color: time == 'Menunggu' ? _WC.pendingText : _WC.successText,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        SizedBox(height: 4),
-                        Text(title, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _WC.ink)),
-                        SizedBox(height: 2),
-                        Text(location, style: TextStyle(fontSize: 10.5, color: _WC.inkSecondary)),
-                      ],
-                    ),
-                  ],
-                ),
-                SizedBox(height: 8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(Icons.bed, size: 13, color: _WC.inkSecondary),
-                        SizedBox(width: 4),
-                        Text('$santriCount santri', style: TextStyle(fontSize: 10, color: _WC.inkSecondary)),
-                      ],
-                    ),
-                    if (status.isNotEmpty)
-                      Text(status, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: statusColor)),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _MusyrifAnnouncementCard extends StatelessWidget {
-  final String status;
-  final Color statusBg;
-  final Color statusColor;
-  final String date;
-  final String title;
-  final String description;
-  final String author;
-  final IconData icon;
-  final Color iconBg;
-
-  const _MusyrifAnnouncementCard({
-    required this.status,
-    required this.statusBg,
-    required this.statusColor,
-    required this.date,
-    required this.title,
-    required this.description,
-    required this.author,
-    required this.icon,
-    required this.iconBg,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: _WC.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _WC.border),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: iconBg.withOpacity(0.4),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(icon, size: 20, color: statusColor),
-          ),
-          SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Container(
-                      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: statusBg,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        status,
-                        style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w700, color: statusColor),
-                      ),
-                    ),
-                    Text(date, style: TextStyle(fontSize: 10, color: _WC.inkSecondary)),
-                  ],
-                ),
-                SizedBox(height: 6),
-                Text(title, style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: _WC.ink)),
-                SizedBox(height: 4),
-                Text(
-                  description,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 10.5, color: _WC.inkSecondary, height: 1.4),
-                ),
-                SizedBox(height: 6),
-                Row(
-                  children: [
-                    Icon(Icons.person_pin, size: 12, color: _WC.inkSecondary),
-                    SizedBox(width: 4),
-                    Text(author, style: TextStyle(fontSize: 9.5, color: _WC.inkSecondary)),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _MusyrifQuoteCard extends StatelessWidget {
-  const _MusyrifQuoteCard();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: _WC.goldSurface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _WC.goldBorder),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              color: _WC.gold.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(Icons.format_quote, size: 16, color: _WC.gold),
-          ),
-          SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: const [
-                Text(
-                  '"Sebaik-baik pengasuh adalah yang mendidik dengan keteladanan akhlak dan kelembutan hikmah."',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontStyle: FontStyle.italic,
-                    color: _WC.ink,
-                    height: 1.5,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 
 class _WaliDuaFooter extends StatelessWidget {
   const _WaliDuaFooter();

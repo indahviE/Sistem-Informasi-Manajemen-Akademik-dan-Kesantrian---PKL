@@ -10,6 +10,7 @@ import {
   UpdateKelasDto,
   UpdateMapelDto,
   UpdateUstadzDto,
+  CreateMengajarDto
 } from './dto/master.dto';
 
 @Injectable()
@@ -62,11 +63,22 @@ export class MasterDataService {
   async findAllKelas(tenantId: string, user?: RequestUser, diampu = false) {
     const where: any = { tenantId };
 
-    if (diampu && user?.role === Role.USTADZ) {
+        if (diampu && user?.role === Role.USTADZ) {
       const ustadz = await this.prisma.ustadz.findFirst({
         where: { userId: user.userId, tenantId },
       });
-      where.waliKelasId = ustadz?.id ?? '__none__';
+      if (!ustadz) {
+        where.id = '__none__';
+      } else {
+        const mengajar = await this.prisma.ustadzMengajar.findMany({
+          where: { tenantId, ustadzId: ustadz.id },
+          select: { kelasId: true },
+        });
+        where.OR = [
+          { waliKelasId: ustadz.id },
+          { id: { in: mengajar.map((m) => m.kelasId) } },
+        ];
+      }
     }
 
     return this.prisma.kelas.findMany({
@@ -165,5 +177,57 @@ export class MasterDataService {
       }),
     ]);
     return { message: 'Tahun ajaran aktif diperbarui.' };
+  }
+
+    // ===== Penugasan mengajar (Ustadz - Kelas - Mapel) =====
+  async findMengajar(tenantId: string, ustadzId: string) {
+    const ustadz = await this.prisma.ustadz.findFirst({
+      where: { id: ustadzId, tenantId },
+      select: { id: true },
+    });
+    if (!ustadz) throw new NotFoundException('Ustadz tidak ditemukan.');
+
+    return this.prisma.ustadzMengajar.findMany({
+      where: { tenantId, ustadzId },
+      include: {
+        kelas: { select: { id: true, namaKelas: true } },
+        mapel: { select: { id: true, namaMapel: true } },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+  }
+
+  async addMengajar(tenantId: string, ustadzId: string, dto: CreateMengajarDto) {
+    const [ustadz, kelas, mapel] = await Promise.all([
+      this.prisma.ustadz.findFirst({ where: { id: ustadzId, tenantId }, select: { id: true } }),
+      this.prisma.kelas.findFirst({ where: { id: dto.kelasId, tenantId }, select: { id: true } }),
+      this.prisma.mataPelajaran.findFirst({ where: { id: dto.mapelId, tenantId }, select: { id: true } }),
+    ]);
+    if (!ustadz) throw new NotFoundException('Ustadz tidak ditemukan.');
+    if (!kelas) throw new NotFoundException('Kelas tidak ditemukan di pondok ini.');
+    if (!mapel) throw new NotFoundException('Mata pelajaran tidak ditemukan di pondok ini.');
+
+    // upsert: menambah penugasan yang sama dua kali tidak error, hasilnya tetap satu baris
+    return this.prisma.ustadzMengajar.upsert({
+      where: {
+        ustadzId_kelasId_mapelId: { ustadzId, kelasId: dto.kelasId, mapelId: dto.mapelId },
+      },
+      create: { tenantId, ustadzId, kelasId: dto.kelasId, mapelId: dto.mapelId },
+      update: {},
+      include: {
+        kelas: { select: { id: true, namaKelas: true } },
+        mapel: { select: { id: true, namaMapel: true } },
+      },
+    });
+  }
+
+  async removeMengajar(tenantId: string, id: string) {
+    const row = await this.prisma.ustadzMengajar.findFirst({
+      where: { id, tenantId },
+      select: { id: true },
+    });
+    if (!row) throw new NotFoundException('Penugasan tidak ditemukan.');
+    await this.prisma.ustadzMengajar.delete({ where: { id } });
+    return { message: 'Penugasan dihapus.' };
   }
 }

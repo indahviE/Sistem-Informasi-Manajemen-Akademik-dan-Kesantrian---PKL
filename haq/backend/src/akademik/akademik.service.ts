@@ -78,14 +78,26 @@ export class AkademikService {
         where: { tenantId, userId: user.userId },
         select: { id: true },
       });
+            const mengajar = ustadz
+        ? await this.prisma.ustadzMengajar.findMany({
+            where: { tenantId, ustadzId: ustadz.id },
+            select: { kelasId: true },
+          })
+        : [];
       const kelas = await this.prisma.kelas.findFirst({
-        where: { id: dto.kelasId, tenantId, waliKelasId: ustadz?.id ?? '__none__' },
+        where: {
+          id: dto.kelasId,
+          tenantId,
+          OR: [
+            { waliKelasId: ustadz?.id ?? '__none__' },
+            { id: { in: mengajar.map((m) => m.kelasId) } },
+          ],
+        },
         select: { id: true },
       });
       if (!kelas) {
-        throw new ForbiddenException('Anda bukan wali kelas ini.');
+        throw new ForbiddenException('Ini bukan kelas yang Anda ampu.');
       }
-
       // Semua santri yang dikirim harus benar-benar anggota kelas tersebut
       const idsKirim = [...new Set(dto.items.map((i) => i.santriId))];
       const anggota = await this.prisma.santri.count({
@@ -184,17 +196,24 @@ export class AkademikService {
     });
   }
 
+    /** Skill hanya berlaku untuk BAHASA_ARAB; selain itu selalu "" supaya unique tetap konsisten. */
+  private normalSkill(jenis: JenisNilai, skill?: string): string {
+    return jenis === 'BAHASA_ARAB' ? (skill?.trim().toLowerCase() ?? '') : '';
+  }
+
   // DIUBAH: dari create() menjadi upsert(), supaya nilai yang sama di hari yang
   // sama tidak lagi error karena unique constraint (santri + mapel + jenis + tanggal).
   async createNilai(tenantId: string, dto: CreateNilaiDto, user: RequestUser) {
     await this.assertSantriInTenant(tenantId, dto.santriId);
     const tanggal = new Date(String(dto.tanggal).slice(0, 10)); // tanggal saja, tanpa jam
+    const skill = this.normalSkill(dto.jenis, dto.skill);
     return this.prisma.nilai.upsert({
       where: {
-        santriId_mapelId_jenis_tanggal: {
+        santriId_mapelId_jenis_skill_tanggal: {
           santriId: dto.santriId,
           mapelId: dto.mapelId,
           jenis: dto.jenis,
+          skill,
           tanggal,
         },
       },
@@ -203,6 +222,7 @@ export class AkademikService {
         santriId: dto.santriId,
         mapelId: dto.mapelId,
         jenis: dto.jenis,
+        skill,
         nilai: dto.nilai,
         keterangan: dto.keterangan,
         tanggal,
@@ -236,6 +256,7 @@ export class AkademikService {
     }
 
     const tanggal = this.tanggalHariIniWib();
+    const skill = this.normalSkill(dto.jenis, dto.skill);
 
     // Satu transaksi: semua tersimpan, atau tidak sama sekali
     await this.prisma.$transaction(
@@ -243,10 +264,11 @@ export class AkademikService {
         const keterangan = item.catatan?.trim() || null;
         return this.prisma.nilai.upsert({
           where: {
-            santriId_mapelId_jenis_tanggal: {
+              santriId_mapelId_jenis_skill_tanggal: {
               santriId: item.santriId,
               mapelId: dto.mapelId,
               jenis: dto.jenis,
+              skill,
               tanggal,
             },
           },
@@ -255,6 +277,7 @@ export class AkademikService {
             santriId: item.santriId,
             mapelId: dto.mapelId,
             jenis: dto.jenis,
+            skill,
             nilai: item.nilai,
             keterangan,
             tanggal,

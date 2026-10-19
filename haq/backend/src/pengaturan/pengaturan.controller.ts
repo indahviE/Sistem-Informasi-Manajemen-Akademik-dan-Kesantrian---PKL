@@ -12,6 +12,7 @@ import {
   UpdateNotifikasiAdminDto,
   UpdateNotifikasiDto,
   UpdateNotifikasiWaliDto,
+  UpdateNotifikasiMudirDto,
   UpdateProfilDto,
 } from './dto/pengaturan.dto';
 import { UpdateNotifikasiUstadzDto } from './pengaturan-ustadz.dto';
@@ -124,5 +125,22 @@ export class PengaturanController {
     @Body() dto: UpdateNotifikasiAdminDto,
   ) {
     return this.pengaturanService.updateMusyrifNotifikasi(user.userId, dto);
+  }
+
+  // ===== Khusus Mudir =====
+
+  @Roles(Role.PIMPINAN)
+  @Get('mudir')
+  getMudirSettings(@CurrentUser() user: RequestUser) {
+    return this.pengaturanService.getMudirSettings(user.userId);
+  }
+
+  @Roles(Role.PIMPINAN)
+  @Patch('mudir/notifikasi')
+  updateMudirNotifikasi(
+    @CurrentUser() user: RequestUser,
+    @Body() dto: UpdateNotifikasiMudirDto,
+  ) {
+    return this.pengaturanService.updateMudirNotifikasi(user.userId, dto);
   }
 }

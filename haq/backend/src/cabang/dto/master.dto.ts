@@ -109,3 +109,13 @@ export class CreateTahunAjaranDto {
   @IsNotEmpty()
   nama: string;
 }
+
+export class CreateMengajarDto {
+  @IsString()
+  @IsNotEmpty()
+  kelasId: string;
+
+  @IsString()
+  @IsNotEmpty()
+  mapelId: string;
+}

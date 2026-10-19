@@ -54,8 +54,18 @@ export class DashboardService {
     });
     if (!ustadz || ustadz.jenis !== 'GURU') return null;
 
+        const mengajar = await this.prisma.ustadzMengajar.findMany({
+      where: { tenantId, ustadzId: ustadz.id },
+      select: { kelasId: true },
+    });
     const kelasList = await this.prisma.kelas.findMany({
-      where: { tenantId, waliKelasId: ustadz.id },
+      where: {
+        tenantId,
+        OR: [
+          { waliKelasId: ustadz.id },
+          { id: { in: mengajar.map((m) => m.kelasId) } },
+        ],
+      },
       orderBy: { namaKelas: 'asc' },
       select: {
         id: true,
@@ -74,10 +84,9 @@ export class DashboardService {
       };
     }
 
-    const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
-  const tomorrowStart = new Date(todayStart);
-  tomorrowStart.setDate(tomorrowStart.getDate() + 1);
+    const hariIniWib = new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 10);
+    const todayStart = new Date(`${hariIniWib}T00:00:00+07:00`);
+    const tomorrowStart = new Date(todayStart.getTime() + 24 * 3600 * 1000);
 
 const jumlahMapel = await this.prisma.mataPelajaran.count({ where: { tenantId } });
 

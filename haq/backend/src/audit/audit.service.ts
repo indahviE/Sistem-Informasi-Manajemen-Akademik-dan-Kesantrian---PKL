@@ -137,6 +137,81 @@ export class AuditService {
     };
   }
 
+  /**
+   * BARU: khusus Mudir (PIMPINAN), log audit HANYA milik satu pondok.
+   * tenantId wajib dan diambil dari token oleh controller (bukan dari query),
+   * dan semua hitungan (totalSemua, totalKeamanan) juga dibatasi ke pondok itu.
+   * list() di atas tidak diubah, jadi akses Super Admin tetap sama.
+   */
+  async listTenant(tenantId: string, p: Omit<ListAuditParams, 'tenantId'>) {
+    const limit = Math.min(Math.max(parseInt(p.limit ?? '20', 10) || 20, 1), 100);
+
+    const where: Prisma.AuditLogWhereInput = { tenantId };
+
+    if (p.kategori && (Object.values(AuditKategori) as string[]).includes(p.kategori)) {
+      where.kategori = p.kategori as AuditKategori;
+    }
+    if (p.tingkat && (Object.values(AuditTingkat) as string[]).includes(p.tingkat)) {
+      where.tingkat = p.tingkat as AuditTingkat;
+    }
+
+    // Batas hari memakai WIB (UTC+7), bukan zona waktu server.
+    const hari = parseInt(p.hari ?? '0', 10) || 0;
+    if (hari > 0) {
+      const hariIniWib = new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 10);
+      const start = new Date(`${hariIniWib}T00:00:00+07:00`);
+      start.setUTCDate(start.getUTCDate() - (hari - 1));
+      where.createdAt = { gte: start };
+    }
+
+    const q = p.q?.trim();
+    if (q) {
+      where.OR = [
+        { judul: { contains: q } },
+        { deskripsi: { contains: q } },
+        { userNama: { contains: q } },
+        { ip: { contains: q } },
+        { action: { contains: q } },
+        { entity: { contains: q } },
+      ];
+    }
+
+    const [rows, totalFilter, totalSemua, totalKeamanan] = await this.prisma.$transaction([
+      this.prisma.auditLog.findMany({
+        where,
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        take: limit + 1,
+        ...(p.cursor ? { cursor: { id: p.cursor }, skip: 1 } : {}),
+      }),
+      this.prisma.auditLog.count({ where }),
+      this.prisma.auditLog.count({ where: { tenantId } }),
+      this.prisma.auditLog.count({ where: { tenantId, kategori: AuditKategori.KEAMANAN } }),
+    ]);
+
+    const hasMore = rows.length > limit;
+    const page = rows.slice(0, limit);
+
+    return {
+      // Mudir hanya butuh ringkasan: tanpa data/meta mentah, ip, dan identitas tenant.
+      items: (await this.toDtos(page)).map((d) => ({
+        id: d.id,
+        aksi: d.aksi,
+        judul: d.judul,
+        aktor: d.aktor,
+        aktorDetail: d.aktorDetail,
+        tingkat: d.tingkat,
+        kategori: d.kategori,
+        waktu: d.waktu,
+        deskripsi: d.deskripsi,
+      })),
+      nextCursor: hasMore ? page[page.length - 1].id : null,
+      totalFilter,
+      totalSemua,
+      totalKeamanan,
+    };
+  }
+
+
   /** Event terbaru yang bukan mutasi data rutin — untuk kartu di dashboard. */
   async recent(n = 3) {
     const rows = await this.prisma.auditLog.findMany({
