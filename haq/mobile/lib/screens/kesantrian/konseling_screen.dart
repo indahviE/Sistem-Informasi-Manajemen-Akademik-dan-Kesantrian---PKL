@@ -184,6 +184,9 @@ class _KonselingScreenState extends State<KonselingScreen> {
   String _query = '';
   int _shown = _kPageSize;
 
+  /// Pimpinan/Mudir hanya memantau: tidak bisa membuat atau menghapus catatan.
+  bool get _readOnly => AppScope.of(context).user?.isPimpinan == true;
+
   @override
   void initState() {
     super.initState();
@@ -298,6 +301,7 @@ class _KonselingScreenState extends State<KonselingScreen> {
   }
 
   Future<void> _add() async {
+    if (_readOnly) return;
     final result = await showModalBottomSheet<Map<String, dynamic>>(
       context: context,
       isScrollControlled: true,
@@ -323,6 +327,7 @@ class _KonselingScreenState extends State<KonselingScreen> {
   }
 
   Future<void> _delete(Map<String, dynamic> k) async {
+    if (_readOnly) return;
     final nama = (k['santri'] as Map?)?['nama'] ?? '';
     final ok = await showDialog<bool>(
       context: context,
@@ -369,9 +374,9 @@ class _KonselingScreenState extends State<KonselingScreen> {
       backgroundColor: _KC.background,
       constraints: const BoxConstraints(maxWidth: 480),
       shape: _sheetShape,
-      builder: (_) => _DetailSheet(k: k),
+      builder: (_) => _DetailSheet(k: k, readOnly: _readOnly),
     );
-    if (act == 'hapus' && mounted) _delete(k);
+    if (act == 'hapus' && !_readOnly && mounted) _delete(k);
   }
 
   // ---------------------------------------------------------------------
@@ -415,21 +420,23 @@ class _KonselingScreenState extends State<KonselingScreen> {
             ],
           ),
         ),
-        const SizedBox(width: 10),
-        SizedBox(
-          height: 48,
-          child: FilledButton.icon(
-            onPressed: _add,
-            style: FilledButton.styleFrom(
-              backgroundColor: _KC.primary,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+        if (!_readOnly) ...[
+          const SizedBox(width: 10),
+          SizedBox(
+            height: 48,
+            child: FilledButton.icon(
+              onPressed: _add,
+              style: FilledButton.styleFrom(
+                backgroundColor: _KC.primary,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+              ),
+              icon: const Icon(Icons.note_add_outlined, size: 20, color: Colors.white),
+              label: const Text('Catatan Baru',
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Colors.white)),
             ),
-            icon: const Icon(Icons.note_add_outlined, size: 20, color: Colors.white),
-            label: const Text('Catatan Baru',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Colors.white)),
           ),
-        ),
+        ],
       ],
     );
   }
@@ -902,8 +909,10 @@ class _KonselingScreenState extends State<KonselingScreen> {
                             const SizedBox(height: 4),
                             _muatLebih(filtered.length),
                           ],
-                          const SizedBox(height: 20),
-                          _infoCard(),
+                          if (!_readOnly) ...[
+                            const SizedBox(height: 20),
+                            _infoCard(),
+                          ],
                         ],
                       ),
                     ),
@@ -918,7 +927,8 @@ class _KonselingScreenState extends State<KonselingScreen> {
 // ---------------------------------------------------------------------
 class _DetailSheet extends StatelessWidget {
   final Map<String, dynamic> k;
-  const _DetailSheet({required this.k});
+  final bool readOnly;
+  const _DetailSheet({required this.k, this.readOnly = false});
 
   static const _tindakBgTint = Color(0xFFFDEBC8);
 
@@ -1072,7 +1082,8 @@ class _DetailSheet extends StatelessWidget {
           // Isi (scroll)
           Flexible(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+              padding: EdgeInsets.fromLTRB(
+                  16, 4, 16, readOnly ? 24 + MediaQuery.of(context).padding.bottom : 8),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -1301,36 +1312,37 @@ class _DetailSheet extends StatelessWidget {
             ),
           ),
 
-          // Bar aksi tetap: tombol Hapus di tengah
-          Container(
-            width: double.infinity,
-            decoration: BoxDecoration(
-              color: _KC.surface,
-              border: const Border(top: BorderSide(color: _KC.border)),
-            ),
-            child: SafeArea(
-              top: false,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
-                child: Center(
-                  child: SizedBox(
-                    height: 48,
-                    child: FilledButton.icon(
-                      onPressed: () => Navigator.pop(context, 'hapus'),
-                      style: FilledButton.styleFrom(
-                        backgroundColor: _KC.errorBg,
-                        padding: const EdgeInsets.symmetric(horizontal: 28),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+          // Bar aksi tetap: tombol Hapus di tengah (tidak untuk Mudir)
+          if (!readOnly)
+            Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: _KC.surface,
+                border: const Border(top: BorderSide(color: _KC.border)),
+              ),
+              child: SafeArea(
+                top: false,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+                  child: Center(
+                    child: SizedBox(
+                      height: 48,
+                      child: FilledButton.icon(
+                        onPressed: () => Navigator.pop(context, 'hapus'),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: _KC.errorBg,
+                          padding: const EdgeInsets.symmetric(horizontal: 28),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+                        ),
+                        icon: const Icon(Icons.delete_outline, size: 20, color: _KC.errorText),
+                        label: const Text('Hapus Catatan',
+                            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _KC.errorText)),
                       ),
-                      icon: const Icon(Icons.delete_outline, size: 20, color: _KC.errorText),
-                      label: const Text('Hapus Catatan',
-                          style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _KC.errorText)),
                     ),
                   ),
                 ),
               ),
             ),
-          ),
         ],
       ),
     );

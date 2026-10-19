@@ -165,9 +165,45 @@ class _PengaturanWaliScreenState extends State<PengaturanWaliScreen> {
 
   void _showInfo(String message) {
     if (!mounted) return;
+    final w = MediaQuery.of(context).size.width;
+    final side = w > 472 ? (w - 440) / 2 : 16.0;
+
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
+      ..showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: _PW.primary,
+          elevation: 6,
+          margin: EdgeInsets.fromLTRB(side, 0, side, 16),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          duration: const Duration(seconds: 3),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(color: _PW.gold.withOpacity(0.5)),
+          ),
+          content: Row(
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: _PW.gold.withOpacity(0.18),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.hourglass_top_rounded, size: 18, color: _PW.gold),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  message,
+                  style: _t(13.5, FontWeight.w800, Colors.white),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
   }
 
   // ---------------------------------------------------------------- profil

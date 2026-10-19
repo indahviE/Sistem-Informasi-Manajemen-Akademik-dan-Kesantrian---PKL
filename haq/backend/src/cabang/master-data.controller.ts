@@ -3,7 +3,7 @@ import { MasterDataService } from './master-data.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
-import { TenantId } from '../common/decorators/current-user.decorator';
+import { CurrentUser, RequestUser, TenantId } from '../common/decorators/current-user.decorator';
 import {
   CreateKelasDto,
   CreateMapelDto,
@@ -48,8 +48,12 @@ export class MasterDataController {
   // ===== Kelas =====
   @Roles(Role.ADMIN, Role.PIMPINAN, Role.USTADZ, Role.MUSYRIF)
   @Get('kelas')
-  findAllKelas(@TenantId() tenantId: string) {
-    return this.masterService.findAllKelas(tenantId);
+  findAllKelas(
+    @TenantId() tenantId: string,
+    @CurrentUser() user: RequestUser,
+    @Query('diampu') diampu?: string,
+  ) {
+    return this.masterService.findAllKelas(tenantId, user, diampu === 'true');
   }
 
   @Roles(Role.ADMIN)

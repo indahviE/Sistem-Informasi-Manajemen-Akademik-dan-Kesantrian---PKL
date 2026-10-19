@@ -73,6 +73,9 @@ class NilaiScreen extends StatefulWidget {
 }
 
 class _NilaiScreenState extends State<NilaiScreen> {
+  /// Pimpinan/Mudir hanya memantau: hanya bisa melihat riwayat nilai.
+  bool get _readOnly => AppScope.of(context).user?.isPimpinan == true;
+
   List<Map<String, dynamic>> _kelas = [];
   List<Map<String, dynamic>> _mapel = [];
   List<Map<String, dynamic>> _santris = [];
@@ -89,7 +92,9 @@ class _NilaiScreenState extends State<NilaiScreen> {
   bool _loadingMeta = true;
   bool _loadingSantri = false;
   bool _saving = false;
+  bool _adaTersimpan = false; // true = hari ini sudah ada nilai tersimpan (mode edit)
   int _seq = 0;
+  int _seqNilai = 0;
   String? _error;
 
   @override
@@ -136,6 +141,7 @@ class _NilaiScreenState extends State<NilaiScreen> {
     setState(() {
       _loadingMeta = false;
       _error = err;
+      if (_readOnly) _tab = 1;
       if (_kelas.isNotEmpty) _kelasId = _kelas.first['id'] as String;
       if (_mapel.isNotEmpty) _mapelId = _mapel.first['id'] as String;
     });
@@ -161,11 +167,14 @@ class _NilaiScreenState extends State<NilaiScreen> {
         _ctrl.clear();
         _catatan.clear();
         _santris = list;
+        _adaTersimpan = false;
         for (final s in list) {
           _ctrl[s['id'] as String] = TextEditingController();
         }
         _loadingSantri = false;
       });
+      // Isi kolom dengan nilai yang sudah tersimpan hari ini (kalau ada).
+      await _loadTersimpan();
       if (_tab == 1) _loadRiwayat();
     } on ApiException catch (e) {
       if (mounted && seq == _seq) {
@@ -181,6 +190,56 @@ class _NilaiScreenState extends State<NilaiScreen> {
           _loadingSantri = false;
         });
       }
+    }
+  }
+
+  /// Memuat nilai yang sudah tersimpan HARI INI untuk kelas + mapel + jenis
+  /// yang sedang dipilih, lalu mengisinya ke kolom. Dipanggil setiap kali
+  /// kelas, mapel, atau jenis berganti.
+  Future<void> _loadTersimpan() async {
+    if (_readOnly || _mapelId == null || _santris.isEmpty) return;
+    final seq = ++_seqNilai;
+
+    // Kosongkan dulu supaya isian mapel/jenis sebelumnya tidak terbawa.
+    setState(() {
+      for (final c in _ctrl.values) {
+        c.clear();
+      }
+      _catatan.clear();
+      _adaTersimpan = false;
+    });
+
+    try {
+      final api = AppScope.of(context).api;
+      final res = await api.get(ApiUrl.nilai, query: {
+        'mapelId': _mapelId!,
+        'jenis': _jenis,
+      });
+      if (!mounted || seq != _seqNilai) return;
+
+      final hariIni = _iso(DateTime.now());
+      final byId = <String, Map<String, dynamic>>{};
+      for (final r in _asList(res)) {
+        final t = (r['tanggal'] ?? '').toString();
+        if (t.length >= 10 && t.substring(0, 10) == hariIni) {
+          byId[r['santriId'].toString()] = r;
+        }
+      }
+
+      setState(() {
+        _adaTersimpan = byId.isNotEmpty;
+        for (final s in _santris) {
+          final id = s['id'] as String;
+          final r = byId[id];
+          if (r == null) continue;
+          final n = r['nilai'];
+          if (n is num) _ctrl[id]?.text = _fmt(n.toDouble());
+          final k = (r['keterangan'] ?? r['catatan'] ?? '').toString().trim();
+          if (k.isNotEmpty) _catatan[id] = k;
+        }
+      });
+    } catch (_) {
+      // Gagal memuat nilai lama tidak menghalangi input baru.
     }
   }
 
@@ -240,6 +299,7 @@ class _NilaiScreenState extends State<NilaiScreen> {
   Future<void> _save() async {
     if (_saving || _santris.isEmpty) return;
 
+    final hariIni = _iso(DateTime.now());
     final items = <Map<String, dynamic>>[];
     for (final s in _santris) {
       final id = s['id'] as String;
@@ -253,10 +313,7 @@ class _NilaiScreenState extends State<NilaiScreen> {
       final cat = (_catatan[id] ?? '').trim();
       items.add({
         'santriId': id,
-        'mapelId': _mapelId,
-        'jenis': _jenis,
         'nilai': v,
-        'tanggal': _iso(DateTime.now()),
         if (cat.isNotEmpty) 'catatan': cat,
       });
     }
@@ -269,25 +326,102 @@ class _NilaiScreenState extends State<NilaiScreen> {
       _saving = true;
       _error = null;
     });
+
+    // Dihitung dulu di luar string supaya tidak ada tanda kutip bersarang.
+    final namaMapel = _nameOf(_mapel, _mapelId, 'namaMapel');
+    final modeEdit = _adaTersimpan;
+
     try {
       final api = AppScope.of(context).api;
-      await Future.wait(items.map((e) => api.post(ApiUrl.nilai, e)));
+      // Satu request, satu transaksi: semua tersimpan atau tidak sama sekali.
+      await api.post('${ApiUrl.nilai}/bulk', {
+        'mapelId': _mapelId,
+        'jenis': _jenis,
+        'tanggal': hariIni,
+        'items': items,
+      });
+      if (!mounted) return;
+      setState(() {
+        _saving = false;
+        _adaTersimpan = true;
+      });
+      _toast(
+        modeEdit ? 'Perubahan nilai disimpan' : 'Nilai berhasil disimpan',
+        subtitle: '${items.length} santri • $_jenisLabel • $namaMapel',
+      );
+      if (_tab == 1) _loadRiwayat();
+    } catch (e) {
       if (!mounted) return;
       setState(() => _saving = false);
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(SnackBar(content: Text('${items.length} nilai disimpan.')));
-    } on ApiException catch (e) {
-      if (mounted) setState(() {
-        _saving = false;
-        _error = e.message;
-      });
-    } catch (_) {
-      if (mounted) setState(() {
-        _saving = false;
-        _error = 'Gagal menyimpan nilai.';
-      });
+      _toast(
+        e is ApiException ? e.message : 'Gagal menyimpan nilai.',
+        error: true,
+      );
     }
+  }
+
+  // ---------------------------------------------------------------------
+  // Notifikasi (sama dengan absensi_screen.dart)
+  // ---------------------------------------------------------------------
+  /// Notifikasi melayang bertema (sukses = emerald, gagal = merah lembut).
+  void _toast(String title, {String? subtitle, bool error = false}) {
+    if (!mounted) return;
+    final w = MediaQuery.of(context).size.width;
+    final side = w > 472 ? (w - 440) / 2 : 16.0;
+    final fg = error ? _NC.errorText : Colors.white;
+
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: error ? _NC.errorBg : _NC.primary,
+          elevation: 6,
+          // 88 = jarak dari bawah supaya tidak menutupi bar simpan
+          margin: EdgeInsets.fromLTRB(side, 0, side, 88),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          duration: Duration(seconds: error ? 4 : 3),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(
+              color: error ? _NC.errorText.withOpacity(0.25) : _NC.gold.withOpacity(0.5),
+            ),
+          ),
+          content: Row(
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: error ? Colors.white : _NC.gold.withOpacity(0.18),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  error ? Icons.error_outline : Icons.check_rounded,
+                  size: 18,
+                  color: error ? _NC.errorText : _NC.gold,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title,
+                        style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: fg)),
+                    if (subtitle != null) ...[
+                      const SizedBox(height: 2),
+                      Text(subtitle,
+                          style: TextStyle(fontSize: 11.5, color: fg.withOpacity(0.75))),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
   }
 
   // ---------------------------------------------------------------------
@@ -514,7 +648,7 @@ class _NilaiScreenState extends State<NilaiScreen> {
                             selectedId: _kelasId,
                             onSelect: (v) {
                               setState(() => _kelasId = v);
-                              _loadSantri();
+                              _loadSantri(); // sudah memuat nilai tersimpan di dalamnya
                             },
                           ),
                 ),
@@ -532,6 +666,7 @@ class _NilaiScreenState extends State<NilaiScreen> {
                             selectedId: _mapelId,
                             onSelect: (v) {
                               setState(() => _mapelId = v);
+                              _loadTersimpan();
                               if (_tab == 1) _loadRiwayat();
                             },
                           ),
@@ -549,6 +684,7 @@ class _NilaiScreenState extends State<NilaiScreen> {
               selectedId: _jenis,
               onSelect: (v) {
                 setState(() => _jenis = v);
+                _loadTersimpan();
                 if (_tab == 1) _loadRiwayat();
               },
             ),
@@ -653,8 +789,7 @@ class _NilaiScreenState extends State<NilaiScreen> {
           child: Padding(
             padding: const EdgeInsets.all(4),
             child: Row(children: [
-              Icon(_sortAz ? Icons.sort_by_alpha_rounded : Icons.sort_by_alpha_rounded,
-                  size: 16, color: _NC.goldDark),
+              const Icon(Icons.sort_by_alpha_rounded, size: 16, color: _NC.goldDark),
               const SizedBox(width: 4),
               Text(_sortAz ? 'Urut Abjad' : 'Urut Z-A',
                   style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _NC.goldDark)),
@@ -845,6 +980,9 @@ class _NilaiScreenState extends State<NilaiScreen> {
 
   Widget _bottomBar(int filled, int total) {
     final pct = total > 0 ? (filled / total * 100).round() : 0;
+    final labelSimpan = _saving
+        ? 'Menyimpan...'
+        : (_adaTersimpan ? 'Simpan Perubahan' : 'Simpan Nilai');
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
       decoration: const BoxDecoration(
@@ -888,8 +1026,12 @@ class _NilaiScreenState extends State<NilaiScreen> {
                       width: 18,
                       child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                     )
-                  : const Icon(Icons.cloud_upload_outlined, size: 20, color: Colors.white),
-              label: Text(_saving ? 'Menyimpan...' : 'Simpan Nilai',
+                  : Icon(
+                      _adaTersimpan ? Icons.edit_outlined : Icons.cloud_upload_outlined,
+                      size: 20,
+                      color: Colors.white,
+                    ),
+              label: Text(labelSimpan,
                   style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: Colors.white)),
             ),
           ),
@@ -972,8 +1114,10 @@ class _NilaiScreenState extends State<NilaiScreen> {
                       child: ListView(
                         padding: const EdgeInsets.fromLTRB(12, 12, 12, 16),
                         children: [
-                          _tabs(),
-                          const SizedBox(height: 14),
+                          if (!_readOnly) ...[
+                            _tabs(),
+                            const SizedBox(height: 14),
+                          ],
                           _paramCard(),
                           if (_error != null) ...[
                             const SizedBox(height: 12),
@@ -1002,7 +1146,8 @@ class _NilaiScreenState extends State<NilaiScreen> {
                         ],
                       ),
                     ),
-                    if (_tab == 0 && !_loadingSantri && total > 0) _bottomBar(filled, total),
+                    if (!_readOnly && _tab == 0 && !_loadingSantri && total > 0)
+                      _bottomBar(filled, total),
                   ],
                 ),
               ),

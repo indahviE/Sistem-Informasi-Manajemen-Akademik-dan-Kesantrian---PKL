@@ -20,7 +20,7 @@ export class BillingController {
   constructor(private billingService: BillingService) {}
 
   // ===== Paket =====
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.PIMPINAN)
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
   @Get('paket')
   findAllPaket() {
     return this.billingService.findAllPaket();
@@ -45,7 +45,7 @@ export class BillingController {
   }
 
   // ===== Subscription =====
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.PIMPINAN)
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
   @Get('subscriptions')
   findAllSubscription(@CurrentUser() user: RequestUser, @TenantId() tenantId?: string) {
     return this.billingService.findAllSubscription(user.role === Role.SUPER_ADMIN, tenantId);
@@ -64,7 +64,7 @@ export class BillingController {
   }
 
   // ===== Invoice =====
-  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.PIMPINAN)
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
   @Get('invoices')
   findAllInvoice(@CurrentUser() user: RequestUser, @TenantId() tenantId?: string) {
     return this.billingService.findAllInvoice(user.role === Role.SUPER_ADMIN, tenantId);

@@ -13,9 +13,13 @@ import {
   UpdatePerizinanDto,
 } from './dto/kesantrian.dto';
 import { JenisNotifikasi, Prisma, Role } from '@prisma/client';
+import { NotifikasiService } from '../notifikasi/notifikasi.service'; // sesuaikan path kalau beda
 @Injectable()
 export class KesantrianService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private notifikasi: NotifikasiService,
+  ) {}
 
   private async assertSantri(tenantId: string, santriId: string) {
     const found = await this.prisma.santri.findFirst({ where: { id: santriId, tenantId }, include: { wali: true } });
@@ -95,6 +99,11 @@ private async buildSantriScope(
       JenisNotifikasi.PELANGGARAN,
       `${santri.nama} tercatat pelanggaran: ${dto.jenisPelanggaran} (${dto.poin} poin).`,
     );
+    await this.notifikasi.kirimKeAdminTenant(
+      tenantId,
+      JenisNotifikasi.PELANGGARAN,
+      `${santri.nama} tercatat pelanggaran: ${dto.jenisPelanggaran} (${dto.poin} poin).`,
+    );
     return created;
   }
 
@@ -141,6 +150,7 @@ private async buildSantriScope(
         jenis: dto.jenis,
         tanggalKeluar: new Date(dto.tanggalKeluar),
         tanggalKembali: dto.tanggalKembali ? new Date(dto.tanggalKembali) : null,
+        rencanaKembali: dto.rencanaKembali ? new Date(dto.rencanaKembali) : null,
         alasan: dto.alasan,
         catatan: dto.catatan,
       },
@@ -148,6 +158,11 @@ private async buildSantriScope(
     await this.notifyWali(
       tenantId,
       santri.wali,
+      JenisNotifikasi.PERIZINAN,
+      `${santri.nama} mengajukan izin ${dto.jenis === 'PULANG' ? 'pulang' : 'keluar'} dengan alasan: ${dto.alasan}.`,
+    );
+    await this.notifikasi.kirimKeAdminTenant(
+      tenantId,
       JenisNotifikasi.PERIZINAN,
       `${santri.nama} mengajukan izin ${dto.jenis === 'PULANG' ? 'pulang' : 'keluar'} dengan alasan: ${dto.alasan}.`,
     );
@@ -163,6 +178,16 @@ private async buildSantriScope(
 
     let tanggalKembali = dto.tanggalKembali ? new Date(dto.tanggalKembali) : found.tanggalKembali;
     let statusApproval = dto.statusApproval;
+
+    // Saat pertama kali ditandai kembali: pakai jam server (bukan tanggal polos dari klien),
+    // lalu bandingkan dengan rencanaKembali untuk menentukan TELAT.
+    const barusajaKembali = !found.tanggalKembali && !!dto.tanggalKembali;
+    if (barusajaKembali) {
+      tanggalKembali = new Date();
+      if (found.rencanaKembali && tanggalKembali > found.rencanaKembali) {
+        statusApproval = 'TELAT' as typeof dto.statusApproval;
+      }
+    }
 
     // CATATAN: deteksi telat otomatis sebelumnya membandingkan tanggalKembali > tanggalKeluar,
     // yang SELALU true untuk kepulangan normal (kembali memang selalu setelah keluar).
@@ -183,7 +208,7 @@ private async buildSantriScope(
       tenantId,
       found.santri.wali,
       JenisNotifikasi.PERIZINAN,
-      `Status izin ${found.santri.nama} diperbarui menjadi ${statusApproval}.`,
+      `Status izin ${found.santri.nama} diperbarui menjadi ${updated.statusApproval}.`,
     );
     return updated;
   }
@@ -221,6 +246,11 @@ private async buildSantriScope(
     await this.notifyWali(
       tenantId,
       santri.wali,
+      JenisNotifikasi.KESEHATAN,
+      `${santri.nama} sedang sakit: ${dto.keluhan}.`,
+    );
+    await this.notifikasi.kirimKeAdminTenant(
+      tenantId,
       JenisNotifikasi.KESEHATAN,
       `${santri.nama} sedang sakit: ${dto.keluhan}.`,
     );

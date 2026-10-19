@@ -52,7 +52,9 @@ _RoleInfo _roleOf(String value) {
 }
 
 class UsersScreen extends StatefulWidget {
-  const UsersScreen({super.key});
+  /// true kalau dibuka lewat Navigator.push (tampil tombol kembali di header).
+  final bool showBack;
+  const UsersScreen({super.key, this.showBack = false});
 
   @override
   State<UsersScreen> createState() => _UsersScreenState();
@@ -221,14 +223,37 @@ class _UsersScreenState extends State<UsersScreen> {
   }
 
   Widget _header() {
-    return const Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return Row(
       children: [
-        Text('Manajemen Pengguna',
-            style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800, color: _UC.ink)),
-        SizedBox(height: 2),
-        Text('Akun yang dapat masuk ke sistem pondok',
-            style: TextStyle(fontSize: 12, color: _UC.inkSecondary)),
+        if (widget.showBack) ...[
+          InkWell(
+            onTap: () => Navigator.of(context).maybePop(),
+            customBorder: const CircleBorder(),
+            child: Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: _UC.surface,
+                shape: BoxShape.circle,
+                border: Border.all(color: _UC.border),
+              ),
+              child: const Icon(Icons.arrow_back_ios_new_rounded, size: 16, color: _UC.ink),
+            ),
+          ),
+          const SizedBox(width: 12),
+        ],
+        const Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Manajemen Pengguna',
+                  style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800, color: _UC.ink)),
+              SizedBox(height: 2),
+              Text('Akun yang dapat masuk ke sistem pondok',
+                  style: TextStyle(fontSize: 12, color: _UC.inkSecondary)),
+            ],
+          ),
+        ),
       ],
     );
   }

@@ -19,7 +19,7 @@ import {
 } from './dto/penilaian.dto';
 
 const PENGELOLA = [Role.ADMIN, Role.PIMPINAN, Role.USTADZ, Role.MUSYRIF];
-const WRITE = [Role.ADMIN, Role.PIMPINAN, Role.USTADZ];
+const WRITE = [Role.ADMIN, Role.USTADZ];
 const TERBATAS = [Role.ADMIN, Role.PIMPINAN, Role.WALI_SANTRI];
 
 @UseGuards(JwtAuthGuard, RolesGuard)

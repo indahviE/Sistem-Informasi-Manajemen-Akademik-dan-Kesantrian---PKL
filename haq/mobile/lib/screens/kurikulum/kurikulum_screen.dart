@@ -565,6 +565,9 @@ class _CrudTab extends StatefulWidget {
 
 class _CrudTabState extends State<_CrudTab>
     with _BannerMixin<_CrudTab>, AutomaticKeepAliveClientMixin<_CrudTab> {
+  /// Pimpinan/Mudir hanya memantau: tombol tambah/ubah/hapus disembunyikan.
+  bool get _readOnly => AppScope.of(context).user?.isPimpinan == true;
+
   List<dynamic> _items = [];
   bool _loading = true;
   String? _error;
@@ -722,6 +725,7 @@ class _CrudTabState extends State<_CrudTab>
             ],
           ),
         ),
+        if (!_readOnly)
         Positioned(
           right: 16,
           bottom: 16,
@@ -752,7 +756,13 @@ class _CrudTabState extends State<_CrudTab>
       return [SizedBox(height: 280, child: errorView(_error!, () => _load()))];
     }
     if (_items.isEmpty) {
-      return [_EmptyState(icon: c.icon, title: c.emptyTitle, message: c.emptyMessage)];
+      return [
+        _EmptyState(
+          icon: c.icon,
+          title: c.emptyTitle,
+          message: _readOnly ? 'Data belum ditambahkan oleh admin.' : c.emptyMessage,
+        ),
+      ];
     }
     return [
       _SectionHeader(icon: c.icon, title: c.sectionTitle, count: _items.length),
@@ -779,7 +789,7 @@ class _CrudTabState extends State<_CrudTab>
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: () => _edit(item),
+          onTap: _readOnly ? null : () => _edit(item),
           child: IntrinsicHeight(
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -822,6 +832,7 @@ class _CrudTabState extends State<_CrudTab>
                             ),
                           ),
                         ),
+                        if (!_readOnly)
                         PopupMenuButton<String>(
                           tooltip: 'Opsi',
                           icon: const Icon(Icons.more_vert_rounded, size: 20, color: SC.inkSecondary),

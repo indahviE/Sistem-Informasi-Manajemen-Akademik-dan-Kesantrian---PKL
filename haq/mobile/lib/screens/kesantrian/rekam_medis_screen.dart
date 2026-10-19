@@ -373,7 +373,10 @@ class _RekamMedisScreenState extends State<RekamMedisScreen> {
                           const Text('Rekam Medis',
                               style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800, color: _RC.ink)),
                           const SizedBox(height: 2),
-                          const Text('Ketuk santri untuk melihat dan mengubah data medis',
+                          Text(
+                              AppScope.of(context).user?.isPimpinan == true
+                                  ? 'Ketuk santri untuk melihat data medis'
+                                  : 'Ketuk santri untuk melihat dan mengubah data medis',
                               style: TextStyle(fontSize: 12, color: _RC.inkSecondary)),
                           const SizedBox(height: 14),
                           _banner(),
@@ -421,7 +424,8 @@ class _RekamDetailState extends State<_RekamDetail> {
   String? _gol;
 
   /// Terkunci = sudah tersimpan dan belum dibuka untuk diubah.
-  bool get _locked => _saved && !_editing;
+  bool get _readOnly => AppScope.of(context).user?.isPimpinan == true;
+  bool get _locked => _readOnly || (_saved && !_editing);
 
   final _alergi = TextEditingController();
   final _riwayat = TextEditingController();
@@ -722,8 +726,10 @@ class _RekamDetailState extends State<_RekamDetail> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _sectionTitle(Icons.monitor_heart_outlined, 'Data Medis',
-              trailing: _locked ? 'Tersimpan' : (_editing ? 'Mode Ubah' : 'Belum diisi')),
-          if (_locked) ...[
+              trailing: _readOnly
+                  ? (_saved ? 'Hanya lihat' : 'Belum diisi')
+                  : (_locked ? 'Tersimpan' : (_editing ? 'Mode Ubah' : 'Belum diisi'))),
+          if (_locked && !_readOnly) ...[
             const SizedBox(height: 12),
             Container(
               width: double.infinity,
@@ -817,7 +823,9 @@ class _RekamDetailState extends State<_RekamDetail> {
             decoration: _dec('Catatan Khusus'),
           ),
           const SizedBox(height: 16),
-          if (_locked)
+                    if (_readOnly)
+            const SizedBox.shrink()
+          else if (_locked)
             SizedBox(
               width: double.infinity,
               height: 50,

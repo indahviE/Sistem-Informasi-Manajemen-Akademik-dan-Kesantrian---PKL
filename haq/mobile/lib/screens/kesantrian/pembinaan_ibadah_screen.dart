@@ -13,7 +13,8 @@ import '../signup_screen.dart' show PColors, PText;
 //   santri (nested, opsional): { nama, nis, kelas: { namaKelas } }
 //
 // Wali Santri: read-only (tanpa tombol catat), melihat rekap anaknya.
-// Musyrif/Admin/Pimpinan: melihat semua + bisa mencatat.
+// Pimpinan/Mudir: read-only, memantau rekap semua santri.
+// Musyrif/Admin: melihat semua + bisa mencatat.
 // ============================================================================
 
 const List<String> _jenisIbadahPreset = [
@@ -98,6 +99,9 @@ class _PembinaanIbadahScreenState extends State<PembinaanIbadahScreen> {
 
   bool get _isWali => AppScope.of(context).user?.isWali == true;
 
+  /// Wali dan Pimpinan/Mudir hanya memantau: tidak bisa mencatat rekap ibadah.
+  bool get _readOnly => _isWali || AppScope.of(context).user?.isPimpinan == true;
+
   @override
   void initState() {
     super.initState();
@@ -161,6 +165,7 @@ class _PembinaanIbadahScreenState extends State<PembinaanIbadahScreen> {
   }
 
   Future<void> _add() async {
+    if (_readOnly) return;
     if (_santris.isEmpty) await _loadSantris();
     if (!mounted) return;
     final result = await showDialog<Map<String, dynamic>>(
@@ -246,6 +251,7 @@ class _PembinaanIbadahScreenState extends State<PembinaanIbadahScreen> {
   @override
   Widget build(BuildContext context) {
     final isWali = _isWali;
+    final readOnly = _readOnly;
     final scope = _scope;
     final filtered = _filtered;
 
@@ -300,14 +306,14 @@ class _PembinaanIbadahScreenState extends State<PembinaanIbadahScreen> {
                                   onRefresh: () => _load(showSpinner: false),
                                   child: ListView(
                                     physics: const AlwaysScrollableScrollPhysics(),
-                                    padding: EdgeInsets.fromLTRB(16, 12, 16, isWali ? 24 : 100),
+                                    padding: EdgeInsets.fromLTRB(16, 12, 16, readOnly ? 24 : 100),
                                     children: children,
                                   ),
                                 ),
                     ),
                   ],
                 ),
-                if (!isWali)
+                if (!readOnly)
                   Positioned(
                     right: 16,
                     bottom: 16,
@@ -668,7 +674,7 @@ class _PembinaanIbadahScreenState extends State<PembinaanIbadahScreen> {
     );
   }
 
-    Widget _chip({
+  Widget _chip({
     required String label,
     int? count,
     required bool selected,

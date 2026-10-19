@@ -1,7 +1,7 @@
 // admin_header.dart
 //
 // Header (bar atas) untuk Admin Lembaga, disamakan dengan SuperAdminHeader:
-//   SIMEdu [ADMIN]                               (lonceng)  (avatar)
+//   SIMpESANTREN [ADMIN]                               (lonceng)  (avatar)
 //   (ikon) Panel Admin Lembaga • Beranda
 //
 // Klik avatar -> membuka kartu profil bertema branding pondok (logo, nama, warna)
@@ -30,7 +30,7 @@ class AdminHeader extends StatelessWidget implements PreferredSizeWidget {
 
   /// Nama produk global (bukan nama pondok/sekolah tenant).
   /// Ganti di sini kalau mau pakai nama lain.
-  static const String brandName = 'SIMEdu';
+  static const String brandName = 'SIMPesantren';
 
   /// Baris kedua (nama menu aktif, mis. "Beranda").
   final String subtitle;

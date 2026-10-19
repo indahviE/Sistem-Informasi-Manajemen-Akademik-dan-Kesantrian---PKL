@@ -144,6 +144,9 @@ class _RaporScreenState extends State<RaporScreen> {
   bool _loading = true;
   String? _error;
 
+  /// Pimpinan/Mudir hanya memantau: tidak bisa generate, memperbarui, atau menerbitkan rapor.
+  bool get _readOnly => AppScope.of(context).user?.isPimpinan == true;
+
   @override
   void initState() {
     super.initState();
@@ -181,6 +184,7 @@ class _RaporScreenState extends State<RaporScreen> {
   }
 
   Future<void> _generate(Map<String, dynamic> santri) async {
+    if (_readOnly) return;
     final periode = TextEditingController(text: _periodeSekarang());
     final confirmed = await showDialog<String>(
       context: context,
@@ -344,7 +348,7 @@ class _RaporScreenState extends State<RaporScreen> {
     );
   }
 
-    Widget _header() {
+  Widget _header() {
     final jumlahKelas = _santri
         .map((s) => (s as Map<String, dynamic>)['kelas']?['namaKelas'])
         .where((k) => k != null)
@@ -440,7 +444,9 @@ class _RaporScreenState extends State<RaporScreen> {
                             ),
                             const SizedBox(height: 2),
                             Text(
-                              'Generate dan terbitkan rapor santri',
+                              _readOnly
+                                  ? 'Pantau rapor santri'
+                                  : 'Generate dan terbitkan rapor santri',
                               style: _t(12, FontWeight.w500, Colors.white70),
                             ),
                           ],
@@ -544,44 +550,46 @@ class _RaporScreenState extends State<RaporScreen> {
                         overflow: TextOverflow.ellipsis,
                         style: _t(11.5, FontWeight.w500, _RC.inkSecondary),
                       ),
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          Material(
-                            color: _RC.sage,
-                            borderRadius: BorderRadius.circular(9999),
-                            child: InkWell(
+                      if (!_readOnly) ...[
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Material(
+                              color: _RC.sage,
                               borderRadius: BorderRadius.circular(9999),
-                              onTap: () => _generate(s),
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 6,
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(
-                                      Icons.auto_awesome_outlined,
-                                      size: 14,
-                                      color: _RC.primary,
-                                    ),
-                                    const SizedBox(width: 5),
-                                    Text(
-                                      'Generate',
-                                      style: _t(
-                                        11.5,
-                                        FontWeight.w800,
-                                        _RC.primary,
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(9999),
+                                onTap: () => _generate(s),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 6,
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        Icons.auto_awesome_outlined,
+                                        size: 14,
+                                        color: _RC.primary,
                                       ),
-                                    ),
-                                  ],
+                                      const SizedBox(width: 5),
+                                      Text(
+                                        'Generate',
+                                        style: _t(
+                                          11.5,
+                                          FontWeight.w800,
+                                          _RC.primary,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
-                        ],
-                      ),
+                          ],
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -626,6 +634,9 @@ class _RaporDetailScreenState extends State<RaporDetailScreen> {
   bool _loading = true;
   String? _error;
 
+  /// Pimpinan/Mudir hanya memantau: tidak bisa memperbarui atau menerbitkan rapor.
+  bool get _readOnly => AppScope.of(context).user?.isPimpinan == true;
+
   @override
   void initState() {
     super.initState();
@@ -662,7 +673,7 @@ class _RaporDetailScreenState extends State<RaporDetailScreen> {
   }
 
   Future<void> _terbit(Map<String, dynamic> r) async {
-    if (_busy != null) return;
+    if (_busy != null || _readOnly) return;
 
     final ok = await showDialog<bool>(
       context: context,
@@ -764,7 +775,7 @@ class _RaporDetailScreenState extends State<RaporDetailScreen> {
 
   /// Tarik ulang nilai & kehadiran untuk rapor yang masih draft.
   Future<void> _perbarui(Map<String, dynamic> r) async {
-    if (_busy != null) return;
+    if (_busy != null || _readOnly) return;
     setState(() => _busy = 'perbarui:${r['id']}');
     try {
       await AppScope.of(context).api.post(ApiUrl.raporGenerate, {
@@ -820,7 +831,9 @@ class _RaporDetailScreenState extends State<RaporDetailScreen> {
                 Text(
                   terbit
                       ? 'Rapor ini sudah final dan tidak dapat diubah.'
-                      : 'Periksa nilai dan kehadiran, perbarui jika perlu, lalu terbitkan.',
+                      : (_readOnly
+                          ? 'Rapor ini belum diterbitkan oleh pengelola.'
+                          : 'Periksa nilai dan kehadiran, perbarui jika perlu, lalu terbitkan.'),
                   style: _t(11.5, FontWeight.w500, fg.withOpacity(0.85), height: 1.35),
                 ),
               ],
@@ -1023,9 +1036,11 @@ class _RaporDetailScreenState extends State<RaporDetailScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Rapor untuk ${widget.santri['nama']} belum dibuat. '
-              'Kembali ke daftar santri, lalu tekan tombol Generate '
-              'pada kartu santri ini.',
+              _readOnly
+                  ? 'Rapor untuk ${widget.santri['nama']} belum dibuat oleh pengelola.'
+                  : 'Rapor untuk ${widget.santri['nama']} belum dibuat. '
+                      'Kembali ke daftar santri, lalu tekan tombol Generate '
+                      'pada kartu santri ini.',
               textAlign: TextAlign.center,
               style: _t(13, FontWeight.w500, _RC.inkSecondary, height: 1.5),
             ),
@@ -1205,7 +1220,7 @@ class _RaporDetailScreenState extends State<RaporDetailScreen> {
                 ],
                 const SizedBox(height: 16),
                 _statusPanel(terbit),
-                if (!terbit) ...[
+                if (!terbit && !_readOnly) ...[
                   const SizedBox(height: 12),
                   _aksiDraft(r),
                 ],

@@ -172,9 +172,12 @@ class _PerizinanScreenState extends State<PerizinanScreen> {
   }
 
   List<Map<String, dynamic>> get _riwayatSemua {
-    final berjalan = _perizinanBerjalan;
-    return _itemsUntukAnak.where((p) => p != berjalan).toList();
-  }
+  // Hanya Wali yang punya kartu "izin aktif" terpisah di atas.
+  // Role lain harus melihat izin yang sedang berjalan di daftar.
+  if (AppScope.of(context).user?.isWali != true) return _itemsUntukAnak;
+  final berjalan = _perizinanBerjalan;
+  return _itemsUntukAnak.where((p) => p != berjalan).toList();
+}
 
   int get _countPulang => _riwayatSemua.where((p) => p['jenis'] == 'PULANG').length;
   int get _countKeluar => _riwayatSemua.where((p) => p['jenis'] == 'KELUAR').length;
@@ -355,7 +358,9 @@ class _PerizinanScreenState extends State<PerizinanScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isWali = AppScope.of(context).user?.isWali == true;
+    final user = AppScope.of(context).user;
+    final isWali = user?.isWali == true;
+    final bisaKelola = user?.role == 'ADMIN' || user?.role == 'MUSYRIF';
     final riwayat = _riwayatTerfilter;
 
     return Scaffold(
@@ -379,7 +384,7 @@ class _PerizinanScreenState extends State<PerizinanScreen> {
                             const SizedBox(height: 10),
                             _buildFilterChips(),
                             const SizedBox(height: 12),
-                            if (!isWali) ...[
+                            if (bisaKelola) ...[
                               _buildAjukanButton(),
                               const SizedBox(height: 14),
                             ],
@@ -392,7 +397,8 @@ class _PerizinanScreenState extends State<PerizinanScreen> {
                               for (final p in riwayat)
                                 _RiwayatTile(
                                   p: p,
-                                  showActions: !isWali,
+                                  showActions: bisaKelola,
+                                  showNama: !isWali,
                                   onApprove: p['statusApproval'] == 'DIAJUKAN' ? () => _action(p, 'DISETUJUI') : null,
                                   onReject: p['statusApproval'] == 'DIAJUKAN' ? () => _action(p, 'DITOLAK') : null,
                                   onReturn: p['statusApproval'] == 'DISETUJUI' ? () => _action(p, 'KEMBALI') : null,
@@ -487,17 +493,26 @@ _ResolvedStatus _resolveStatus(Map<String, dynamic> p) {
         'Diajukan',
         _StatusStyle(PColors.pendingBg, PColors.pendingText, PColors.pendingBorder),
       );
-    case 'DISETUJUI':
-      final sudahKembali = p['tanggalKembali'] != null;
-      return sudahKembali
-          ? const _ResolvedStatus(
-              'Kembali',
-              _StatusStyle(PColors.successBg, PColors.successText, PColors.successBorder),
-            )
-          : const _ResolvedStatus(
-              'Sedang Berjalan',
-              _StatusStyle(PColors.infoBg, PColors.infoText, PColors.infoBorder),
-            );
+        case 'DISETUJUI':
+      if (p['tanggalKembali'] != null) {
+        return const _ResolvedStatus(
+          'Kembali',
+          _StatusStyle(PColors.successBg, PColors.successText, PColors.successBorder),
+        );
+      }
+      // Belum kembali dan sudah lewat Rencana Kembali -> merah otomatis.
+      final rencana = DateTime.tryParse('${p['rencanaKembali'] ?? ''}')?.toLocal();
+      if (rencana != null && DateTime.now().isAfter(rencana)) {
+        final menit = DateTime.now().difference(rencana).inMinutes;
+        return _ResolvedStatus(
+          'Terlambat $menit Menit',
+          const _StatusStyle(PColors.errorBg, PColors.errorText, PColors.errorBorder),
+        );
+      }
+      return const _ResolvedStatus(
+        'Sedang Berjalan',
+        _StatusStyle(PColors.infoBg, PColors.infoText, PColors.infoBorder),
+      );
     case 'KEMBALI':
       return const _ResolvedStatus(
         'Kembali Tepat Waktu',
@@ -996,6 +1011,7 @@ class _RiwayatTile extends StatelessWidget {
   const _RiwayatTile({
     required this.p,
     required this.showActions,
+    this.showNama = true,
     this.onApprove,
     this.onReject,
     this.onReturn,
@@ -1003,6 +1019,7 @@ class _RiwayatTile extends StatelessWidget {
 
   final Map<String, dynamic> p;
   final bool showActions;
+  final bool showNama;
   final VoidCallback? onApprove;
   final VoidCallback? onReject;
   final VoidCallback? onReturn;
@@ -1049,7 +1066,7 @@ class _RiwayatTile extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    if (showActions && namaSantri != null && namaSantri.isNotEmpty)
+                    if (showNama && namaSantri != null && namaSantri.isNotEmpty)
                       Text(
                         namaSantri,
                         style: PText.bodySm.copyWith(color: PColors.inkSecondary, fontWeight: FontWeight.w700),

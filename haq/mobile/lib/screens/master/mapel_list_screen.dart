@@ -23,6 +23,9 @@ class MapelListScreen extends StatefulWidget {
 }
 
 class _MapelListScreenState extends State<MapelListScreen> {
+  /// Pimpinan/Mudir hanya memantau: tombol tambah/ubah/hapus disembunyikan.
+  bool get _readOnly => AppScope.of(context).user?.isPimpinan == true;
+
   List<dynamic> _items = [];
   bool _loading = true;
   String? _error;
@@ -290,6 +293,7 @@ class _MapelListScreenState extends State<MapelListScreen> {
                   ],
                 ),
               ),
+              if (!_readOnly)
               Positioned(
                 right: 16,
                 bottom: 16,
@@ -325,7 +329,9 @@ class _MapelListScreenState extends State<MapelListScreen> {
     } else if (_items.isEmpty) {
       ringkasan = 'Belum ada mata pelajaran';
     } else {
-      ringkasan = 'Ketuk mapel untuk mengubah nama, kode, atau KKM';
+      ringkasan = _readOnly
+          ? 'Daftar mata pelajaran lembaga'
+          : 'Ketuk mapel untuk mengubah nama, kode, atau KKM';
     }
     String v(int n) => loaded ? '$n' : '–';
     final berkode = _items.where(_hasKode).length;
@@ -465,7 +471,10 @@ class _MapelListScreenState extends State<MapelListScreen> {
           Text('Belum ada mata pelajaran',
               textAlign: TextAlign.center, style: sty(16, FontWeight.w800, SC.ink)),
           const SizedBox(height: 6),
-          Text('Tambahkan mapel pertama lewat tombol "Mapel baru" di bawah.',
+          Text(
+              _readOnly
+                  ? 'Mata pelajaran belum ditambahkan oleh admin.'
+                  : 'Tambahkan mapel pertama lewat tombol "Mapel baru" di bawah.',
               textAlign: TextAlign.center,
               style: sty(12.5, FontWeight.w500, SC.inkSecondary, h: 1.5)),
         ],
@@ -571,7 +580,7 @@ class _MapelListScreenState extends State<MapelListScreen> {
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: () => _edit(m),
+          onTap: _readOnly ? null : () => _edit(m),
           child: IntrinsicHeight(
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -619,6 +628,7 @@ class _MapelListScreenState extends State<MapelListScreen> {
                             ],
                           ),
                         ),
+                        if (!_readOnly)
                         PopupMenuButton<String>(
                           tooltip: 'Opsi',
                           icon: const Icon(Icons.more_vert_rounded, size: 20, color: SC.inkSecondary),

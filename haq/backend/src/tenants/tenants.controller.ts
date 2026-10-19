@@ -120,7 +120,7 @@ export class TenantsController {
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.ADMIN, Role.PIMPINAN)
+  @Roles(Role.ADMIN)
   @Patch('branding')
   updateBranding(@TenantId() tenantId: string, @Body() dto: UpdateBrandingDto) {
     return this.tenantsService.updateBranding(tenantId, dto);

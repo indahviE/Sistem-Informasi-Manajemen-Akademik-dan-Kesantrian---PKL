@@ -1,11 +1,4 @@
 import 'package:flutter/material.dart';
-
-
-
-
-
-
-
 import 'package:flutter/services.dart';
 import '../../services/api_client.dart';
 import '../../services/app_scope.dart';
@@ -19,6 +12,8 @@ import '../santri/santri_ui.dart' show SC;
 //  - Tuntas jika rata-rata >= KKM, selain itu BELUM TUNTAS (tidak ada remedial lanjutan).
 //  - Status Tuntas/Belum Tuntas dan nilai akhir DITENTUKAN BACKEND; layar ini hanya menampilkan pratinjau.
 //  - KKM mengikuti mata pelajaran (backend mengirimnya lewat field `kkm` ujian).
+//
+// Pimpinan/Mudir: mode baca saja (form, jadwal, dan simpan hasil disembunyikan).
 //
 // Sumber data:
 //  - GET  {ujian}/:id            -> info ujian + nilais (santri di bawah KKM jadi kandidat remedial)
@@ -293,6 +288,9 @@ class _UjianRemedialScreenState extends State<UjianRemedialScreen> {
 
   final _formKey = GlobalKey();
 
+  /// Pimpinan/Mudir hanya memantau: tidak bisa mengisi hasil atau menjadwalkan remedial.
+  bool get _readOnly => AppScope.of(context).user?.isPimpinan == true;
+
   dynamic get _id => widget.ujian['id'];
 
   @override
@@ -341,6 +339,7 @@ class _UjianRemedialScreenState extends State<UjianRemedialScreen> {
 
       // Pilih santri pertama yang masih aktif bila belum ada yang terpilih,
       // atau segarkan form dari data terbaru bila sudah ada yang terpilih.
+      // Mode baca saja: form tidak dipakai, jadi tidak perlu diisi.
       final rows = _rows;
       _Rem? target;
       if (_selId != null) {
@@ -356,7 +355,7 @@ class _UjianRemedialScreenState extends State<UjianRemedialScreen> {
           }
         }
       }
-      if (target != null && mounted) {
+      if (target != null && mounted && !_readOnly) {
         setState(() => _fillForm(target!));
       }
     } on ApiException catch (e) {
@@ -492,6 +491,7 @@ class _UjianRemedialScreenState extends State<UjianRemedialScreen> {
   }
 
   void _select(_Rem r) {
+    if (_readOnly) return;
     setState(() => _fillForm(r));
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final c = _formKey.currentContext;
@@ -519,6 +519,7 @@ class _UjianRemedialScreenState extends State<UjianRemedialScreen> {
   }
 
   Future<void> _pickJadwal() async {
+    if (_readOnly) return;
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final init = (_jadwal != null && !_jadwal!.isBefore(today)) ? _jadwal! : today;
@@ -549,6 +550,7 @@ class _UjianRemedialScreenState extends State<UjianRemedialScreen> {
   }
 
   Future<void> _save() async {
+    if (_readOnly) return;
     final r = _selected;
     if (r == null) return;
 
@@ -726,7 +728,7 @@ class _UjianRemedialScreenState extends State<UjianRemedialScreen> {
             ),
           )
         else ...[
-          if (sel != null) _formCard(sel),
+          if (sel != null && !_readOnly) _formCard(sel),
           const SizedBox(height: 18),
           _listHeader(rows.length),
           const SizedBox(height: 10),
@@ -1333,7 +1335,7 @@ class _UjianRemedialScreenState extends State<UjianRemedialScreen> {
 
   Widget _riwayatTile(_Rem r) {
     final st = _stOf(r.status);
-    final isSel = r.santriId == _selId;
+    final isSel = !_readOnly && r.santriId == _selId;
     final tuntas = r.status == 'TUNTAS';
     final belumTuntas = r.status == 'BELUM_TUNTAS';
     final sub = r.keterangan.isNotEmpty
@@ -1385,8 +1387,10 @@ class _UjianRemedialScreenState extends State<UjianRemedialScreen> {
                 ],
               ),
             ),
-            const SizedBox(height: 10),
-            _smallBtn('Input Hasil', Icons.edit_note, primary: true, onTap: () => _select(r)),
+            if (!_readOnly) ...[
+              const SizedBox(height: 10),
+              _smallBtn('Input Hasil', Icons.edit_note, primary: true, onTap: () => _select(r)),
+            ],
           ],
         );
         break;
@@ -1444,8 +1448,9 @@ class _UjianRemedialScreenState extends State<UjianRemedialScreen> {
                       r.tenggat == null ? '' : 'Tenggat: ${_tglRingkas(r.tenggat!)}',
                       style: const TextStyle(fontSize: 11.5, color: _C.ink2)),
                 ),
-                _smallBtn('Ingatkan Musyrif', Icons.notifications_none,
-                    onTap: () => _segera('Pengingat musyrif')),
+                if (!_readOnly)
+                  _smallBtn('Ingatkan Musyrif', Icons.notifications_none,
+                      onTap: () => _segera('Pengingat musyrif')),
               ],
             ),
           ],
@@ -1464,7 +1469,7 @@ class _UjianRemedialScreenState extends State<UjianRemedialScreen> {
       ),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
-        onTap: () => _select(r),
+        onTap: _readOnly ? null : () => _select(r),
         child: Padding(
           padding: const EdgeInsets.all(14),
           child: Column(

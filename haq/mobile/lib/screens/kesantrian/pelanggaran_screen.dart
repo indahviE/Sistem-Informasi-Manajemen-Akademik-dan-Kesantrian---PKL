@@ -88,7 +88,8 @@ class _PelanggaranScreenState extends State<PelanggaranScreen> {
   String _timeFilter = 'Semua';
   String _roomFilter = 'Semua Kamar';
 
-  bool get _isWali => AppScope.of(context).user?.isWali == true;
+    bool get _isWali => AppScope.of(context).user?.isWali == true;
+    bool get _isPimpinan => AppScope.of(context).user?.isPimpinan == true;
 
   @override
   void initState() {
@@ -284,7 +285,7 @@ class _PelanggaranScreenState extends State<PelanggaranScreen> {
                                         )
                                       : ListView(
                                           physics: const AlwaysScrollableScrollPhysics(),
-                                          padding: EdgeInsets.fromLTRB(16, 4, 16, isWali ? 24 : 100),
+                                          padding: EdgeInsets.fromLTRB(16, 4, 16, (isWali || _isPimpinan) ? 24 : 100),
                                           children: [
                                             for (final p in filtered) _pelanggaranCard(p),
                                             if (isWali) _waliPanduan(),
@@ -295,7 +296,7 @@ class _PelanggaranScreenState extends State<PelanggaranScreen> {
                   ],
                 ),
                 // Tombol berada di dalam kotak konten (maxWidth 480), tetap di bawah.
-                if (!isWali)
+                  if (!isWali && !_isPimpinan)
                   Positioned(
                     right: 16,
                     bottom: 16,
@@ -695,7 +696,7 @@ class _PelanggaranScreenState extends State<PelanggaranScreen> {
                         fontWeight: FontWeight.w800,
                         color: selesai ? PTheme.primary : const Color(0xFF92650C))),
               ),
-              if (!selesai && !isWali)
+              if (!selesai && !isWali && !_isPimpinan)
                 PopupMenuButton<String>(
                   icon: const Icon(Icons.more_vert, size: 18, color: PTheme.inkSecondary),
                   onSelected: (v) {

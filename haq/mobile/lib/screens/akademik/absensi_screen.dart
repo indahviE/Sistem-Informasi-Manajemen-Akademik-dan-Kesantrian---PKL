@@ -74,8 +74,17 @@ class _AbsensiScreenState extends State<AbsensiScreen> {
   int _seq = 0; // penanda request terbaru, supaya respons lama diabaikan
   String? _error;
 
-  /// Terkunci = sudah direkap dan belum dibuka untuk diubah.
-  bool get _locked => _saved && !_editing;
+    /// Pimpinan/Mudir hanya memantau: tidak bisa merekap atau mengubah absensi.
+  bool get _readOnly => AppScope.of(context).user?.isPimpinan == true;
+
+  /// Terkunci = sudah direkap dan belum dibuka untuk diubah (selalu terkunci untuk Mudir).
+  bool get _locked => _readOnly || (_saved && !_editing);
+
+  /// SESUAIKAN: ambil role dari session/auth yang Anda pakai.
+  bool get _isUstadz {
+    final role = AppScope.of(context).user?.role; // ganti sesuai AuthState
+    return role == 'USTADZ';
+  }
 
   @override
   void initState() {
@@ -103,7 +112,10 @@ class _AbsensiScreenState extends State<AbsensiScreen> {
     final api = AppScope.of(context).api;
     String? err;
     try {
-      _kelas = _asList(await api.get(ApiUrl.kelas));
+      // Ustadz hanya mendapat kelas yang ia menjadi wali kelasnya (difilter server).
+      _kelas = _asList(await api.get(ApiUrl.kelas, query: {
+        if (_isUstadz) 'diampu': 'true',
+      }));
     } catch (_) {
       err = 'Gagal memuat daftar kelas.';
     }
@@ -1020,7 +1032,8 @@ class _AbsensiScreenState extends State<AbsensiScreen> {
     );
   }
 
-  Widget _bottomBar(int total, double pct) {
+    Widget _bottomBar(int total, double pct) {
+    if (_readOnly) return const SizedBox.shrink();
     if (_locked) return _lockedBar(total, pct);
     return _saveBar(total, pct);
   }
@@ -1174,8 +1187,12 @@ class _AbsensiScreenState extends State<AbsensiScreen> {
                               padding: EdgeInsets.all(24),
                               child: Center(child: CircularProgressIndicator(color: _AC.primary)),
                             )
+                          else if (_isUstadz && _kelas.isEmpty)
+                            emptyView('Anda bukan wali kelas di kelas mana pun.')
                           else if (total == 0)
                             emptyView('Kelas ini belum punya santri.')
+                          else if (_readOnly && !_saved)
+                            emptyView('Belum ada rekap absensi untuk kelas, mapel, dan tanggal ini.')
                           else ...[
                             _summaryCard(
                               total: total,

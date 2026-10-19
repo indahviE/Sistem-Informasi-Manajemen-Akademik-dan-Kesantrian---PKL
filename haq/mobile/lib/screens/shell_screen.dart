@@ -34,6 +34,7 @@ import 'super_admin/pengaturan_screen.dart';
 import 'super_admin/super_admin_header.dart';
 import 'admin/admin_header.dart';
 import 'master/ustadz/ustadz_header.dart';
+import 'mudir_header.dart';
 import 'master/ustadz/pengaturan_ustadz_screen.dart';
 import 'master/ustadz/notifikasi_ustadz_screen.dart';
 import 'admin/pengaturan_admin_screen.dart';
@@ -50,6 +51,7 @@ import 'billing/billing_admin_screen.dart';
 import 'billing/billing_tenant_screen.dart';
 import 'branding/branding_screen.dart';
 import 'akademik/jurnal_mengajar_screen.dart';
+import 'mudir/pengaturan_mudir_screen.dart';
 import 'santri/santri_ui.dart' show SC;
 
 class ShellScreen extends StatefulWidget {
@@ -116,7 +118,7 @@ class _ShellScreenState extends State<ShellScreen> {
     if (_navIndex >= _navItems.length) _navIndex = 0;
     _activeExtra = null;
 
-    if (user.isSuperAdmin || user.isAdmin || user.isWali || user.isUstadz || user.isMusyrif) {
+    if (user.isSuperAdmin || user.isAdmin || user.isWali || user.isUstadz || user.isMusyrif || user.isPimpinan) {
       _loadUnreadCount();
     }
   }
@@ -162,8 +164,10 @@ class _ShellScreenState extends State<ShellScreen> {
       m.add(_MenuItem('Ustadz / Pembina', Icons.person_search, (_) => const UstadzListScreen()));
       m.add(_MenuItem('Mata Pelajaran', Icons.menu_book, (_) => const MapelListScreen()));
       m.add(_MenuItem('Kurikulum', Icons.folder_copy, (_) => const KurikulumScreen()));
+      if (user.isAdmin) {
       m.add(_MenuItem('Identitas Pondok', Icons.palette, (_) => const BrandingScreen()));
       m.add(_MenuItem('& Tagihan', Icons.receipt_long, (_) => const BillingTenantScreen()));
+      }
     }
 
     if (user.isAdmin || user.isUstadz || user.isMusyrif) {
@@ -206,6 +210,15 @@ class _ShellScreenState extends State<ShellScreen> {
       m.add(_MenuItem('Kesehatan', Icons.medical_services, (_) => const KesehatanScreen()));
       m.add(_MenuItem('Rekam Medis', Icons.health_and_safety, (_) => const RekamMedisScreen()));
       m.add(_MenuItem('Kunjungan Wali', Icons.people, (_) => const KunjunganScreen()));
+    }
+
+    if (user.isPimpinan) {
+      m.add(_MenuItem('Pelanggaran', Icons.gavel, (_) => const PelanggaranScreen(subtitle: 'Pimpinan • Riwayat Pelanggaran')));
+      m.add(_MenuItem('Perizinan', Icons.exit_to_app, (_) => const PerizinanScreen()));
+      m.add(_MenuItem('Kesehatan', Icons.medical_services, (_) => const KesehatanScreen()));
+      m.add(_MenuItem('Rekam Medis', Icons.health_and_safety, (_) => const RekamMedisScreen()));
+      m.add(_MenuItem('Kunjungan Wali', Icons.people, (_) => const KunjunganScreen()));
+      m.add(_MenuItem('Pengaturan', Icons.tune, (_) => const PengaturanMudirScreen()));
     }
 
     if (user.isAdmin) {
@@ -284,6 +297,19 @@ class _ShellScreenState extends State<ShellScreen> {
                   onNotifikasi: () => setState(() => _notifikasiOpen = true),
                   onLogout: _logout,
                 )
+                 : user.isPimpinan
+                  ? MudirHeader(
+                      subtitle: title == 'Dashboard' ? 'Beranda' : title,
+                      nama: user.nama,
+                      email: user.email,
+                      hasUnread: _unreadCount > 0,
+                      onNotifikasi: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const NotifikasiScreen()),
+                      ).then((_) => _loadUnreadCount()),
+                      onPengaturan: () => _goToMenu('Pengaturan'),
+                      onLogout: _logout,
+                    )
               : user.isUstadz
                   ? UstadzHeader(
                       subtitle: title == 'Dashboard' ? 'Beranda' : title,

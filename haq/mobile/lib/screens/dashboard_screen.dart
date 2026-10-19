@@ -7,7 +7,11 @@ import 'ui_utils.dart';
 import 'super_admin/tenants_screen.dart'; // TODO: sesuaikan path bila struktur foldernya beda
 import 'billing/billing_admin_screen.dart'; // TODO: sesuaikan nama class/path bila beda (asumsi: BillingAdminScreen)
 import 'santri/santri_form_screen.dart';
+import 'master/kelas_list_screen.dart'; // TODO: sesuaikan path & nama class (asumsi: KelasListScreen)
+import 'master/ustadz_list_screen.dart';
+import 'users/users_screen.dart'; // TODO: sesuaikan path kalau users_screen.dart ada di folder lain
 import 'santri/santri_ui.dart';
+import 'wali/wali_dashboard_screen.dart';
 
 /// ---------------------------------------------------------------------------
 /// Palet warna dashboard — mirrored 1:1 dari signup_screen.dart's `PColors`
@@ -89,12 +93,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
   // Filter untuk section "Direktori Tenant Platform" di dashboard Super Admin.
   String _tenantFilter = 'semua'; // semua | aktif | pending | suspended
 
-  // Daftar ujian (GET ApiUrl.ujian) — dipakai section "Ujian Terdekat" di beranda ustadz.
-  List<Map<String, dynamic>> _ujianList = [];
+  // Data ringkas untuk beranda Pimpinan/Mudir (izin, pelanggaran, darurat).
+  // Null = gagal dimuat / belum ada akses, ditampilkan sebagai "–".
+  List<Map<String, dynamic>>? _pimIzin;
+  List<Map<String, dynamic>>? _pimPelanggaran;
+  List<Map<String, dynamic>>? _pimDarurat;
 
   // Angka beranda musyrif, dihitung dari data asli (santri, pelanggaran, perizinan).
   // Kosong sampai _loadMusyrifStat selesai.
   Map<String, int> _musyrifStat = {};
+
+  bool get _isPimpinan => AppScope.of(context).user?.isPimpinan == true;
+
+  // Daftar ujian (GET ApiUrl.ujian) — dipakai section "Ujian Terdekat" di beranda ustadz.
+  List<Map<String, dynamic>> _ujianList = [];
+  // Alert ustadz cukup tampil sekali per sesi, bukan tiap pull-to-refresh.
+  bool _alertUstadzShown = false;
 
   @override
   void initState() {
@@ -105,9 +119,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
     });
   }
 
+  ScaffoldMessengerState? _messenger; // baru
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _messenger = ScaffoldMessenger.of(context); // baru
     if (!_didLoadOnce) {
       _didLoadOnce = true;
       _load();
@@ -116,6 +133,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   void dispose() {
+    _messenger?.hideCurrentSnackBar(); // baru
     _tickTimer?.cancel();
     super.dispose();
   }
@@ -135,6 +153,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       });
       _loadUjian();
       if (_isMusyrifUser((res['role'] ?? '').toString())) _loadMusyrifStat();
+      if (_isPimpinan) _loadPimpinan();
     } on ApiException catch (e) {
       if (mounted) setState(() => _error = 'ApiException: ${e.message}');
     } catch (e) {
@@ -146,21 +165,107 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   /// Ambil daftar ujian untuk beranda ustadz. Gagal = diam-diam diabaikan
   /// (section Ujian cukup tampil kosong), supaya dashboard tidak ikut error.
+  /// Setelah data ujian siap, alert ustadz (kalau ada yang belum beres) ditampilkan.
   Future<void> _loadUjian() async {
     final role = (_data?['role'] ?? '').toString();
-    if (role == 'WALI_SANTRI' || role == 'SUPER_ADMIN' || !_isUstadzUser(role)) return;
+    if (role == 'WALI_SANTRI' || role == 'SUPER_ADMIN' || !_isUstadzUser(role))
+      return;
     try {
-      final res = await AppScope.of(context).api.get('${ApiUrl.ujian}?saya=true');
-      final items = res is List ? res : ((res as Map<String, dynamic>)['data'] as List? ?? []);
+      final res = await AppScope.of(
+        context,
+      ).api.get('${ApiUrl.ujian}?saya=true');
+      final items = res is List
+          ? res
+          : ((res as Map<String, dynamic>)['data'] as List? ?? []);
       if (!mounted) return;
-      setState(() => _ujianList = items.whereType<Map<String, dynamic>>().toList());
+      setState(
+        () => _ujianList = items.whereType<Map<String, dynamic>>().toList(),
+      );
     } catch (_) {}
+    _tampilkanAlertUstadz();
+  }
+
+  /// Muat daftar izin, pelanggaran & keadaan darurat untuk antrean Mudir.
+  /// Tiap endpoint dimuat terpisah: satu gagal tidak menggagalkan yang lain.
+  Future<void> _loadPimpinan() async {
+    final api = AppScope.of(context).api;
+
+    Future<List<Map<String, dynamic>>?> ambil(String url) async {
+      try {
+        final res = await api.get(url);
+        final raw = res is List
+            ? res
+            : (res is Map ? (res['items'] as List? ?? const []) : const []);
+        return raw
+            .whereType<Map>()
+            .map((e) => e.cast<String, dynamic>())
+            .toList();
+      } catch (_) {
+        return null;
+      }
+    }
+
+    final hasil = await Future.wait([
+      ambil(ApiUrl.perizinan),
+      ambil(ApiUrl.pelanggaran),
+      ambil(ApiUrl.keadaanDarurat),
+    ]);
+    if (!mounted) return;
+    setState(() {
+      _pimIzin = hasil[0];
+      _pimPelanggaran = hasil[1];
+      _pimDarurat = hasil[2];
+    });
   }
 
   void _notAvailable() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Fitur ini akan segera tersedia.')),
-    );
+    final w = MediaQuery.of(context).size.width;
+    final side = w > 472 ? (w - 440) / 2 : 16.0;
+
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: _TC.primary,
+          elevation: 6,
+          margin: EdgeInsets.fromLTRB(side, 0, side, 16),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          duration: const Duration(seconds: 3),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(color: _WC.gold.withOpacity(0.5)),
+          ),
+          content: Row(
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: _WC.gold.withOpacity(0.18),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.hourglass_top_rounded,
+                  size: 18,
+                  color: _WC.gold,
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Text(
+                  'Fitur ini akan segera tersedia.',
+                  style: TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
   }
 
   /// Buka form Santri Baru. Kalau berhasil disimpan, angka dashboard dimuat ulang.
@@ -171,17 +276,56 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
     if (created == true && mounted) {
       _load();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Santri baru ditambahkan.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Santri baru ditambahkan.')));
     }
   }
 
-  /// Deteksi akun musyrif. API mengirim role 'TENANT' untuk semua akun lembaga,
-  /// jadi `role` saja tidak cukup. Cek juga field jabatan di respons dashboard
-  /// dan data login (UserData.isMusyrif, yang sama dipakai shell_screen).
-  /// GET list; tahan response berupa List, atau Map { items/data: [...] }.
-  /// Gagal = list kosong, supaya beranda tidak ikut error.
+  /// Buka layar Ustadz / Guru. Setelah kembali, angka dashboard dimuat ulang.
+  Future<void> _bukaUstadz() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const UstadzListScreen(showBack: true)),
+    );
+    if (mounted) _load();
+  }
+
+  /// Buka layar Akun Pengguna. Setelah kembali, angka dashboard dimuat ulang.
+  Future<void> _bukaUsers() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const UsersScreen(showBack: true)),
+    );
+    if (mounted) _load();
+  }
+
+  /// Arahkan tombol di Audit Kelengkapan ke layar yang relevan.
+  void _bukaAudit(String? tujuan) {
+    switch (tujuan) {
+      case 'santri':
+        _goto('Santri');
+        break;
+      case 'kelas':
+        _bukaKelas();
+        break;
+      case 'ustadz':
+        _bukaUstadz();
+        break;
+      default:
+        _notAvailable();
+    }
+  }
+
+  /// Buka layar Rombel & Halaqah. Setelah kembali, angka dashboard dimuat ulang.
+  Future<void> _bukaKelas() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const KelasListScreen(showBack: true)),
+    );
+    if (mounted) _load();
+  }
+
   Future<List<Map<String, dynamic>>> _fetchList(String url, {Map<String, String>? query}) async {
     try {
       final api = AppScope.of(context).api;
@@ -240,13 +384,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
     // Lembaga tetap memakai tampilan lama (tidak diubah).
     // Musyrif dicek lebih dulu supaya tidak tertangkap sebagai ustadz/admin.
     final isMusyrif = !isWali && !isSuperAdmin && _isMusyrifUser(role);
-    final isUstadz = !isWali && !isSuperAdmin && !isMusyrif && _isUstadzUser(role);
-    final isTenantAdmin = !isWali && !isSuperAdmin && !isUstadz && !isMusyrif;
+    final isPimpinan = !isWali && !isSuperAdmin && !isMusyrif && _isPimpinan;
+    final isUstadz = !isWali &&
+        !isSuperAdmin &&
+        !isMusyrif &&
+        !isPimpinan &&
+        _isUstadzUser(role);
+    final isTenantAdmin =
+        !isWali && !isSuperAdmin && !isUstadz && !isMusyrif && !isPimpinan;
 
     return Container(
-      // Background ivory yang sama untuk Super Admin, Admin Lembaga, Ustadz, & Musyrif
+      // Background ivory yang sama untuk Super Admin, Admin Lembaga & Ustadz
       // (PColors.background == _WC.background == 0xFFFAF9F5).
-      color: (isSuperAdmin || isTenantAdmin || isUstadz || isMusyrif) ? _WC.background : null,
+      color: _WC.background,
       child: RefreshIndicator(
         onRefresh: _load,
         child: Align(
@@ -259,26 +409,33 @@ class _DashboardScreenState extends State<DashboardScreen> {
               padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
               children: [
                 if (isWali)
-                  _waliHeroHeader()
+                  WaliHero(data: data)
                 else if (isMusyrif)
                   _musyrifHeroHeader()
                 else if (isUstadz)
                   _ustadzHeroHeader()
+                else if (isPimpinan)
+                  _heroHeader('PIMPINAN')
                 else if (isTenantAdmin)
                   _heroHeader(role)
                 else if (isSuperAdmin)
                   _superAdminHeroHeader()
                 else
-                  const PageHeader(title: 'Ringkasan', subtitle: 'Pantau kondisi pondok secara real-time'),
+                  const PageHeader(
+                    title: 'Ringkasan',
+                    subtitle: 'Pantau kondisi pondok secara real-time',
+                  ),
                 const SizedBox(height: 20),
                 if (isSuperAdmin)
                   _superBody()
                 else if (isWali)
-                  _waliBody()
+                  WaliBody(data: data, onNavigate: _goto)
                 else if (isMusyrif)
                   _musyrifBody()
                 else if (isUstadz)
                   _ustadzBody()
+                else if (isPimpinan)
+                  _pimpinanBody()
                 else
                   _tenantBody(),
               ],
@@ -347,12 +504,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
       case 'PIMPINAN':
         return 'Pimpinan / Mudir';
       default:
-        return 'Pengguna SIMEdu';
+        return 'Pengguna SIMPesantren';
     }
   }
 
   String _formatIndoDate(DateTime dt) {
-    const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', "Jum'at", 'Sabtu'];
+    const days = [
+      'Minggu',
+      'Senin',
+      'Selasa',
+      'Rabu',
+      'Kamis',
+      "Jum'at",
+      'Sabtu',
+    ];
     const months = [
       '',
       'Januari',
@@ -397,13 +562,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget _heroHeader(String role) {
     debugPrint('SC.primary = ${SC.primary}');
     // Fallback berlapis: data dashboard -> data user login -> teks netral.
-    final namaPengguna = _pick(_data!, ['namaPengguna', 'nama', 'userName']) ??
+    final namaPengguna =
+        _pick(_data!, ['namaPengguna', 'nama', 'userName']) ??
         AppScope.of(context).user?.nama ??
         'Admin';
     final tenantNama = AppScope.of(context).user?.tenantNama;
-    final namaPondok = _pick(_data!, ['namaPondok', 'namaLembaga', 'tenantNama']) ??
-        ((tenantNama != null && tenantNama.isNotEmpty) ? tenantNama : 'Lembaga Anda');
-    final semester = _pick(_data!, ['semester', 'tahunAjaran']) ?? _semesterOtomatis();
+    final namaPondok =
+        _pick(_data!, ['namaPondok', 'namaLembaga', 'tenantNama']) ??
+        ((tenantNama != null && tenantNama.isNotEmpty)
+            ? tenantNama
+            : 'Lembaga Anda');
+    final semester =
+        _pick(_data!, ['semester', 'tahunAjaran']) ?? _semesterOtomatis();
 
     return Container(
       clipBehavior: Clip.antiAlias,
@@ -415,7 +585,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ),
         borderRadius: BorderRadius.circular(18),
         boxShadow: [
-          BoxShadow(color: _TC.primary.withOpacity(0.18), blurRadius: 12, offset: Offset(0, 4)),
+          BoxShadow(
+            color: _TC.primary.withOpacity(0.18),
+            blurRadius: 12,
+            offset: Offset(0, 4),
+          ),
         ],
       ),
       child: Stack(
@@ -424,7 +598,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
           Positioned(
             right: -18,
             top: -18,
-            child: Opacity(opacity: 0.06, child: _RubElHizb(size: 130, color: Colors.white)),
+            child: Opacity(
+              opacity: 0.06,
+              child: _RubElHizb(size: 130, color: Colors.white),
+            ),
           ),
           Padding(
             padding: EdgeInsets.all(16),
@@ -437,7 +614,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   runSpacing: 6,
                   children: [
                     Container(
-                      padding: EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 5,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.white.withOpacity(0.12),
                         borderRadius: BorderRadius.circular(999),
@@ -449,7 +629,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           Container(
                             width: 6,
                             height: 6,
-                            decoration: BoxDecoration(color: _WC.gold, shape: BoxShape.circle),
+                            decoration: BoxDecoration(
+                              color: _WC.gold,
+                              shape: BoxShape.circle,
+                            ),
                           ),
                           SizedBox(width: 6),
                           Text(
@@ -466,7 +649,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     Text(
                       namaPondok,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.7)),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.white.withOpacity(0.7),
+                      ),
                     ),
                   ],
                 ),
@@ -483,7 +669,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 SizedBox(height: 3),
                 Text(
                   semester,
-                  style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.7)),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.white.withOpacity(0.7),
+                  ),
                 ),
                 SizedBox(height: 12),
                 Row(
@@ -495,7 +684,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             width: 16,
                             height: 16,
                             child: _syncing
-                                ? CircularProgressIndicator(strokeWidth: 2, color: _WC.gold)
+                                ? CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: _WC.gold,
+                                  )
                                 : Icon(Icons.sync, size: 16, color: _WC.gold),
                           ),
                           SizedBox(width: 6),
@@ -503,7 +695,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             child: Text(
                               'Data diperbarui: ${_elapsed(_lastLoaded)}',
                               overflow: TextOverflow.ellipsis,
-                              style: TextStyle(fontSize: 11.5, color: Colors.white.withOpacity(0.7)),
+                              style: TextStyle(
+                                fontSize: 11.5,
+                                color: Colors.white.withOpacity(0.7),
+                              ),
                             ),
                           ),
                         ],
@@ -514,14 +709,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       onTap: _syncing ? null : _load,
                       borderRadius: BorderRadius.circular(999),
                       child: Container(
-                        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
                         decoration: BoxDecoration(
                           color: _TC.mint,
                           borderRadius: BorderRadius.circular(999),
                         ),
                         child: Text(
                           'Perbarui',
-                          style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: _TC.primary),
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w700,
+                            color: _TC.primary,
+                          ),
                         ),
                       ),
                     ),
@@ -540,7 +742,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   // PColors (Deep Emerald Forest + Antique Gold) per the reference design.
   // =========================================================================
   Widget _waliHeroHeader() {
-    final namaPengguna = _pick(_data!, ['namaPengguna', 'nama', 'userName']) ?? 'Wali Santri';
+    final namaPengguna =
+        _pick(_data!, ['namaPengguna', 'nama', 'userName']) ?? 'Wali Santri';
 
     return Container(
       clipBehavior: Clip.antiAlias,
@@ -552,7 +755,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ),
         borderRadius: BorderRadius.circular(18),
         boxShadow: [
-          BoxShadow(color: _WC.primary.withOpacity(0.18), blurRadius: 12, offset: const Offset(0, 4)),
+          BoxShadow(
+            color: _WC.primary.withOpacity(0.18),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
         ],
       ),
       child: Stack(
@@ -561,7 +768,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
           Positioned(
             right: -18,
             top: -18,
-            child: Opacity(opacity: 0.06, child: _RubElHizb(size: 120, color: Colors.white)),
+            child: Opacity(
+              opacity: 0.06,
+              child: _RubElHizb(size: 120, color: Colors.white),
+            ),
           ),
           Padding(
             padding: const EdgeInsets.all(16),
@@ -573,7 +783,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   children: [
                     Flexible(
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 5,
+                        ),
                         decoration: BoxDecoration(
                           color: Colors.white.withOpacity(0.12),
                           borderRadius: BorderRadius.circular(999),
@@ -582,7 +795,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(Icons.shield_outlined, size: 12, color: _WC.gold),
+                            const Icon(
+                              Icons.shield_outlined,
+                              size: 12,
+                              color: _WC.gold,
+                            ),
                             const SizedBox(width: 6),
                             Flexible(
                               child: Text(
@@ -602,14 +819,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ),
                     const SizedBox(width: 8),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 5,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.white.withOpacity(0.12),
                         borderRadius: BorderRadius.circular(999),
                       ),
                       child: const Text(
                         'Mode Pantau',
-                        style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600, color: Colors.white),
+                        style: TextStyle(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
                       ),
                     ),
                   ],
@@ -617,12 +841,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 const SizedBox(height: 14),
                 const Text(
                   "Assalamu'alaikum,",
-                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600, color: Colors.white),
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   namaPengguna,
-                  style: TextStyle(fontSize: 14, color: Colors.white.withOpacity(0.82)),
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.white.withOpacity(0.82),
+                  ),
                 ),
               ],
             ),
@@ -642,11 +873,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
   // netral alih-alih pura-pura tahu kondisi server.
   // =========================================================================
   Widget _superAdminHeroHeader() {
-    final namaPengguna = _pick(_data!, ['namaPengguna', 'nama', 'userName']) ?? 'Super Admin';
+    final namaPengguna =
+        _pick(_data!, ['namaPengguna', 'nama', 'userName']) ?? 'Super Admin';
     final health = _data!['platformHealth'];
     final healthMap = health is Map<String, dynamic> ? health : null;
-    final latencyMs = healthMap != null ? _num(healthMap, ['latencyMs']).round() : null;
-    final clusterLabel = healthMap != null ? _pick(healthMap, ['clusterLabel']) : null;
+    final latencyMs = healthMap != null
+        ? _num(healthMap, ['latencyMs']).round()
+        : null;
+    final clusterLabel = healthMap != null
+        ? _pick(healthMap, ['clusterLabel'])
+        : null;
     final sehat = healthMap != null ? healthMap['sehat'] == true : null;
     final statusLabel = sehat == null
         ? 'Status Tidak Diketahui'
@@ -664,7 +900,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
         color: _WC.surface,
         borderRadius: BorderRadius.circular(18),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 12, offset: const Offset(0, 4)),
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
         ],
       ),
       child: Stack(
@@ -676,7 +916,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
             child: Container(
               width: 150,
               height: 150,
-              decoration: BoxDecoration(color: _WC.gold.withOpacity(0.10), shape: BoxShape.circle),
+              decoration: BoxDecoration(
+                color: _WC.gold.withOpacity(0.10),
+                shape: BoxShape.circle,
+              ),
             ),
           ),
           Padding(
@@ -685,15 +928,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(color: _WC.primary, borderRadius: BorderRadius.circular(999)),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: _WC.primary,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Container(
                         width: 6,
                         height: 6,
-                        decoration: const BoxDecoration(color: _WC.gold, shape: BoxShape.circle),
+                        decoration: const BoxDecoration(
+                          color: _WC.gold,
+                          shape: BoxShape.circle,
+                        ),
                       ),
                       const SizedBox(width: 6),
                       const Flexible(
@@ -713,26 +965,47 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
                 const SizedBox(height: 8),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                  decoration: BoxDecoration(color: _WC.surfaceDim, borderRadius: BorderRadius.circular(999)),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: _WC.surfaceDim,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Container(
                         width: 6,
                         height: 6,
-                        decoration: const BoxDecoration(color: _WC.inkSecondary, shape: BoxShape.circle),
+                        decoration: const BoxDecoration(
+                          color: _WC.inkSecondary,
+                          shape: BoxShape.circle,
+                        ),
                       ),
                       const SizedBox(width: 6),
-                      Text(latencyMs != null ? 'Latency ${latencyMs}ms' : 'Latency —',
-                          style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600, color: _WC.inkSecondary)),
+                      Text(
+                        latencyMs != null
+                            ? 'Latency ${latencyMs}ms'
+                            : 'Latency —',
+                        style: const TextStyle(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w600,
+                          color: _WC.inkSecondary,
+                        ),
+                      ),
                     ],
                   ),
                 ),
                 const SizedBox(height: 14),
                 Text(
                   'Halo, $namaPengguna',
-                  style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: _WC.ink),
+                  style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w700,
+                    color: _WC.ink,
+                  ),
                 ),
                 const SizedBox(height: 2),
                 const Text(
@@ -742,17 +1015,28 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 const SizedBox(height: 14),
                 Row(
                   children: [
-                    const Icon(Icons.dns_outlined, size: 14, color: _WC.inkSecondary),
+                    const Icon(
+                      Icons.dns_outlined,
+                      size: 14,
+                      color: _WC.inkSecondary,
+                    ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         'Cluster: ${clusterLabel ?? 'Tidak diketahui'}',
-                        style: const TextStyle(fontSize: 11.5, color: _WC.inkSecondary),
+                        style: const TextStyle(
+                          fontSize: 11.5,
+                          color: _WC.inkSecondary,
+                        ),
                       ),
                     ),
                     Text(
                       statusLabel,
-                      style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: statusColor),
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w700,
+                        color: statusColor,
+                      ),
                     ),
                   ],
                 ),
@@ -776,8 +1060,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     // filter yang akurat harus ke TenantsScreen (tombol "Lihat Semua" di
     // bawah). Angka statistik (Total Tenant, Tenant Aktif, dst) tetap
     // diambil dari `statistik`, bukan dihitung dari list yang cuma sebagian.
-    final tenantTerbaru =
-        ((_data!['tenantTerbaru'] as List?) ?? const []).cast<Map<String, dynamic>>();
+    final tenantTerbaru = ((_data!['tenantTerbaru'] as List?) ?? const [])
+        .cast<Map<String, dynamic>>();
 
     final totalTenant = _num(s, ['totalTenant']);
     final tenantAktif = _num(s, ['tenantAktif']);
@@ -786,10 +1070,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
     // terakhir (dari GET /api/dashboard). null kalau backend lama belum
     // mengirim field ini, supaya sublabel bisa disembunyikan alih-alih
     // menampilkan angka 0 yang menyesatkan.
-    final tenantBaru30Hari = s.containsKey('tenantBaru30Hari') ? _num(s, ['tenantBaru30Hari']).round() : null;
+    final tenantBaru30Hari = s.containsKey('tenantBaru30Hari')
+        ? _num(s, ['tenantBaru30Hari']).round()
+        : null;
     // TODO: pastikan key agregat "total user platform" ke tim backend —
     // sementara fallback ke totalSantri kalau belum ada.
-    final totalUser = _num(s, ['totalUserPlatform', 'totalUser', 'totalSantri']);
+    final totalUser = _num(s, [
+      'totalUserPlatform',
+      'totalUser',
+      'totalSantri',
+    ]);
 
     final pendingTerbaru = tenantTerbaru
         .where((t) => (t['status'] as String? ?? '').toUpperCase() == 'PENDING')
@@ -799,7 +1089,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
     switch (_tenantFilter) {
       case 'aktif':
         filteredDirektori = tenantTerbaru
-            .where((t) => (t['status'] as String? ?? '').toUpperCase() == 'AKTIF')
+            .where(
+              (t) => (t['status'] as String? ?? '').toUpperCase() == 'AKTIF',
+            )
             .toList();
         break;
       case 'pending':
@@ -807,7 +1099,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
         break;
       case 'suspended':
         filteredDirektori = tenantTerbaru
-            .where((t) => (t['status'] as String? ?? '').toUpperCase() == 'SUSPENDED')
+            .where(
+              (t) =>
+                  (t['status'] as String? ?? '').toUpperCase() == 'SUSPENDED',
+            )
             .toList();
         break;
       default:
@@ -819,10 +1114,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
     // kalau belum, fallback ke placeholder statis di bawah.
     final auditItems = ((_data!['auditKeamanan'] as List?) ?? const [])
         .cast<Map<String, dynamic>>()
-        .map((e) => <String, dynamic>{
-              'pesan': '${e['judul']} — ${e['tenantNama']}',
-              'waktu': _elapsed(DateTime.tryParse('${e['waktu']}')?.toLocal()),
-            })
+        .map(
+          (e) => <String, dynamic>{
+            'pesan': '${e['judul']} — ${e['tenantNama']}',
+            'waktu': _elapsed(DateTime.tryParse('${e['waktu']}')?.toLocal()),
+          },
+        )
         .toList();
 
     return Column(
@@ -995,19 +1292,34 @@ class _DashboardScreenState extends State<DashboardScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text('Audit Keamanan & Mutasi',
-                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _WC.ink)),
+                  const Text(
+                    'Audit Keamanan & Mutasi',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: _WC.ink,
+                    ),
+                  ),
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Container(
                         width: 6,
                         height: 6,
-                        decoration: const BoxDecoration(color: _WC.gold, shape: BoxShape.circle),
+                        decoration: const BoxDecoration(
+                          color: _WC.gold,
+                          shape: BoxShape.circle,
+                        ),
                       ),
                       const SizedBox(width: 5),
-                      const Text('Real-time',
-                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: _WC.gold)),
+                      const Text(
+                        'Real-time',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: _WC.gold,
+                        ),
+                      ),
                     ],
                   ),
                 ],
@@ -1021,7 +1333,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       iconBg: _WC.successBg,
                       iconFg: _WC.successText,
                       boldPrefix: "Tenant Ma'had Al-Qur'an:",
-                      text: ' Penambahan 15 akun ustadz baru oleh Admin Tenant.',
+                      text:
+                          ' Penambahan 15 akun ustadz baru oleh Admin Tenant.',
                       time: '12 menit lalu',
                     ),
                     _SAAuditItem(
@@ -1029,7 +1342,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       iconBg: Color(0xFFFEE2E2),
                       iconFg: _WC.errorText,
                       boldPrefix: 'Security Alert:',
-                      text: ' Percobaan login gagal berulang kali (Rate Limit Exceeded) pada subdomain ',
+                      text:
+                          ' Percobaan login gagal berulang kali (Rate Limit Exceeded) pada subdomain ',
                       boldSuffix: 'darussalam2',
                       afterBoldSuffix: '.',
                       textColor: _WC.errorText,
@@ -1040,7 +1354,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       iconBg: _WC.goldSurface,
                       iconFg: _WC.gold,
                       boldPrefix: 'Billing Subscription:',
-                      text: ' Auto-renewal sukses untuk Paket Enterprise Bina Insani.',
+                      text:
+                          ' Auto-renewal sukses untuk Paket Enterprise Bina Insani.',
                       time: 'Kemarin, 23:59 WIB',
                       isLast: true,
                     ),
@@ -1054,7 +1369,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         icon: Icons.history_rounded,
                         iconBg: _WC.sage,
                         iconFg: _WC.primary,
-                        title: _pick(auditItems[i], ['pesan', 'message', 'judul']) ?? '-',
+                        title:
+                            _pick(auditItems[i], [
+                              'pesan',
+                              'message',
+                              'judul',
+                            ]) ??
+                            '-',
                         time: _pick(auditItems[i], ['waktu', 'time']) ?? '',
                         isLast: i == auditItems.length - 1,
                       ),
@@ -1070,15 +1391,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Future<void> _tenantAction(Map<String, dynamic> t, String action) async {
     try {
       final api = AppScope.of(context).api;
-      await api.post(action == 'approve' ? ApiUrl.tenantApprove : ApiUrl.tenantSuspend, {'tenantId': t['id']});
+      await api.post(
+        action == 'approve' ? ApiUrl.tenantApprove : ApiUrl.tenantSuspend,
+        {'tenantId': t['id']},
+      );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(action == 'approve' ? '${t['namaPondok']} telah diaktifkan.' : 'Tenant di-suspend.'),
-      ));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            action == 'approve'
+                ? '${t['namaPondok']} telah diaktifkan.'
+                : 'Tenant di-suspend.',
+          ),
+        ),
+      );
       _load();
     } on ApiException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.message)));
     }
   }
 
@@ -1094,7 +1426,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         if (anak.isEmpty)
-          const _WaliChildCard(nama: 'Belum ada data santri', kelas: '-', nis: '-', status: 'Aktif')
+          const _WaliChildCard(
+            nama: 'Belum ada data santri',
+            kelas: '-',
+            nis: '-',
+            status: 'Aktif',
+          )
         else
           for (final a in anak)
             Padding(
@@ -1112,9 +1449,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text('Ringkasan Hari Ini',
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _WC.ink)),
-            Text(today, style: const TextStyle(fontSize: 11.5, color: _WC.inkSecondary)),
+            const Text(
+              'Ringkasan Hari Ini',
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+                color: _WC.ink,
+              ),
+            ),
+            Text(
+              today,
+              style: const TextStyle(fontSize: 11.5, color: _WC.inkSecondary),
+            ),
           ],
         ),
         const SizedBox(height: 10),
@@ -1130,7 +1476,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 title: 'Kedisiplinan',
                 badge: '0 Poin',
                 icon: Icons.emoji_events_outlined,
-                description: 'Pekan Bersih: Adab tepat waktu & kerapian lemari prima.',
+                description:
+                    'Pekan Bersih: Adab tepat waktu & kerapian lemari prima.',
               ),
             ),
             SizedBox(width: 10),
@@ -1139,7 +1486,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 title: 'Kondisi Fisik',
                 badge: '36.6°C',
                 icon: Icons.favorite_outline,
-                description: "Sehat Wal'afiat. Skrining berkala Poskestren normal.",
+                description:
+                    "Sehat Wal'afiat. Skrining berkala Poskestren normal.",
               ),
             ),
           ],
@@ -1152,9 +1500,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: const [
-            Text('Riwayat Lengkap Santri',
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _WC.ink)),
-            Text('Laporan Terarsip', style: TextStyle(fontSize: 11.5, color: _WC.inkSecondary)),
+            Text(
+              'Riwayat Lengkap Santri',
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+                color: _WC.ink,
+              ),
+            ),
+            Text(
+              'Laporan Terarsip',
+              style: TextStyle(fontSize: 11.5, color: _WC.inkSecondary),
+            ),
           ],
         ),
         const SizedBox(height: 10),
@@ -1204,7 +1561,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   // TENANT / ADMIN PONDOK — restyle mengikuti screen.png + palet `_WC`
   // =========================================================================
   Widget _tenantBody() {
-    final s = (_data!['statistik'] as Map?)?.cast<String, dynamic>() ?? <String, dynamic>{};
+    final s =
+        (_data!['statistik'] as Map?)?.cast<String, dynamic>() ??
+        <String, dynamic>{};
 
     final santriAktif = _num(s, ['santriAktif', 'totalSantriAktif']);
     final santriPutra = _num(s, ['santriPutra', 'santriBanin']);
@@ -1226,7 +1585,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // ---- 2. Ringkasan angka pondok ----
-        _SectionLabel(title: 'Master Data Terdata', trailing: 'Cakupan Lembaga Sendiri', trailingAsPill: true),
+        _SectionLabel(
+          title: 'Master Data Terdata',
+          trailing: 'Cakupan Lembaga Sendiri',
+          trailingAsPill: true,
+        ),
         SizedBox(height: 10),
         _TwoColGrid(
           children: [
@@ -1275,7 +1638,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
         SizedBox(height: 20),
 
         // ---- 3. Tindakan cepat ----
-        _SectionLabel(title: 'Tindakan Data Master', trailing: 'Input Langsung', trailingColor: _WC.goldDark),
+        _SectionLabel(
+          title: 'Tindakan Data Master',
+          trailing: 'Input Langsung',
+          trailingColor: _WC.goldDark,
+        ),
         SizedBox(height: 10),
         _TwoColGrid(
           children: [
@@ -1294,7 +1661,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               icon: Icons.assignment_ind,
               iconBg: _WC.goldSurface,
               iconColor: _WC.gold,
-              onTap: _notAvailable,
+              onTap: _bukaUstadz,
             ),
             _QuickAction(
               title: 'Rombel & Halaqah',
@@ -1302,7 +1669,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               icon: Icons.meeting_room,
               iconBg: _TC.sage,
               iconColor: _TC.primary,
-              onTap: _notAvailable,
+              onTap: _bukaKelas,
             ),
             _QuickAction(
               title: 'Akun Pengguna',
@@ -1310,7 +1677,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               icon: Icons.lock_person,
               iconBg: _WC.goldSurface,
               iconColor: _WC.gold,
-              onTap: _notAvailable,
+              onTap: _bukaUsers,
             ),
           ],
         ),
@@ -1338,15 +1705,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
           child: RichText(
             text: TextSpan(
-              style: TextStyle(fontSize: 11.5, color: _WC.inkSecondary, height: 1.5, fontStyle: FontStyle.italic),
+              style: TextStyle(
+                fontSize: 11.5,
+                color: _WC.inkSecondary,
+                height: 1.5,
+                fontStyle: FontStyle.italic,
+              ),
               children: [
                 TextSpan(
                   text: 'Catatan Batas Akses Admin Lembaga: ',
-                  style: TextStyle(fontWeight: FontWeight.w700, color: _WC.inkSecondary),
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: _WC.inkSecondary,
+                  ),
                 ),
                 TextSpan(
                   text:
-                      'Pengajuan perizinan kepulangan santri dan evaluasi mutaba\'ah kelulusan diproses secara terpisah oleh Mudir Pesantren & Dewan Asatidz. Modul Anda difokuskan penuh pada integritas master data pondok.',
+                      'Pengajuan perizinan kepulangan santri diproses oleh Musyrif, sedangkan evaluasi mutaba\'ah kelulusan oleh Dewan Asatidz. Modul Anda difokuskan penuh pada integritas master data pondok.',
                 ),
               ],
             ),
@@ -1356,8 +1731,693 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+  // =========================================================================
+  // PIMPINAN / MUDIR — ringkasan eksekutif: antrean keputusan, kondisi
+  // lembaga, pemantauan akademik & kesantrian. Tema sama dengan Admin
+  // (palet `_WC`/`_TC`, lebar maks 480 di tengah, hero emerald).
+  // =========================================================================
+  String _namaSantriDari(Map<String, dynamic> e) {
+    final s = e['santri'];
+    if (s is Map && s['nama'] != null) return s['nama'].toString();
+    return _pick(e, ['namaSantri', 'santriNama', 'nama']) ?? 'Santri';
+  }
+
+  DateTime? _tglDari(Map<String, dynamic> e, List<String> keys) {
+  final s = _pick(e, keys);
+  return s == null ? null : DateTime.tryParse(s)?.toLocal();
+}
+
+List<(String, int)> _topPelanggar(
+  List<Map<String, dynamic>> list, {
+  int n = 3,
+}) {
+  final hitung = <String, int>{};
+  for (final e in list) {
+    final nama = _namaSantriDari(e);
+    hitung[nama] = (hitung[nama] ?? 0) + 1;
+  }
+  final urut = hitung.entries.toList()
+    ..sort((a, b) => b.value.compareTo(a.value));
+  return [for (final e in urut.take(n)) (e.key, e.value)];
+}
+
+  Widget _pimpinanBody() {
+    final s =
+        (_data!['statistik'] as Map?)?.cast<String, dynamic>() ??
+        <String, dynamic>{};
+
+    final santriAktif = _num(s, ['santriAktif', 'totalSantriAktif']);
+    final santriPutra = _num(s, ['santriPutra', 'santriBanin']);
+    final santriPutri = _num(s, ['santriPutri', 'santriBanat']);
+    final totalUstadz = _num(s, ['totalUstadz', 'jumlahUstadz', 'ustadzAktif']);
+    final totalKelas = _num(s, ['totalKelas', 'totalRombel']);
+
+    final absensi = (_data!['kepatuhanAbsensi'] as Map?)
+        ?.cast<String, dynamic>();
+    final terisi = absensi != null ? _num(absensi, ['terisi', 'sudah']) : null;
+    final total = absensi != null ? _num(absensi, ['total']) : null;
+    final pct = (terisi != null && total != null && total > 0)
+        ? (terisi / total)
+        : null;
+
+    final izinMenunggu = _pimIzin
+        ?.where((e) => (e['statusApproval'] ?? '').toString() == 'DIAJUKAN')
+        .toList();
+    final daruratBaru = _pimDarurat
+        ?.where((e) => (e['status'] ?? 'BARU').toString() == 'BARU')
+        .toList();
+    final pelanggaranBuka = _pimPelanggaran
+        ?.where((e) => (e['status'] ?? 'DICATAT').toString() == 'DICATAT')
+        .toList();
+
+        final logs = ((_data!['logAktivitas'] as List?) ?? const [])
+        .cast<Map<String, dynamic>>();
+
+    // Angka izin, sakit, dan kunjungan kini datang dari backend (statistik).
+    int? angka(String k) => s.containsKey(k) ? _num(s, [k]).round() : null;
+    final izinDiLuarN = angka('izinDiLuar');
+    final izinTerlambatN = angka('izinTerlambat');
+    final sakitAktif = angka('santriSakitAktif');
+    final kunjunganBulan = angka('kunjunganBulanIni');
+    final pelanggaranMingguN = angka('pelanggaranMingguIni');
+
+    final kh = (_data!['kehadiranHariIni'] as Map?)?.cast<String, dynamic>();
+        final rekap = (_data!['rekapPelanggaran'] as Map?)?.cast<String, dynamic>();
+    final perKelas = ((rekap?['perKelas'] as List?) ?? const [])
+        .cast<Map<String, dynamic>>();
+    final topSantri = ((rekap?['topSantri'] as List?) ?? const [])
+        .cast<Map<String, dynamic>>();
+    final maxPoinKelas = [
+          1,
+          ...perKelas.map((e) => _num(e, ['poin']).toInt()),
+        ].reduce((a, b) => a > b ? a : b);
+
+    final th = (_data!['tahfidz'] as Map?)?.cast<String, dynamic>();
+    final thTertinggal = ((th?['tertinggal'] as List?) ?? const [])
+        .cast<Map<String, dynamic>>();
+    final khHadir = kh != null ? _num(kh, ['hadir']) : 0;
+    final khTidak = kh != null
+        ? _num(kh, ['izin']) + _num(kh, ['sakit']) + _num(kh, ['alpa'])
+        : 0;
+    final khTotal = khHadir + khTidak;
+    final khPct = khTotal > 0 ? (khHadir / khTotal * 100).round() : null;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // ---- 1. Perlu keputusan / perhatian ----
+        _SectionLabel(
+          title: 'Pantauan Kesantrian',
+          trailing: 'Ringkasan',
+          trailingColor: _WC.goldDark,
+        ),
+        const SizedBox(height: 10),
+        _Card(
+          child: Column(
+            children: [
+              _pimAntrean(
+                icon: Icons.emergency,
+                title: 'Keadaan Darurat Baru',
+                subtitle: daruratBaru == null
+                    ? 'Data belum dapat dimuat'
+                    : (daruratBaru.isEmpty
+                          ? 'Tidak ada laporan baru'
+                          : 'Terbaru: ${_namaSantriDari(daruratBaru.first)}'),
+                count: daruratBaru?.length,
+                accent: _WC.errorText,
+                onTap: () =>
+                    _goto('Keadaan Darurat'), // tetap, ada di menu Mudir
+              ),
+              const SizedBox(height: 8),
+              _pimAntrean(
+                icon: Icons.exit_to_app,
+                title: 'Pengajuan Izin Menunggu',
+                subtitle: izinMenunggu == null
+                    ? 'Data belum dapat dimuat'
+                    : (izinMenunggu.isEmpty
+                          ? 'Semua pengajuan sudah diproses'
+                          : 'Terbaru: ${_namaSantriDari(izinMenunggu.first)}'),
+                count: izinMenunggu?.length,
+                accent: _WC.goldDark,
+                // onTap dihapus
+              ),
+              const SizedBox(height: 8),
+              _pimAntrean(
+                icon: Icons.gavel,
+                title: 'Pelanggaran Belum Selesai',
+                subtitle: pelanggaranBuka == null
+                    ? 'Data belum dapat dimuat'
+                    : (pelanggaranBuka.isEmpty
+                          ? 'Tidak ada kasus terbuka'
+                          : 'Terbaru: ${_namaSantriDari(pelanggaranBuka.first)}'),
+                count: pelanggaranBuka?.length,
+                accent: _TC.primary,
+                onTap: () => _goto('Pelanggaran'),
+              ),
+                        ],
+          ),
+        ),
+        const SizedBox(height: 20),
+
+        // ---- 1b. Ringkasan minggu ini ----
+        _SectionLabel(
+          title: 'Ringkasan Kesantrian',
+          trailing: '7 Hari Terakhir',
+          trailingAsPill: true,
+        ),
+        const SizedBox(height: 10),
+        _TwoColGrid(
+          children: [
+           _MetricCard(
+              label: 'Pelanggaran Minggu Ini',
+              value: pelanggaranMingguN == null ? '–' : '$pelanggaranMingguN',
+              icon: Icons.gavel,
+              iconColor: _WC.primary,
+              iconBg: _WC.sage,
+              caption: pelanggaranMingguN == null
+                  ? 'Data belum dapat dimuat'
+                  : 'Dicatat 7 hari terakhir',
+            ),
+            _MetricCard(
+              label: 'Santri Sedang Izin',
+              value: izinDiLuarN == null ? '–' : '$izinDiLuarN',
+              icon: Icons.directions_walk,
+              iconColor: _WC.gold,
+              iconBg: _WC.goldSurface,
+              caption: 'Disetujui, belum tercatat kembali',
+            ),
+            _MetricCard(
+              label: 'Terlambat Kembali',
+              value: izinTerlambatN == null ? '–' : '$izinTerlambatN',
+              icon: Icons.schedule,
+              iconColor: _WC.errorText,
+              iconBg: _WC.goldSurface,
+              caption: 'Lewat Est. Kembali, belum kembali',
+            ),
+            _MetricCard(
+              label: 'Darurat Tercatat',
+              value: _pimDarurat == null ? '–' : '${_pimDarurat!.length}',
+              icon: Icons.emergency,
+              iconColor: _WC.errorText,
+              iconBg: _WC.goldSurface,
+              caption: daruratBaru == null
+                  ? 'Data belum dapat dimuat'
+                  : '${daruratBaru.length} masih baru',
+            ),
+          ],
+        ),
+        const SizedBox(height: 20),
+        // ---- 1b2. Kehadiran & kesehatan (BARU) ----
+        _SectionLabel(
+          title: 'Kehadiran & Kesehatan',
+          trailing: 'Hari Ini',
+          trailingAsPill: true,
+        ),
+        const SizedBox(height: 10),
+        _TwoColGrid(
+          children: [
+            _MetricCard(
+              label: 'Kehadiran Hari Ini',
+              value: khPct != null ? '$khPct%' : '–',
+              icon: Icons.fact_check,
+              iconColor: _WC.primary,
+              iconBg: _WC.sage,
+              caption: khTotal > 0
+                  ? '${_fmtInt(khHadir)} dari ${_fmtInt(khTotal)} data absensi'
+                  : 'Belum ada absensi hari ini',
+            ),
+            _MetricCard(
+              label: 'Tidak Hadir',
+              value: kh != null ? _fmtInt(khTidak) : '–',
+              icon: Icons.person_off,
+              iconColor: _WC.goldDark,
+              iconBg: _WC.goldSurface,
+              caption: kh != null
+                  ? '${_fmtInt(_num(kh, ['izin']))} izin • ${_fmtInt(_num(kh, ['sakit']))} sakit • ${_fmtInt(_num(kh, ['alpa']))} alpa'
+                  : 'Data belum dapat dimuat',
+            ),
+            _MetricCard(
+              label: 'Santri Sakit',
+              value: sakitAktif == null ? '–' : '$sakitAktif',
+              icon: Icons.medical_services,
+              iconColor: _WC.errorText,
+              iconBg: _WC.goldSurface,
+              caption: 'Rawat jalan / dirujuk',
+            ),
+            _MetricCard(
+              label: 'Kunjungan Wali',
+              value: kunjunganBulan == null ? '–' : '$kunjunganBulan',
+              icon: Icons.family_restroom,
+              iconColor: _WC.primary,
+              iconBg: _WC.sage,
+              caption: 'Bulan ini',
+            ),
+          ],
+        ),
+        const SizedBox(height: 20),
+
+        // ---- 1c. Santri perlu pembinaan (berdasarkan poin) ----
+        _Card(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Text('Santri Perlu Pembinaan',
+                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _WC.ink)),
+                  ),
+                  Text('Poin terbanyak',
+                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: _WC.inkSecondary)),
+                ],
+              ),
+              const SizedBox(height: 10),
+              if (rekap == null)
+                const _EmptyRow(text: 'Data belum dapat dimuat.')
+              else if (topSantri.isEmpty)
+                const _EmptyRow(text: 'Belum ada pelanggaran tercatat.')
+              else
+                for (final (i, p) in topSantri.indexed)
+                  Padding(
+                    padding: EdgeInsets.only(top: i == 0 ? 0 : 8),
+                    child: Row(
+                      children: [
+                        CircleAvatar(
+                          radius: 13,
+                          backgroundColor: _WC.sage,
+                          child: Text('${i + 1}',
+                              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: _WC.primary)),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('${p['nama'] ?? '-'}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: _WC.ink)),
+                              Text(
+                                '${p['kelas'] ?? '-'} • ${_num(p, ['jumlah']).toInt()} kasus',
+                                style: const TextStyle(fontSize: 10.5, color: _WC.inkSecondary),
+                              ),
+                              if (((p['jenis'] as List?) ?? const []).isNotEmpty)
+                                Text(
+                                  (p['jenis'] as List).join(', '),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(fontSize: 10.5, color: _WC.errorText),
+                                ),
+                            ],
+                          ),
+                        ),
+                        Text('${_num(p, ['poin']).toInt()} poin',
+                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: _WC.errorText)),
+                      ],
+                    ),
+                  ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+
+        // ---- 1d. Rekap pelanggaran per kelas ----
+        _Card(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Text('Pelanggaran per Kelas',
+                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _WC.ink)),
+                  ),
+                  Text('Total poin',
+                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: _WC.inkSecondary)),
+                ],
+              ),
+              const SizedBox(height: 10),
+              if (rekap == null)
+                const _EmptyRow(text: 'Data belum dapat dimuat.')
+              else if (perKelas.isEmpty)
+                const _EmptyRow(text: 'Belum ada pelanggaran tercatat.')
+              else
+                for (final k in perKelas)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text('${k['kelas'] ?? '-'}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: _WC.ink)),
+                            ),
+                            Text('${_num(k, ['jumlah']).toInt()} kasus • ${_num(k, ['poin']).toInt()} poin',
+                                style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: _WC.primary)),
+                          ],
+                        ),
+                        const SizedBox(height: 5),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(999),
+                          child: LinearProgressIndicator(
+                            value: _num(k, ['poin']).toDouble() / maxPoinKelas,
+                            minHeight: 6,
+                            backgroundColor: _WC.surfaceDim,
+                            valueColor: const AlwaysStoppedAnimation(_WC.errorText),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
+
+        // ---- 1e. Capaian tahfidz ----
+        _SectionLabel(
+          title: 'Capaian Tahfidz',
+          trailing: 'Santri Aktif',
+          trailingAsPill: true,
+        ),
+        const SizedBox(height: 10),
+        _TwoColGrid(
+          children: [
+            _MetricCard(
+              label: 'Rata-rata Hafalan',
+              value: th == null
+                  ? '–'
+                  : '${_num(th, ['rataJuz']).toDouble().toStringAsFixed(1)} juz',
+              icon: Icons.auto_stories,
+              iconColor: _WC.gold,
+              iconBg: _WC.goldSurface,
+              caption: th == null
+                  ? 'Data belum dapat dimuat'
+                  : 'Rata-rata juz ziyadah per santri',
+            ),
+            _MetricCard(
+              label: 'Setoran 30 Hari',
+              value: th == null ? '–' : _fmtInt(_num(th, ['setoran30Hari'])),
+              icon: Icons.menu_book,
+              iconColor: _WC.primary,
+              iconBg: _WC.sage,
+              caption: 'Ziyadah & murajaah',
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        _Card(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Expanded(
+                    child: Text('Santri Tertinggal',
+                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _WC.ink)),
+                  ),
+                  Text(
+                    th == null
+                        ? ''
+                        : 'Tanpa setoran > ${_num(th, ['hariTertinggal']).toInt()} hari',
+                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: _WC.inkSecondary),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              if (th == null)
+                const _EmptyRow(text: 'Data belum dapat dimuat.')
+              else if (thTertinggal.isEmpty)
+                const _EmptyRow(
+                  text: 'Semua santri aktif sudah setor.',
+                  icon: Icons.check_circle_outline,
+                )
+              else ...[
+                for (final (i, s) in thTertinggal.indexed)
+                  Padding(
+                    padding: EdgeInsets.only(top: i == 0 ? 0 : 8),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('${s['nama'] ?? '-'}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: _WC.ink)),
+                              Text('${s['kelas'] ?? '-'}',
+                                  style: const TextStyle(fontSize: 10.5, color: _WC.inkSecondary)),
+                            ],
+                          ),
+                        ),
+                        Text(
+                          s['hariSejak'] == null
+                              ? 'Belum pernah'
+                              : '${_num(s, ['hariSejak']).toInt()} hari lalu',
+                          style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: _WC.errorText),
+                        ),
+                      ],
+                    ),
+                  ),
+                if (_num(th, ['jumlahTertinggal']) > thTertinggal.length)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 10),
+                    child: Text(
+                      '+ ${_num(th, ['jumlahTertinggal']).toInt() - thTertinggal.length} santri lainnya',
+                      style: const TextStyle(fontSize: 11, color: _WC.inkSecondary),
+                    ),
+                  ),
+              ],
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
+        // ---- 2. Kondisi lembaga ----
+        _SectionLabel(
+          title: 'Kondisi Lembaga',
+          trailing: 'Cakupan Lembaga Sendiri',
+          trailingAsPill: true,
+        ),
+        const SizedBox(height: 10),
+        _TwoColGrid(
+          children: [
+            _MetricCard(
+              label: 'Santri Aktif',
+              value: _fmtInt(santriAktif),
+              icon: Icons.school,
+              iconColor: _WC.primary,
+              iconBg: _WC.sage,
+              caption: (santriPutra > 0 || santriPutri > 0)
+                  ? '${_fmtInt(santriPutra)} Putra • ${_fmtInt(santriPutri)} Putri'
+                  : 'Data santri aktif pondok',
+            ),
+            _MetricCard(
+              label: 'Ustadz / Pembina',
+              value: _fmtInt(totalUstadz),
+              icon: Icons.badge,
+              iconColor: _WC.gold,
+              iconBg: _WC.goldSurface,
+              caption: 'Tenaga pendidik aktif',
+            ),
+            _MetricCard(
+              label: 'Kelas & Halaqah',
+              value: '${_fmtInt(totalKelas)} Rombel',
+              icon: Icons.menu_book,
+              iconColor: _WC.primary,
+              iconBg: _WC.sage,
+              caption: 'Rombongan belajar aktif',
+            ),
+            _MetricCard(
+              label: 'Kepatuhan Absensi',
+              value: pct != null ? '${(pct * 100).round()}%' : '–',
+              icon: Icons.fact_check,
+              iconColor: _WC.gold,
+              iconBg: _WC.goldSurface,
+              caption: pct != null
+                  ? '${_fmtInt(terisi!)} / ${_fmtInt(total!)} rombel hari ini'
+                  : 'Belum ada data absensi',
+            ),
+          ],
+        ),
+        const SizedBox(height: 20),
+
+        // ---- 3. Pemantauan ----
+        _SectionLabel(
+          title: 'Pemantauan',
+          trailing: 'Buka Modul',
+          trailingColor: _WC.goldDark,
+        ),
+        const SizedBox(height: 10),
+        _TwoColGrid(
+          children: [
+            _QuickAction(
+              title: 'Nilai & Rapor',
+              subtitle: 'Hasil belajar & penerbitan rapor',
+              icon: Icons.description,
+              iconBg: _WC.sage,
+              iconColor: _WC.primary,
+              onTap: () => _goto('Rapor Digital'),
+            ),
+            _QuickAction(
+              title: 'Tahfidz',
+              subtitle: 'Setoran & progres hafalan',
+              icon: Icons.auto_stories,
+              iconBg: _WC.goldSurface,
+              iconColor: _WC.gold,
+              onTap: () => _goto('Tahfidz'),
+            ),
+            _QuickAction(
+              title: 'Kelulusan & Wisuda',
+              subtitle: 'Evaluasi mutaba\'ah kelulusan',
+              icon: Icons.military_tech,
+              iconBg: _WC.sage,
+              iconColor: _WC.primary,
+              onTap: () => _goto('Kelulusan & Wisuda'),
+            ),
+            _QuickAction(
+              title: 'Pembinaan Ibadah',
+              subtitle: 'Kedisiplinan ibadah santri',
+              icon: Icons.mosque,
+              iconBg: _WC.goldSurface,
+              iconColor: _WC.gold,
+              onTap: () => _goto('Pembinaan Ibadah'),
+            ),
+            _QuickAction(
+              title: 'Pembinaan Karakter',
+              subtitle: 'Catatan pembinaan santri',
+              icon: Icons.volunteer_activism,
+              iconBg: _WC.sage,
+              iconColor: _WC.primary,
+              onTap: () => _goto('Pembinaan Karakter'),
+            ),
+            _QuickAction(
+              title: 'Konseling',
+              subtitle: 'Pendampingan santri',
+              icon: Icons.support_agent,
+              iconBg: _WC.goldSurface,
+              iconColor: _WC.gold,
+              onTap: () => _goto('Konseling'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 20),
+
+        // ---- 4. Aktivitas terbaru ----
+        _Card(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: const [
+                  Expanded(
+                    child: Text(
+                      'Aktivitas Terbaru',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: _WC.ink,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    "Internal Ma'had",
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: _WC.inkSecondary,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              if (logs.isEmpty)
+                const _EmptyRow(text: 'Belum ada aktivitas tercatat.')
+              else
+                Column(children: [for (final log in logs) _logRow(log)]),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Satu baris antrean keputusan Mudir: ikon, judul, keterangan, badge jumlah.
+Widget _pimAntrean({
+  required IconData icon,
+  required String title,
+  required String subtitle,
+  required int? count,
+  required Color accent,
+  VoidCallback? onTap, // null = hanya pantauan
+}) {
+  final adaIsi = (count ?? 0) > 0;
+  return InkWell(
+    onTap: onTap,
+    borderRadius: BorderRadius.circular(12),
+    child: Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(color: _WC.surfaceDim, borderRadius: BorderRadius.circular(12)),
+      child: Row(
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(color: accent.withOpacity(0.12), shape: BoxShape.circle),
+            child: Icon(icon, size: 17, color: accent),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title,
+                    style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: _WC.ink)),
+                const SizedBox(height: 2),
+                Text(subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 11.5, color: _WC.inkSecondary)),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: adaIsi ? accent : _WC.border,
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Text(
+              count == null ? '–' : '$count',
+              style: TextStyle(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w800,
+                color: adaIsi ? Colors.white : _WC.inkSecondary,
+              ),
+            ),
+          ),
+          if (onTap != null) ...[
+            const SizedBox(width: 2),
+            const Icon(Icons.chevron_right, size: 18, color: _WC.inkSecondary),
+          ],
+        ],
+      ),
+    ),
+  );
+}
+
   Widget _buildAuditCard() {
-    final items = ((_data!['auditKelengkapan'] as List?) ?? []).cast<Map<String, dynamic>>();
+    final items = ((_data!['auditKelengkapan'] as List?) ?? [])
+        .cast<Map<String, dynamic>>();
     return _Card(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1369,11 +2429,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Audit Kelengkapan Data',
-                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _WC.ink)),
+                    Text(
+                      'Audit Kelengkapan Data',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: _WC.ink,
+                      ),
+                    ),
                     SizedBox(height: 2),
-                    Text('Kelola data wajib sebelum penomoran ijazah',
-                        style: TextStyle(fontSize: 11.5, color: _WC.inkSecondary)),
+                    Text(
+                      'Kelola data wajib sebelum penomoran ijazah',
+                      style: TextStyle(fontSize: 11.5, color: _WC.inkSecondary),
+                    ),
                   ],
                 ),
               ),
@@ -1381,16 +2449,28 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 SizedBox(width: 8),
                 Container(
                   padding: EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(color: _WC.errorBg, borderRadius: BorderRadius.circular(999)),
-                  child: Text('${items.length} Tindakan',
-                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: _WC.errorText)),
+                  decoration: BoxDecoration(
+                    color: _WC.errorBg,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    '${items.length} Tindakan',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: _WC.errorText,
+                    ),
+                  ),
                 ),
               ],
             ],
           ),
           SizedBox(height: 12),
           if (items.isEmpty)
-            _EmptyRow(text: 'Semua data wajib sudah lengkap.', icon: Icons.check_circle_outline)
+            _EmptyRow(
+              text: 'Semua data wajib sudah lengkap.',
+              icon: Icons.check_circle_outline,
+            )
           else
             Column(
               children: [
@@ -1406,6 +2486,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final title = _pick(item, ['judul', 'title']) ?? 'Tindakan diperlukan';
     final subtitle = _pick(item, ['deskripsi', 'subtitle']) ?? '';
     final actionLabel = _pick(item, ['aksi', 'actionLabel']) ?? 'Lihat';
+    final tujuan = _pick(item, ['tujuan']);
 
     // Warna tombol aksi bergantian seperti screen.png: merah, cokelat emas, hijau tua.
     final accents = [_WC.errorText, _WC.goldDark, _TC.primary];
@@ -1430,21 +2511,40 @@ class _DashboardScreenState extends State<DashboardScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: _WC.ink)),
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                    color: _WC.ink,
+                  ),
+                ),
                 if (subtitle.isNotEmpty)
-                  Text(subtitle, style: TextStyle(fontSize: 11.5, color: _WC.inkSecondary)),
+                  Text(
+                    subtitle,
+                    style: TextStyle(fontSize: 11.5, color: _WC.inkSecondary),
+                  ),
               ],
             ),
           ),
           SizedBox(width: 8),
           InkWell(
-            onTap: _notAvailable,
+            onTap: () => _bukaAudit(tujuan),
             borderRadius: BorderRadius.circular(999),
             child: Container(
               padding: EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-              decoration: BoxDecoration(color: accent, borderRadius: BorderRadius.circular(999)),
-              child: Text(actionLabel,
-                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.white)),
+              decoration: BoxDecoration(
+                color: accent,
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Text(
+                actionLabel,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                ),
+              ),
             ),
           ),
         ],
@@ -1453,10 +2553,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildAcademicCard() {
-    final absensi = (_data!['kepatuhanAbsensi'] as Map?)?.cast<String, dynamic>();
+    final absensi = (_data!['kepatuhanAbsensi'] as Map?)
+        ?.cast<String, dynamic>();
     final terisi = absensi != null ? _num(absensi, ['terisi', 'sudah']) : null;
     final total = absensi != null ? _num(absensi, ['total']) : null;
-    final pct = (terisi != null && total != null && total > 0) ? (terisi / total) : null;
+    final pct = (terisi != null && total != null && total > 0)
+        ? (terisi / total)
+        : null;
 
     return _Card(
       child: Column(
@@ -1469,18 +2572,29 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Kelola Akademik & KBM',
-                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _WC.ink)),
+                    Text(
+                      'Kelola Akademik & KBM',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: _WC.ink,
+                      ),
+                    ),
                     SizedBox(height: 2),
-                    Text('Pusat entri kolektif dan monitoring rombel',
-                        style: TextStyle(fontSize: 11.5, color: _WC.inkSecondary)),
+                    Text(
+                      'Pusat entri kolektif dan monitoring rombel',
+                      style: TextStyle(fontSize: 11.5, color: _WC.inkSecondary),
+                    ),
                   ],
                 ),
               ),
               Container(
                 width: 34,
                 height: 34,
-                decoration: BoxDecoration(color: _TC.sage, shape: BoxShape.circle),
+                decoration: BoxDecoration(
+                  color: _TC.sage,
+                  shape: BoxShape.circle,
+                ),
                 child: Icon(Icons.library_books, size: 18, color: _TC.primary),
               ),
             ],
@@ -1488,7 +2602,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
           SizedBox(height: 12),
           Container(
             padding: EdgeInsets.all(12),
-            decoration: BoxDecoration(color: _WC.surfaceDim, borderRadius: BorderRadius.circular(12)),
+            decoration: BoxDecoration(
+              color: _WC.surfaceDim,
+              borderRadius: BorderRadius.circular(12),
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -1496,12 +2613,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Expanded(
-                      child: Text('Kepatuhan Rekap Absensi Harian',
-                          style: TextStyle(fontSize: 12, color: _WC.ink)),
+                      child: Text(
+                        'Kepatuhan Rekap Absensi Harian',
+                        style: TextStyle(fontSize: 12, color: _WC.ink),
+                      ),
                     ),
                     Text(
-                      pct != null ? '${_fmtInt(terisi!)} / ${_fmtInt(total!)} Rombel (${(pct * 100).round()}%)' : 'Belum ada data',
-                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _TC.primary),
+                      pct != null
+                          ? '${_fmtInt(terisi!)} / ${_fmtInt(total!)} Rombel (${(pct * 100).round()}%)'
+                          : 'Belum ada data',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: _TC.primary,
+                      ),
                     ),
                   ],
                 ),
@@ -1522,26 +2647,30 @@ class _DashboardScreenState extends State<DashboardScreen> {
           _academicShortcut(
             icon: Icons.fact_check,
             label: 'Input Rekap Absensi Terpusat',
-            onTap: _notAvailable,
+            onTap: () => _goto('Absensi'),
           ),
           SizedBox(height: 8),
           _academicShortcut(
             icon: Icons.upload_file,
             label: 'Unggah Nilai Kolektif (Excel/CSV)',
-            onTap: _notAvailable,
+            onTap: () => _goto('Nilai'),
           ),
           SizedBox(height: 8),
           _academicShortcut(
             icon: Icons.auto_stories,
             label: 'Katalog Mata Pelajaran & Kitab Turats',
-            onTap: _notAvailable,
+            onTap: () => _goto('Mata Pelajaran'),
           ),
         ],
       ),
     );
   }
 
-  Widget _academicShortcut({required IconData icon, required String label, required VoidCallback onTap}) {
+  Widget _academicShortcut({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(999),
@@ -1562,10 +2691,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   Icon(icon, size: 18, color: _TC.primary),
                   SizedBox(width: 10),
                   Expanded(
-                    child: Text(label,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: _WC.ink)),
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                        color: _WC.ink,
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -1578,7 +2713,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildLogCard() {
-    final logs = ((_data!['logAktivitas'] as List?) ?? []).cast<Map<String, dynamic>>();
+    final logs = ((_data!['logAktivitas'] as List?) ?? [])
+        .cast<Map<String, dynamic>>();
     return _Card(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1587,22 +2723,30 @@ class _DashboardScreenState extends State<DashboardScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Expanded(
-                child: Text('Log Aktivitas Data Master',
-                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _WC.ink)),
+                child: Text(
+                  'Log Aktivitas Data Master',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: _WC.ink,
+                  ),
+                ),
               ),
-              Text('Internal Ma\'had',
-                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: _WC.inkSecondary)),
+              Text(
+                'Internal Ma\'had',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: _WC.inkSecondary,
+                ),
+              ),
             ],
           ),
           SizedBox(height: 10),
           if (logs.isEmpty)
             _EmptyRow(text: 'Belum ada aktivitas tercatat.')
           else
-            Column(
-              children: [
-                for (final log in logs) _logRow(log),
-              ],
-            ),
+            Column(children: [for (final log in logs.take(5)) _logRow(log)]),
         ],
       ),
     );
@@ -1629,7 +2773,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(message, style: TextStyle(fontSize: 12.5, color: _WC.ink, height: 1.3)),
+                Text(
+                  message,
+                  style: TextStyle(fontSize: 12.5, color: _WC.ink, height: 1.3),
+                ),
                 SizedBox(height: 2),
                 Text(
                   time.isNotEmpty ? '$actor • $time' : actor,
@@ -1691,7 +2838,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     // Kumpulkan semua nilai role/jabatan dari respons dashboard.
     final fields = <String>[role];
-    for (final k in const ['jabatan', 'peran', 'tipeUser', 'jenisUser', 'subRole', 'roleDetail', 'posisi']) {
+    for (final k in const [
+      'jabatan',
+      'peran',
+      'tipeUser',
+      'jenisUser',
+      'subRole',
+      'roleDetail',
+      'posisi',
+    ]) {
       final v = _data?[k];
       if (v is String) fields.add(v);
     }
@@ -1741,15 +2896,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   List<Map<String, dynamic>> _ustadzKelas() =>
-      ((_data!['kelasDiampu'] as List?) ?? const []).cast<Map<String, dynamic>>();
+      ((_data!['kelasDiampu'] as List?) ?? const [])
+          .cast<Map<String, dynamic>>();
 
-      /// Kelas dianggap "sudah ada rekap" kalau minimal 1 mapel terisi hari ini.
-      /// Fallback ke field lama kalau backend belum mengirim mapelTerisiHariIni.
-      bool _kelasSudahDirekap(Map<String, dynamic> k) {
-        final n = k['mapelTerisiHariIni'];
-        if (n is num) return n > 0;
-        return k['absensiHariIniTerisi'] == true;
-      }
+  /// Kelas dianggap "sudah ada rekap" kalau minimal 1 mapel terisi hari ini.
+  /// Fallback ke field lama kalau backend belum mengirim mapelTerisiHariIni.
+  bool _kelasSudahDirekap(Map<String, dynamic> k) {
+    final n = k['mapelTerisiHariIni'];
+    if (n is num) return n > 0;
+    return k['absensiHariIniTerisi'] == true;
+  }
 
   /// Maksimal 3 ujian yang tanggalnya hari ini atau sesudahnya, paling dekat dulu.
   List<Map<String, dynamic>> _ustadzUjian() {
@@ -1776,14 +2932,114 @@ class _DashboardScreenState extends State<DashboardScreen> {
       final d = DateTime.tryParse('${u['tanggal'] ?? ''}')?.toLocal();
       if (d == null || d.isAfter(now)) continue;
 
-      final nilai = (u['_count'] is Map ? u['_count']['nilais'] : null) as int? ?? 0;
-      final totalRaw = u['totalSantri'] ?? (u['kelas'] is Map ? u['kelas']['jumlahSantri'] : null);
+      final nilai =
+          (u['_count'] is Map ? u['_count']['nilais'] : null) as int? ?? 0;
+      final totalRaw =
+          u['totalSantri'] ??
+          (u['kelas'] is Map ? u['kelas']['jumlahSantri'] : null);
       final total = totalRaw is int && totalRaw > 0 ? totalRaw : null;
 
       final belum = total != null ? nilai < total : nilai == 0;
       if (belum) hasil.add(u);
     }
     return hasil;
+  }
+
+  /// Alert ustadz: notifikasi melayang bertema (gaya sama dengan _toast di
+  /// absensi_screen.dart — latar emerald, border emas, ikon bulat, judul +
+  /// subjudul). Muncul SEKALI per sesi, hanya kalau ada kelas yang belum
+  /// direkap atau ujian yang belum dinilai. Tombol aksi di kanan langsung
+  /// membawa ke Absensi (atau Ujian kalau absensi sudah beres).
+  void _tampilkanAlertUstadz() {
+    if (_alertUstadzShown || !mounted || _data == null) return;
+
+    final absensiBelum = _ustadzKelas()
+        .where((k) => !_kelasSudahDirekap(k))
+        .length;
+    final nilaiBelum = _ujianBelumDinilai().length;
+    if (absensiBelum == 0 && nilaiBelum == 0) return;
+
+    _alertUstadzShown = true;
+
+    final pesan = <String>[
+      if (absensiBelum > 0)
+        '$absensiBelum kelas belum ada rekap absensi hari ini',
+      if (nilaiBelum > 0) '$nilaiBelum ujian menunggu input nilai',
+    ];
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final w = MediaQuery.of(context).size.width;
+      final side = w > 472 ? (w - 440) / 2 : 16.0;
+
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            behavior: SnackBarBehavior.floating,
+            persist: false, // baru: tetap hilang otomatis walau ada action
+            backgroundColor: _WC.primary,
+            elevation: 6,
+            margin: EdgeInsets.fromLTRB(side, 0, side, 16),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            duration: const Duration(seconds: 8),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+              side: BorderSide(color: _WC.gold.withOpacity(0.5)),
+            ),
+            action: SnackBarAction(
+              label: absensiBelum > 0 ? 'Isi Absensi' : 'Lihat Ujian',
+              textColor: _WC.gold,
+              onPressed: () =>
+                  _goto(absensiBelum > 0 ? 'Absensi' : 'Ujian & Remedial'),
+            ),
+            content: Row(
+              children: [
+                Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: _WC.gold.withOpacity(0.18),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.notifications_active_outlined,
+                    size: 18,
+                    color: _WC.gold,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Perlu Tindakan',
+                        style: TextStyle(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      for (final p in pesan)
+                        Text(
+                          p,
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            height: 1.35,
+                            color: Colors.white.withOpacity(0.75),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+    });
   }
 
   Widget _musyrifHeroHeader() {
@@ -1967,158 +3223,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _ustadzHeroHeader() {
-    final nama = _pick(_data!, ['namaPengguna', 'nama', 'userName']) ??
-        AppScope.of(context).user?.nama ??
-        'Ustadz';
-    final sapaan = nama.toLowerCase().startsWith('ust') ? nama : 'Ustadz $nama';
-    final tenantNama = AppScope.of(context).user?.tenantNama;
-    final namaPondok = _pick(_data!, ['namaPondok', 'namaLembaga', 'tenantNama']) ??
-        ((tenantNama != null && tenantNama.isNotEmpty) ? tenantNama : 'Lembaga Anda');
-    final tagline = _pick(_data!, ['tagline']) ?? 'TAQARRUB & KHIDMAH';
-    final hijriah = _pick(_data!, ['tanggalHijriah']);
-    final tanggal = _formatIndoDate(DateTime.now()) + (hijriah != null ? ' • $hijriah' : '');
-
-    final kelas = _ustadzKelas();
-    final belumAbsen = kelas.where((k) => !_kelasSudahDirekap(k)).length;
-
-    return Container(
-      clipBehavior: Clip.antiAlias,
-      decoration: BoxDecoration(
-      gradient: LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-        colors: [_TC.primary, _TC.primaryEnd],
-      ),
-      borderRadius: BorderRadius.circular(18),
-      boxShadow: [
-        BoxShadow(color: _TC.primary.withOpacity(0.18), blurRadius: 12, offset: const Offset(0, 4)),
-      ],
-    ),
-          child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          Positioned(
-            right: -18,
-            top: -18,
-            child: Opacity(opacity: 0.06, child: _RubElHizb(size: 130, color: Colors.white)),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 6,
-                      height: 6,
-                      decoration: const BoxDecoration(color: _WC.gold, shape: BoxShape.circle),
-                    ),
-                    const SizedBox(width: 6),
-                    Flexible(
-                      child: Text(
-                        '$tagline • ${namaPondok.toUpperCase()}',
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 9.5,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 0.3,
-                          color: _WC.gold,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  "Assalamu'alaikum, $sapaan",
-                  style: const TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w700,
-                    height: 1.25,
-                    color: Colors.white,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    Icon(Icons.calendar_today_outlined, size: 13, color: Colors.white.withOpacity(0.7)),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        tanggal,
-                        style: TextStyle(fontSize: 11.5, color: Colors.white.withOpacity(0.7)),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Divider(height: 1, color: Colors.white.withOpacity(0.15)),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Container(
-                      width: 34,
-                      height: 34,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.12),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Icon(Icons.menu_book_outlined, size: 18, color: _TC.mint),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        kelas.isEmpty ? 'Belum ada kelas yang Anda ampu' : 'Anda mengampu ${kelas.length} kelas',
-                        style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: Colors.white),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.12),
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: Text(
-                        kelas.isEmpty
-                          ? 'Tidak Ada Kelas'
-                          : (belumAbsen == 0 ? 'Semua Ada Rekap' : '$belumAbsen Belum Ada Rekap'),
-                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.white),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _ustadzSection(String title, {String? trailing, Widget? badge, VoidCallback? onTap}) {
-    return Row(
-      children: [
-        Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _WC.ink)),
-        if (badge != null) ...[const SizedBox(width: 8), badge],
-        const Spacer(),
-        if (trailing != null)
-          GestureDetector(
-            onTap: onTap,
-            child: Text(
-              trailing,
-              style: TextStyle(
-                fontSize: 11.5,
-                fontWeight: onTap != null ? FontWeight.w700 : FontWeight.w500,
-                color: onTap != null ? _WC.goldDark : _WC.inkSecondary,
-              ),
-            ),
-          ),
-      ],
-    );
-  }
 
   Widget _musyrifBody() {
     final r = (_data!['ringkasan'] as Map?)?.cast<String, dynamic>() ?? <String, dynamic>{};
@@ -2268,15 +3372,231 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+
+  Widget _ustadzHeroHeader() {
+    final nama =
+        _pick(_data!, ['namaPengguna', 'nama', 'userName']) ??
+        AppScope.of(context).user?.nama ??
+        'Ustadz';
+    final sapaan = nama.toLowerCase().startsWith('ust') ? nama : 'Ustadz $nama';
+    final tenantNama = AppScope.of(context).user?.tenantNama;
+    final namaPondok =
+        _pick(_data!, ['namaPondok', 'namaLembaga', 'tenantNama']) ??
+        ((tenantNama != null && tenantNama.isNotEmpty)
+            ? tenantNama
+            : 'Lembaga Anda');
+    final tagline = _pick(_data!, ['tagline']) ?? 'TAQARRUB & KHIDMAH';
+    final hijriah = _pick(_data!, ['tanggalHijriah']);
+    final tanggal =
+        _formatIndoDate(DateTime.now()) +
+        (hijriah != null ? ' • $hijriah' : '');
+
+    final kelas = _ustadzKelas();
+    final belumAbsen = kelas.where((k) => !_kelasSudahDirekap(k)).length;
+
+    return Container(
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [_TC.primary, _TC.primaryEnd],
+        ),
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: _TC.primary.withOpacity(0.18),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Positioned(
+            right: -18,
+            top: -18,
+            child: Opacity(
+              opacity: 0.06,
+              child: _RubElHizb(size: 130, color: Colors.white),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 6,
+                      height: 6,
+                      decoration: const BoxDecoration(
+                        color: _WC.gold,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Text(
+                        '$tagline • ${namaPondok.toUpperCase()}',
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.3,
+                          color: _WC.gold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  "Assalamu'alaikum, $sapaan",
+                  style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w700,
+                    height: 1.25,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    Icon(
+                      Icons.calendar_today_outlined,
+                      size: 13,
+                      color: Colors.white.withOpacity(0.7),
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        tanggal,
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          color: Colors.white.withOpacity(0.7),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Divider(height: 1, color: Colors.white.withOpacity(0.15)),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Container(
+                      width: 34,
+                      height: 34,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Icon(
+                        Icons.menu_book_outlined,
+                        size: 18,
+                        color: _TC.mint,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        kelas.isEmpty
+                            ? 'Belum ada kelas yang Anda ampu'
+                            : 'Anda mengampu ${kelas.length} kelas',
+                        style: const TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        kelas.isEmpty
+                            ? 'Tidak Ada Kelas'
+                            : (belumAbsen == 0
+                                  ? 'Semua Ada Rekap'
+                                  : '$belumAbsen Belum Ada Rekap'),
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _ustadzSection(
+    String title, {
+    String? trailing,
+    Widget? badge,
+    VoidCallback? onTap,
+  }) {
+    return Row(
+      children: [
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w700,
+            color: _WC.ink,
+          ),
+        ),
+        if (badge != null) ...[const SizedBox(width: 8), badge],
+        const Spacer(),
+        if (trailing != null)
+          GestureDetector(
+            onTap: onTap,
+            child: Text(
+              trailing,
+              style: TextStyle(
+                fontSize: 11.5,
+                fontWeight: onTap != null ? FontWeight.w700 : FontWeight.w500,
+                color: onTap != null ? _WC.goldDark : _WC.inkSecondary,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
   Widget _ustadzBody() {
     final kelas = _ustadzKelas();
     final ujian = _ustadzUjian();
-    final r = (_data!['ringkasan'] as Map?)?.cast<String, dynamic>() ?? <String, dynamic>{};
+    final r =
+        (_data!['ringkasan'] as Map?)?.cast<String, dynamic>() ??
+        <String, dynamic>{};
 
-    final hadir = r.containsKey('kehadiranPersen') ? _num(r, ['kehadiranPersen']).round() : null;
+    final hadir = r.containsKey('kehadiranPersen')
+        ? _num(r, ['kehadiranPersen']).round()
+        : null;
     final absensiBelum = kelas.where((k) => !_kelasSudahDirekap(k)).length;
     final nilaiBelumList = _ujianBelumDinilai();
     final nilaiBelum = nilaiBelumList.length;
+    final totalSantri = kelas.fold<int>(0, (sum, k) {
+      final j = k['jumlahSantri'];
+      return sum + (j is num ? j.toInt() : 0);
+    });
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -2287,15 +3607,27 @@ class _DashboardScreenState extends State<DashboardScreen> {
         Row(
           children: [
             Expanded(
-              child: _UQuickTile(icon: Icons.fact_check_outlined, label: 'Absensi', onTap: () => _goto('Absensi')),
+              child: _UQuickTile(
+                icon: Icons.fact_check_outlined,
+                label: 'Absensi',
+                onTap: () => _goto('Absensi'),
+              ),
             ),
             const SizedBox(width: 10),
             Expanded(
-              child: _UQuickTile(icon: Icons.edit_note_rounded, label: 'Input Nilai', onTap: () => _goto('Nilai')),
+              child: _UQuickTile(
+                icon: Icons.edit_note_rounded,
+                label: 'Input Nilai',
+                onTap: () => _goto('Nilai'),
+              ),
             ),
             const SizedBox(width: 10),
             Expanded(
-              child: _UQuickTile(icon: Icons.auto_stories_outlined, label: 'Tahfidz', onTap: () => _goto('Tahfidz')),
+              child: _UQuickTile(
+                icon: Icons.auto_stories_outlined,
+                label: 'Tahfidz',
+                onTap: () => _goto('Tahfidz'),
+              ),
             ),
           ],
         ),
@@ -2304,12 +3636,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
         // ---- Kelas yang Diampu ----
         _ustadzSection(
           'Kelas yang Diampu',
-          badge: _UPill(label: '${kelas.length} Kelas', bg: _TC.sage, fg: _TC.primary),
+          badge: _UPill(
+            label: '${kelas.length} Kelas',
+            bg: _TC.sage,
+            fg: _TC.primary,
+          ),
         ),
         const SizedBox(height: 10),
         if (kelas.isEmpty)
           const _Card(
-            child: _EmptyRow(text: 'Belum ada kelas yang Anda ampu.', icon: Icons.meeting_room_outlined),
+            child: _EmptyRow(
+              text: 'Belum ada kelas yang Anda ampu.',
+              icon: Icons.meeting_room_outlined,
+            ),
           )
         else
           for (final k in kelas)
@@ -2339,22 +3678,35 @@ class _DashboardScreenState extends State<DashboardScreen> {
               tagFg: _WC.pendingText,
               value: '$absensiBelum',
               unit: 'Kelas',
-              caption: absensiBelum > 0 ? 'Belum ada rekap hari ini' : 'Semua kelas ada rekap',
+              caption: absensiBelum > 0
+                  ? 'Belum ada rekap hari ini'
+                  : 'Semua kelas ada rekap',
               captionColor: absensiBelum > 0 ? _WC.errorText : _WC.successText,
             ),
             _USummaryCard(
-            label: 'Nilai Belum',
-            icon: Icons.rate_review_outlined,
-            iconBg: _TC.sage,
-            iconFg: _TC.primary,
+              label: 'Nilai Belum',
+              icon: Icons.rate_review_outlined,
+              iconBg: _TC.sage,
+              iconFg: _TC.primary,
               value: '$nilaiBelum',
               unit: 'Ujian',
               caption: nilaiBelum == 0
                   ? 'Semua nilai sudah masuk'
                   : (nilaiBelum == 1
-                      ? '${nilaiBelumList.first['nama'] ?? 'Ujian'}'
-                      : 'Menunggu input nilai'),
+                        ? '${nilaiBelumList.first['nama'] ?? 'Ujian'}'
+                        : 'Menunggu input nilai'),
               captionColor: nilaiBelum > 0 ? _WC.errorText : _WC.successText,
+            ),
+            _USummaryCard(
+              label: 'Santri Diampu',
+              icon: Icons.groups_2_outlined,
+              iconBg: _WC.goldSurface,
+              iconFg: _WC.gold,
+              value: '$totalSantri',
+              unit: 'Santri',
+              caption: kelas.isEmpty
+                  ? 'Belum ada kelas'
+                  : 'Di ${kelas.length} kelas Anda',
             ),
           ],
         ),
@@ -2363,18 +3715,32 @@ class _DashboardScreenState extends State<DashboardScreen> {
         // ---- Ujian Terdekat (menggantikan Pengumuman Terbaru) ----
         _ustadzSection(
           'Ujian Terdekat',
-          badge: ujian.isEmpty ? null : _UPill(label: '${ujian.length} Ujian', bg: _TC.sage, fg: _TC.primary),
+          badge: ujian.isEmpty
+              ? null
+              : _UPill(
+                  label: '${ujian.length} Ujian',
+                  bg: _TC.sage,
+                  fg: _TC.primary,
+                ),
           trailing: 'Semua',
           onTap: () => _goto('Ujian & Remedial'),
         ),
         const SizedBox(height: 10),
         if (ujian.isEmpty)
-          const _Card(child: _EmptyRow(text: 'Belum ada ujian terjadwal.', icon: Icons.quiz_outlined))
+          const _Card(
+            child: _EmptyRow(
+              text: 'Belum ada ujian terjadwal.',
+              icon: Icons.quiz_outlined,
+            ),
+          )
         else
           for (final u in ujian)
             Padding(
               padding: const EdgeInsets.only(bottom: 10),
-              child: _UUjianCard(ujian: u, onTap: () => _goto('Ujian & Remedial')),
+              child: _UUjianCard(
+                ujian: u,
+                onTap: () => _goto('Ujian & Remedial'),
+              ),
             ),
       ],
     );
@@ -2422,20 +3788,42 @@ class _SectionLabel extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Flexible(
-          child: Text(title,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _WC.ink)),
+          child: Text(
+            title,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              color: _WC.ink,
+            ),
+          ),
         ),
         const SizedBox(width: 8),
         if (trailingAsPill)
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-            decoration: BoxDecoration(color: _WC.surfaceDim, borderRadius: BorderRadius.circular(999)),
-            child: Text(trailing,
-                style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600, color: _WC.inkSecondary)),
+            decoration: BoxDecoration(
+              color: _WC.surfaceDim,
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Text(
+              trailing,
+              style: const TextStyle(
+                fontSize: 10.5,
+                fontWeight: FontWeight.w600,
+                color: _WC.inkSecondary,
+              ),
+            ),
           )
         else
-          Text(trailing, style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: trailingColor)),
+          Text(
+            trailing,
+            style: TextStyle(
+              fontSize: 11.5,
+              fontWeight: FontWeight.w600,
+              color: trailingColor,
+            ),
+          ),
       ],
     );
   }
@@ -2476,28 +3864,45 @@ class _MetricCard extends StatelessWidget {
               Container(
                 width: 32,
                 height: 32,
-                decoration: BoxDecoration(color: iconBg, shape: BoxShape.circle),
+                decoration: BoxDecoration(
+                  color: iconBg,
+                  shape: BoxShape.circle,
+                ),
                 child: Icon(icon, size: 16, color: iconColor),
               ),
               const SizedBox(width: 8),
               Expanded(
-                child: Text(label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _WC.inkSecondary)),
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: _WC.inkSecondary,
+                  ),
+                ),
               ),
             ],
           ),
           const SizedBox(height: 12),
-          Text(value,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: _WC.ink)),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w800,
+              color: _WC.ink,
+            ),
+          ),
           const SizedBox(height: 2),
-          Text(caption,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 10.5, color: _WC.inkSecondary)),
+          Text(
+            caption,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 10.5, color: _WC.inkSecondary),
+          ),
         ],
       ),
     );
@@ -2546,25 +3951,46 @@ class _QuickAction extends StatelessWidget {
                   Container(
                     width: 36,
                     height: 36,
-                    decoration: BoxDecoration(color: iconBg, shape: BoxShape.circle),
+                    decoration: BoxDecoration(
+                      color: iconBg,
+                      shape: BoxShape.circle,
+                    ),
                     child: Icon(icon, size: 19, color: iconColor),
                   ),
                   if (tag != null)
                     Container(
                       padding: EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(color: _TC.mint, borderRadius: BorderRadius.circular(999)),
-                      child: Text(tag!,
-                          style: TextStyle(fontSize: 9.5, color: _TC.primary, fontWeight: FontWeight.w700)),
+                      decoration: BoxDecoration(
+                        color: _TC.mint,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        tag!,
+                        style: TextStyle(
+                          fontSize: 9.5,
+                          color: _TC.primary,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
                     ),
                 ],
               ),
               SizedBox(height: 8),
-              Text(title, style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: _WC.ink)),
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w700,
+                  color: _WC.ink,
+                ),
+              ),
               SizedBox(height: 1),
-              Text(subtitle,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 10.5, color: _WC.inkSecondary)),
+              Text(
+                subtitle,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 10.5, color: _WC.inkSecondary),
+              ),
             ],
           ),
         ),
@@ -2591,7 +4017,11 @@ class _TwoColGrid extends StatelessWidget {
             children: [
               Expanded(child: children[i]),
               const SizedBox(width: 10),
-              Expanded(child: i + 1 < children.length ? children[i + 1] : const SizedBox.shrink()),
+              Expanded(
+                child: i + 1 < children.length
+                    ? children[i + 1]
+                    : const SizedBox.shrink(),
+              ),
             ],
           ),
         ),
@@ -2612,7 +4042,12 @@ class _EmptyRow extends StatelessWidget {
       children: [
         Icon(icon, size: 18, color: _WC.inkSecondary),
         const SizedBox(width: 8),
-        Expanded(child: Text(text, style: const TextStyle(fontSize: 12.5, color: _WC.inkSecondary))),
+        Expanded(
+          child: Text(
+            text,
+            style: const TextStyle(fontSize: 12.5, color: _WC.inkSecondary),
+          ),
+        ),
       ],
     );
   }
@@ -2635,20 +4070,29 @@ class _RubElHizb extends StatelessWidget {
           Container(
             width: size * 0.55,
             height: size * 0.55,
-            decoration: BoxDecoration(border: Border.all(color: color, width: 2), borderRadius: BorderRadius.circular(6)),
+            decoration: BoxDecoration(
+              border: Border.all(color: color, width: 2),
+              borderRadius: BorderRadius.circular(6),
+            ),
           ),
           Transform.rotate(
             angle: 0.785398, // 45deg
             child: Container(
               width: size * 0.55,
               height: size * 0.55,
-              decoration: BoxDecoration(border: Border.all(color: color, width: 2), borderRadius: BorderRadius.circular(6)),
+              decoration: BoxDecoration(
+                border: Border.all(color: color, width: 2),
+                borderRadius: BorderRadius.circular(6),
+              ),
             ),
           ),
           Container(
             width: size * 0.3,
             height: size * 0.3,
-            decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: color, width: 2)),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: color, width: 2),
+            ),
           ),
         ],
       ),
@@ -2665,21 +4109,40 @@ class _UPill extends StatelessWidget {
   final Color bg;
   final Color fg;
   final Color? dot;
-  const _UPill({required this.label, required this.bg, required this.fg, this.dot});
+  const _UPill({
+    required this.label,
+    required this.bg,
+    required this.fg,
+    this.dot,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(999)),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(999),
+      ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           if (dot != null) ...[
-            Container(width: 6, height: 6, decoration: BoxDecoration(color: dot, shape: BoxShape.circle)),
+            Container(
+              width: 6,
+              height: 6,
+              decoration: BoxDecoration(color: dot, shape: BoxShape.circle),
+            ),
             const SizedBox(width: 5),
           ],
-          Text(label, style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: fg)),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 10.5,
+              fontWeight: FontWeight.w700,
+              color: fg,
+            ),
+          ),
         ],
       ),
     );
@@ -2690,7 +4153,11 @@ class _UQuickTile extends StatelessWidget {
   final IconData icon;
   final String label;
   final VoidCallback onTap;
-  const _UQuickTile({required this.icon, required this.label, required this.onTap});
+  const _UQuickTile({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -2711,14 +4178,23 @@ class _UQuickTile extends StatelessWidget {
               Container(
                 width: 42,
                 height: 42,
-                decoration: BoxDecoration(color: _TC.sage, borderRadius: BorderRadius.circular(12)),
+                decoration: BoxDecoration(
+                  color: _TC.sage,
+                  borderRadius: BorderRadius.circular(12),
+                ),
                 child: Icon(icon, size: 21, color: _TC.primary),
               ),
               const SizedBox(height: 6),
-              Text(label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600, color: _WC.ink)),
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w600,
+                  color: _WC.ink,
+                ),
+              ),
             ],
           ),
         ),
@@ -2748,7 +4224,10 @@ class _UKelasCard extends StatelessWidget {
         children: [
           Icon(icon, size: 12, color: _WC.inkSecondary),
           const SizedBox(width: 4),
-          Text(label, style: const TextStyle(fontSize: 10.5, color: _WC.inkSecondary)),
+          Text(
+            label,
+            style: const TextStyle(fontSize: 10.5, color: _WC.inkSecondary),
+          ),
         ],
       ),
     );
@@ -2765,12 +4244,15 @@ class _UKelasCard extends StatelessWidget {
     final mapel = s('mapel');
     final tingkat = s('tingkat');
     final jumlah = kelas['jumlahSantri'];
-    final jumlahMapel =
-        kelas['jumlahMapel'] is num ? (kelas['jumlahMapel'] as num).toInt() : null;
-    final mapelTerisi =
-        kelas['mapelTerisiHariIni'] is num ? (kelas['mapelTerisiHariIni'] as num).toInt() : null;
-    final terisi =
-    mapelTerisi != null ? mapelTerisi > 0 : kelas['absensiHariIniTerisi'] == true;
+    final jumlahMapel = kelas['jumlahMapel'] is num
+        ? (kelas['jumlahMapel'] as num).toInt()
+        : null;
+    final mapelTerisi = kelas['mapelTerisiHariIni'] is num
+        ? (kelas['mapelTerisiHariIni'] as num).toInt()
+        : null;
+    final terisi = mapelTerisi != null
+        ? mapelTerisi > 0
+        : kelas['absensiHariIniTerisi'] == true;
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(16),
@@ -2785,7 +4267,10 @@ class _UKelasCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // Garis aksen kiri: hanya untuk kelas yang belum diabsen.
-              Container(width: 4, color: terisi ? Colors.transparent : _TC.primary),
+              Container(
+                width: 4,
+                color: terisi ? Colors.transparent : _TC.primary,
+              ),
               Expanded(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(12, 14, 14, 14),
@@ -2848,10 +4333,16 @@ class _UKelasCard extends StatelessWidget {
                               FilledButton(
                                 style: FilledButton.styleFrom(
                                   backgroundColor: _TC.primary,
-                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 14,
+                                    vertical: 10,
+                                  ),
                                   minimumSize: Size.zero,
-                                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+                                  tapTargetSize:
+                                      MaterialTapTargetSize.shrinkWrap,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(999),
+                                  ),
                                 ),
                                 onPressed: onAbsensi,
                                 child: const Row(
@@ -2859,10 +4350,18 @@ class _UKelasCard extends StatelessWidget {
                                   children: [
                                     Text(
                                       'Isi Absensi',
-                                      style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: Colors.white),
+                                      style: TextStyle(
+                                        fontSize: 11.5,
+                                        fontWeight: FontWeight.w700,
+                                        color: Colors.white,
+                                      ),
                                     ),
                                     SizedBox(width: 6),
-                                    Icon(Icons.arrow_forward, size: 14, color: Colors.white),
+                                    Icon(
+                                      Icons.arrow_forward,
+                                      size: 14,
+                                      color: Colors.white,
+                                    ),
                                   ],
                                 ),
                               ),
@@ -2870,14 +4369,18 @@ class _UKelasCard extends StatelessWidget {
                           ),
                         ],
                       ),
-                      if (tingkat != null || jumlah != null || jumlahMapel != null) ...[
+                      if (tingkat != null ||
+                          jumlah != null ||
+                          jumlahMapel != null) ...[
                         const SizedBox(height: 10),
                         Wrap(
                           spacing: 6,
                           runSpacing: 6,
                           children: [
-                            if (tingkat != null) _chip(Icons.layers_outlined, tingkat),
-                            if (jumlah != null) _chip(Icons.groups_2_outlined, '$jumlah santri'),
+                            if (tingkat != null)
+                              _chip(Icons.layers_outlined, tingkat),
+                            if (jumlah != null)
+                              _chip(Icons.groups_2_outlined, '$jumlah santri'),
                             if (jumlahMapel != null)
                               _chip(
                                 Icons.menu_book_outlined,
@@ -2908,7 +4411,20 @@ class _UUjianCard extends StatelessWidget {
   final VoidCallback onTap;
   const _UUjianCard({required this.ujian, required this.onTap});
 
-  static const _bulan = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+  static const _bulan = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'Mei',
+    'Jun',
+    'Jul',
+    'Agu',
+    'Sep',
+    'Okt',
+    'Nov',
+    'Des',
+  ];
 
   String _jenisLabel(String j) {
     switch (j) {
@@ -2927,7 +4443,8 @@ class _UUjianCard extends StatelessWidget {
 
   String? _nested(String key, String sub) {
     final v = ujian[key];
-    if (v is Map && v[sub] != null && '${v[sub]}'.trim().isNotEmpty) return '${v[sub]}';
+    if (v is Map && v[sub] != null && '${v[sub]}'.trim().isNotEmpty)
+      return '${v[sub]}';
     return null;
   }
 
@@ -2944,7 +4461,10 @@ class _UUjianCard extends StatelessWidget {
         children: [
           Icon(icon, size: 12, color: _WC.inkSecondary),
           const SizedBox(width: 4),
-          Text(label, style: const TextStyle(fontSize: 10.5, color: _WC.inkSecondary)),
+          Text(
+            label,
+            style: const TextStyle(fontSize: 10.5, color: _WC.inkSecondary),
+          ),
         ],
       ),
     );
@@ -2964,12 +4484,15 @@ class _UUjianCard extends StatelessWidget {
     Color sisaBg = _TC.sage;
     Color sisaFg = _TC.primary;
     if (d != null) {
-      final jam = '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
+      final jam =
+          '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
       tanggal = '${d.day} ${_bulan[d.month - 1]} ${d.year} • $jam WIB';
       final now = DateTime.now();
-      final diff = DateTime(d.year, d.month, d.day)
-          .difference(DateTime(now.year, now.month, now.day))
-          .inDays;
+      final diff = DateTime(
+        d.year,
+        d.month,
+        d.day,
+      ).difference(DateTime(now.year, now.month, now.day)).inDays;
       if (diff == 0) {
         sisa = 'Hari ini';
         sisaBg = _WC.pendingBg;
@@ -2983,11 +4506,16 @@ class _UUjianCard extends StatelessWidget {
       }
     }
 
-    final nilai = (ujian['_count'] is Map ? ujian['_count']['nilais'] : null) as int? ?? 0;
-    final totalRaw = ujian['totalSantri'] ??
+    final nilai =
+        (ujian['_count'] is Map ? ujian['_count']['nilais'] : null) as int? ??
+        0;
+    final totalRaw =
+        ujian['totalSantri'] ??
         (ujian['kelas'] is Map ? ujian['kelas']['jumlahSantri'] : null);
     final total = totalRaw is int && totalRaw > 0 ? totalRaw : null;
-    final progresText = total != null ? '$nilai/$total dinilai' : (nilai > 0 ? '$nilai dinilai' : 'Belum ada nilai');
+    final progresText = total != null
+        ? '$nilai/$total dinilai'
+        : (nilai > 0 ? '$nilai dinilai' : 'Belum ada nilai');
 
     return Material(
       color: _WC.surface,
@@ -3007,8 +4535,15 @@ class _UUjianCard extends StatelessWidget {
               Container(
                 width: 40,
                 height: 40,
-                decoration: BoxDecoration(color: _WC.goldSurface, borderRadius: BorderRadius.circular(12)),
-                child: const Icon(Icons.quiz_outlined, size: 20, color: _WC.gold),
+                decoration: BoxDecoration(
+                  color: _WC.goldSurface,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.quiz_outlined,
+                  size: 20,
+                  color: _WC.gold,
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -3018,10 +4553,16 @@ class _UUjianCard extends StatelessWidget {
                     Row(
                       children: [
                         Expanded(
-                          child: Text(tanggal,
-                              style: const TextStyle(fontSize: 10.5, color: _WC.inkSecondary)),
+                          child: Text(
+                            tanggal,
+                            style: const TextStyle(
+                              fontSize: 10.5,
+                              color: _WC.inkSecondary,
+                            ),
+                          ),
                         ),
-                        if (sisa != null) _UPill(label: sisa, bg: sisaBg, fg: sisaFg),
+                        if (sisa != null)
+                          _UPill(label: sisa, bg: sisaBg, fg: sisaFg),
                       ],
                     ),
                     const SizedBox(height: 4),
@@ -3029,7 +4570,12 @@ class _UUjianCard extends StatelessWidget {
                       nama,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: _WC.ink, height: 1.3),
+                      style: const TextStyle(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w700,
+                        color: _WC.ink,
+                        height: 1.3,
+                      ),
                     ),
                     const SizedBox(height: 8),
                     Wrap(
@@ -3037,16 +4583,27 @@ class _UUjianCard extends StatelessWidget {
                       runSpacing: 6,
                       children: [
                         _chip(Icons.label_outline, jenis),
-                        if (mapel != null) _chip(Icons.menu_book_outlined, mapel),
-                        if (kelas != null) _chip(Icons.groups_2_outlined, kelas),
-                        _chip(terkunci ? Icons.lock_outline : Icons.assignment_turned_in_outlined, progresText),
+                        if (mapel != null)
+                          _chip(Icons.menu_book_outlined, mapel),
+                        if (kelas != null)
+                          _chip(Icons.groups_2_outlined, kelas),
+                        _chip(
+                          terkunci
+                              ? Icons.lock_outline
+                              : Icons.assignment_turned_in_outlined,
+                          progresText,
+                        ),
                       ],
                     ),
                   ],
                 ),
               ),
               const SizedBox(width: 4),
-              const Icon(Icons.chevron_right, size: 18, color: _WC.inkSecondary),
+              const Icon(
+                Icons.chevron_right,
+                size: 18,
+                color: _WC.inkSecondary,
+              ),
             ],
           ),
         ),
@@ -3096,14 +4653,23 @@ class _USummaryCard extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: Text(label,
-                    style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: _WC.inkSecondary)),
+                child: Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w600,
+                    color: _WC.inkSecondary,
+                  ),
+                ),
               ),
               if (icon != null)
                 Container(
                   width: 28,
                   height: 28,
-                  decoration: BoxDecoration(color: iconBg ?? _TC.sage, borderRadius: BorderRadius.circular(8)),
+                  decoration: BoxDecoration(
+                    color: iconBg ?? _TC.sage,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                   child: Icon(icon, size: 15, color: iconFg ?? _TC.primary),
                 )
               else if (tag != null)
@@ -3115,10 +4681,23 @@ class _USummaryCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.baseline,
             textBaseline: TextBaseline.alphabetic,
             children: [
-              Text(value, style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w800, color: _WC.ink)),
+              Text(
+                value,
+                style: const TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.w800,
+                  color: _WC.ink,
+                ),
+              ),
               if (unit != null) ...[
                 const SizedBox(width: 5),
-                Text(unit!, style: const TextStyle(fontSize: 11.5, color: _WC.inkSecondary)),
+                Text(
+                  unit!,
+                  style: const TextStyle(
+                    fontSize: 11.5,
+                    color: _WC.inkSecondary,
+                  ),
+                ),
               ],
             ],
           ),
@@ -3129,7 +4708,9 @@ class _USummaryCard extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
               fontSize: 10.5,
-              fontWeight: captionColor != null ? FontWeight.w600 : FontWeight.w400,
+              fontWeight: captionColor != null
+                  ? FontWeight.w600
+                  : FontWeight.w400,
               color: captionColor ?? _WC.inkSecondary,
             ),
           ),
@@ -3173,24 +4754,43 @@ class _SAStatCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(label, style: const TextStyle(fontSize: 11.5, color: _WC.inkSecondary)),
+              Text(
+                label,
+                style: const TextStyle(fontSize: 11.5, color: _WC.inkSecondary),
+              ),
               Icon(icon, size: 16, color: _WC.primary),
             ],
           ),
           const SizedBox(height: 8),
-          Text(value, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: _WC.ink)),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w800,
+              color: _WC.ink,
+            ),
+          ),
           if (sublabel != null) ...[
             const SizedBox(height: 2),
             Row(
               children: [
                 if (showDot) ...[
-                  Container(width: 5, height: 5, decoration: const BoxDecoration(color: _WC.successText, shape: BoxShape.circle)),
+                  Container(
+                    width: 5,
+                    height: 5,
+                    decoration: const BoxDecoration(
+                      color: _WC.successText,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
                   const SizedBox(width: 4),
                 ],
                 Flexible(
-                  child: Text(sublabel!,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 11, color: _WC.primary)),
+                  child: Text(
+                    sublabel!,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 11, color: _WC.primary),
+                  ),
                 ),
               ],
             ),
@@ -3229,20 +4829,36 @@ class _SAReviewCard extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('Review Masuk', style: TextStyle(fontSize: 11.5, color: labelColor)),
+                Text(
+                  'Review Masuk',
+                  style: TextStyle(fontSize: 11.5, color: labelColor),
+                ),
                 Icon(
-                  ada ? Icons.priority_high_rounded : Icons.check_circle_outline,
+                  ada
+                      ? Icons.priority_high_rounded
+                      : Icons.check_circle_outline,
                   size: 16,
                   color: accent,
                 ),
               ],
             ),
             const SizedBox(height: 8),
-            Text('$count', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: accent)),
+            Text(
+              '$count',
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.w800,
+                color: accent,
+              ),
+            ),
             const SizedBox(height: 2),
             Text(
               ada ? 'Perlu Review Segera' : 'Tidak Ada Antrean',
-              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: accent),
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: accent,
+              ),
             ),
           ],
         ),
@@ -3276,10 +4892,23 @@ class _SASectionHeader extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _WC.ink)),
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: _WC.ink,
+                ),
+              ),
               if (subtitle != null) ...[
                 const SizedBox(height: 2),
-                Text(subtitle!, style: const TextStyle(fontSize: 11.5, color: _WC.inkSecondary)),
+                Text(
+                  subtitle!,
+                  style: const TextStyle(
+                    fontSize: 11.5,
+                    color: _WC.inkSecondary,
+                  ),
+                ),
               ],
             ],
           ),
@@ -3287,8 +4916,18 @@ class _SASectionHeader extends StatelessWidget {
         if (badgeLabel != null)
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(color: badgeBg, borderRadius: BorderRadius.circular(999)),
-            child: Text(badgeLabel!, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: badgeFg)),
+            decoration: BoxDecoration(
+              color: badgeBg,
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Text(
+              badgeLabel!,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: badgeFg,
+              ),
+            ),
           ),
         if (onSeeAll != null) ...[
           const SizedBox(width: 8),
@@ -3300,7 +4939,11 @@ class _SASectionHeader extends StatelessWidget {
               customBorder: const CircleBorder(),
               child: const Padding(
                 padding: EdgeInsets.all(8),
-                child: Icon(Icons.arrow_forward_rounded, size: 16, color: _WC.primary),
+                child: Icon(
+                  Icons.arrow_forward_rounded,
+                  size: 16,
+                  color: _WC.primary,
+                ),
               ),
             ),
           ),
@@ -3314,7 +4957,11 @@ class _SAFilterChip extends StatelessWidget {
   final String label;
   final bool selected;
   final VoidCallback onTap;
-  const _SAFilterChip({required this.label, required this.selected, required this.onTap});
+  const _SAFilterChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -3375,7 +5022,14 @@ class _SAActionButton extends StatelessWidget {
             children: [
               Icon(icon, size: 18, color: fg),
               const SizedBox(width: 8),
-              Text(label, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: fg)),
+              Text(
+                label,
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                  color: fg,
+                ),
+              ),
             ],
           ),
         ),
@@ -3388,7 +5042,11 @@ class _SAPendaftaranCard extends StatelessWidget {
   final Map<String, dynamic> tenant;
   final VoidCallback onTolak;
   final VoidCallback onSetujui;
-  const _SAPendaftaranCard({required this.tenant, required this.onTolak, required this.onSetujui});
+  const _SAPendaftaranCard({
+    required this.tenant,
+    required this.onTolak,
+    required this.onSetujui,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -3434,22 +5092,49 @@ class _SAPendaftaranCard extends StatelessWidget {
                             width: 38,
                             height: 38,
                             alignment: Alignment.center,
-                            decoration: const BoxDecoration(color: _WC.goldSurface, shape: BoxShape.circle),
-                            child: Text(inisial,
-                                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: _WC.gold)),
+                            decoration: const BoxDecoration(
+                              color: _WC.goldSurface,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Text(
+                              inisial,
+                              style: const TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w800,
+                                color: _WC.gold,
+                              ),
+                            ),
                           ),
                           const SizedBox(width: 10),
                           Expanded(
-                            child: Text(nama,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: _WC.ink)),
+                            child: Text(
+                              nama,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w800,
+                                color: _WC.ink,
+                              ),
+                            ),
                           ),
                           const SizedBox(width: 8),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                            decoration: BoxDecoration(color: _WC.surfaceDim, borderRadius: BorderRadius.circular(999)),
-                            child: Text(kode, style: const TextStyle(fontSize: 10, color: _WC.inkSecondary)),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: _WC.surfaceDim,
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: Text(
+                              kode,
+                              style: const TextStyle(
+                                fontSize: 10,
+                                color: _WC.inkSecondary,
+                              ),
+                            ),
                           ),
                         ],
                       ),
@@ -3461,13 +5146,25 @@ class _SAPendaftaranCard extends StatelessWidget {
                           Expanded(
                             child: OutlinedButton(
                               style: OutlinedButton.styleFrom(
-                                side: const BorderSide(color: Color(0xFFF1B8B8)),
-                                padding: const EdgeInsets.symmetric(vertical: 10),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+                                side: const BorderSide(
+                                  color: Color(0xFFF1B8B8),
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 10,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
                               ),
                               onPressed: onTolak,
-                              child: const Text('Tolak',
-                                  style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: _WC.errorText)),
+                              child: const Text(
+                                'Tolak',
+                                style: TextStyle(
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: _WC.errorText,
+                                ),
+                              ),
                             ),
                           ),
                           const SizedBox(width: 8),
@@ -3476,12 +5173,22 @@ class _SAPendaftaranCard extends StatelessWidget {
                             child: FilledButton(
                               style: FilledButton.styleFrom(
                                 backgroundColor: _WC.primary,
-                                padding: const EdgeInsets.symmetric(vertical: 10),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 10,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
                               ),
                               onPressed: onSetujui,
-                              child: const Text('Setujui Tenant',
-                                  style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: Colors.white)),
+                              child: const Text(
+                                'Setujui Tenant',
+                                style: TextStyle(
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.white,
+                                ),
+                              ),
                             ),
                           ),
                         ],
@@ -3503,7 +5210,10 @@ class _SAPendaftaranCard extends StatelessWidget {
       children: [
         Icon(icon, size: 13, color: _WC.inkSecondary),
         const SizedBox(width: 4),
-        Text(label, style: const TextStyle(fontSize: 11.5, color: _WC.inkSecondary)),
+        Text(
+          label,
+          style: const TextStyle(fontSize: 11.5, color: _WC.inkSecondary),
+        ),
       ],
     );
   }
@@ -3513,22 +5223,33 @@ class _SATenantCard extends StatelessWidget {
   final Map<String, dynamic> tenant;
   final VoidCallback onSuspend;
   final VoidCallback onAktifkan;
-  const _SATenantCard({required this.tenant, required this.onSuspend, required this.onAktifkan});
+  const _SATenantCard({
+    required this.tenant,
+    required this.onSuspend,
+    required this.onAktifkan,
+  });
 
   @override
   Widget build(BuildContext context) {
     final nama = tenant['namaPondok'] as String? ?? '-';
     final kode = tenant['kodeTenant'] as String? ?? '-';
     final status = (tenant['status'] as String? ?? '').toUpperCase();
-    final jumlahUser = tenant['jumlahUser']?.toString() ??
+    final jumlahUser =
+        tenant['jumlahUser']?.toString() ??
         ((tenant['_count'] as Map?)?['santris']?.toString()) ??
         '0';
 
     final isSuspended = status == 'SUSPENDED';
     final isPending = status == 'PENDING';
-    final accent = isSuspended ? _WC.errorText : (isPending ? _WC.gold : _WC.successText);
-    final statusBg = isSuspended ? const Color(0xFFFEE2E2) : (isPending ? _WC.pendingBg : _WC.successBg);
-    final statusFg = isSuspended ? _WC.errorText : (isPending ? _WC.pendingText : _WC.successText);
+    final accent = isSuspended
+        ? _WC.errorText
+        : (isPending ? _WC.gold : _WC.successText);
+    final statusBg = isSuspended
+        ? const Color(0xFFFEE2E2)
+        : (isPending ? _WC.pendingBg : _WC.successBg);
+    final statusFg = isSuspended
+        ? _WC.errorText
+        : (isPending ? _WC.pendingText : _WC.successText);
     final inisial = nama.trim().isNotEmpty ? nama.trim()[0].toUpperCase() : '?';
 
     return ClipRRect(
@@ -3556,44 +5277,95 @@ class _SATenantCard extends StatelessWidget {
                             width: 38,
                             height: 38,
                             alignment: Alignment.center,
-                            decoration: BoxDecoration(color: statusBg, shape: BoxShape.circle),
-                            child: Text(inisial,
-                                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: statusFg)),
+                            decoration: BoxDecoration(
+                              color: statusBg,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Text(
+                              inisial,
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w800,
+                                color: statusFg,
+                              ),
+                            ),
                           ),
                           const SizedBox(width: 10),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(nama,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: _WC.ink)),
+                                Text(
+                                  nama,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w800,
+                                    color: _WC.ink,
+                                  ),
+                                ),
                                 const SizedBox(height: 2),
-                                Text(kode, style: const TextStyle(fontSize: 11.5, color: _WC.inkSecondary)),
+                                Text(
+                                  kode,
+                                  style: const TextStyle(
+                                    fontSize: 11.5,
+                                    color: _WC.inkSecondary,
+                                  ),
+                                ),
                               ],
                             ),
                           ),
                           const SizedBox(width: 8),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-                            decoration: BoxDecoration(color: statusBg, borderRadius: BorderRadius.circular(999)),
-                            child: Text(status,
-                                style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: statusFg)),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 9,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: statusBg,
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: Text(
+                              status,
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w800,
+                                color: statusFg,
+                              ),
+                            ),
                           ),
                         ],
                       ),
                       const SizedBox(height: 12),
                       Row(
                         children: [
-                          const Icon(Icons.groups_2_outlined, size: 14, color: _WC.inkSecondary),
+                          const Icon(
+                            Icons.groups_2_outlined,
+                            size: 14,
+                            color: _WC.inkSecondary,
+                          ),
                           const SizedBox(width: 4),
-                          Text('$jumlahUser Users', style: const TextStyle(fontSize: 11.5, color: _WC.inkSecondary)),
+                          Text(
+                            '$jumlahUser Users',
+                            style: const TextStyle(
+                              fontSize: 11.5,
+                              color: _WC.inkSecondary,
+                            ),
+                          ),
                           const Spacer(),
                           if (isSuspended)
-                            _SAPillButton(label: 'Pulihkan Tenant', filled: true, onTap: onAktifkan)
+                            _SAPillButton(
+                              label: 'Pulihkan Tenant',
+                              filled: true,
+                              onTap: onAktifkan,
+                            )
                           else if (!isPending)
-                            _SAPillButton(label: 'Suspend', filled: false, onTap: onSuspend),
+                            _SAPillButton(
+                              label: 'Suspend',
+                              filled: false,
+                              onTap: onSuspend,
+                            ),
                         ],
                       ),
                     ],
@@ -3614,7 +5386,11 @@ class _SAPillButton extends StatelessWidget {
   final String label;
   final bool filled;
   final VoidCallback onTap;
-  const _SAPillButton({required this.label, required this.filled, required this.onTap});
+  const _SAPillButton({
+    required this.label,
+    required this.filled,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -3630,12 +5406,14 @@ class _SAPillButton extends StatelessWidget {
             borderRadius: BorderRadius.circular(999),
             border: filled ? null : Border.all(color: const Color(0xFFF1B8B8)),
           ),
-          child: Text(label,
-              style: TextStyle(
-                fontSize: 11.5,
-                fontWeight: FontWeight.w700,
-                color: filled ? Colors.white : _WC.errorText,
-              )),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 11.5,
+              fontWeight: FontWeight.w700,
+              color: filled ? Colors.white : _WC.errorText,
+            ),
+          ),
         ),
       ),
     );
@@ -3694,21 +5472,47 @@ class _SAAuditItem extends StatelessWidget {
                 if (boldPrefix != null)
                   RichText(
                     text: TextSpan(
-                      style: TextStyle(fontSize: 12.5, height: 1.35, color: textColor),
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        height: 1.35,
+                        color: textColor,
+                      ),
                       children: [
-                        TextSpan(text: boldPrefix, style: const TextStyle(fontWeight: FontWeight.w700)),
-                        TextSpan(text: text ?? '', style: const TextStyle(fontWeight: FontWeight.w400)),
+                        TextSpan(
+                          text: boldPrefix,
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                        TextSpan(
+                          text: text ?? '',
+                          style: const TextStyle(fontWeight: FontWeight.w400),
+                        ),
                         if (boldSuffix != null)
-                          TextSpan(text: boldSuffix, style: const TextStyle(fontWeight: FontWeight.w700)),
+                          TextSpan(
+                            text: boldSuffix,
+                            style: const TextStyle(fontWeight: FontWeight.w700),
+                          ),
                         if (afterBoldSuffix != null)
-                          TextSpan(text: afterBoldSuffix, style: const TextStyle(fontWeight: FontWeight.w400)),
+                          TextSpan(
+                            text: afterBoldSuffix,
+                            style: const TextStyle(fontWeight: FontWeight.w400),
+                          ),
                       ],
                     ),
                   )
                 else
-                  Text(title ?? '-', style: TextStyle(fontSize: 12.5, color: textColor, height: 1.3)),
+                  Text(
+                    title ?? '-',
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      color: textColor,
+                      height: 1.3,
+                    ),
+                  ),
                 const SizedBox(height: 2),
-                Text(time, style: const TextStyle(fontSize: 11, color: _WC.inkSecondary)),
+                Text(
+                  time,
+                  style: const TextStyle(fontSize: 11, color: _WC.inkSecondary),
+                ),
               ],
             ),
           ),
@@ -3728,7 +5532,12 @@ class _WaliChildCard extends StatelessWidget {
   final String kelas;
   final String nis;
   final String status;
-  const _WaliChildCard({required this.nama, required this.kelas, required this.nis, required this.status});
+  const _WaliChildCard({
+    required this.nama,
+    required this.kelas,
+    required this.nis,
+    required this.status,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -3745,7 +5554,10 @@ class _WaliChildCard extends StatelessWidget {
           Container(
             width: 44,
             height: 44,
-            decoration: const BoxDecoration(color: _WC.sage, shape: BoxShape.circle),
+            decoration: const BoxDecoration(
+              color: _WC.sage,
+              shape: BoxShape.circle,
+            ),
             child: const Icon(Icons.person, color: _WC.primary),
           ),
           const SizedBox(width: 12),
@@ -3753,15 +5565,26 @@ class _WaliChildCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(nama,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _WC.ink)),
+                Text(
+                  nama,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: _WC.ink,
+                  ),
+                ),
                 const SizedBox(height: 2),
-                Text('$kelas • NIS: $nis',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 11.5, color: _WC.inkSecondary)),
+                Text(
+                  '$kelas • NIS: $nis',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 11.5,
+                    color: _WC.inkSecondary,
+                  ),
+                ),
               ],
             ),
           ),
@@ -3794,7 +5617,10 @@ class _WaliVerificationBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: _WC.primary, borderRadius: BorderRadius.circular(16)),
+      decoration: BoxDecoration(
+        color: _WC.primary,
+        borderRadius: BorderRadius.circular(16),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -3805,41 +5631,78 @@ class _WaliVerificationBanner extends StatelessWidget {
                 children: const [
                   Icon(Icons.verified, size: 14, color: _WC.gold),
                   SizedBox(width: 6),
-                  Text('TERVERIFIKASI OTENTIK',
-                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 0.3, color: _WC.gold)),
+                  Text(
+                    'TERVERIFIKASI OTENTIK',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.3,
+                      color: _WC.gold,
+                    ),
+                  ),
                 ],
               ),
               Row(
                 children: [
-                  Icon(Icons.lock_outline, size: 12, color: Colors.white.withOpacity(0.7)),
+                  Icon(
+                    Icons.lock_outline,
+                    size: 12,
+                    color: Colors.white.withOpacity(0.7),
+                  ),
                   const SizedBox(width: 4),
-                  Text('Read-Only', style: TextStyle(fontSize: 10.5, color: Colors.white.withOpacity(0.7))),
+                  Text(
+                    'Read-Only',
+                    style: TextStyle(
+                      fontSize: 10.5,
+                      color: Colors.white.withOpacity(0.7),
+                    ),
+                  ),
                 ],
               ),
             ],
           ),
           const SizedBox(height: 10),
-          const Text('Di Lingkungan Asrama & Masjid',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white)),
+          const Text(
+            'Di Lingkungan Asrama & Masjid',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              color: Colors.white,
+            ),
+          ),
           const SizedBox(height: 8),
           Row(
             children: [
               const Icon(Icons.check_circle, size: 14, color: Colors.white),
               const SizedBox(width: 6),
               Expanded(
-                child: Text('Mukim Aktif (Aman di Dalam Pondok)',
-                    style: TextStyle(fontSize: 11.5, color: Colors.white.withOpacity(0.9))),
+                child: Text(
+                  'Mukim Aktif (Aman di Dalam Pondok)',
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    color: Colors.white.withOpacity(0.9),
+                  ),
+                ),
               ),
             ],
           ),
           const SizedBox(height: 6),
           Row(
             children: [
-              Icon(Icons.pin_drop_outlined, size: 14, color: Colors.white.withOpacity(0.9)),
+              Icon(
+                Icons.pin_drop_outlined,
+                size: 14,
+                color: Colors.white.withOpacity(0.9),
+              ),
               const SizedBox(width: 6),
               Expanded(
-                child: Text('Piket Musyrif: 17:15 WIB (Maghrib Berjamaah) • Gedung Ali',
-                    style: TextStyle(fontSize: 11.5, color: Colors.white.withOpacity(0.9))),
+                child: Text(
+                  'Piket Musyrif: 17:15 WIB (Maghrib Berjamaah) • Gedung Ali',
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    color: Colors.white.withOpacity(0.9),
+                  ),
+                ),
               ),
             ],
           ),
@@ -3858,7 +5721,11 @@ class _WaliPresenceCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(color: _WC.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: _WC.border)),
+      decoration: BoxDecoration(
+        color: _WC.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _WC.border),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -3869,18 +5736,39 @@ class _WaliPresenceCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Presensi & Kehadiran',
-                        style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: _WC.ink)),
+                    Text(
+                      'Presensi & Kehadiran',
+                      style: TextStyle(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w700,
+                        color: _WC.ink,
+                      ),
+                    ),
                     SizedBox(height: 3),
-                    Text('100% Hadir (4 Sesi Lengkap)', style: TextStyle(fontSize: 11.5, color: _WC.inkSecondary)),
+                    Text(
+                      '100% Hadir (4 Sesi Lengkap)',
+                      style: TextStyle(fontSize: 11.5, color: _WC.inkSecondary),
+                    ),
                   ],
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(color: _WC.successBg, borderRadius: BorderRadius.circular(999)),
-                child: const Text('Disiplin',
-                    style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: _WC.successText)),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 5,
+                ),
+                decoration: BoxDecoration(
+                  color: _WC.successBg,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: const Text(
+                  'Disiplin',
+                  style: TextStyle(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w700,
+                    color: _WC.successText,
+                  ),
+                ),
               ),
             ],
           ),
@@ -3894,12 +5782,29 @@ class _WaliPresenceCard extends StatelessWidget {
                       Container(
                         width: 34,
                         height: 34,
-                        decoration: const BoxDecoration(color: _WC.successBg, shape: BoxShape.circle),
-                        child: const Icon(Icons.check, size: 16, color: _WC.successText),
+                        decoration: const BoxDecoration(
+                          color: _WC.successBg,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.check,
+                          size: 16,
+                          color: _WC.successText,
+                        ),
                       ),
                       const SizedBox(height: 6),
-                      Text(s, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: _WC.ink)),
-                      Text('Hadir', style: TextStyle(fontSize: 10, color: _WC.inkSecondary)),
+                      Text(
+                        s,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: _WC.ink,
+                        ),
+                      ),
+                      Text(
+                        'Hadir',
+                        style: TextStyle(fontSize: 10, color: _WC.inkSecondary),
+                      ),
                     ],
                   ),
                 ),
@@ -3918,7 +5823,11 @@ class _WaliTahfidzCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(color: _WC.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: _WC.border)),
+      decoration: BoxDecoration(
+        color: _WC.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _WC.border),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -3929,22 +5838,40 @@ class _WaliTahfidzCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Setoran Tahfidz Terbaru',
-                        style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: _WC.ink)),
+                    Text(
+                      'Setoran Tahfidz Terbaru',
+                      style: TextStyle(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w700,
+                        color: _WC.ink,
+                      ),
+                    ),
                     SizedBox(height: 3),
-                    Text("Saba' & Ziyadah Ba'da Ashar", style: TextStyle(fontSize: 11.5, color: _WC.inkSecondary)),
+                    Text(
+                      "Saba' & Ziyadah Ba'da Ashar",
+                      style: TextStyle(fontSize: 11.5, color: _WC.inkSecondary),
+                    ),
                   ],
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 5,
+                ),
                 decoration: BoxDecoration(
                   color: _WC.goldSurface,
                   borderRadius: BorderRadius.circular(999),
                   border: Border.all(color: _WC.goldBorder),
                 ),
-                child: const Text('Mumtaz (A)',
-                    style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: _WC.gold)),
+                child: const Text(
+                  'Mumtaz (A)',
+                  style: TextStyle(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w700,
+                    color: _WC.gold,
+                  ),
+                ),
               ),
             ],
           ),
@@ -3953,11 +5880,23 @@ class _WaliTahfidzCard extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: const [
               Expanded(
-                child: Text('Juz 28 (QS. Al-Mujadilah: 1–15)',
-                    style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: _WC.ink)),
+                child: Text(
+                  'Juz 28 (QS. Al-Mujadilah: 1–15)',
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w600,
+                    color: _WC.ink,
+                  ),
+                ),
               ),
-              Text('24 / 30 Juz (80%)',
-                  style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: _WC.primary)),
+              Text(
+                '24 / 30 Juz (80%)',
+                style: TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w700,
+                  color: _WC.primary,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 8),
@@ -3973,14 +5912,26 @@ class _WaliTahfidzCard extends StatelessWidget {
           const SizedBox(height: 10),
           Row(
             children: [
-              const Icon(Icons.person_outline, size: 14, color: _WC.inkSecondary),
+              const Icon(
+                Icons.person_outline,
+                size: 14,
+                color: _WC.inkSecondary,
+              ),
               const SizedBox(width: 4),
               const Expanded(
-                child: Text('Disimak oleh: Ust. Ahmad Fauzan, Lc.',
-                    style: TextStyle(fontSize: 11, color: _WC.inkSecondary)),
+                child: Text(
+                  'Disimak oleh: Ust. Ahmad Fauzan, Lc.',
+                  style: TextStyle(fontSize: 11, color: _WC.inkSecondary),
+                ),
               ),
-              const Text('Tajwid: Mumtaz',
-                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: _WC.primary)),
+              const Text(
+                'Tajwid: Mumtaz',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: _WC.primary,
+                ),
+              ),
             ],
           ),
         ],
@@ -4005,7 +5956,11 @@ class _WaliMiniStatCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: _WC.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: _WC.border)),
+      decoration: BoxDecoration(
+        color: _WC.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _WC.border),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -4014,21 +5969,44 @@ class _WaliMiniStatCard extends StatelessWidget {
               Icon(icon, size: 15, color: _WC.primary),
               const SizedBox(width: 6),
               Expanded(
-                child: Text(title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: _WC.inkSecondary)),
+                child: Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w600,
+                    color: _WC.inkSecondary,
+                  ),
+                ),
               ),
             ],
           ),
           const SizedBox(height: 8),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-            decoration: BoxDecoration(color: _WC.mint, borderRadius: BorderRadius.circular(999)),
-            child: Text(badge, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: _WC.primary)),
+            decoration: BoxDecoration(
+              color: _WC.mint,
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Text(
+              badge,
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: _WC.primary,
+              ),
+            ),
           ),
           const SizedBox(height: 8),
-          Text(description, style: const TextStyle(fontSize: 10.5, color: _WC.inkSecondary, height: 1.35)),
+          Text(
+            description,
+            style: const TextStyle(
+              fontSize: 10.5,
+              color: _WC.inkSecondary,
+              height: 1.35,
+            ),
+          ),
         ],
       ),
     );
@@ -4042,7 +6020,11 @@ class _WaliMukimCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(color: _WC.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: _WC.border)),
+      decoration: BoxDecoration(
+        color: _WC.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _WC.border),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -4053,22 +6035,43 @@ class _WaliMukimCard extends StatelessWidget {
                 children: const [
                   Icon(Icons.home_outlined, size: 16, color: _WC.primary),
                   SizedBox(width: 8),
-                  Text('Status Mukim & Perizinan',
-                      style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: _WC.ink)),
+                  Text(
+                    'Status Mukim & Perizinan',
+                    style: TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w700,
+                      color: _WC.ink,
+                    ),
+                  ),
                 ],
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(color: _WC.successBg, borderRadius: BorderRadius.circular(999)),
-                child: const Text('Mukim Aktif',
-                    style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: _WC.successText)),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 5,
+                ),
+                decoration: BoxDecoration(
+                  color: _WC.successBg,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: const Text(
+                  'Mukim Aktif',
+                  style: TextStyle(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w700,
+                    color: _WC.successText,
+                  ),
+                ),
               ),
             ],
           ),
           const SizedBox(height: 12),
           Container(
             padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(color: _WC.surfaceDim, borderRadius: BorderRadius.circular(12)),
+            decoration: BoxDecoration(
+              color: _WC.surfaceDim,
+              borderRadius: BorderRadius.circular(12),
+            ),
             child: Row(
               children: [
                 Container(
@@ -4083,8 +6086,22 @@ class _WaliMukimCard extends StatelessWidget {
                   child: const Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Text('20', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: _WC.gold)),
-                      Text('MEI', style: TextStyle(fontSize: 8.5, fontWeight: FontWeight.w700, color: _WC.gold)),
+                      Text(
+                        '20',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                          color: _WC.gold,
+                        ),
+                      ),
+                      Text(
+                        'MEI',
+                        style: TextStyle(
+                          fontSize: 8.5,
+                          fontWeight: FontWeight.w700,
+                          color: _WC.gold,
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -4093,10 +6110,23 @@ class _WaliMukimCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('3 Minggu Lagi', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _WC.ink)),
+                      Text(
+                        '3 Minggu Lagi',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: _WC.ink,
+                        ),
+                      ),
                       SizedBox(height: 2),
-                      Text('Libur Akhir Semester Genap', style: TextStyle(fontSize: 11, color: _WC.inkSecondary)),
-                      Text('Kepulangan serentak santri', style: TextStyle(fontSize: 11, color: _WC.inkSecondary)),
+                      Text(
+                        'Libur Akhir Semester Genap',
+                        style: TextStyle(fontSize: 11, color: _WC.inkSecondary),
+                      ),
+                      Text(
+                        'Kepulangan serentak santri',
+                        style: TextStyle(fontSize: 11, color: _WC.inkSecondary),
+                      ),
                     ],
                   ),
                 ),
@@ -4131,17 +6161,31 @@ class _WaliQuoteCard extends StatelessWidget {
                 children: const [
                   Icon(Icons.format_quote, size: 16, color: _WC.gold),
                   SizedBox(width: 6),
-                  Text('Catatan Wali Asrama / Halaqah',
-                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _WC.ink)),
+                  Text(
+                    'Catatan Wali Asrama / Halaqah',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: _WC.ink,
+                    ),
+                  ),
                 ],
               ),
-              const Text('28 Apr 2025', style: TextStyle(fontSize: 10.5, color: _WC.inkSecondary)),
+              const Text(
+                '28 Apr 2025',
+                style: TextStyle(fontSize: 10.5, color: _WC.inkSecondary),
+              ),
             ],
           ),
           const SizedBox(height: 10),
           const Text(
             "\"Alhamdulillah ananda menunjukkan ketekunan istimewa dalam meraja'ah hafalan Juz 28 dan senantiasa istiqomah di shaf terdepan Masjid Jami' Pesantren.\"",
-            style: TextStyle(fontSize: 12.5, fontStyle: FontStyle.italic, color: _WC.ink, height: 1.5),
+            style: TextStyle(
+              fontSize: 12.5,
+              fontStyle: FontStyle.italic,
+              color: _WC.ink,
+              height: 1.5,
+            ),
           ),
           const SizedBox(height: 12),
           Row(
@@ -4149,15 +6193,28 @@ class _WaliQuoteCard extends StatelessWidget {
               Container(
                 width: 32,
                 height: 32,
-                decoration: const BoxDecoration(color: _WC.primary, shape: BoxShape.circle),
+                decoration: const BoxDecoration(
+                  color: _WC.primary,
+                  shape: BoxShape.circle,
+                ),
                 child: const Icon(Icons.person, size: 16, color: Colors.white),
               ),
               const SizedBox(width: 10),
               const Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Ust. Ahmad Fauzan, Lc.', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: _WC.ink)),
-                  Text('Musyrif Tahfidz & Wali Halaqah', style: TextStyle(fontSize: 10.5, color: _WC.inkSecondary)),
+                  Text(
+                    'Ust. Ahmad Fauzan, Lc.',
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w700,
+                      color: _WC.ink,
+                    ),
+                  ),
+                  Text(
+                    'Musyrif Tahfidz & Wali Halaqah',
+                    style: TextStyle(fontSize: 10.5, color: _WC.inkSecondary),
+                  ),
                 ],
               ),
             ],
@@ -4172,7 +6229,11 @@ class _WaliHistoryItem extends StatelessWidget {
   final IconData icon;
   final String title;
   final String subtitle;
-  const _WaliHistoryItem({required this.icon, required this.title, required this.subtitle});
+  const _WaliHistoryItem({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -4185,7 +6246,10 @@ class _WaliHistoryItem extends StatelessWidget {
             Container(
               width: 36,
               height: 36,
-              decoration: BoxDecoration(color: _WC.sage, borderRadius: BorderRadius.circular(10)),
+              decoration: BoxDecoration(
+                color: _WC.sage,
+                borderRadius: BorderRadius.circular(10),
+              ),
               child: Icon(icon, size: 17, color: _WC.primary),
             ),
             const SizedBox(width: 12),
@@ -4193,8 +6257,21 @@ class _WaliHistoryItem extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title, style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: _WC.ink)),
-                  Text(subtitle, style: const TextStyle(fontSize: 11, color: _WC.inkSecondary)),
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w700,
+                      color: _WC.ink,
+                    ),
+                  ),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: _WC.inkSecondary,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -4213,19 +6290,32 @@ class _WaliContactCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(color: _WC.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: _WC.border)),
+      decoration: BoxDecoration(
+        color: _WC.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _WC.border),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Kontak Musyrif & Informasi Besuk',
-              style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: _WC.ink)),
+          const Text(
+            'Kontak Musyrif & Informasi Besuk',
+            style: TextStyle(
+              fontSize: 13.5,
+              fontWeight: FontWeight.w700,
+              color: _WC.ink,
+            ),
+          ),
           const SizedBox(height: 12),
           Row(
             children: [
               Container(
                 width: 40,
                 height: 40,
-                decoration: const BoxDecoration(color: _WC.primary, shape: BoxShape.circle),
+                decoration: const BoxDecoration(
+                  color: _WC.primary,
+                  shape: BoxShape.circle,
+                ),
                 child: const Icon(Icons.person, color: Colors.white, size: 18),
               ),
               const SizedBox(width: 10),
@@ -4233,18 +6323,33 @@ class _WaliContactCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Ust. Hamdan As-Suyuthi',
-                        style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: _WC.ink)),
-                    Text('Musyrif Gedung Ali Lt. 2 (Kamar 204)',
-                        style: TextStyle(fontSize: 11, color: _WC.inkSecondary)),
+                    Text(
+                      'Ust. Hamdan As-Suyuthi',
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
+                        color: _WC.ink,
+                      ),
+                    ),
+                    Text(
+                      'Musyrif Gedung Ali Lt. 2 (Kamar 204)',
+                      style: TextStyle(fontSize: 11, color: _WC.inkSecondary),
+                    ),
                   ],
                 ),
               ),
               Container(
                 width: 34,
                 height: 34,
-                decoration: BoxDecoration(color: _WC.sage, borderRadius: BorderRadius.circular(10)),
-                child: const Icon(Icons.chat_bubble_outline, size: 16, color: _WC.primary),
+                decoration: BoxDecoration(
+                  color: _WC.sage,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(
+                  Icons.chat_bubble_outline,
+                  size: 16,
+                  color: _WC.primary,
+                ),
               ),
             ],
           ),
@@ -4255,10 +6360,23 @@ class _WaliContactCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Jadwal Jam Besuk', style: TextStyle(fontSize: 10.5, color: _WC.inkSecondary)),
+                    Text(
+                      'Jadwal Jam Besuk',
+                      style: TextStyle(fontSize: 10.5, color: _WC.inkSecondary),
+                    ),
                     SizedBox(height: 3),
-                    Text('Ahad', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _WC.ink)),
-                    Text('09:00 - 16:00 WIB', style: TextStyle(fontSize: 11, color: _WC.inkSecondary)),
+                    Text(
+                      'Ahad',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: _WC.ink,
+                      ),
+                    ),
+                    Text(
+                      '09:00 - 16:00 WIB',
+                      style: TextStyle(fontSize: 11, color: _WC.inkSecondary),
+                    ),
                   ],
                 ),
               ),
@@ -4266,11 +6384,23 @@ class _WaliContactCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: const [
-                    Text('Darurat Poskestren', style: TextStyle(fontSize: 10.5, color: _WC.inkSecondary)),
+                    Text(
+                      'Darurat Poskestren',
+                      style: TextStyle(fontSize: 10.5, color: _WC.inkSecondary),
+                    ),
                     SizedBox(height: 3),
-                    Text('(021) 8892-1200',
-                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _WC.errorText)),
-                    Text('Layanan Medis 24 Jam', style: TextStyle(fontSize: 11, color: _WC.inkSecondary)),
+                    Text(
+                      '(021) 8892-1200',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: _WC.errorText,
+                      ),
+                    ),
+                    Text(
+                      'Layanan Medis 24 Jam',
+                      style: TextStyle(fontSize: 11, color: _WC.inkSecondary),
+                    ),
                   ],
                 ),
               ),
@@ -4678,6 +6808,7 @@ class _MusyrifQuoteCard extends StatelessWidget {
   }
 }
 
+
 class _WaliDuaFooter extends StatelessWidget {
   const _WaliDuaFooter();
 
@@ -4688,13 +6819,21 @@ class _WaliDuaFooter extends StatelessWidget {
         const Text(
           'رَبِّ هَبْ لِي مِنَ الصَّالِحِينَ',
           textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: _WC.gold),
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+            color: _WC.gold,
+          ),
         ),
         const SizedBox(height: 6),
         const Text(
           '"Ya Tuhanku, anugerahkanlah kepadaku (anak) yang termasuk orang-orang yang saleh."',
           textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: _WC.inkSecondary),
+          style: TextStyle(
+            fontSize: 11,
+            fontStyle: FontStyle.italic,
+            color: _WC.inkSecondary,
+          ),
         ),
         const SizedBox(height: 10),
         const Text(

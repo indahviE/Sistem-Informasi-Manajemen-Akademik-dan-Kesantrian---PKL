@@ -627,7 +627,7 @@ class _FooterBrand extends StatelessWidget {
             const Icon(Icons.verified_user_outlined,
                 size: 14, color: PColors.inkSecondary),
             const SizedBox(width: 6),
-            Text('SIMEdu Multi-Tenant Enterprise v2.4',
+            Text('SIMPesantren Multi-Tenant Enterprise v2.4',
                 style: PText.bodySm),
           ],
         ),

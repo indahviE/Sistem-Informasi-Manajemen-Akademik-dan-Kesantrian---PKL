@@ -11,7 +11,9 @@ class _Opt {
 }
 
 class SantriFormScreen extends StatefulWidget {
-  const SantriFormScreen({super.key});
+  /// null = santri baru. Terisi = mode edit (data diisi otomatis, simpan lewat PATCH).
+  final Map<String, dynamic>? existing;
+  const SantriFormScreen({super.key, this.existing});
 
   @override
   State<SantriFormScreen> createState() => _SantriFormScreenState();
@@ -25,6 +27,7 @@ class _SantriFormScreenState extends State<SantriFormScreen> {
   String _jk = 'L';
   String? _kelasId;
   String? _waliId;
+  DateTime? _tglLahir;
   List<Map<String, dynamic>> _kelas = [];
   List<Map<String, dynamic>> _wali = [];
   bool _loading = true;
@@ -32,9 +35,23 @@ class _SantriFormScreenState extends State<SantriFormScreen> {
   bool _tried = false; // sudah pernah menekan Simpan
   String? _error;
 
+  bool get _isEdit => widget.existing != null;
+
   @override
   void initState() {
     super.initState();
+    final e = widget.existing;
+    if (e != null) {
+      _nis.text = e['nis']?.toString() ?? '';
+      _nama.text = e['nama']?.toString() ?? '';
+      _asrama.text = e['asrama']?.toString() ?? '';
+      _tahun.text = e['tahunMasuk']?.toString() ?? _tahun.text;
+      _jk = e['jenisKelamin']?.toString().toUpperCase() == 'P' ? 'P' : 'L';
+      _kelasId = e['kelasId']?.toString();
+      _waliId = e['waliId']?.toString();
+      final d = DateTime.tryParse(e['tanggalLahir']?.toString() ?? '');
+      if (d != null) _tglLahir = DateTime(d.year, d.month, d.day);
+    }
     // Pratinjau di hero ikut berubah saat mengetik.
     _nis.addListener(_refresh);
     _nama.addListener(_refresh);
@@ -101,15 +118,32 @@ class _SantriFormScreenState extends State<SantriFormScreen> {
     });
     try {
       final api = AppScope.of(context).api;
-      await api.post(ApiUrl.santri, {
-        'nis': _nis.text.trim().isEmpty ? null : _nis.text.trim(),
-        'nama': _nama.text.trim(),
-        'jenisKelamin': _jk,
-        'kelasId': _kelasId,
-        'waliId': _waliId,
-        'asrama': _asrama.text.trim().isEmpty ? null : _asrama.text.trim(),
-        'tahunMasuk': int.tryParse(_tahun.text) ?? DateTime.now().year,
-      });
+      final tgl = _tglLahir == null
+          ? null
+          : DateTime.utc(_tglLahir!.year, _tglLahir!.month, _tglLahir!.day).toIso8601String();
+      final asrama = _asrama.text.trim().isEmpty ? null : _asrama.text.trim();
+
+      if (_isEdit) {
+        await api.patch('${ApiUrl.santri}/${widget.existing!['id']}', {
+          'nama': _nama.text.trim(),
+          'jenisKelamin': _jk,
+          if (tgl != null) 'tanggalLahir': tgl,
+          'kelasId': _kelasId,
+          'waliId': _waliId,
+          'asrama': asrama,
+        });
+      } else {
+        await api.post(ApiUrl.santri, {
+          'nis': _nis.text.trim().isEmpty ? null : _nis.text.trim(),
+          'nama': _nama.text.trim(),
+          'jenisKelamin': _jk,
+          if (tgl != null) 'tanggalLahir': tgl,
+          'kelasId': _kelasId,
+          'waliId': _waliId,
+          'asrama': asrama,
+          'tahunMasuk': int.tryParse(_tahun.text) ?? DateTime.now().year,
+        });
+      }
       if (!mounted) return;
       Navigator.pop(context, true);
     } on ApiException catch (e) {
@@ -127,6 +161,51 @@ class _SantriFormScreenState extends State<SantriFormScreen> {
         });
       }
     }
+  }
+
+  Future<void> _pilihTglLahir() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _tglLahir ?? DateTime(now.year - 12),
+      firstDate: DateTime(1990),
+      lastDate: now,
+    );
+    if (picked != null) setState(() => _tglLahir = picked);
+  }
+
+  Widget _tglLahirField() {
+    final t = _tglLahir;
+    final label = t == null
+        ? 'Pilih tanggal lahir'
+        : '${t.day.toString().padLeft(2, '0')}/${t.month.toString().padLeft(2, '0')}/${t.year}';
+    return InkWell(
+      onTap: _pilihTglLahir,
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 15),
+        decoration: BoxDecoration(
+          color: SC.background,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: SC.border),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.cake_outlined, size: 19, color: SC.primary),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(label,
+                  style: sty(14, FontWeight.w600, t == null ? SC.inkMuted : SC.ink)),
+            ),
+            if (t != null)
+              GestureDetector(
+                onTap: () => setState(() => _tglLahir = null),
+                child: const Icon(Icons.close_rounded, size: 18, color: SC.inkSecondary),
+              ),
+          ],
+        ),
+      ),
+    );
   }
 
   String get _kelasNama {
@@ -342,7 +421,8 @@ class _SantriFormScreenState extends State<SantriFormScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Santri Baru', style: sty(21, FontWeight.w800, Colors.white, h: 1.15)),
+                    Text(_isEdit ? 'Edit Santri' : 'Santri Baru',
+                        style: sty(21, FontWeight.w800, Colors.white, h: 1.15)),
                     const SizedBox(height: 2),
                     Text('Isi data, pratinjau kartu tampil langsung',
                         style: sty(12, FontWeight.w500, Colors.white.withOpacity(0.75))),
@@ -409,11 +489,17 @@ class _SantriFormScreenState extends State<SantriFormScreen> {
           icon: Icons.person_rounded,
           children: [
             _labeled(
-              'NIS (opsional)',
-              _textField(
-                _nis,
-                hint: 'Kosongkan untuk NIS otomatis',
-                icon: Icons.badge_outlined,
+              _isEdit ? 'NIS (tidak bisa diubah)' : 'NIS (opsional)',
+              IgnorePointer(
+                ignoring: _isEdit,
+                child: Opacity(
+                  opacity: _isEdit ? 0.55 : 1,
+                  child: _textField(
+                    _nis,
+                    hint: 'Kosongkan untuk NIS otomatis',
+                    icon: Icons.badge_outlined,
+                  ),
+                ),
               ),
             ),
             const SizedBox(height: 14),
@@ -439,6 +525,8 @@ class _SantriFormScreenState extends State<SantriFormScreen> {
                 ],
               ),
             ),
+            const SizedBox(height: 14),
+            _labeled('Tanggal lahir (opsional)', _tglLahirField()),
           ],
         ),
         const SizedBox(height: 14),
@@ -475,13 +563,19 @@ class _SantriFormScreenState extends State<SantriFormScreen> {
                   flex: 2,
                   child: _labeled(
                     'Tahun masuk',
-                    _textField(
-                      _tahun,
-                      keyboard: TextInputType.number,
-                      formatters: [
-                        FilteringTextInputFormatter.digitsOnly,
-                        LengthLimitingTextInputFormatter(4),
-                      ],
+                    IgnorePointer(
+                      ignoring: _isEdit,
+                      child: Opacity(
+                        opacity: _isEdit ? 0.55 : 1,
+                        child: _textField(
+                          _tahun,
+                          keyboard: TextInputType.number,
+                          formatters: [
+                            FilteringTextInputFormatter.digitsOnly,
+                            LengthLimitingTextInputFormatter(4),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
                 ),
@@ -537,7 +631,7 @@ class _SantriFormScreenState extends State<SantriFormScreen> {
                     )
                   : const Icon(Icons.check_rounded, size: 19, color: SC.gold),
               label: Text(
-                _submitting ? 'Menyimpan...' : 'Simpan santri',
+                _submitting ? 'Menyimpan...' : (_isEdit ? 'Simpan perubahan' : 'Simpan santri'),
                 style: sty(14.5, FontWeight.w700, Colors.white),
               ),
             ),

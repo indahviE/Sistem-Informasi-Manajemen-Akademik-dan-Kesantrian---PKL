@@ -43,7 +43,7 @@ export class PpdbController {
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.ADMIN, Role.PIMPINAN)
+  @Roles(Role.ADMIN)
   @Patch(':id')
   updateStatus(@TenantId() tenantId: string, @Param('id') id: string, @Body() dto: UpdatePendaftaranDto) {
     return this.ppdbService.updateStatus(tenantId, id, dto);
@@ -51,14 +51,14 @@ export class PpdbController {
 
   // ===== Placement Test =====
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.ADMIN, Role.PIMPINAN, Role.USTADZ)
+  @Roles(Role.ADMIN, Role.USTADZ, Role.PIMPINAN)
   @Get(':id/placement-test')
   getPlacementTest(@TenantId() tenantId: string, @Param('id') id: string) {
     return this.ppdbService.getPlacementTest(tenantId, id);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.ADMIN, Role.PIMPINAN, Role.USTADZ)
+  @Roles(Role.ADMIN, Role.USTADZ)
   @Post(':id/placement-test')
   createPlacementTest(
     @TenantId() tenantId: string,
@@ -69,7 +69,7 @@ export class PpdbController {
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.ADMIN, Role.PIMPINAN, Role.USTADZ)
+  @Roles(Role.ADMIN, Role.USTADZ)
   @Patch(':id/placement-test')
   updatePlacementTest(
     @TenantId() tenantId: string,

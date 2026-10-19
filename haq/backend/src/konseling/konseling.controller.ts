@@ -7,32 +7,33 @@ import { CurrentUser, RequestUser, TenantId } from '../common/decorators/current
 import { Role } from '@prisma/client';
 import { CreateKonselingDto, UpdateKonselingDto } from './dto/konseling.dto';
 
-const AKSES = [Role.ADMIN, Role.PIMPINAN, Role.MUSYRIF, Role.USTADZ];
+const VIEW = [Role.ADMIN, Role.PIMPINAN, Role.MUSYRIF, Role.USTADZ];
+const WRITE = [Role.ADMIN, Role.MUSYRIF, Role.USTADZ];
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('konseling')
 export class KonselingController {
   constructor(private konselingService: KonselingService) {}
 
-  @Roles(...AKSES)
+  @Roles(...VIEW)
   @Get()
   findAll(@TenantId() tenantId: string, @Query('santriId') santriId?: string) {
     return this.konselingService.findAllKonseling(tenantId, santriId);
   }
 
-  @Roles(...AKSES)
+  @Roles(...WRITE)
   @Post()
   create(@TenantId() tenantId: string, @Body() dto: CreateKonselingDto, @CurrentUser() user: RequestUser) {
     return this.konselingService.createKonseling(tenantId, dto, user);
   }
 
-  @Roles(...AKSES)
+  @Roles(...WRITE)
   @Patch(':id')
   update(@TenantId() tenantId: string, @Param('id') id: string, @Body() dto: UpdateKonselingDto) {
     return this.konselingService.updateKonseling(tenantId, id, dto);
   }
 
-  @Roles(...AKSES)
+  @Roles(...WRITE)
   @Delete(':id')
   remove(@TenantId() tenantId: string, @Param('id') id: string) {
     return this.konselingService.removeKonseling(tenantId, id);

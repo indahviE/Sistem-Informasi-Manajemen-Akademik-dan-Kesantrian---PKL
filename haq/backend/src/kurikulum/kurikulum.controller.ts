@@ -15,7 +15,7 @@ import {
 } from './dto/kurikulum.dto';
 
 const VIEW = [Role.ADMIN, Role.PIMPINAN, Role.USTADZ];
-const WRITE = [Role.ADMIN, Role.PIMPINAN];
+const WRITE = [Role.ADMIN];
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller()

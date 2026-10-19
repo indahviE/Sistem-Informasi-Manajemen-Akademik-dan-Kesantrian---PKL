@@ -13,6 +13,9 @@ import '../santri/santri_ui.dart' show SC;
 // Catatan kunci: saat ujian terkunci, layar TIDAK lagi memblokir input.
 // Backend yang memutuskan boleh/tidaknya (mis. nilai susulan santri
 // sakit/izin/alpa). Pesan penolakan dari backend ditampilkan apa adanya.
+//
+// Pimpinan/Mudir: tidak boleh menginput nilai. Halaman ini tidak dibuka dari
+// layar mereka; penjagaan _readOnly di bawah hanya jaring pengaman.
 
 class _C {
   // Ikut tema pondok (diatur admin).
@@ -146,6 +149,9 @@ class _UjianInputScreenState extends State<UjianInputScreen> {
   final _step2Key = GlobalKey();
 
   static const _initialCount = 6;
+
+  /// Pimpinan/Mudir hanya memantau: tidak bisa menginput nilai.
+  bool get _readOnly => AppScope.of(context).user?.isPimpinan == true;
 
   dynamic get _id => widget.ujian['id'];
 
@@ -320,6 +326,7 @@ class _UjianInputScreenState extends State<UjianInputScreen> {
   // ───────────────────────────── AKSI ─────────────────────────────
 
   void _select(Map<String, dynamic> s) {
+    if (_readOnly) return;
     final existing = _nilaiOf(s['id']);
     var status = '${existing?['status'] ?? 'HADIR'}'.toUpperCase();
 
@@ -353,6 +360,7 @@ class _UjianInputScreenState extends State<UjianInputScreen> {
   }
 
   Future<void> _saveNilai() async {
+    if (_readOnly) return;
     final s = _selected;
     if (s == null) return;
 

@@ -29,7 +29,7 @@ export class PembinaanController {
     return this.pembinaanService.findAllPembinaanKarakter(tenantId, q, user);
   }
 
-  @Roles(Role.ADMIN, Role.MUSYRIF, Role.USTADZ, Role.PIMPINAN)
+  @Roles(Role.ADMIN, Role.MUSYRIF, Role.USTADZ)
   @Post('pembinaan-karakter')
   createPembinaanKarakter(
     @TenantId() tenantId: string,
@@ -50,7 +50,7 @@ export class PembinaanController {
     return this.pembinaanService.findAllPembinaanIbadah(tenantId, q, user);
   }
 
-  @Roles(Role.ADMIN, Role.MUSYRIF, Role.PIMPINAN)
+  @Roles(Role.ADMIN, Role.MUSYRIF)
   @Post('pembinaan-ibadah')
   createPembinaanIbadah(
     @TenantId() tenantId: string,
@@ -61,13 +61,13 @@ export class PembinaanController {
   }
 
   // ===== Keadaan Darurat =====
-  @Roles(Role.ADMIN, Role.MUSYRIF, Role.USTADZ, Role.PIMPINAN)
+  @Roles(Role.ADMIN, Role.MUSYRIF, Role.PIMPINAN, Role.USTADZ)
   @Get('keadaan-darurat')
   findAllKeadaanDarurat(@TenantId() tenantId: string) {
     return this.pembinaanService.findAllKeadaanDarurat(tenantId);
   }
 
-  @Roles(Role.ADMIN, Role.MUSYRIF, Role.USTADZ, Role.PIMPINAN)
+  @Roles(Role.ADMIN, Role.MUSYRIF, Role.USTADZ)
   @Post('keadaan-darurat')
   createKeadaanDarurat(
     @TenantId() tenantId: string,
@@ -77,7 +77,7 @@ export class PembinaanController {
     return this.pembinaanService.createKeadaanDarurat(tenantId, dto, user);
   }
 
-  @Roles(Role.ADMIN, Role.PIMPINAN)
+  @Roles(Role.ADMIN, Role.MUSYRIF)
   @Patch('keadaan-darurat/:id')
   updateKeadaanDarurat(
     @TenantId() tenantId: string,

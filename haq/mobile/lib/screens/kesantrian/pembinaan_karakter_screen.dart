@@ -165,6 +165,9 @@ class _PembinaanKarakterScreenState extends State<PembinaanKarakterScreen> {
 
   bool get _isWali => AppScope.of(context).user?.isWali == true;
 
+  /// Wali dan Pimpinan/Mudir hanya melihat: tidak bisa menambah atau menghapus catatan.
+  bool get _readOnly => _isWali || AppScope.of(context).user?.isPimpinan == true;
+
   @override
   void initState() {
     super.initState();
@@ -279,6 +282,7 @@ class _PembinaanKarakterScreenState extends State<PembinaanKarakterScreen> {
   }
 
   Future<void> _add() async {
+    if (_readOnly) return;
     final result = await showModalBottomSheet<Map<String, dynamic>>(
       context: context,
       isScrollControlled: true,
@@ -304,6 +308,7 @@ class _PembinaanKarakterScreenState extends State<PembinaanKarakterScreen> {
   }
 
   Future<void> _delete(Map<String, dynamic> p) async {
+    if (_readOnly) return;
     final nama = (p['santri'] as Map?)?['nama'] ?? '';
     final ok = await showDialog<bool>(
       context: context,
@@ -350,9 +355,9 @@ class _PembinaanKarakterScreenState extends State<PembinaanKarakterScreen> {
       backgroundColor: _PC.background,
       constraints: const BoxConstraints(maxWidth: 480),
       shape: _sheetShape,
-      builder: (_) => _DetailSheet(p: p, canDelete: !_isWali),
+      builder: (_) => _DetailSheet(p: p, canDelete: !_readOnly),
     );
-    if (act == 'hapus' && mounted) _delete(p);
+    if (act == 'hapus' && !_readOnly && mounted) _delete(p);
   }
 
   // ---------------------------------------------------------------------
@@ -414,7 +419,7 @@ class _PembinaanKarakterScreenState extends State<PembinaanKarakterScreen> {
             ],
           ),
         ),
-        if (!_isWali) ...[
+        if (!_readOnly) ...[
           const SizedBox(width: 10),
           SizedBox(
             height: 42,
@@ -800,7 +805,7 @@ class _PembinaanKarakterScreenState extends State<PembinaanKarakterScreen> {
           const SizedBox(height: 4),
           Text(
             noData
-                ? (_isWali
+                ? (_readOnly
                     ? 'Catatan perkembangan santri akan tampil di sini.'
                     : 'Gunakan tombol "+ Catatan Baru" di atas untuk menambahkan catatan perkembangan santri.')
                 : 'Coba ubah kata kunci atau pilih kategori lain.',
@@ -1170,7 +1175,7 @@ class _DetailSheet extends StatelessWidget {
                         SizedBox(width: 10),
                         Expanded(
                           child: Text(
-                            'Catatan pembinaan hanya dapat dilihat oleh pihak yang berwenang (Asatidz dan Musyrif).',
+                            'Catatan pembinaan hanya dapat dilihat oleh pihak yang berwenang (Asatidz, Musyrif, dan Pimpinan).',
                             style: TextStyle(fontSize: 12.5, color: _PC.primary, height: 1.45),
                           ),
                         ),
