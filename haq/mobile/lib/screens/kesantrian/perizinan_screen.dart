@@ -94,8 +94,31 @@ class _PerizinanScreenState extends State<PerizinanScreen> {
     if (_santris.isEmpty) {
       try {
         final api = AppScope.of(context).api;
-        final s = await api.get(ApiUrl.santri, query: {'perPage': '100'});
-        if (mounted) setState(() => _santris = ((s['items'] as List? ?? []) as List).cast<Map<String, dynamic>>());
+        final byId = <String, Map<String, dynamic>>{};
+        for (var page = 1; page <= 50; page++) {
+          dynamic s;
+          try {
+            s = await api.get(ApiUrl.santri, query: {'perPage': '100', 'page': '$page'});
+          } catch (_) {
+            if (page == 1) rethrow;
+            break;
+          }
+          final raw = s is List ? s : (s is Map ? (s['items'] ?? s['data']) : null);
+          final items = (raw is List ? raw : const [])
+              .whereType<Map>()
+              .map((e) => e.cast<String, dynamic>())
+              .toList();
+          var baru = 0;
+          for (final it in items) {
+            final id = it['id']?.toString();
+            if (id != null && !byId.containsKey(id)) {
+              byId[id] = it;
+              baru++;
+            }
+          }
+          if (baru == 0 || items.length < 100) break;
+        }
+        if (mounted) setState(() => _santris = byId.values.toList());
       } catch (_) {}
     }
 
@@ -108,10 +131,17 @@ class _PerizinanScreenState extends State<PerizinanScreen> {
 
     try {
       final api = AppScope.of(context).api;
-      await api.post(ApiUrl.perizinan, result);
+      final res = await api.post(ApiUrl.perizinan, result);
+      // Musyrif yang mencatat = musyrif yang mengesahkan, jadi langsung DISETUJUI.
+      final row = res is Map ? (res['data'] is Map ? res['data'] : res) : null;
+      final id = row?['id'];
+      if (id != null && row?['statusApproval'] != 'DISETUJUI') {
+        await api.patch('${ApiUrl.perizinan}/$id', {'statusApproval': 'DISETUJUI'});
+      }
       _load();
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(backgroundColor: PTheme.primary, content: const Text('Izin berhasil diajukan.')),
+        SnackBar(backgroundColor: PTheme.primary, content: const Text('Izin berhasil dicatat.')),
       );
     } on ApiException catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -349,7 +379,7 @@ class _PerizinanScreenState extends State<PerizinanScreen> {
         ),
         icon: const Icon(Icons.add_circle_outline, size: 18),
         label: const Text(
-          'Ajukan Perizinan',
+          'Catat Perizinan',
           style: TextStyle(fontFamily: 'Nunito', fontSize: 13.5, fontWeight: FontWeight.w700),
         ),
       ),
@@ -1364,41 +1394,103 @@ class _AjukanIzinDialogState extends State<_AjukanIzinDialog> {
     setState(() => _estKembali = t);
   }
 
-  void _gantiSantri() {
+    void _gantiSantri() {
     if (widget.santris.length <= 1) return;
+    String q = '';
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       backgroundColor: PColors.surface,
+      constraints: const BoxConstraints(maxWidth: 480),
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 12),
-            Text('Pilih Santri', style: PText.headlineSm),
-            const SizedBox(height: 4),
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 360),
-              child: ListView(
-                shrinkWrap: true,
-                children: [
-                  for (final s in widget.santris)
-                    ListTile(
-                      leading: _initialsAvatar(s['nama']?.toString() ?? '-', size: 36),
-                      title: Text(s['nama']?.toString() ?? '-', style: PText.bodyMd),
-                      subtitle: Text('NIS: ${s['nis'] ?? '-'}', style: PText.bodySm),
-                      trailing: _santri?['id'] == s['id'] ? Icon(Icons.check_circle_rounded, color: PTheme.primary) : null,
-                      onTap: () {
-                        setState(() => _santri = s);
-                        Navigator.pop(ctx);
-                      },
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheet) {
+          final query = q.trim().toLowerCase();
+          final list = query.isEmpty
+              ? widget.santris
+              : widget.santris.where((s) {
+                  final nama = (s['nama'] ?? '').toString().toLowerCase();
+                  final nis = (s['nis'] ?? '').toString().toLowerCase();
+                  return nama.contains(query) || nis.contains(query);
+                }).toList();
+
+          return Padding(
+            padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+            child: SafeArea(
+              child: SizedBox(
+                height: MediaQuery.of(ctx).size.height * 0.75,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: 10),
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                            color: PColors.inkSecondary.withOpacity(0.25), borderRadius: BorderRadius.circular(999)),
+                      ),
                     ),
-                ],
+                    const SizedBox(height: 12),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: Row(
+                        children: [
+                          Expanded(child: Text('Pilih Santri', style: PText.headlineSm)),
+                          Text('${list.length} santri', style: PText.bodySm),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: TextField(
+                        onChanged: (v) => setSheet(() => q = v),
+                        style: PText.bodyMd.copyWith(color: PColors.ink),
+                        decoration: InputDecoration(
+                          isDense: true,
+                          filled: true,
+                          fillColor: PColors.background,
+                          hintText: 'Cari nama / NIS...',
+                          hintStyle: PText.bodySm,
+                          prefixIcon: const Icon(Icons.search, size: 20, color: PColors.inkSecondary),
+                          contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Expanded(
+                      child: list.isEmpty
+                          ? Center(child: Text('Santri tidak ditemukan.', style: PText.bodySm))
+                          : ListView.builder(
+                              padding: const EdgeInsets.only(bottom: 8),
+                              itemCount: list.length,
+                              itemBuilder: (_, i) {
+                                final s = list[i];
+                                return ListTile(
+                                  contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+                                  leading: _initialsAvatar(s['nama']?.toString() ?? '-', size: 36),
+                                  title: Text(s['nama']?.toString() ?? '-', style: PText.bodyMd),
+                                  subtitle: Text('NIS: ${s['nis'] ?? '-'}', style: PText.bodySm),
+                                  trailing: _santri?['id'] == s['id']
+                                      ? Icon(Icons.check_circle_rounded, color: PTheme.primary)
+                                      : null,
+                                  onTap: () {
+                                    setState(() => _santri = s);
+                                    Navigator.pop(ctx);
+                                  },
+                                );
+                              },
+                            ),
+                    ),
+                  ],
+                ),
               ),
             ),
-            const SizedBox(height: 8),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
@@ -1481,7 +1573,7 @@ class _AjukanIzinDialogState extends State<_AjukanIzinDialog> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('Ajukan Izin Santri', style: PText.headlineSm),
+                          Text('Catat Izin Santri', style: PText.headlineSm),
                           const SizedBox(height: 1),
                           Text('Form Perizinan Resmi', style: PText.bodySm),
                         ],
@@ -1641,29 +1733,6 @@ class _AjukanIzinDialogState extends State<_AjukanIzinDialog> {
                           border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
                         ),
                       ),
-                      const SizedBox(height: 14),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                        decoration: BoxDecoration(color: PColors.background, borderRadius: BorderRadius.circular(12)),
-                        child: Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                              decoration: BoxDecoration(color: PColors.goldSurface, borderRadius: BorderRadius.circular(999)),
-                              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                                const Icon(Icons.hourglass_bottom, size: 11, color: PColors.gold),
-                                const SizedBox(width: 3),
-                                Text('Diajukan', style: TextStyle(fontFamily: 'Nunito', fontSize: 10, fontWeight: FontWeight.w800, color: PColors.gold)),
-                              ]),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text('Izin akan diverifikasi oleh Kepala Pengasuhan / Kesantrian.', style: PText.bodySm.copyWith(fontSize: 11)),
-                            ),
-                            const Icon(Icons.verified_user_outlined, size: 16, color: PColors.inkSecondary),
-                          ],
-                        ),
-                      ),
                       const SizedBox(height: 16),
                     ],
                   ),
@@ -1683,8 +1752,8 @@ class _AjukanIzinDialogState extends State<_AjukanIzinDialog> {
                           foregroundColor: PColors.gold,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
                         ),
-                        icon: const Icon(Icons.send, size: 16),
-                        label: const Text('Ajukan Izin', style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w700)),
+                        icon: const Icon(Icons.save_outlined, size: 16),
+                        label: const Text('Simpan Izin', style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w700)),
                       ),
                     ),
                     const SizedBox(height: 8),
