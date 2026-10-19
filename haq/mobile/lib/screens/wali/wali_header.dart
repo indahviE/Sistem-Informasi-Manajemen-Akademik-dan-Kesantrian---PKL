@@ -1,7 +1,7 @@
 // wali_header.dart
 //
 // Header (bar atas) untuk Wali Santri, disamakan dengan AdminHeader:
-//   SIMEdu [WALI]                                (lonceng)  (avatar)
+//   SIMPESANTREN [WALI]                                (lonceng)  (avatar)
 //   (ikon) Portal Wali Santri • Beranda
 //
 // Klik avatar -> membuka kartu profil bertema branding pondok (logo, nama, warna)
@@ -29,7 +29,7 @@ class WaliHeader extends StatelessWidget implements PreferredSizeWidget {
   });
 
   /// Nama produk global (bukan nama pondok/sekolah tenant).
-  static const String brandName = 'SIMEdu';
+  static const String brandName = 'SIMPesantren';
 
   /// Baris kedua (nama menu aktif, mis. "Beranda").
   final String subtitle;

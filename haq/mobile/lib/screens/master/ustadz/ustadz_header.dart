@@ -1,7 +1,7 @@
 // ustadz_header.dart
 //
 // Header (bar atas) untuk Ustadz/Guru, disamakan dengan WaliHeader:
-//   SIMEdu [USTADZ]                              (lonceng)  (avatar)
+//   SIMpESANTREN [USTADZ]                              (lonceng)  (avatar)
 //   (ikon) Panel Ustadz / Guru • Beranda
 //
 // Klik avatar -> membuka kartu profil bertema branding pondok (logo, nama, warna)
@@ -30,7 +30,7 @@ class UstadzHeader extends StatelessWidget implements PreferredSizeWidget {
 
   /// Nama produk global (bukan nama pondok/sekolah tenant).
   /// Harus sama dengan AdminHeader.brandName supaya nama produknya konsisten.
-  static const String brandName = 'SIMEdu';
+  static const String brandName = 'SIMPesantren';
 
   /// Baris kedua (nama menu aktif, mis. "Beranda").
   final String subtitle;

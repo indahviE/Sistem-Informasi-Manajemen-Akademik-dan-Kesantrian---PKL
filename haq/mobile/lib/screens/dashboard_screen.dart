@@ -444,7 +444,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       case 'PIMPINAN':
         return 'Pimpinan / Mudir';
       default:
-        return 'Pengguna SIMEdu';
+        return 'Pengguna SIMPesantren';
     }
   }
 
@@ -1601,7 +1601,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               icon: Icons.assignment_ind,
               iconBg: _WC.goldSurface,
               iconColor: _WC.gold,
-              onTap: _notAvailable,
+              onTap: _bukaUstadz,
             ),
             _QuickAction(
               title: 'Rombel & Halaqah',
@@ -1609,7 +1609,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               icon: Icons.meeting_room,
               iconBg: _TC.sage,
               iconColor: _TC.primary,
-              onTap: _notAvailable,
+              onTap: _bukaKelas,
             ),
             _QuickAction(
               title: 'Akun Pengguna',

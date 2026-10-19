@@ -269,7 +269,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       case 'PIMPINAN':
         return 'Pimpinan / Mudir';
       default:
-        return 'Pengguna SIMEdu';
+          return 'Pengguna SIMPesantren';
     }
   }
 

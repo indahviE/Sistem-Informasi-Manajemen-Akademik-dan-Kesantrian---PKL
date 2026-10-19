@@ -1,7 +1,7 @@
 // mudir_header.dart
 //
 // Header (bar atas) untuk Pimpinan / Mudir, disamakan dengan AdminHeader:
-//   SIMEdu [MUDIR]                               (lonceng)  (avatar)
+//   SIMPESANTREN [MUDIR]                               (lonceng)  (avatar)
 //   (ikon) Panel Pimpinan • Beranda
 //
 // Klik avatar -> membuka kartu profil bertema branding pondok (logo, nama, warna)
@@ -32,7 +32,7 @@ class MudirHeader extends StatelessWidget implements PreferredSizeWidget {
   });
 
   /// Nama produk global (bukan nama pondok/sekolah tenant).
-  static const String brandName = 'SIMEdu';
+  static const String brandName = 'SIMPesantren';
 
   /// Baris kedua (nama menu aktif, mis. "Beranda").
   final String subtitle;
