@@ -413,7 +413,7 @@ class _KonselingScreenState extends State<KonselingScreen> {
               Text('Konseling Santri',
                   style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: _KC.ink, height: 1.2)),
               SizedBox(height: 2),
-              Text('Catatan pembinaan & konseling bersifat rahasia',
+              Text('Pembinaan & bimbingan santri',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(fontSize: 13, color: _KC.inkSecondary)),
@@ -519,7 +519,6 @@ class _KonselingScreenState extends State<KonselingScreen> {
     required bool on,
     required VoidCallback onTap,
     Widget? leading,
-    int? count,
   }) {
     return InkWell(
       onTap: onTap,
@@ -539,19 +538,6 @@ class _KonselingScreenState extends State<KonselingScreen> {
             Text(label,
                 style: TextStyle(
                     fontSize: 13.5, fontWeight: FontWeight.w600, color: on ? Colors.white : _KC.ink)),
-            if (count != null) ...[
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(on ? 0.2 : 0.0),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Text('$count',
-                    style: TextStyle(
-                        fontSize: 11.5, fontWeight: FontWeight.w700, color: on ? Colors.white : _KC.inkSecondary)),
-              ),
-            ],
           ],
         ),
       ),
@@ -566,7 +552,6 @@ class _KonselingScreenState extends State<KonselingScreen> {
           _chip(
             label: 'Semua',
             on: _filter == _Filter.semua,
-            count: _list.length,
             onTap: () => _setFilter(_Filter.semua),
           ),
           const SizedBox(width: 8),
@@ -814,53 +799,6 @@ class _KonselingScreenState extends State<KonselingScreen> {
     );
   }
 
-  Widget _infoCard() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
-      decoration: BoxDecoration(color: _KC.surfaceContainer, borderRadius: BorderRadius.circular(20)),
-      child: Column(
-        children: [
-          Container(
-            width: 56,
-            height: 56,
-            decoration: BoxDecoration(
-              color: _KC.surface,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [BoxShadow(color: _KC.primary.withOpacity(0.06), blurRadius: 8, offset: const Offset(0, 2))],
-            ),
-            child: const Icon(Icons.folder_special_outlined, size: 28, color: _KC.ink),
-          ),
-          const SizedBox(height: 14),
-          const Text('Konseling Personal & Tarbiyah',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _KC.ink)),
-          const SizedBox(height: 6),
-          const Text(
-            'Catat perkembangan akhlak, bimbingan adab, dan catatan medis santri secara terpusat untuk kelanjutan evaluasi para asatidz.',
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 13, color: _KC.inkSecondary, height: 1.45),
-          ),
-          const SizedBox(height: 16),
-          SizedBox(
-            height: 48,
-            child: FilledButton.icon(
-              onPressed: () => _toast('Format khusus segera hadir'),
-              style: FilledButton.styleFrom(
-                backgroundColor: _KC.primary,
-                padding: const EdgeInsets.symmetric(horizontal: 22),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-              ),
-              icon: const Icon(Icons.add_circle_outline, size: 20, color: Colors.white),
-              label: const Text('Buat Format Khusus',
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Colors.white)),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   // ---------------------------------------------------------------------
   // Build
   // ---------------------------------------------------------------------
@@ -908,10 +846,6 @@ class _KonselingScreenState extends State<KonselingScreen> {
                               ),
                             const SizedBox(height: 4),
                             _muatLebih(filtered.length),
-                          ],
-                          if (!_readOnly) ...[
-                            const SizedBox(height: 20),
-                            _infoCard(),
                           ],
                         ],
                       ),
@@ -1103,7 +1037,7 @@ class _DetailSheet extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                          crossAxisAlignment: CrossAxisAlignment.center,
                           children: [
                             Container(
                               width: 72,
@@ -1123,13 +1057,6 @@ class _DetailSheet extends StatelessWidget {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  const Text('KONSELING SANTRI',
-                                      style: TextStyle(
-                                          fontSize: 10.5,
-                                          letterSpacing: 0.8,
-                                          fontWeight: FontWeight.w700,
-                                          color: _KC.gold)),
-                                  const SizedBox(height: 2),
                                   Text(nama,
                                       style: const TextStyle(
                                           fontSize: 20, fontWeight: FontWeight.w800, color: Colors.white, height: 1.2)),
@@ -1146,7 +1073,7 @@ class _DetailSheet extends StatelessWidget {
                         const SizedBox(height: 14),
                         Wrap(spacing: 8, runSpacing: 6, children: [
                           privat
-                              ? _darkPill('Rahasia (Private Record)', Icons.lock_outline_rounded, Colors.white, _KC.ink)
+                              ? _darkPill('Rahasia', Icons.lock_outline_rounded, Colors.white, _KC.ink)
                               : _darkPill('Umum', Icons.public, Colors.white, _KC.ink),
                           _perluTindak(k)
                               ? _darkPill('Perlu Tindak Lanjut', Icons.hourglass_bottom_rounded,
@@ -1178,13 +1105,13 @@ class _DetailSheet extends StatelessWidget {
                     ),
                   ),
 
-                  // Catatan pembinaan & dialog
+                  // Catatan konseling
                   _card(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        _cardTitle('CATATAN PEMBINAAN & DIALOG',
-                            icon: Icons.lock_outline_rounded,
+                        _cardTitle('CATATAN KONSELING',
+                            icon: Icons.chat_bubble_outline_rounded,
                             trailing: durasi != null ? _smallTag('$durasi Menit') : null),
                         const SizedBox(height: 12),
                         Container(
@@ -1253,37 +1180,19 @@ class _DetailSheet extends StatelessWidget {
                       ),
                     ),
 
-                  // Metadata & audit
+                  // Informasi sesi
                   _card(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        _cardTitle('METADATA & AUDIT LOG',
-                            trailing: _pill('Terverifikasi', _KC.sage, _KC.primary)),
+                        _cardTitle('INFORMASI SESI'),
                         const SizedBox(height: 12),
                         _metaRow('Tanggal Sesi', _waktu(k['tanggal'])),
                         _metaRow('Pembimbing (Konselor)', konselor),
                         if (pencatat != null) _metaRow('Dicatat Oleh', pencatat),
                         if (k['updatedAt'] != null) _metaRow('Terakhir Diubah', _waktu(k['updatedAt'])),
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(12),
-                          decoration:
-                              BoxDecoration(color: _KC.surfaceDim, borderRadius: BorderRadius.circular(10)),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text('Hak Akses Berkas:',
-                                  style: TextStyle(fontSize: 13, color: _KC.inkSecondary)),
-                              const SizedBox(height: 4),
-                              Text(
-                                privat ? 'Pengelola & Pimpinan Ma\'had' : 'Asatidz & Musyrif Pembina',
-                                style: const TextStyle(
-                                    fontSize: 12.5, fontWeight: FontWeight.w600, color: _KC.ink),
-                              ),
-                            ],
-                          ),
-                        ),
+                        _metaRow('Hak Akses',
+                            privat ? 'Pengelola & Pimpinan Ma\'had' : 'Asatidz & Musyrif Pembina'),
                       ],
                     ),
                   ),
@@ -1296,8 +1205,8 @@ class _DetailSheet extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Icon(Icons.verified_outlined, size: 18, color: _KC.primary),
-                        SizedBox(width: 10),
-                        Expanded(
+                        const SizedBox(width: 10),
+                        const Expanded(
                           child: Text(
                             'Setiap akses, pembacaan, dan perubahan data tercatat secara permanen di audit log sistem SIMPesantren demi integritas amanah santri.',
                             style: TextStyle(fontSize: 12, color: _KC.inkSecondary, height: 1.45),
@@ -1477,7 +1386,6 @@ class _FormSheet extends StatefulWidget {
 class _FormSheetState extends State<_FormSheet> {
   static const _red = Color(0xFFDC2626);
   static const _errFill = Color(0xFFFEE7E7);
-  static const _mint = Color(0xFFDDF1E8);
   static const _mintBtn = Color(0xFFE6F4EF);
 
   final _topik = TextEditingController();
@@ -1844,19 +1752,11 @@ class _FormSheetState extends State<_FormSheet> {
                         : Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Row(
-                                children: [
-                                  Flexible(
-                                    child: Text(nama,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: const TextStyle(
-                                            fontSize: 15.5, fontWeight: FontWeight.w700, color: _KC.ink)),
-                                  ),
-                                  const SizedBox(width: 6),
-                                  const Icon(Icons.verified_outlined, size: 16, color: _KC.inkSecondary),
-                                ],
-                              ),
+                              Text(nama,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                      fontSize: 15.5, fontWeight: FontWeight.w700, color: _KC.ink)),
                               const SizedBox(height: 2),
                               Text('NIS ${s['nis'] ?? '-'}${kelas != null ? ' • Kelas $kelas' : ''}',
                                   maxLines: 1,
@@ -1996,39 +1896,8 @@ class _FormSheetState extends State<_FormSheet> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                      decoration: BoxDecoration(color: _mint, borderRadius: BorderRadius.circular(14)),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Padding(
-                            padding: EdgeInsets.only(top: 2),
-                            child: Icon(Icons.lock_outline_rounded, size: 20, color: _KC.ink),
-                          ),
-                          SizedBox(width: 12),
-                          Expanded(
-                            child: Text.rich(
-                              TextSpan(
-                                style: TextStyle(fontSize: 13, color: _KC.ink, height: 1.5),
-                                children: [
-                                  TextSpan(
-                                      text: 'Bersifat Rahasia',
-                                      style: TextStyle(fontWeight: FontWeight.w700, color: _KC.primary)),
-                                  TextSpan(
-                                      text:
-                                          ' — Hanya dapat diakses Asatidz & Musyrif Pembina demi privasi dan maslahat santri.'),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-
                     // Pilih santri
-                    _label('Pilih Santri', req: true, tag: _santri != null ? 'NIS Aktif' : null),
+                    _label('Pilih Santri', req: true),
                     const SizedBox(height: 8),
                     _santriCard(),
                     const SizedBox(height: 20),
@@ -2076,7 +1945,7 @@ class _FormSheetState extends State<_FormSheet> {
                     const SizedBox(height: 20),
 
                     // Topik
-                    _label('Topik Konseling', req: true, tag: 'Wajib diisi', err: topikErr),
+                    _label('Topik Konseling', req: true, err: topikErr),
                     const SizedBox(height: 8),
                     TextField(
                       controller: _topik,
@@ -2096,7 +1965,7 @@ class _FormSheetState extends State<_FormSheet> {
                     const SizedBox(height: 20),
 
                     // Catatan
-                    _label('Catatan Konseling (Rahasia)', req: true, tag: 'Rahasia', err: catatanErr),
+                    _label('Catatan Konseling', req: true, err: catatanErr),
                     const SizedBox(height: 8),
                     TextField(
                       controller: _catatan,
@@ -2111,23 +1980,6 @@ class _FormSheetState extends State<_FormSheet> {
                       ),
                     ),
                     if (catatanErr) _errorNote('Catatan konseling wajib diisi.'),
-                    const Padding(
-                      padding: EdgeInsets.only(top: 8),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Padding(
-                            padding: EdgeInsets.only(top: 1),
-                            child: Icon(Icons.shield_outlined, size: 14, color: _KC.ink),
-                          ),
-                          SizedBox(width: 6),
-                          Expanded(
-                            child: Text('Catatan ini bersifat rahasia dan tidak dicantumkan di rapor umum.',
-                                style: TextStyle(fontSize: 12.5, color: _KC.ink, height: 1.4)),
-                          ),
-                        ],
-                      ),
-                    ),
                     const SizedBox(height: 20),
 
                     // Tindak lanjut
@@ -2144,7 +1996,7 @@ class _FormSheetState extends State<_FormSheet> {
                     ),
                     const SizedBox(height: 20),
 
-                    // Jadikan rahasia
+                    // Jadikan rahasia (satu-satunya penanda rahasia di form)
                     Container(
                       padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(color: _KC.surfaceDim, borderRadius: BorderRadius.circular(16)),
@@ -2154,7 +2006,7 @@ class _FormSheetState extends State<_FormSheet> {
                             width: 46,
                             height: 46,
                             decoration: BoxDecoration(color: const Color(0xFFD5EBE2), borderRadius: BorderRadius.circular(12)),
-                            child: Icon(Icons.admin_panel_settings_outlined, size: 24, color: _KC.primary),
+                            child: Icon(Icons.lock_outline_rounded, size: 24, color: _KC.primary),
                           ),
                           const SizedBox(width: 14),
                           const Expanded(

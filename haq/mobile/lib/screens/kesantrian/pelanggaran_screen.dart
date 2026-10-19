@@ -68,6 +68,38 @@ String _kategoriPoin(int poin) {
   return 'Kategori Ringan';
 }
 
+/// Ambil SEMUA santri (bukan hanya halaman pertama). Loop per halaman sampai
+/// habis; kalau backend mengabaikan parameter `page`, loop berhenti sendiri
+/// karena tidak ada santri baru.
+Future<List<Map<String, dynamic>>> _fetchSemuaSantri(dynamic api) async {
+  const perPage = 100;
+  final byId = <String, Map<String, dynamic>>{};
+  for (var page = 1; page <= 50; page++) {
+    dynamic res;
+    try {
+      res = await api.get(ApiUrl.santri, query: {'perPage': '$perPage', 'page': '$page'});
+    } catch (_) {
+      if (page == 1) rethrow;
+      break;
+    }
+    final raw = res is List ? res : (res is Map ? (res['items'] ?? res['data']) : null);
+    final items = (raw is List ? raw : const [])
+        .whereType<Map>()
+        .map((e) => e.cast<String, dynamic>())
+        .toList();
+    var baru = 0;
+    for (final s in items) {
+      final id = s['id']?.toString();
+      if (id != null && !byId.containsKey(id)) {
+        byId[id] = s;
+        baru++;
+      }
+    }
+    if (baru == 0 || items.length < perPage) break;
+  }
+  return byId.values.toList();
+}
+
 class PelanggaranScreen extends StatefulWidget {
   final VoidCallback? onBack;
   final String subtitle;
@@ -88,8 +120,8 @@ class _PelanggaranScreenState extends State<PelanggaranScreen> {
   String _timeFilter = 'Semua';
   String _roomFilter = 'Semua Kamar';
 
-    bool get _isWali => AppScope.of(context).user?.isWali == true;
-    bool get _isPimpinan => AppScope.of(context).user?.isPimpinan == true;
+  bool get _isWali => AppScope.of(context).user?.isWali == true;
+  bool get _isPimpinan => AppScope.of(context).user?.isPimpinan == true;
 
   @override
   void initState() {
@@ -112,9 +144,9 @@ class _PelanggaranScreenState extends State<PelanggaranScreen> {
     try {
       final api = AppScope.of(context).api;
       final isWali = _isWali;
-      final results = await Future.wait([
+      final results = await Future.wait<dynamic>([
         api.get(ApiUrl.pelanggaran),
-        isWali ? api.get(ApiUrl.waliMe) : api.get(ApiUrl.santri, query: {'perPage': '100'}),
+        isWali ? api.get(ApiUrl.waliMe) : _fetchSemuaSantri(api),
       ]);
       final pelanggaranRaw = results[0];
       final santriRaw = isWali ? (results[1] is Map ? (results[1] as Map)['santris'] : null) : results[1];
@@ -209,15 +241,68 @@ class _PelanggaranScreenState extends State<PelanggaranScreen> {
     }).toList();
   }
 
-  Future<void> _tandaiSelesai(Map<String, dynamic> p) async {
-    try {
-      final api = AppScope.of(context).api;
-      await api.patch('${ApiUrl.pelanggaran}/${p['id']}', {'status': 'SELESAI'});
-      _load(showSpinner: false);
-    } on ApiException catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
-    }
+  /// Notifikasi melayang bertema (sama dengan `_toast` di absensi_screen.dart).
+  void _toast(String title, {String? subtitle, bool error = false}) {
+    if (!mounted) return;
+    const gold = Color(0xFFC5A059);
+    const errorBg = Color(0xFFFEE2E2);
+    const errorText = Color(0xFF991B1B);
+    final w = MediaQuery.of(context).size.width;
+    final side = w > 472 ? (w - 440) / 2 : 16.0;
+    final fg = error ? errorText : Colors.white;
+
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: error ? errorBg : PTheme.primary,
+          elevation: 6,
+          // angka 88 = jarak dari bawah supaya tidak menutupi tombol Catat Pelanggaran
+          margin: EdgeInsets.fromLTRB(side, 0, side, 88),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          duration: Duration(seconds: error ? 4 : 3),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(
+              color: error ? errorText.withOpacity(0.25) : gold.withOpacity(0.5),
+            ),
+          ),
+          content: Row(
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: error ? Colors.white : gold.withOpacity(0.18),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  error ? Icons.error_outline : Icons.check_rounded,
+                  size: 18,
+                  color: error ? errorText : gold,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title,
+                        style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: fg)),
+                    if (subtitle != null) ...[
+                      const SizedBox(height: 2),
+                      Text(subtitle,
+                          style: TextStyle(fontSize: 11.5, color: fg.withOpacity(0.75))),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
   }
 
   Future<void> _openInput() async {
@@ -232,16 +317,15 @@ class _PelanggaranScreenState extends State<PelanggaranScreen> {
       await api.post(ApiUrl.pelanggaran, result);
       _load(showSpinner: false);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          backgroundColor: Color(0xFFE8F5E9),
-          content: Text('Pelanggaran berhasil dicatat. Wali santri telah dikirim notifikasi.',
-              style: TextStyle(color: Color(0xFF1B5E20))),
-        ),
-      );
+      String? nama;
+      for (final s in _santris) {
+        if (s['id'] == result['santriId']) nama = s['nama']?.toString();
+      }
+      _toast('Pelanggaran berhasil dicatat',
+          subtitle: '${nama ?? 'Santri'} • +${result['poin']} poin • Wali telah dinotifikasi');
     } on ApiException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+      _toast(e.message, error: true);
     }
   }
 
@@ -296,16 +380,30 @@ class _PelanggaranScreenState extends State<PelanggaranScreen> {
                   ],
                 ),
                 // Tombol berada di dalam kotak konten (maxWidth 480), tetap di bawah.
-                  if (!isWali && !_isPimpinan)
+                if (!isWali && !_isPimpinan)
                   Positioned(
-                    right: 16,
-                    bottom: 16,
-                    child: FloatingActionButton.extended(
-                      onPressed: _openInput,
-                      backgroundColor: PTheme.primary,
-                      icon: const Icon(Icons.add_circle_outline, color: Colors.white),
-                      label: const Text('Catat Pelanggaran',
-                          style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w700, color: Colors.white)),
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    child: Container(
+                      padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
+                      decoration: const BoxDecoration(
+                        color: Colors.white,
+                        border: Border(top: BorderSide(color: Color(0xFFEAE6DC))),
+                      ),
+                      child: SizedBox(
+                        height: 50,
+                        child: FilledButton.icon(
+                          onPressed: _openInput,
+                          style: FilledButton.styleFrom(
+                            backgroundColor: PTheme.primary,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+                          ),
+                          icon: const Icon(Icons.add_circle_outline, size: 18, color: Colors.white),
+                          label: const Text('Catat Pelanggaran',
+                              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Colors.white)),
+                        ),
+                      ),
                     ),
                   ),
               ],
@@ -516,56 +614,8 @@ class _PelanggaranScreenState extends State<PelanggaranScreen> {
   }
 
   // ---------------------------------------------------------------------
-  // Khusus wali: ringkasan & panduan
+  // Khusus wali: panduan membaca poin
   // ---------------------------------------------------------------------
-  Widget _waliRingkasan() {
-    final totalPoin = _all.fold<int>(0, (s, p) => s + ((p['poin'] as num?)?.toInt() ?? 0));
-    final proses = _all.where((p) => (p['status'] ?? 'DICATAT').toString() == 'DICATAT').length;
-
-    Widget kotak(String label, String nilai, Color bg, Color fg) => Expanded(
-          child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-            decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(12)),
-            child: Column(
-              children: [
-                Text(nilai,
-                    style: TextStyle(fontFamily: 'Nunito', fontSize: 22, fontWeight: FontWeight.w800, color: fg)),
-                const SizedBox(height: 2),
-                Text(label,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontFamily: 'Nunito', fontSize: 10.5, fontWeight: FontWeight.w700, color: fg)),
-              ],
-            ),
-          ),
-        );
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 6, offset: const Offset(0, 2))],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Ringkasan', style: PText.bodyMd.copyWith(color: PTheme.ink, fontWeight: FontWeight.w800)),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              kotak('Total Poin', '$totalPoin', _poinBg(totalPoin), _poinFg(totalPoin)),
-              const SizedBox(width: 8),
-              kotak('Catatan', '${_all.length}', PTheme.background, PTheme.ink),
-              const SizedBox(width: 8),
-              kotak('Dalam Penanganan', '$proses', const Color(0xFFFDEEC9), const Color(0xFF92650C)),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _waliPanduan() {
     Widget baris(String judul, String ket, int contohPoin) => Padding(
           padding: const EdgeInsets.only(top: 10),
@@ -684,28 +734,19 @@ class _PelanggaranScreenState extends State<PelanggaranScreen> {
                   ],
                 ),
               ),
+              // Dicatat langsung oleh musyrif = sudah sah, tidak ada status "Pending".
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
                 decoration: BoxDecoration(
-                    color: selesai ? const Color(0xFFDDF0E3) : const Color(0xFFFDEEC9),
+                    color: selesai ? const Color(0xFFDDF0E3) : PTheme.background,
                     borderRadius: BorderRadius.circular(999)),
-                child: Text(selesai ? 'Selesai' : (isWali ? 'Dalam Penanganan' : 'Pending'),
+                child: Text(selesai ? 'Selesai' : 'Tercatat',
                     style: TextStyle(
                         fontFamily: 'Nunito',
                         fontSize: 10.5,
                         fontWeight: FontWeight.w800,
-                        color: selesai ? PTheme.primary : const Color(0xFF92650C))),
+                        color: selesai ? PTheme.primary : PTheme.inkSecondary)),
               ),
-              if (!selesai && !isWali && !_isPimpinan)
-                PopupMenuButton<String>(
-                  icon: const Icon(Icons.more_vert, size: 18, color: PTheme.inkSecondary),
-                  onSelected: (v) {
-                    if (v == 'selesai') _tandaiSelesai(p);
-                  },
-                  itemBuilder: (_) => const [
-                    PopupMenuItem(value: 'selesai', child: Text('Tandai Selesai')),
-                  ],
-                ),
             ],
           ),
           const SizedBox(height: 10),
@@ -808,7 +849,8 @@ class _InputPelanggaranDialogState extends State<_InputPelanggaranDialog> {
   String _kelasKamarLabel(Map<String, dynamic> s) {
     final kelasRaw = s['kelas'];
     final kelas = kelasRaw is Map ? (kelasRaw['namaKelas'] ?? kelasRaw['nama'])?.toString() : kelasRaw?.toString();
-    final kamar = s['asrama']?.toString();
+    final asramaRaw = s['asrama'];
+    final kamar = asramaRaw is Map ? (asramaRaw['nama'])?.toString() : asramaRaw?.toString();
     final parts = [
       if (kelas != null && kelas.isNotEmpty) 'Kelas $kelas',
       if (kamar != null && kamar.isNotEmpty) 'Kamar $kamar'
@@ -816,62 +858,125 @@ class _InputPelanggaranDialogState extends State<_InputPelanggaranDialog> {
     return parts.isEmpty ? '-' : parts.join(' • ');
   }
 
+  /// Bottom sheet pilih santri. `isScrollControlled: true` + tinggi tetap
+  /// (75% layar) supaya tidak overflow; daftar scroll di dalamnya + ada pencarian.
   void _pilihSantri() {
     if (widget.santris.isEmpty) return;
+    String q = '';
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       backgroundColor: PTheme.surface,
+      constraints: const BoxConstraints(maxWidth: 480),
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 12),
-            Text('Pilih Santri', style: PText.headlineSm),
-            const SizedBox(height: 4),
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 380),
-              child: ListView(
-                shrinkWrap: true,
-                children: [
-                  for (final s in widget.santris)
-                    ListTile(
-                      leading: Container(
-                        width: 36,
-                        height: 36,
-                        decoration: BoxDecoration(color: PTheme.primary, shape: BoxShape.circle),
-                        alignment: Alignment.center,
-                        child: Text(_initialsOf(s['nama']?.toString() ?? '-'),
-                            style: const TextStyle(
-                                fontFamily: 'Nunito', fontSize: 12, fontWeight: FontWeight.w800, color: Colors.white)),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheet) {
+          final query = q.trim().toLowerCase();
+          final list = query.isEmpty
+              ? widget.santris
+              : widget.santris.where((s) {
+                  final nama = (s['nama'] ?? '').toString().toLowerCase();
+                  final nis = (s['nis'] ?? '').toString().toLowerCase();
+                  return nama.contains(query) || nis.contains(query);
+                }).toList();
+
+          return Padding(
+            padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+            child: SafeArea(
+              child: SizedBox(
+                height: MediaQuery.of(ctx).size.height * 0.75,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: 10),
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                            color: PTheme.inkSecondary.withOpacity(0.25), borderRadius: BorderRadius.circular(999)),
                       ),
-                      title: Text(s['nama']?.toString() ?? '-', style: PText.bodyMd),
-                      subtitle: Text('NIS: ${s['nis'] ?? '-'} • ${_kelasKamarLabel(s)}', style: PText.bodySm),
-                      trailing: Text(
-                        _countPelanggaranFor(s['id'].toString()) == 0
-                            ? 'Disiplin'
-                            : '${_countPelanggaranFor(s['id'].toString())} Pelanggaran',
-                        style: PText.bodySm.copyWith(
-                          color: _countPelanggaranFor(s['id'].toString()) == 0
-                              ? PTheme.primary
-                              : const Color(0xFF92650C),
-                          fontWeight: FontWeight.w700,
+                    ),
+                    const SizedBox(height: 12),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: Row(
+                        children: [
+                          Expanded(child: Text('Pilih Santri', style: PText.headlineSm)),
+                          Text('${list.length} santri', style: PText.bodySm),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: TextField(
+                        onChanged: (v) => setSheet(() => q = v),
+                        style: PText.bodyMd.copyWith(color: PTheme.ink),
+                        decoration: InputDecoration(
+                          isDense: true,
+                          filled: true,
+                          fillColor: PTheme.background,
+                          hintText: 'Cari nama / NIS...',
+                          hintStyle: PText.bodySm,
+                          prefixIcon: const Icon(Icons.search, size: 20, color: PTheme.inkSecondary),
+                          contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
                         ),
                       ),
-                      onTap: () {
-                        setState(() {
-                          _santri = s;
-                          _errorSantri = null;
-                        });
-                        Navigator.pop(ctx);
-                      },
                     ),
-                ],
+                    const SizedBox(height: 4),
+                    Expanded(
+                      child: list.isEmpty
+                          ? Center(child: Text('Santri tidak ditemukan.', style: PText.bodySm))
+                          : ListView.builder(
+                              padding: const EdgeInsets.only(bottom: 8),
+                              itemCount: list.length,
+                              itemBuilder: (_, i) {
+                                final s = list[i];
+                                final jml = _countPelanggaranFor(s['id'].toString());
+                                return ListTile(
+                                  contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+                                  leading: Container(
+                                    width: 36,
+                                    height: 36,
+                                    decoration: BoxDecoration(color: PTheme.primary, shape: BoxShape.circle),
+                                    alignment: Alignment.center,
+                                    child: Text(_initialsOf(s['nama']?.toString() ?? '-'),
+                                        style: const TextStyle(
+                                            fontFamily: 'Nunito',
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w800,
+                                            color: Colors.white)),
+                                  ),
+                                  title: Text(s['nama']?.toString() ?? '-', style: PText.bodyMd),
+                                  subtitle:
+                                      Text('NIS: ${s['nis'] ?? '-'} • ${_kelasKamarLabel(s)}', style: PText.bodySm),
+                                  trailing: Text(
+                                    jml == 0 ? 'Disiplin' : '$jml Pelanggaran',
+                                    style: PText.bodySm.copyWith(
+                                      color: jml == 0 ? PTheme.primary : const Color(0xFF92650C),
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  onTap: () {
+                                    setState(() {
+                                      _santri = s;
+                                      _errorSantri = null;
+                                    });
+                                    Navigator.pop(ctx);
+                                  },
+                                );
+                              },
+                            ),
+                    ),
+                  ],
+                ),
               ),
             ),
-            const SizedBox(height: 8),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
