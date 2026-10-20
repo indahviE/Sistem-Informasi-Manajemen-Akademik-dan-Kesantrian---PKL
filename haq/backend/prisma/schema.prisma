@@ -493,13 +493,16 @@ model KesehatanLog {
 }
 
 model KunjunganWali {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   tenantId  String
   santriId  String
   waliId    String?
+  namaWali  String?
+  status    String    @default("BERLANGSUNG")
   tanggal   DateTime
+  selesaiAt DateTime?
   catatan   String?
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
 
   santri Santri      @relation(fields: [santriId], references: [id], onDelete: Cascade)
   wali   WaliSantri? @relation(fields: [waliId], references: [id])

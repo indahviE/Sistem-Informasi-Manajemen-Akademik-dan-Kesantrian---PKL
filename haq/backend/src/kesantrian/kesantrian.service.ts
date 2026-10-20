@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { RequestUser } from '../common/decorators/current-user.decorator';
 import {
@@ -295,10 +295,21 @@ private async buildSantriScope(
       data: {
         tenantId,
         santriId: dto.santriId,
-        waliId: dto.waliId,
+        namaWali: dto.namaWali?.trim() || null,
         tanggal: new Date(dto.tanggal),
         catatan: dto.catatan,
+        status: 'BERLANGSUNG',
       },
+    });
+  }
+
+  async selesaiKunjungan(tenantId: string, id: string) {
+    const found = await this.prisma.kunjunganWali.findFirst({ where: { id, tenantId } });
+    if (!found) throw new NotFoundException('Kunjungan tidak ditemukan.');
+    if (found.status === 'SELESAI') return found;
+    return this.prisma.kunjunganWali.update({
+      where: { id },
+      data: { status: 'SELESAI', selesaiAt: new Date() },
     });
   }
 

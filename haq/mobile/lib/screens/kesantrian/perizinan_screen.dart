@@ -28,6 +28,65 @@ import '../p_theme.dart';
 //   - pihakProses            : String   (mis. "Pengasuhan" -> badge "Ditolak Pengasuhan")
 // ============================================================================
 
+
+/// Notifikasi melayang bertema (sama dengan _toast di pelanggaran & kunjungan wali).
+void _showPerizinanToast(BuildContext context, String title, {String? subtitle, bool error = false}) {
+  const gold = Color(0xFFC5A059);
+  const errorBg = Color(0xFFFEE2E2);
+  const errorText = Color(0xFF991B1B);
+  final w = MediaQuery.of(context).size.width;
+  final side = w > 472 ? (w - 440) / 2 : 16.0;
+  final fg = error ? errorText : Colors.white;
+
+  ScaffoldMessenger.of(context)
+    ..hideCurrentSnackBar()
+    ..showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: error ? errorBg : PTheme.primary,
+        elevation: 6,
+        margin: EdgeInsets.fromLTRB(side, 0, side, 16),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        duration: Duration(seconds: error ? 4 : 3),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: error ? errorText.withOpacity(0.25) : gold.withOpacity(0.5)),
+        ),
+        content: Row(
+          children: [
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: error ? Colors.white : gold.withOpacity(0.18),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                error ? Icons.error_outline : Icons.check_rounded,
+                size: 18,
+                color: error ? errorText : gold,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: fg)),
+                  if (subtitle != null) ...[
+                    const SizedBox(height: 2),
+                    Text(subtitle, style: TextStyle(fontSize: 11.5, color: fg.withOpacity(0.75))),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+}
+
 class PerizinanScreen extends StatefulWidget {
   const PerizinanScreen({super.key});
 
@@ -140,13 +199,9 @@ class _PerizinanScreenState extends State<PerizinanScreen> {
       }
       _load();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(backgroundColor: PTheme.primary, content: const Text('Izin berhasil dicatat.')),
-      );
+      _showPerizinanToast(context, 'Izin berhasil dicatat', subtitle: 'Wali santri mendapat notifikasi');
     } on ApiException catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(backgroundColor: PColors.errorText, content: Text(e.message)),
-      );
+      _showPerizinanToast(context, 'Gagal memproses perizinan', subtitle: e.message, error: true);
     }
   }
 
@@ -161,9 +216,7 @@ class _PerizinanScreenState extends State<PerizinanScreen> {
       });
       _load();
     } on ApiException catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(backgroundColor: PColors.errorText, content: Text(e.message)),
-      );
+      _showPerizinanToast(context, 'Gagal memproses perizinan', subtitle: e.message, error: true);
     }
   }
 
@@ -1512,15 +1565,15 @@ class _AjukanIzinDialogState extends State<_AjukanIzinDialog> {
 
   void _submit() {
     if (_santri == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Pilih santri terlebih dahulu.')));
+      _showPerizinanToast(context, 'Pilih santri terlebih dahulu', error: true);
       return;
     }
     if (_alasanCtrl.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Alasan izin wajib diisi.')));
+      _showPerizinanToast(context, 'Alasan izin wajib diisi', error: true);
       return;
     }
     if (_tujuanCtrl.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Tujuan izin wajib diisi.')));
+      _showPerizinanToast(context, 'Tujuan izin wajib diisi', error: true);
       return;
     }
     setState(() => _submitting = true);

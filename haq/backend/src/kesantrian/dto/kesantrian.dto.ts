@@ -151,6 +151,10 @@ export class CreateKunjunganDto {
   @IsOptional()
   @IsString()
   catatan?: string;
+
+  @IsOptional()
+  @IsString()
+  namaWali?: string;
 }
 
 export class CreateTataTertibDto {

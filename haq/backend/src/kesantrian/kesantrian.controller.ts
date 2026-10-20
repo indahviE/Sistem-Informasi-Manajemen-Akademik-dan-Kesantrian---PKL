@@ -105,6 +105,12 @@ export class KesantrianController {
     return this.kesantrianService.createKunjungan(tenantId, dto);
   }
 
+  @Roles(Role.ADMIN, Role.MUSYRIF)
+  @Patch('kunjungan/:id/selesai')
+  selesaiKunjungan(@TenantId() tenantId: string, @Param('id') id: string) {
+    return this.kesantrianService.selesaiKunjungan(tenantId, id);
+  }
+
   // ===== Tata Tertib =====
   @Roles(Role.ADMIN, Role.PIMPINAN, Role.MUSYRIF, Role.USTADZ, Role.WALI_SANTRI, Role.SANTRI)
   @Get('tata-tertib')
