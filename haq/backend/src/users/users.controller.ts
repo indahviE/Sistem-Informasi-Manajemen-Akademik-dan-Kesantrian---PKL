@@ -3,7 +3,7 @@ import { UsersService } from './users.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
-import { TenantId } from '../common/decorators/current-user.decorator';
+import { CurrentUser, RequestUser, TenantId } from '../common/decorators/current-user.decorator';
 import { CreateUserDto, UpdateUserDto } from './dto/user.dto';
 import { Role } from '@prisma/client';
 
@@ -32,13 +32,21 @@ export class UsersController {
 
   @Roles(Role.ADMIN)
   @Patch(':id/toggle')
-  toggle(@TenantId() tenantId: string, @Param('id') id: string) {
-    return this.usersService.toggleStatus(tenantId, id);
+  toggle(
+    @TenantId() tenantId: string,
+    @Param('id') id: string,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return this.usersService.toggleStatus(tenantId, id, user.userId);
   }
 
   @Roles(Role.ADMIN)
   @Delete(':id')
-  remove(@TenantId() tenantId: string, @Param('id') id: string) {
-    return this.usersService.remove(tenantId, id);
+  remove(
+    @TenantId() tenantId: string,
+    @Param('id') id: string,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return this.usersService.remove(tenantId, id, user.userId);
   }
 }

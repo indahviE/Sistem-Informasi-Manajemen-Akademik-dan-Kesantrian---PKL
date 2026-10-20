@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../services/api_client.dart';
 import '../../services/app_scope.dart';
@@ -66,6 +67,8 @@ class _UsersScreenState extends State<UsersScreen> {
   String? _error;
   String _filter = 'SEMUA'; // 'SEMUA' atau nilai role
   String _q = '';
+  bool _showAll = false;
+  static const int _batas = 6; // jumlah kartu yang tampil di awal
 
   @override
   void initState() {
@@ -115,25 +118,20 @@ class _UsersScreenState extends State<UsersScreen> {
   }
 
   Future<void> _add() async {
-    final res = await showModalBottomSheet<Map<String, String>>(
+    final res = await    showModalBottomSheet<Map<String, dynamic>>(
       context: context,
       isScrollControlled: true,
       backgroundColor: _UC.surface,
       constraints: const BoxConstraints(maxWidth: 480),
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (_) => const _TambahSheet(),
+      builder: (_) => _TambahSheet(api: AppScope.of(context).api),
     );
     if (res == null || !mounted) return;
 
     try {
-      await AppScope.of(context).api.post(ApiUrl.users, {
-        'nama': res['nama'],
-        'email': res['email'],
-        'password': res['password'],
-        'role': res['role'],
-      });
+      await AppScope.of(context).api.post(ApiUrl.users, res);
       if (!mounted) return;
-      _toast('Pengguna ditambahkan', subtitle: '${res['nama']} • ${_roleOf(res['role']!).label}');
+      _toast('Pengguna ditambahkan', subtitle: '${res['nama']} • ${_roleOf('${res['role']}').label}');
       _load();
     } on ApiException catch (e) {
       _toast(e.message, error: true);
@@ -145,6 +143,113 @@ class _UsersScreenState extends State<UsersScreen> {
   // ---------------------------------------------------------------------
   // Util
   // ---------------------------------------------------------------------
+  Future<void> _toggle(Map<String, dynamic> u) async {
+    final nama = (u['nama'] ?? '-').toString();
+    final lama = (u['status'] ?? '').toString();
+    try {
+      final res = await AppScope.of(context).api.patch('${ApiUrl.users}/${u['id']}/toggle');
+      if (!mounted) return;
+      final baru = (res is Map ? res['status'] : null)?.toString() ??
+          (lama == 'AKTIF' ? 'NONAKTIF' : 'AKTIF');
+      setState(() => u['status'] = baru);
+      _toast(baru == 'AKTIF' ? 'Akun diaktifkan' : 'Akun dinonaktifkan', subtitle: nama);
+    } on ApiException catch (e) {
+      _toast(e.message, error: true);
+    } catch (_) {
+      _toast('Gagal mengubah status akun.', error: true);
+    }
+  }
+
+  Future<void> _hapus(Map<String, dynamic> u) async {
+    final nama = (u['nama'] ?? '-').toString();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: _UC.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Hapus pengguna?',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _UC.ink)),
+        content: Text(
+          'Akun "$nama" akan dihapus dan tidak bisa masuk ke sistem lagi. Tindakan ini tidak bisa dibatalkan.',
+          style: const TextStyle(fontSize: 13, color: _UC.inkSecondary, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Batal', style: TextStyle(color: _UC.inkSecondary)),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(backgroundColor: _UC.errorText),
+            child: const Text('Hapus'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+
+    try {
+      await AppScope.of(context).api.delete('${ApiUrl.users}/${u['id']}');
+      if (!mounted) return;
+      setState(() => _items.removeWhere((x) => x['id'] == u['id']));
+      _toast('Pengguna dihapus', subtitle: nama);
+    } on ApiException catch (e) {
+      _toast(e.message, error: true);
+    } catch (_) {
+      _toast('Gagal menghapus pengguna.', error: true);
+    }
+  }
+
+  Widget _toggleSemua(int total) {
+    return Center(
+      child: TextButton.icon(
+        onPressed: () => setState(() => _showAll = !_showAll),
+        icon: Icon(_showAll ? Icons.expand_less_rounded : Icons.expand_more_rounded, size: 20),
+        label: Text(_showAll ? 'Tampilkan lebih sedikit' : 'Tampilkan semua ($total)'),
+        style: TextButton.styleFrom(
+          foregroundColor: _UC.primary,
+          textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+        ),
+      ),
+    );
+  }
+
+  /// Kartu pengguna + tombol hapus kecil di pojok kanan bawah.
+  Widget _userCard(int index, Map<String, dynamic> u) {
+    return Stack(
+      children: [
+        _userCardBody(index, u),
+        Positioned(
+          right: 46,
+          bottom: 10,
+          child: Transform.scale(
+            scale: 0.8,
+            child: Switch(
+              value: _isAktif(u),
+              onChanged: (_) => _toggle(u),
+              activeColor: Colors.white,
+              activeTrackColor: _UC.primary,
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+          ),
+        ),
+        Positioned(
+          right: 10,
+          bottom: 12,
+          child: IconButton(
+            onPressed: () => _hapus(u),
+            tooltip: 'Hapus',
+            padding: const EdgeInsets.all(6),
+            constraints: const BoxConstraints(),
+            iconSize: 18,
+            color: _UC.errorText,
+            icon: const Icon(Icons.delete_outline_rounded),
+          ),
+        ),
+      ],
+    );
+  }
+
   String _inisial(String nama) {
     final n = nama.trim();
     return n.isEmpty ? '?' : n.substring(0, 1).toUpperCase();
@@ -471,7 +576,7 @@ class _UsersScreenState extends State<UsersScreen> {
     );
   }
 
-  Widget _userCard(int index, Map<String, dynamic> u) {
+  Widget _userCardBody(int index, Map<String, dynamic> u) {
     final nama = (u['nama'] ?? '-').toString().trim();
     final email = (u['email'] ?? '-').toString();
     final role = _roleOf((u['role'] ?? '').toString());
@@ -589,7 +694,8 @@ class _UsersScreenState extends State<UsersScreen> {
           (u['email'] ?? '').toString().toLowerCase().contains(q);
     }).toList();
 
-      Widget content;
+      final tampil = _showAll ? filtered : filtered.take(_batas).toList();
+    Widget content;
     if (_loading) {
       content = loadingView();
     } else if (_error != null) {
@@ -615,8 +721,12 @@ class _UsersScreenState extends State<UsersScreen> {
                   ? 'Belum ada pengguna.'
                   : 'Tidak ada pengguna yang cocok.')
             else
-              for (var i = 0; i < filtered.length; i++) ...[
-                _userCard(i, filtered[i]),
+              for (var i = 0; i < tampil.length; i++) ...[
+                _userCard(i, tampil[i]),
+                if (i == tampil.length - 1 && filtered.length > _batas) ...[
+                  const SizedBox(height: 4),
+                  _toggleSemua(filtered.length),
+                ],
                 const SizedBox(height: 10),
               ],
           ],
@@ -655,26 +765,90 @@ class _UsersScreenState extends State<UsersScreen> {
 // Bottom sheet: tambah user
 // ---------------------------------------------------------------------
 class _TambahSheet extends StatefulWidget {
-  const _TambahSheet();
+  final ApiClient api;
+  const _TambahSheet({required this.api});
 
   @override
   State<_TambahSheet> createState() => _TambahSheetState();
 }
 
 class _TambahSheetState extends State<_TambahSheet> {
+  static const TextStyle _label = TextStyle(
+      fontSize: 10, letterSpacing: 0.4, fontWeight: FontWeight.w700, color: _UC.inkSecondary);
+
   final _nama = TextEditingController();
   final _email = TextEditingController();
   final _pass = TextEditingController();
+  final _hp = TextEditingController();
   String _role = 'USTADZ';
   bool _showPass = false;
   String? _err;
+
+  // Khusus role Wali Santri
+  String _hubungan = 'Ayah';
+  String? _waliSantriId; // null = buat data wali baru
+  List<Map<String, dynamic>> _waliTanpaAkun = [];
+  bool _waliLoaded = false;
+  final List<Map<String, dynamic>> _anak = [];
+
+  bool get _isWali => _role == 'WALI_SANTRI';
 
   @override
   void dispose() {
     _nama.dispose();
     _email.dispose();
     _pass.dispose();
+    _hp.dispose();
     super.dispose();
+  }
+
+  // ---------------------------------------------------------------------
+  // Logic
+  // ---------------------------------------------------------------------
+  void _pilihRole(String v) {
+    setState(() => _role = v);
+    if (v == 'WALI_SANTRI') _loadWali();
+  }
+
+  /// Ambil data wali yang belum punya akun (untuk opsi "tautkan ke wali yang sudah ada").
+  Future<void> _loadWali() async {
+    if (_waliLoaded) return;
+    _waliLoaded = true;
+    try {
+      final res = await widget.api.get(ApiUrl.wali);
+      final raw = res is List ? res : (res is Map ? (res['items'] ?? res['data']) : null);
+      final list = (raw is List ? raw : const [])
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .where((w) => w['user'] == null)
+          .toList();
+      if (mounted) setState(() => _waliTanpaAkun = list);
+    } catch (_) {
+      // Opsi tautan lama tidak tampil; membuat wali baru tetap bisa.
+    }
+  }
+
+  void _pilihWali(String v) {
+    setState(() => _waliSantriId = v.isEmpty ? null : v);
+    if (v.isEmpty) return;
+    final w = _waliTanpaAkun.firstWhere((e) => '${e['id']}' == v, orElse: () => <String, dynamic>{});
+    if (_nama.text.trim().isEmpty && w['nama'] != null) _nama.text = '${w['nama']}';
+    if (_hp.text.trim().isEmpty && w['noHp'] != null) _hp.text = '${w['noHp']}';
+  }
+
+  Future<void> _tambahAnak() async {
+    final picked = await showModalBottomSheet<Map<String, dynamic>>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: _UC.surface,
+      constraints: const BoxConstraints(maxWidth: 480),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => _SantriPicker(
+        api: widget.api,
+        excludeIds: {for (final a in _anak) '${a['id']}'},
+      ),
+    );
+    if (picked != null && mounted) setState(() => _anak.add(picked));
   }
 
   void _submit() {
@@ -694,14 +868,29 @@ class _TambahSheetState extends State<_TambahSheet> {
       setState(() => _err = 'Password minimal 6 karakter.');
       return;
     }
-    Navigator.pop<Map<String, String>>(context, {
+
+    final out = <String, dynamic>{
       'nama': nama,
       'email': email,
       'password': pass,
       'role': _role,
-    });
+    };
+    if (_isWali) {
+      final hp = _hp.text.trim();
+      if (hp.isNotEmpty) out['noHp'] = hp;
+      if (_waliSantriId != null) {
+        out['waliSantriId'] = _waliSantriId;
+      } else {
+        out['hubungan'] = _hubungan;
+      }
+      if (_anak.isNotEmpty) out['santriIds'] = [for (final a in _anak) '${a['id']}'];
+    }
+    Navigator.pop<Map<String, dynamic>>(context, out);
   }
 
+  // ---------------------------------------------------------------------
+  // Building blocks
+  // ---------------------------------------------------------------------
   InputDecoration _dec(String label, {String? hint, Widget? suffix}) => InputDecoration(
         labelText: label,
         hintText: hint,
@@ -716,7 +905,7 @@ class _TambahSheetState extends State<_TambahSheet> {
   Widget _roleChip(_RoleInfo r) {
     final selected = _role == r.value;
     return GestureDetector(
-      onTap: () => setState(() => _role = r.value),
+      onTap: () => _pilihRole(r.value),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
@@ -740,6 +929,100 @@ class _TambahSheetState extends State<_TambahSheet> {
         ),
       ),
     );
+  }
+
+  Widget _hubChip(String h) {
+    final selected = _hubungan == h;
+    return GestureDetector(
+      onTap: () => setState(() => _hubungan = h),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected ? _UC.primary : _UC.surface,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: selected ? _UC.primary : _UC.border),
+        ),
+        child: Text(h,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: selected ? Colors.white : _UC.inkSecondary,
+            )),
+      ),
+    );
+  }
+
+  List<Widget> _waliSection() {
+    return [
+      const SizedBox(height: 16),
+      const Text('DATA WALI', style: _label),
+      const SizedBox(height: 8),
+      TextField(
+        controller: _hp,
+        keyboardType: TextInputType.phone,
+        style: const TextStyle(fontSize: 14, color: _UC.ink),
+        decoration: _dec('No HP (opsional)', hint: '08xxxxxxxxxx'),
+      ),
+      const SizedBox(height: 12),
+      if (_waliTanpaAkun.isNotEmpty) ...[
+        DropdownButtonFormField<String>(
+          value: _waliSantriId ?? '',
+          isExpanded: true,
+          style: const TextStyle(fontSize: 14, color: _UC.ink),
+          decoration: _dec('Tautkan ke data wali yang sudah ada'),
+          items: [
+            const DropdownMenuItem<String>(value: '', child: Text('Buat data wali baru')),
+            for (final w in _waliTanpaAkun)
+              DropdownMenuItem<String>(
+                value: '${w['id']}',
+                child: Text('${w['nama']}', overflow: TextOverflow.ellipsis),
+              ),
+          ],
+          onChanged: (v) => _pilihWali(v ?? ''),
+        ),
+        const SizedBox(height: 12),
+      ],
+      if (_waliSantriId == null) ...[
+        const Text('HUBUNGAN', style: _label),
+        const SizedBox(height: 8),
+        Wrap(spacing: 8, runSpacing: 8, children: [for (final h in const ['Ayah', 'Ibu', 'Wali']) _hubChip(h)]),
+        const SizedBox(height: 12),
+      ],
+      const Text('ANAK (OPSIONAL)', style: _label),
+      const SizedBox(height: 8),
+      if (_anak.isNotEmpty) ...[
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final a in _anak)
+              Chip(
+                label: Text(
+                  '${a['nama']}${a['kelas'] is Map ? ' • ${a['kelas']['namaKelas']}' : ''}',
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _UC.ink),
+                ),
+                backgroundColor: _UC.sage,
+                side: BorderSide.none,
+                deleteIconColor: _UC.inkSecondary,
+                onDeleted: () => setState(() => _anak.remove(a)),
+              ),
+          ],
+        ),
+        const SizedBox(height: 8),
+      ],
+      OutlinedButton.icon(
+        onPressed: _tambahAnak,
+        icon: const Icon(Icons.person_add_alt_rounded, size: 18),
+        label: Text(_anak.isEmpty ? 'Pilih anak' : 'Tambah anak lagi',
+            style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700)),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: _UC.primary,
+          side: const BorderSide(color: _UC.border),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+        ),
+      ),
+    ];
   }
 
   @override
@@ -810,11 +1093,10 @@ class _TambahSheetState extends State<_TambahSheet> {
                 ),
               ),
               const SizedBox(height: 16),
-              const Text('ROLE',
-                  style: TextStyle(
-                      fontSize: 10, letterSpacing: 0.4, fontWeight: FontWeight.w700, color: _UC.inkSecondary)),
+              const Text('ROLE', style: _label),
               const SizedBox(height: 8),
               Wrap(spacing: 8, runSpacing: 8, children: [for (final r in _kRoles) _roleChip(r)]),
+              if (_isWali) ..._waliSection(),
               if (_err != null) ...[
                 const SizedBox(height: 12),
                 Container(
@@ -863,6 +1145,173 @@ class _TambahSheetState extends State<_TambahSheet> {
                     ),
                   ),
                 ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------
+// Bottom sheet: pilih santri (anak) dengan pencarian nama / NIS
+// ---------------------------------------------------------------------
+class _SantriPicker extends StatefulWidget {
+  final ApiClient api;
+  final Set<String> excludeIds;
+  const _SantriPicker({required this.api, required this.excludeIds});
+
+  @override
+  State<_SantriPicker> createState() => _SantriPickerState();
+}
+
+class _SantriPickerState extends State<_SantriPicker> {
+  final _q = TextEditingController();
+  Timer? _debounce;
+  List<Map<String, dynamic>> _items = [];
+  bool _loading = true;
+  String? _err;
+  int _seq = 0; // supaya hasil pencarian lama tidak menimpa yang baru
+
+  @override
+  void initState() {
+    super.initState();
+    _cari('');
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _q.dispose();
+    super.dispose();
+  }
+
+  void _onChanged(String v) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 350), () => _cari(v.trim()));
+  }
+
+  Future<void> _cari(String q) async {
+    final my = ++_seq;
+    setState(() {
+      _loading = true;
+      _err = null;
+    });
+    try {
+      final res = await widget.api.get(ApiUrl.santri, query: {'search': q});
+      if (!mounted || my != _seq) return;
+      final raw = res is Map ? res['items'] : res;
+      setState(() {
+        _items = (raw is List ? raw : const [])
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList();
+        _loading = false;
+      });
+    } on ApiException catch (e) {
+      if (mounted && my == _seq) {
+        setState(() {
+          _err = e.message;
+          _loading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted && my == _seq) {
+        setState(() {
+          _err = 'Gagal memuat daftar santri.';
+          _loading = false;
+        });
+      }
+    }
+  }
+
+  Widget _tile(Map<String, dynamic> s) {
+    final id = '${s['id']}';
+    final kelas = s['kelas'] is Map ? '${s['kelas']['namaKelas']}' : '-';
+    final waliLama = s['wali'] is Map ? '${s['wali']['nama']}' : null;
+    final dipilih = widget.excludeIds.contains(id);
+    final disabled = dipilih || waliLama != null;
+
+    String sub = '${s['nis'] ?? '-'} • $kelas';
+    if (dipilih) {
+      sub = 'Sudah dipilih';
+    } else if (waliLama != null) {
+      sub = 'Sudah punya wali: $waliLama';
+    }
+
+    return ListTile(
+      enabled: !disabled,
+      onTap: () => Navigator.pop(context, s),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+      leading: CircleAvatar(
+        backgroundColor: _UC.sage,
+        child: Text(
+          '${s['nama'] ?? '?'}'.trim().isEmpty ? '?' : '${s['nama']}'.trim().substring(0, 1).toUpperCase(),
+          style: TextStyle(fontWeight: FontWeight.w800, color: _UC.primary),
+        ),
+      ),
+      title: Text('${s['nama'] ?? '-'}',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _UC.ink)),
+      subtitle: Text(sub, style: const TextStyle(fontSize: 11.5, color: _UC.inkSecondary)),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final h = MediaQuery.of(context).size.height * 0.7;
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: SizedBox(
+        height: h,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 18, 20, 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Pilih Anak',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: _UC.ink)),
+              const SizedBox(height: 2),
+              const Text('Cari berdasarkan nama atau NIS santri',
+                  style: TextStyle(fontSize: 11.5, color: _UC.inkSecondary)),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _q,
+                onChanged: _onChanged,
+                style: const TextStyle(fontSize: 14, color: _UC.ink),
+                decoration: InputDecoration(
+                  hintText: 'Cari santri',
+                  hintStyle: const TextStyle(fontSize: 13, color: _UC.inkSecondary),
+                  prefixIcon: const Icon(Icons.search_rounded, size: 20, color: _UC.inkSecondary),
+                  filled: true,
+                  fillColor: _UC.surfaceDim,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(999),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Expanded(
+                child: _loading
+                    ? const Center(child: CircularProgressIndicator())
+                    : _err != null
+                        ? Center(
+                            child: Text(_err!,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(fontSize: 12.5, color: _UC.errorText)))
+                        : _items.isEmpty
+                            ? const Center(
+                                child: Text('Santri tidak ditemukan.',
+                                    style: TextStyle(fontSize: 12.5, color: _UC.inkSecondary)))
+                            : ListView.separated(
+                                itemCount: _items.length,
+                                separatorBuilder: (_, __) => const Divider(height: 1, color: _UC.border),
+                                itemBuilder: (_, i) => _tile(_items[i]),
+                              ),
               ),
             ],
           ),
