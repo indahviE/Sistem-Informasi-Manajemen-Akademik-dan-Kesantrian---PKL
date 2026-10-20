@@ -32,6 +32,7 @@ export class NotifikasiScheduler {
   async cekPengingatUntukUser(userId: string, tenantId: string) {
     await this.pengingatAbsensiUstadz(userId, tenantId);
     await this.pengingatNilaiUstadz(userId, tenantId);
+    await this.ringkasanHarianMudir(tenantId);
   }
 
   /** Tiap hari 08:00 WIB: ingatkan wali yang belum punya akun (maks sekali per 7 hari per tenant). */
@@ -106,6 +107,89 @@ export class NotifikasiScheduler {
       }
     } catch (e) {
       this.logger.error(`Cron rekap absensi shalat gagal: ${(e as Error).message}`);
+    }
+  }
+
+  /**
+   * Tiap hari 19:00 WIB: kirim ringkasan harian ke Mudir tiap tenant
+   * (kehadiran santri, pelanggaran baru, perizinan menunggu persetujuan).
+   * Maksimal sekali per tenant per hari. Tenant tanpa aktivitas hari ini dilewati.
+   * Toggle "Ringkasan Harian" tiap Mudir dihormati di kirimKeMudirTenant.
+   */
+  @Cron('33 10 * * *', { timeZone: 'Asia/Jakarta' })
+  async ringkasanHarianMudir(filterTenantId?: string) {
+    try {
+      // Awal hari ini menurut WIB, dalam UTC.
+      const wib = new Date(Date.now() + MS_WIB);
+
+      // Mode on-open: baru dibuat kalau sudah lewat jam 19:00 WIB,
+      // supaya ringkasan tidak keluar setengah jadi di pagi hari.
+      if (filterTenantId && wib.getUTCHours() < 0) return;
+
+      const mulai = new Date(
+        Date.UTC(wib.getUTCFullYear(), wib.getUTCMonth(), wib.getUTCDate()) - MS_WIB,
+      );
+      const besok = new Date(mulai.getTime() + MS_HARI);
+
+      const tenants = await this.prisma.tenant.findMany({
+        where: {
+          status: TenantStatus.AKTIF,
+          deletedAt: null,
+          ...(filterTenantId ? { id: filterTenantId } : {}),
+        },
+        select: { id: true },
+      });
+
+      for (const t of tenants) {
+        try {
+          const sudahKirim = await this.prisma.notifikasi.count({
+            where: {
+              tenantId: t.id,
+              jenis: JenisNotifikasi.RINGKASAN_HARIAN,
+              tanggal: { gte: mulai },
+            },
+          });
+          if (sudahKirim > 0) continue;
+
+          const absensi = await this.prisma.absensi.groupBy({
+            by: ['status'],
+            where: { tenantId: t.id, tanggal: { gte: mulai, lt: besok } },
+            _count: { _all: true },
+          });
+          const hitung = { HADIR: 0, IZIN: 0, SAKIT: 0, ALPA: 0 };
+          for (const a of absensi) hitung[a.status] = a._count._all;
+          const totalAbsensi = hitung.HADIR + hitung.IZIN + hitung.SAKIT + hitung.ALPA;
+
+          const pelanggaran = await this.prisma.pelanggaran.count({
+            where: { tenantId: t.id, tanggal: { gte: mulai, lt: besok } },
+          });
+          const izinMenunggu = await this.prisma.perizinan.count({
+            where: { tenantId: t.id, statusApproval: 'DIAJUKAN' },
+          });
+
+          if (totalAbsensi === 0 && pelanggaran === 0 && izinMenunggu === 0) continue;
+
+          const bagian: string[] = [];
+          if (totalAbsensi > 0) {
+            bagian.push(
+              `kehadiran ${hitung.HADIR} hadir, ${hitung.IZIN} izin, ${hitung.SAKIT} sakit, ${hitung.ALPA} alpa`,
+            );
+          }
+          bagian.push(`${pelanggaran} pelanggaran baru`);
+          bagian.push(`${izinMenunggu} perizinan menunggu persetujuan`);
+
+          await this.notifikasi.kirimKeMudirTenant(
+            t.id,
+            JenisNotifikasi.RINGKASAN_HARIAN,
+            `Ringkasan hari ini: ${bagian.join('; ')}.`,
+          );
+        } catch (e) {
+          // Satu tenant bermasalah tidak boleh menghentikan tenant lainnya.
+          this.logger.error(`Ringkasan harian mudir tenant ${t.id} gagal: ${(e as Error).message}`);
+        }
+      }
+    } catch (e) {
+      this.logger.error(`Cron ringkasan harian mudir gagal: ${(e as Error).message}`);
     }
   }
 

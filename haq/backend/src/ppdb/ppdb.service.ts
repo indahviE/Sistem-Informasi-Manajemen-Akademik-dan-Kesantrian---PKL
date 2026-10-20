@@ -5,17 +5,21 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { StatusPendaftaran } from '@prisma/client';
+import { JenisNotifikasi, StatusPendaftaran } from '@prisma/client';
 import {
   CreatePlacementTestDto,
   DaftarPpdbDto,
   QueryPpdbDto,
   UpdatePendaftaranDto,
 } from './dto/ppdb.dto';
+import { NotifikasiService } from '../notifikasi/notifikasi.service';
 
 @Injectable()
 export class PpdbService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private notifikasi: NotifikasiService,
+  ) {}
 
   async daftar(dto: DaftarPpdbDto) {
     const tenant = await this.prisma.tenant.findUnique({
@@ -54,6 +58,13 @@ export class PpdbService {
         pesan: `Pendaftar baru PPDB: ${dto.nama}. Segera tinjau di menu PPDB.`,
       },
     });
+
+    await this.notifikasi.kirimKeMudirTenant(
+      tenant.id,
+      JenisNotifikasi.PENDAFTARAN_BARU,
+      `Pendaftar baru PPDB: ${dto.nama}. Segera tinjau di menu PPDB.`,
+    );
+
 
     return {
       id: pendaftaran.id,

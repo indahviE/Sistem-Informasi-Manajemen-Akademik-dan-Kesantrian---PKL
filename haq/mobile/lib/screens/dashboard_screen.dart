@@ -166,7 +166,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
         _lastLoaded = DateTime.now();
       });
       _loadUjian();
-      if (_isPimpinan) _loadPimpinan();
+      if (_isPimpinan) {
+        _loadPimpinan();
+        _cekPengingatMudir();
+      }
     } on ApiException catch (e) {
       if (mounted) setState(() => _error = 'ApiException: ${e.message}');
     } catch (e) {
@@ -174,6 +177,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
     } finally {
       if (mounted) setState(() => _syncing = false);
     }
+  }
+
+    // Pengecekan notifikasi Mudir cukup sekali per sesi, bukan tiap pull-to-refresh.
+  bool _pengingatMudirDicek = false;
+
+  /// Minta backend membuat notifikasi yang terlewat (mis. Ringkasan Harian
+  /// kalau cron jam 19:00 tidak jalan). Gagal = diabaikan diam-diam.
+  Future<void> _cekPengingatMudir() async {
+    if (_pengingatMudirDicek) return;
+    _pengingatMudirDicek = true;
+    try {
+      await AppScope.of(context).api.post('${ApiUrl.notifikasi}/cek-pengingat', {});
+    } catch (_) {}
   }
 
   /// Ambil daftar ujian untuk beranda ustadz. Gagal = diam-diam diabaikan

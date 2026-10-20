@@ -1,25 +1,21 @@
-// pengaturan_mudir_screen.dart  ->  
+// pengaturan_mudir_screen.dart
 //
-// Pengaturan — Mudir.
+// Pengaturan — Mudir (hanya notifikasi).
 //
-// Sama seperti Pengaturan Admin, Wali & Ustadz: TIDAK punya Scaffold/AppBar
-// sendiri, nempel di dalam ShellScreen (header + bottom nav dibawa shell).
+// Tidak punya Scaffold/AppBar sendiri, nempel di dalam ShellScreen
+// (header + bottom nav dibawa shell).
 //
 // Warna utama mengikuti tema pondok (SC.primary dkk). Supaya tampilan ikut
 // berubah saat tema diganti, widget yang memakai warna tema TIDAK dibuat
 // const di titik pemanggilan.
 //
-// Data dari backend (perlu dibuat di NestJS kalau belum ada):
+// Data dari backend:
 //   GET   /pengaturan/mudir
 //   PATCH /pengaturan/mudir/notifikasi
-// Yang sudah ada & dipakai ulang:
-//   PATCH /pengaturan/profil, PATCH /pengaturan/ubah-password
 //
-// Bentuk response GET /pengaturan/mudir:
+// Bentuk response GET /pengaturan/mudir (yang dipakai layar ini):
 //   {
-//     profil:      { nama, email, noHp },
-//     tenant:      { namaPondok },
-//     notifikasi:  { ringkasanHarian, laporanKesantrian, pendaftaranBaru, laporanKeuangan }
+//     notifikasi: { ringkasanHarian, laporanKesantrian, pendaftaranBaru, laporanKeuangan }
 //   }
 
 import 'package:flutter/material.dart';
@@ -35,12 +31,7 @@ import 'package:sim_pesantren/screens/mudir/pengaturan_mudir_dialogs.dart';
 class _PM {
   // Dinamis: ikut tema pondok.
   static Color get primary => SC.primary;
-  static Color get primarySoft => SC.primaryEnd;
-  static Color get mint => SC.mint;
   static Color get sage => SC.sage;
-
-  // Aksen emas tetap.
-  static const gold = Color(0xFFC5A059);
 
   static const background = Color(0xFFFAF9F5);
   static const surface = Colors.white;
@@ -109,8 +100,6 @@ class _PengaturanMudirScreenState extends State<PengaturanMudirScreen> {
   bool _initialized = false;
   String? _error;
 
-  Map<String, dynamic> _profil = {};
-  Map<String, dynamic> _tenant = {};
   final Map<String, bool> _notif = {for (final n in _notifItems) n.key: true};
 
   @override
@@ -136,8 +125,6 @@ class _PengaturanMudirScreenState extends State<PengaturanMudirScreen> {
       final notif = res['notifikasi'] as Map<String, dynamic>? ?? {};
       if (!mounted) return;
       setState(() {
-        _profil = (res['profil'] as Map<String, dynamic>?) ?? {};
-        _tenant = (res['tenant'] as Map<String, dynamic>?) ?? {};
         for (final n in _notifItems) {
           final v = notif[n.key];
           if (v is bool) _notif[n.key] = v;
@@ -158,46 +145,6 @@ class _PengaturanMudirScreenState extends State<PengaturanMudirScreen> {
     AppToast.error(context, message);
   }
 
-  // ---------------------------------------------------------------- profil
-
-  Future<void> _editProfil() async {
-    final scope = AppScope.of(context);
-    final api = _api;
-
-    final saved = await showEditProfilSheet(
-      context,
-      nama: (_profil['nama'] ?? '') as String,
-      email: (_profil['email'] ?? '') as String,
-      onSubmit: (nama, email) async {
-        await api.patch(ApiUrl.pengaturanProfil, {'nama': nama, 'email': email});
-        await scope.updateProfil(nama: nama, email: email);
-        if (mounted) {
-          setState(() {
-            _profil = {..._profil, 'nama': nama, 'email': email};
-          });
-        }
-      },
-    );
-
-    if (saved == true && mounted) AppToast.success(context, 'Perubahan tersimpan');
-  }
-
-  Future<void> _ubahPassword() async {
-    final api = _api;
-
-    final saved = await showUbahPasswordSheet(
-      context,
-      onSubmit: (lama, baru) async {
-        await api.patch(ApiUrl.pengaturanUbahPassword, {
-          'passwordLama': lama,
-          'passwordBaru': baru,
-        });
-      },
-    );
-
-    if (saved == true && mounted) AppToast.success(context, 'Password berhasil diubah');
-  }
-
   // ------------------------------------------------------------- notifikasi
   // Optimistic update, rollback kalau gagal.
 
@@ -206,54 +153,11 @@ class _PengaturanMudirScreenState extends State<PengaturanMudirScreen> {
     setState(() => _notif[key] = value);
     try {
       await _api.patch('$_urlMudir/notifikasi', {key: value});
-    } on ApiException catch (e) {
+    } catch (e) {
       if (!mounted) return;
       setState(() => _notif[key] = prev);
-      _showError(e.message);
+      _showError(e is ApiException ? e.message : 'Gagal menyimpan pengaturan notifikasi');
     }
-  }
-
-  // ----------------------------------------------------------------- logout
-
-  void _confirmLogout() {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: _PM.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        icon: Container(
-          width: 52,
-          height: 52,
-          decoration: const BoxDecoration(color: _PM.errorBg, shape: BoxShape.circle),
-          child: const Icon(Icons.logout_rounded, size: 24, color: _PM.errorText),
-        ),
-        title: Text(
-          'Keluar dari Akun Mudir?',
-          textAlign: TextAlign.center,
-          style: _t(17, FontWeight.w800, _PM.primary),
-        ),
-        content: Text(
-          'Kamu perlu login kembali untuk memantau kegiatan, santri, dan laporan pondok.',
-          textAlign: TextAlign.center,
-          style: _t(13, FontWeight.w500, _PM.inkSecondary, height: 1.4),
-        ),
-        actionsAlignment: MainAxisAlignment.center,
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text('Batal', style: _t(13, FontWeight.w700, _PM.inkSecondary)),
-          ),
-          TextButton(
-            onPressed: () async {
-              Navigator.pop(ctx);
-              await AppScope.of(context).logout();
-            },
-            style: TextButton.styleFrom(foregroundColor: _PM.errorText),
-            child: const Text('Keluar', style: TextStyle(fontWeight: FontWeight.w700)),
-          ),
-        ],
-      ),
-    );
   }
 
   // ------------------------------------------------------------------ build
@@ -279,8 +183,6 @@ class _PengaturanMudirScreenState extends State<PengaturanMudirScreen> {
       return _LoadErrorState(message: _error!, onRetry: _load);
     }
 
-    final namaPondok = (_tenant['namaPondok'] ?? 'Pondok') as String;
-
     // CATATAN: sengaja tanpa `const` supaya widget ikut rebuild saat tema
     // pondok berubah (widget const dilewati oleh Flutter saat rebuild).
     return RefreshIndicator(
@@ -292,49 +194,7 @@ class _PengaturanMudirScreenState extends State<PengaturanMudirScreen> {
         children: [
           _Reveal(index: 0, child: _TitleRow()),
           const SizedBox(height: 16),
-          _Reveal(
-            index: 1,
-            child: _ProfileCard(
-              nama: (_profil['nama'] ?? '-') as String,
-              email: (_profil['email'] ?? '-') as String,
-              noHp: _profil['noHp'] as String?,
-              namaPondok: namaPondok,
-              onEditProfil: _editProfil,
-              onUbahPassword: _ubahPassword,
-            ),
-          ),
-          const SizedBox(height: 16),
-          _Reveal(index: 2, child: _PondokCard(namaPondok: namaPondok)),
-          const SizedBox(height: 16),
-          _Reveal(index: 3, child: _NotifCard(values: _notif, onChanged: _toggleNotif)),
-          const SizedBox(height: 16),
-          _Reveal(index: 4, child: _InfoNote()),
-          const SizedBox(height: 16),
-          _Reveal(index: 5, child: _LogoutButton(onPressed: _confirmLogout)),
-          const SizedBox(height: 18),
-          _Reveal(
-            index: 6,
-            child: Center(
-              child: Column(
-                children: [
-                  Container(
-                    width: 28,
-                    height: 3,
-                    decoration: BoxDecoration(
-                      color: _PM.line,
-                      borderRadius: BorderRadius.circular(9999),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    'Panel Mudir $namaPondok',
-                    textAlign: TextAlign.center,
-                    style: _t(11, FontWeight.w600, _PM.inkSecondary),
-                  ),
-                ],
-              ),
-            ),
-          ),
+          _Reveal(index: 1, child: _NotifCard(values: _notif, onChanged: _toggleNotif)),
         ],
       ),
     );
@@ -534,444 +394,17 @@ class _TitleRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Pengaturan', style: _t(21, FontWeight.w800, _PM.primary, height: 1.15)),
-              const SizedBox(height: 2),
-              Text(
-                'Akun & Preferensi Mudir',
-                overflow: TextOverflow.ellipsis,
-                style: _t(12, FontWeight.w500, _PM.inkSecondary),
-              ),
-            ],
-          ),
-        ),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
-          decoration: BoxDecoration(
-            color: _PM.sage,
-            borderRadius: BorderRadius.circular(9999),
-            border: Border.all(color: _PM.primary.withOpacity(0.12)),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 7,
-                height: 7,
-                decoration: BoxDecoration(
-                  color: _PM.primary,
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(color: _PM.primary.withOpacity(0.35), blurRadius: 4, spreadRadius: 1),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 6),
-              Text('Mudir Aktif', style: _t(11, FontWeight.w800, _PM.primary)),
-            ],
-          ),
+        Text('Pengaturan', style: _t(21, FontWeight.w800, _PM.primary, height: 1.15)),
+        const SizedBox(height: 2),
+        Text(
+          'Notifikasi Mudir',
+          overflow: TextOverflow.ellipsis,
+          style: _t(12, FontWeight.w500, _PM.inkSecondary),
         ),
       ],
-    );
-  }
-}
-
-// ============================================================================
-// Profil
-// ============================================================================
-
-class _ProfileCard extends StatelessWidget {
-  const _ProfileCard({
-    required this.nama,
-    required this.email,
-    required this.noHp,
-    required this.namaPondok,
-    required this.onEditProfil,
-    required this.onUbahPassword,
-  });
-
-  final String nama;
-  final String email;
-  final String? noHp;
-  final String namaPondok;
-  final VoidCallback onEditProfil;
-  final VoidCallback onUbahPassword;
-
-  String get _inisial {
-    final t = nama.trim();
-    return t.isEmpty ? '?' : t.characters.first.toUpperCase();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final punyaHp = noHp != null && noHp!.trim().isNotEmpty;
-
-    return _SectionCard(
-      padding: EdgeInsets.zero,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Stack(
-            clipBehavior: Clip.none,
-            children: [
-              Container(
-                height: 84,
-                width: double.infinity,
-                clipBehavior: Clip.antiAlias,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [_PM.primary, _PM.primarySoft],
-                  ),
-                ),
-                child: Stack(
-                  children: [
-                    Positioned(
-                      right: -30,
-                      top: -50,
-                      child: Container(
-                        width: 140,
-                        height: 140,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white.withOpacity(0.10), width: 1.5),
-                        ),
-                      ),
-                    ),
-                    Positioned(
-                      right: 24,
-                      bottom: -30,
-                      child: Container(
-                        width: 80,
-                        height: 80,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: _PM.gold.withOpacity(0.12),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Positioned(
-                left: 18,
-                bottom: -34,
-                child: Container(
-                  width: 72,
-                  height: 72,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: _PM.primary,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: _PM.surface, width: 4),
-                    boxShadow: const [
-                      BoxShadow(color: Color(0x290F3A2E), blurRadius: 10, offset: Offset(0, 4)),
-                    ],
-                  ),
-                  child: Text(_inisial, style: _t(28, FontWeight.w800, _PM.gold)),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 42),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Flexible(
-                      child: Text(
-                        nama,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: _t(19, FontWeight.w800, _PM.primary, height: 1.2),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: _PM.sage,
-                        borderRadius: BorderRadius.circular(9999),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.workspace_premium_outlined, size: 12, color: _PM.primary),
-                          const SizedBox(width: 4),
-                          Text('Mudir', style: _t(10.5, FontWeight.w800, _PM.primary)),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                _InfoTile(icon: Icons.mosque_outlined, label: 'Pondok', text: namaPondok),
-                const SizedBox(height: 8),
-                _InfoTile(icon: Icons.mail_outline_rounded, label: 'Email', text: email),
-                if (punyaHp) ...[
-                  const SizedBox(height: 8),
-                  _InfoTile(icon: Icons.phone_outlined, label: 'No. HP', text: noHp!),
-                ],
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _ActionButton(
-                        icon: Icons.edit_outlined,
-                        label: 'Edit Profil',
-                        filled: true,
-                        onPressed: onEditProfil,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: _ActionButton(
-                        icon: Icons.key_outlined,
-                        label: 'Ubah Sandi',
-                        filled: false,
-                        onPressed: onUbahPassword,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _InfoTile extends StatelessWidget {
-  const _InfoTile({required this.icon, required this.label, required this.text});
-
-  final IconData icon;
-  final String label;
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(color: _PM.surfaceDim, borderRadius: BorderRadius.circular(14)),
-      child: Row(
-        children: [
-          Container(
-            width: 30,
-            height: 30,
-            decoration: const BoxDecoration(color: _PM.surface, shape: BoxShape.circle),
-            child: Icon(icon, size: 16, color: _PM.primary),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(label, style: _t(10, FontWeight.w700, _PM.inkSecondary)),
-                const SizedBox(height: 1),
-                Text(
-                  text,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: _t(12.5, FontWeight.w700, _PM.primary),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ActionButton extends StatelessWidget {
-  const _ActionButton({
-    required this.icon,
-    required this.label,
-    required this.filled,
-    required this.onPressed,
-  });
-
-  final IconData icon;
-  final String label;
-  final bool filled;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final fg = filled ? Colors.white : _PM.primary;
-    return Material(
-      color: filled ? _PM.primary : _PM.surface,
-      borderRadius: BorderRadius.circular(16),
-      child: InkWell(
-        onTap: onPressed,
-        borderRadius: BorderRadius.circular(16),
-        child: Container(
-          height: 46,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            border: filled ? null : Border.all(color: _PM.primary.withOpacity(0.35), width: 1.2),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, size: 17, color: fg),
-              const SizedBox(width: 7),
-              Flexible(
-                child: Text(label, overflow: TextOverflow.ellipsis, style: _t(13, FontWeight.w800, fg)),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ============================================================================
-// Kartu pondok (gradient besar, setara _PaketCard di Pengaturan Admin)
-// ============================================================================
-
-class _PondokCard extends StatelessWidget {
-  const _PondokCard({required this.namaPondok});
-
-  final String namaPondok;
-
-  Widget _ring(double size) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        border: Border.all(color: Colors.white.withOpacity(0.08), width: 1.5),
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      clipBehavior: Clip.antiAlias,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [_PM.primary, _PM.primarySoft],
-        ),
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: _PM.primary.withOpacity(0.28),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          Positioned(right: -40, top: -40, child: _ring(160)),
-          Positioned(right: 10, top: 10, child: _ring(80)),
-          Positioned(
-            left: -36,
-            bottom: -46,
-            child: Container(
-              width: 130,
-              height: 130,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: _PM.gold.withOpacity(0.08),
-              ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(20),
-            child: Row(
-              children: [
-                Container(
-                  width: 46,
-                  height: 46,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.10),
-                    shape: BoxShape.circle,
-                    border: Border.all(color: _PM.gold.withOpacity(0.55)),
-                  ),
-                  child: const Icon(Icons.mosque_outlined, size: 24, color: _PM.gold),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Pondok', style: _t(11.5, FontWeight.w700, Colors.white70)),
-                      const SizedBox(height: 2),
-                      Text(
-                        namaPondok,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: _t(19, FontWeight.w800, Colors.white, height: 1.2),
-                      ),
-                    ],
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: _PM.gold,
-                    borderRadius: BorderRadius.circular(9999),
-                  ),
-                  child: Text('MUDIR', style: _t(10, FontWeight.w800, _PM.primary)),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ============================================================================
-// Catatan (ikut tema pondok)
-// ============================================================================
-
-class _InfoNote extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: _PM.sage,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _PM.primary.withOpacity(0.15)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(Icons.lock_outline, size: 16, color: _PM.primary),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              'Data pengguna, kelas, dan konfigurasi sistem dikelola oleh admin pondok. Akun Mudir bersifat memantau.',
-              style: _t(11.5, FontWeight.w500, _PM.primary, height: 1.45),
-            ),
-          ),
-        ],
-      ),
     );
   }
 }
@@ -1077,47 +510,6 @@ class _NotifRow extends StatelessWidget {
           const SizedBox(width: 12),
           _Toggle(value: value, onChanged: onChanged),
         ],
-      ),
-    );
-  }
-}
-
-// ============================================================================
-// Logout
-// ============================================================================
-
-class _LogoutButton extends StatelessWidget {
-  const _LogoutButton({required this.onPressed});
-
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      child: Material(
-        color: _PM.errorBg.withOpacity(0.55),
-        borderRadius: BorderRadius.circular(20),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(20),
-          onTap: onPressed,
-          child: Container(
-            height: 54,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: _PM.errorText.withOpacity(0.25), width: 1.2),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.logout_rounded, size: 19, color: _PM.errorText),
-                const SizedBox(width: 8),
-                Text('Keluar dari Akun Mudir', style: _t(14, FontWeight.w800, _PM.errorText)),
-              ],
-            ),
-          ),
-        ),
       ),
     );
   }

@@ -54,6 +54,19 @@ const USTADZ_NOTIF_DEFAULT: Record<UstadzNotifKey, boolean> = {
   pengumumanPondok: true,
 };
 
+type MudirNotifKey =
+  | 'ringkasanHarian'
+  | 'laporanKesantrian'
+  | 'pendaftaranBaru'
+  | 'laporanKeuangan';
+
+const MUDIR_NOTIF_DEFAULT: Record<MudirNotifKey, boolean> = {
+  ringkasanHarian: true,
+  laporanKesantrian: true,
+  pendaftaranBaru: true,
+  laporanKeuangan: true,
+};
+
 @Injectable()
 export class NotifikasiService {
   private readonly logger = new Logger(NotifikasiService.name);
@@ -190,6 +203,42 @@ export class NotifikasiService {
   }
 
   // -------------------------------------------------------------------------
+  // Pengiriman notifikasi ke Mudir (per tenant)
+  // -------------------------------------------------------------------------
+
+  /**
+   * Kirim ke semua Mudir aktif di satu tenant, satu baris per akun, dan
+   * hormati toggle masing-masing (UserNotifSetting). Mudir yang belum pernah
+   * membuka Pengaturan memakai nilai default. Tidak pernah melempar error.
+   */
+  async kirimKeMudirTenant(
+    tenantId: string,
+    jenis: JenisNotifikasi,
+    pesan: string,
+  ): Promise<void> {
+    try {
+      const key = this.kunciToggleMudir(jenis);
+
+      const mudirs = await this.prisma.user.findMany({
+        where: { tenantId, role: Role.PIMPINAN, status: UserStatus.AKTIF },
+        select: { id: true, notifSetting: true },
+      });
+
+      const penerima = mudirs.filter((m) => {
+        if (!key) return true;
+        return m.notifSetting ? m.notifSetting[key] : MUDIR_NOTIF_DEFAULT[key];
+      });
+      if (penerima.length === 0) return;
+
+      await this.prisma.notifikasi.createMany({
+        data: penerima.map((m) => ({ tenantId, userId: m.id, jenis, pesan })),
+      });
+    } catch (e) {
+      this.logger.error(`Gagal kirim notifikasi mudir ${jenis}: ${(e as Error).message}`);
+    }
+  }
+
+  // -------------------------------------------------------------------------
   // Pengiriman notifikasi ke Ustadz (per akun)
   // -------------------------------------------------------------------------
 
@@ -216,6 +265,22 @@ export class NotifikasiService {
     } catch (e) {
       this.logger.error(`Gagal kirim notifikasi ustadz ${jenis}: ${(e as Error).message}`);
       return false;
+    }
+  }
+
+  /** Jenis notifikasi -> nama toggle di Pengaturan Mudir. */
+  private kunciToggleMudir(jenis: JenisNotifikasi): MudirNotifKey | null {
+    switch (jenis) {
+      case JenisNotifikasi.RINGKASAN_HARIAN:
+        return 'ringkasanHarian';
+      case JenisNotifikasi.LAPORAN_KESANTRIAN:
+        return 'laporanKesantrian';
+      case JenisNotifikasi.PENDAFTARAN_BARU:
+        return 'pendaftaranBaru';
+      case JenisNotifikasi.LAPORAN_KEUANGAN:
+        return 'laporanKeuangan';
+      default:
+        return null;
     }
   }
 

@@ -53,6 +53,7 @@ import 'billing/billing_tenant_screen.dart';
 import 'branding/branding_screen.dart';
 import 'akademik/jurnal_mengajar_screen.dart';
 import 'mudir/pengaturan_mudir_screen.dart';
+import 'mudir/notifikasi_mudir_screen.dart';
 import 'santri/santri_ui.dart' show SC;
 
 class ShellScreen extends StatefulWidget {
@@ -318,10 +319,7 @@ class _ShellScreenState extends State<ShellScreen> {
                       nama: user.nama,
                       email: user.email,
                       hasUnread: _unreadCount > 0,
-                      onNotifikasi: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const NotifikasiScreen()),
-                      ).then((_) => _loadUnreadCount()),
+                      onNotifikasi: () => setState(() => _notifikasiOpen = true),
                       onPengaturan: () => _goToMenu('Pengaturan'),
                       onLogout: _logout,
                     )
@@ -429,7 +427,7 @@ class _ShellScreenState extends State<ShellScreen> {
                           onNavigate: _goToMenu,
                           onReadStateChanged: _loadUnreadCount,
                         )
-                      : (user.isMusyrif && _notifikasiOpen)
+                           : (user.isMusyrif && _notifikasiOpen)
                           ? NotifikasiMusyrifScreen(
                               onBack: () {
                                 setState(() => _notifikasiOpen = false);
@@ -438,7 +436,16 @@ class _ShellScreenState extends State<ShellScreen> {
                               onNavigate: _goToMenu,
                               onReadStateChanged: _loadUnreadCount,
                             )
-                          : active.builder(context),
+                          : (user.isPimpinan && _notifikasiOpen)
+                              ? NotifikasiMudirScreen(
+                                  onBack: () {
+                                    setState(() => _notifikasiOpen = false);
+                                    _loadUnreadCount();
+                                  },
+                                  onNavigate: _goToMenu,
+                                  onReadStateChanged: _loadUnreadCount,
+                                )
+                              : active.builder(context),
       bottomNavigationBar: Container(
         // Full-width fill supaya nggak ada strip abu-abu bawaan Scaffold yang
         // keliatan di kiri-kanan kotak nav 480px — warnanya disamain persis
