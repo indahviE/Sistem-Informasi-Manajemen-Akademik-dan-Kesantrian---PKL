@@ -99,6 +99,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
   List<Map<String, dynamic>>? _pimPelanggaran;
   List<Map<String, dynamic>>? _pimDarurat;
 
+  // BARU: data eksekutif Mudir dari endpoint /mudir/* dan /audit-log/pondok.
+  // Null = gagal dimuat, ditampilkan sebagai "Data belum dapat dimuat".
+  Map<String, dynamic>? _mudirAkademik;
+  Map<String, dynamic>? _mudirTren;
+  Map<String, dynamic>? _mudirLaporan;
+  List<Map<String, dynamic>>? _mudirAudit;
+
+  int _pimTab = 0;
+  // Metrik grafik tren: kehadiran | pelanggaran | tahfidz | nilai
+  String _pimTrenMetrik = 'kehadiran';
+
+
   bool get _isPimpinan => AppScope.of(context).user?.isPimpinan == true;
 
   // Daftar ujian (GET ApiUrl.ujian) — dipakai section "Ujian Terdekat" di beranda ustadz.
@@ -180,8 +192,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _tampilkanAlertUstadz();
   }
 
-  /// Muat daftar izin, pelanggaran & keadaan darurat untuk antrean Mudir.
-  /// Tiap endpoint dimuat terpisah: satu gagal tidak menggagalkan yang lain.
+    /// BARU: alamat endpoint backend, diturunkan dari ApiUrl.dashboard
+  /// (mis. https://host/api/dashboard -> https://host/api/mudir/akademik).
+  String _mudirUrl(String path) =>
+      ApiUrl.dashboard.replaceFirst(RegExp(r'/dashboard/?$'), path);
+
+  /// Muat data beranda Mudir. Tiap endpoint dimuat terpisah:
+  /// satu gagal tidak menggagalkan yang lain (hasilnya null, tampil "belum dapat dimuat").
   Future<void> _loadPimpinan() async {
     final api = AppScope.of(context).api;
 
@@ -200,18 +217,93 @@ class _DashboardScreenState extends State<DashboardScreen> {
       }
     }
 
-    final hasil = await Future.wait([
+    // BARU: endpoint Mudir yang hasilnya berupa objek.
+    Future<Map<String, dynamic>?> ambilMap(String path) async {
+      try {
+        final res = await api.get(_mudirUrl(path));
+        return res is Map ? res.cast<String, dynamic>() : null;
+      } catch (_) {
+        return null;
+      }
+    }
+
+    // BARU: log audit pondok (5 terbaru, 7 hari terakhir).
+    Future<List<Map<String, dynamic>>?> ambilAudit() async {
+      try {
+        final res = await api.get(
+          _mudirUrl('/audit-log/pondok?limit=5&hari=7'),
+        );
+        final raw = res is List
+            ? res
+            : (res is Map ? (res['items'] ?? res['data'] ?? const []) : const []);
+        return (raw as List)
+            .whereType<Map>()
+            .map((e) => e.cast<String, dynamic>())
+            .toList();
+      } catch (_) {
+        return null;
+      }
+    }
+
+    final hasil = await Future.wait<Object?>([
       ambil(ApiUrl.perizinan),
       ambil(ApiUrl.pelanggaran),
       ambil(ApiUrl.keadaanDarurat),
+      ambilMap('/mudir/akademik'),
+      ambilMap('/mudir/tren?granularitas=bulan'),
+      ambilMap('/mudir/laporan'),
+      ambilAudit(),
     ]);
     if (!mounted) return;
     setState(() {
-      _pimIzin = hasil[0];
-      _pimPelanggaran = hasil[1];
-      _pimDarurat = hasil[2];
+      _pimIzin = hasil[0] as List<Map<String, dynamic>>?;
+      _pimPelanggaran = hasil[1] as List<Map<String, dynamic>>?;
+      _pimDarurat = hasil[2] as List<Map<String, dynamic>>?;
+      _mudirAkademik = hasil[3] as Map<String, dynamic>?;
+      _mudirTren = hasil[4] as Map<String, dynamic>?;
+      _mudirLaporan = hasil[5] as Map<String, dynamic>?;
+      _mudirAudit = hasil[6] as List<Map<String, dynamic>>?;
     });
   }
+
+  // /// BARU: muat data eksekutif Mudir (akademik, tren, laporan, audit log pondok).
+  // /// Tiap endpoint dimuat terpisah: satu gagal tidak menggagalkan yang lain.
+  // Future<void> _loadEksekutif() async {
+  //   final api = AppScope.of(context).api;
+
+  //   Future<Map<String, dynamic>?> ambilMap(
+  //     String url, {
+  //     Map<String, String>? query,
+  //   }) async {
+  //     try {
+  //       final res = await api.get(url, query: query);
+  //       return res is Map ? res.cast<String, dynamic>() : null;
+  //     } catch (_) {
+  //       return null;
+  //     }
+  //   }
+
+  //   final hasil = await Future.wait([
+  //     ambilMap(ApiUrl.mudirAkademik),
+  //     ambilMap(ApiUrl.mudirTren, query: {'granularitas': 'bulan'}),
+  //     ambilMap(ApiUrl.mudirLaporan),
+  //     ambilMap(ApiUrl.auditLogPondok, query: {'limit': '5', 'hari': '7'}),
+  //   ]);
+  //   if (!mounted) return;
+
+  //   final auditRaw = hasil[3]?['items'];
+  //   setState(() {
+  //     _mudirAkademik = hasil[0];
+  //     _mudirTren = hasil[1];
+  //     _mudirLaporan = hasil[2];
+  //     _mudirAudit = auditRaw is List
+  //         ? auditRaw
+  //               .whereType<Map>()
+  //               .map((e) => e.cast<String, dynamic>())
+  //               .toList()
+  //         : null;
+  //   });
+  // }
 
   void _notAvailable() {
     final w = MediaQuery.of(context).size.width;
@@ -1701,7 +1793,51 @@ List<(String, int)> _topPelanggar(
   return [for (final e in urut.take(n)) (e.key, e.value)];
 }
 
+   /// BARU: kerangka dashboard Mudir. Satu tab tampil pada satu waktu.
   Widget _pimpinanBody() {
+    const tabs = ['Ringkasan', 'Akademik', 'Tren', 'Laporan'];
+    final Widget isi;
+    switch (_pimTab) {
+      case 1:
+        isi = _pimAkademikSection();
+        break;
+      case 2:
+        isi = _pimTrenSection();
+        break;
+      case 3:
+        isi = _pimLaporanSection();
+        break;
+      default:
+        isi = _pimRingkasanBody();
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          height: 36,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            children: [
+              for (var i = 0; i < tabs.length; i++) ...[
+                if (i > 0) const SizedBox(width: 8),
+                _SAFilterChip(
+                  label: tabs[i],
+                  selected: _pimTab == i,
+                  onTap: () => setState(() => _pimTab = i),
+                ),
+              ],
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        isi,
+      ],
+    );
+  }
+
+  /// Isi tab Ringkasan (dulu bernama _pimpinanBody, isinya tidak berubah).
+  Widget _pimRingkasanBody() {
     final s =
         (_data!['statistik'] as Map?)?.cast<String, dynamic>() ??
         <String, dynamic>{};
@@ -2140,6 +2276,29 @@ List<(String, int)> _topPelanggar(
           ),
         ),
         const SizedBox(height: 20),
+
+
+        // // ---- 1f-1h. Akademik, Tren, Laporan (bisa dilipat) ----
+        // _PimLipat(
+        //   title: 'Ringkasan Akademik',
+        //   trailing: 'Tahun Ajaran',
+        //   child: _pimAkademikSection(),
+        // ),
+        // const SizedBox(height: 12),
+        // _PimLipat(
+        //   title: 'Tren Tahun Ajaran',
+        //   trailing: 'Per Bulan',
+        //   child: _pimTrenSection(),
+        // ),
+        // const SizedBox(height: 12),
+        // _PimLipat(
+        //   title: 'Laporan Tahun Ajaran',
+        //   trailing: 'Rekap',
+        //   child: _pimLaporanSection(),
+        // ),
+        // const SizedBox(height: 20),
+
+
         // ---- 2. Kondisi lembaga ----
         _SectionLabel(
           title: 'Kondisi Lembaga',
@@ -2278,8 +2437,12 @@ List<(String, int)> _topPelanggar(
                   ),
                 ],
               ),
-              const SizedBox(height: 10),
-              if (logs.isEmpty)
+          const SizedBox(height: 10),
+              if (_mudirAudit != null && _mudirAudit!.isNotEmpty)
+                Column(
+                  children: [for (final a in _mudirAudit!) _pimAuditRow(a)],
+                )
+              else if (logs.isEmpty)
                 const _EmptyRow(text: 'Belum ada aktivitas tercatat.')
               else
                 Column(children: [for (final log in logs) _logRow(log)]),
@@ -2287,6 +2450,1928 @@ List<(String, int)> _topPelanggar(
           ),
         ),
       ],
+    );
+  }
+
+  // /// BARU: ringkasan akademik Mudir dari GET /mudir/akademik.
+  // Widget _pimAkademikSection() {
+  //   final ak = _mudirAkademik;
+  //   final ta = (ak?['tahunAjaran'] as Map?)?['nama']?.toString();
+  //   final ujian = (ak?['ujian'] as Map?)?.cast<String, dynamic>();
+  //   final remedial = (ak?['remedial'] as Map?)?.cast<String, dynamic>();
+  //   final rapor = (ak?['rapor'] as Map?)?.cast<String, dynamic>();
+  //   final raporStatus = (rapor?['perStatus'] as Map?)?.cast<String, dynamic>();
+  //   final bawah = (ak?['santriDibawahKkm'] as Map?)?.cast<String, dynamic>();
+  //   final bawahDaftar = ((bawah?['daftar'] as List?) ?? const [])
+  //       .cast<Map<String, dynamic>>();
+  //   final bawahTotal = bawah == null ? 0 : _num(bawah, ['total']).toInt();
+
+  //   int cnt(Map<String, dynamic>? m, String k) =>
+  //       m == null ? 0 : _num(m, [k]).toInt();
+
+  //   final remBerjalan = cnt(remedial, 'BELUM_TES') + cnt(remedial, 'PROSES');
+
+  //   // Rata-rata nilai per mapel (gabungan semua kelas, dibobot jumlah nilai).
+  //   final perMapel = <String, List<double>>{}; // nama -> [total berbobot, jumlah, kkm]
+  //   for (final r in ((ak?['rataNilai'] as List?) ?? const [])
+  //       .cast<Map<String, dynamic>>()) {
+  //     final nama = (r['namaMapel'] ?? '-').toString();
+  //     final n = _num(r, ['jumlahNilai']).toDouble();
+  //     final rata = _num(r, ['rata']).toDouble();
+  //     final e = perMapel.putIfAbsent(
+  //       nama,
+  //       () => [0, 0, _num(r, ['kkm']).toDouble()],
+  //     );
+  //     e[0] += rata * n;
+  //     e[1] += n;
+  //   }
+  //   final mapelRows = [
+  //     for (final e in perMapel.entries)
+  //       if (e.value[1] > 0) (e.key, e.value[0] / e.value[1], e.value[2]),
+  //   ]..sort((a, b) => a.$2.compareTo(b.$2));
+
+  //   return Column(
+  //     crossAxisAlignment: CrossAxisAlignment.start,
+  //     children: [
+  //       if (ak == null)
+  //         const _Card(
+  //           child: _EmptyRow(text: 'Data akademik belum dapat dimuat.'),
+  //         )
+  //       else ...[
+  //         _TwoColGrid(
+  //           children: [
+  //             _MetricCard(
+  //               label: 'Rata-rata Rapor',
+  //               value: rapor?['rataRata'] == null
+  //                   ? '–'
+  //                   : _num(rapor!, ['rataRata']).toDouble().toStringAsFixed(1),
+  //               icon: Icons.description,
+  //               iconColor: _WC.primary,
+  //               iconBg: _WC.sage,
+  //               caption:
+  //                   '${cnt(raporStatus, 'TERBIT')} terbit • ${cnt(raporStatus, 'DRAFT')} draft',
+  //             ),
+  //             _MetricCard(
+  //               label: 'Nilai di Bawah KKM',
+  //               value: _fmtInt(bawahTotal),
+  //               icon: Icons.trending_down,
+  //               iconColor: _WC.errorText,
+  //               iconBg: _WC.goldSurface,
+  //               caption: 'Kombinasi santri–mapel, rata-rata < KKM',
+  //             ),
+  //             _MetricCard(
+  //               label: 'Ujian',
+  //               value: ujian == null ? '–' : _fmtInt(_num(ujian, ['total'])),
+  //               icon: Icons.edit_note,
+  //               iconColor: _WC.gold,
+  //               iconBg: _WC.goldSurface,
+  //               caption: ujian == null
+  //                   ? 'Data belum dapat dimuat'
+  //                   : '${_fmtInt(_num(ujian, ['dikunci']))} dikunci • ${_fmtInt(_num(ujian, ['belumDikunci']))} belum dikunci',
+  //             ),
+  //             _MetricCard(
+  //               label: 'Remedial Berjalan',
+  //               value: remedial == null ? '–' : _fmtInt(remBerjalan),
+  //               icon: Icons.replay,
+  //               iconColor: _WC.primary,
+  //               iconBg: _WC.sage,
+  //               caption: remedial == null
+  //                   ? 'Data belum dapat dimuat'
+  //                   : '${cnt(remedial, 'TUNTAS')} tuntas • ${cnt(remedial, 'BELUM_TUNTAS')} belum tuntas',
+  //             ),
+  //           ],
+  //         ),
+  //         const SizedBox(height: 12),
+
+  //         // Rata-rata nilai per mapel
+  //         _Card(
+  //           child: Column(
+  //             crossAxisAlignment: CrossAxisAlignment.start,
+  //             children: [
+  //               const Row(
+  //                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  //                 children: [
+  //                   Expanded(
+  //                     child: Text(
+  //                       'Rata-rata Nilai per Mapel',
+  //                       style: TextStyle(
+  //                         fontSize: 15,
+  //                         fontWeight: FontWeight.w700,
+  //                         color: _WC.ink,
+  //                       ),
+  //                     ),
+  //                   ),
+  //                   Text(
+  //                     'Nilai / KKM',
+  //                     style: TextStyle(
+  //                       fontSize: 11,
+  //                       fontWeight: FontWeight.w600,
+  //                       color: _WC.inkSecondary,
+  //                     ),
+  //                   ),
+  //                 ],
+  //               ),
+  //               const SizedBox(height: 10),
+  //               if (mapelRows.isEmpty)
+  //                 const _EmptyRow(text: 'Belum ada nilai pada tahun ajaran ini.')
+  //               else
+  //                 for (final (nama, rata, kkm) in mapelRows.take(8))
+  //                   Padding(
+  //                     padding: const EdgeInsets.only(bottom: 10),
+  //                     child: Column(
+  //                       crossAxisAlignment: CrossAxisAlignment.start,
+  //                       children: [
+  //                         Row(
+  //                           children: [
+  //                             Expanded(
+  //                               child: Text(
+  //                                 nama,
+  //                                 maxLines: 1,
+  //                                 overflow: TextOverflow.ellipsis,
+  //                                 style: const TextStyle(
+  //                                   fontSize: 12.5,
+  //                                   fontWeight: FontWeight.w700,
+  //                                   color: _WC.ink,
+  //                                 ),
+  //                               ),
+  //                             ),
+  //                             Text(
+  //                               '${rata.toStringAsFixed(1)} / ${kkm.toStringAsFixed(0)}',
+  //                               style: TextStyle(
+  //                                 fontSize: 11.5,
+  //                                 fontWeight: FontWeight.w700,
+  //                                 color: rata < kkm
+  //                                     ? _WC.errorText
+  //                                     : _WC.primary,
+  //                               ),
+  //                             ),
+  //                           ],
+  //                         ),
+  //                         const SizedBox(height: 5),
+  //                         ClipRRect(
+  //                           borderRadius: BorderRadius.circular(999),
+  //                           child: LinearProgressIndicator(
+  //                             value: (rata / 100).clamp(0.0, 1.0),
+  //                             minHeight: 6,
+  //                             backgroundColor: _WC.surfaceDim,
+  //                             valueColor: AlwaysStoppedAnimation(
+  //                               rata < kkm ? _WC.errorText : _WC.primary,
+  //                             ),
+  //                           ),
+  //                         ),
+  //                       ],
+  //                     ),
+  //                   ),
+  //             ],
+  //           ),
+  //         ),
+  //         const SizedBox(height: 12),
+
+  //         // Santri di bawah KKM
+  //         _Card(
+  //           child: Column(
+  //             crossAxisAlignment: CrossAxisAlignment.start,
+  //             children: [
+  //               const Row(
+  //                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  //                 children: [
+  //                   Expanded(
+  //                     child: Text(
+  //                       'Perlu Perhatian Akademik',
+  //                       style: TextStyle(
+  //                         fontSize: 15,
+  //                         fontWeight: FontWeight.w700,
+  //                         color: _WC.ink,
+  //                       ),
+  //                     ),
+  //                   ),
+  //                   Text(
+  //                     'Terendah dulu',
+  //                     style: TextStyle(
+  //                       fontSize: 11,
+  //                       fontWeight: FontWeight.w600,
+  //                       color: _WC.inkSecondary,
+  //                     ),
+  //                   ),
+  //                 ],
+  //               ),
+  //               const SizedBox(height: 10),
+  //               if (bawahDaftar.isEmpty)
+  //                 const _EmptyRow(
+  //                   text: 'Tidak ada nilai di bawah KKM.',
+  //                   icon: Icons.check_circle_outline,
+  //                 )
+  //               else ...[
+  //                 for (final (i, r) in bawahDaftar.take(5).indexed)
+  //                   Padding(
+  //                     padding: EdgeInsets.only(top: i == 0 ? 0 : 8),
+  //                     child: Row(
+  //                       children: [
+  //                         Expanded(
+  //                           child: Column(
+  //                             crossAxisAlignment: CrossAxisAlignment.start,
+  //                             children: [
+  //                               Text(
+  //                                 '${r['nama'] ?? '-'}',
+  //                                 maxLines: 1,
+  //                                 overflow: TextOverflow.ellipsis,
+  //                                 style: const TextStyle(
+  //                                   fontSize: 12.5,
+  //                                   fontWeight: FontWeight.w700,
+  //                                   color: _WC.ink,
+  //                                 ),
+  //                               ),
+  //                               Text(
+  //                                 '${r['namaKelas'] ?? '-'} • ${r['namaMapel'] ?? '-'}',
+  //                                 maxLines: 1,
+  //                                 overflow: TextOverflow.ellipsis,
+  //                                 style: const TextStyle(
+  //                                   fontSize: 10.5,
+  //                                   color: _WC.inkSecondary,
+  //                                 ),
+  //                               ),
+  //                             ],
+  //                           ),
+  //                         ),
+  //                         Text(
+  //                           '${_num(r, ['rata']).toDouble().toStringAsFixed(1)} / ${_num(r, ['kkm']).toDouble().toStringAsFixed(0)}',
+  //                           style: const TextStyle(
+  //                             fontSize: 12,
+  //                             fontWeight: FontWeight.w800,
+  //                             color: _WC.errorText,
+  //                           ),
+  //                         ),
+  //                       ],
+  //                     ),
+  //                   ),
+  //                 if (bawahTotal > bawahDaftar.take(5).length)
+  //                   Padding(
+  //                     padding: const EdgeInsets.only(top: 10),
+  //                     child: Text(
+  //                       '+ ${bawahTotal - bawahDaftar.take(5).length} kasus lainnya',
+  //                       style: const TextStyle(
+  //                         fontSize: 11,
+  //                         color: _WC.inkSecondary,
+  //                       ),
+  //                     ),
+  //                   ),
+  //               ],
+  //             ],
+  //           ),
+  //         ),
+  //       ],
+  //     ],
+  //   );
+  // }
+
+    /// BARU: tren bulanan Mudir dari GET /mudir/tren (maks. 12 periode terakhir).
+  Widget _pimTrenSection() {
+    final tr = _mudirTren;
+    final raw = ((tr?['data'] as List?) ?? const [])
+        .cast<Map<String, dynamic>>();
+    final data = raw.length > 12 ? raw.sublist(raw.length - 12) : raw;
+
+    const bulan = [
+      '', 'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun',
+      'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des',
+    ];
+    // "2026-10" -> "Okt"; "2026-10-05" (mingguan) -> "05/10"
+    String labelPeriode(String p) {
+      final bagian = p.split('-');
+      if (bagian.length == 2) {
+        final m = int.tryParse(bagian[1]) ?? 0;
+        return (m >= 1 && m <= 12) ? bulan[m] : p;
+      }
+      if (bagian.length == 3) return '${bagian[2]}/${bagian[1]}';
+      return p;
+    }
+
+    final labels = [
+      for (final d in data) labelPeriode((d['periode'] ?? '').toString()),
+    ];
+    List<double?> seri(String k) => [
+      for (final d in data) d[k] == null ? null : _num(d, [k]).toDouble(),
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (tr == null)
+          const _Card(child: _EmptyRow(text: 'Data tren belum dapat dimuat.'))
+        else if (data.isEmpty)
+          const _Card(
+            child: _EmptyRow(text: 'Belum ada data pada tahun ajaran ini.'),
+          )
+        else ...[
+          _pimBarTren(
+            title: 'Kehadiran',
+            trailing: '% hadir',
+            labels: labels,
+            values: seri('persenHadir'),
+            color: _WC.primary,
+            maxFixed: 100,
+            fmt: (v) => '${v.round()}%',
+          ),
+          const SizedBox(height: 12),
+          _pimBarTren(
+            title: 'Pelanggaran',
+            trailing: 'Jumlah kasus',
+            labels: labels,
+            values: seri('pelanggaran'),
+            color: _WC.errorText,
+          ),
+          const SizedBox(height: 12),
+          _pimBarTren(
+            title: 'Setoran Tahfidz',
+            trailing: 'Jumlah setoran',
+            labels: labels,
+            values: seri('setoranTahfidz'),
+            color: _WC.gold,
+          ),
+          const SizedBox(height: 12),
+          _pimBarTren(
+            title: 'Rata-rata Nilai',
+            trailing: 'Skala 0–100',
+            labels: labels,
+            values: seri('rataNilai'),
+            color: _TC.primary,
+            maxFixed: 100,
+          ),
+        ],
+      ],
+    );
+  }
+
+  /// BARU: kartu grafik batang sederhana (tanpa package tambahan).
+  Widget _pimBarTren({
+    required String title,
+    required String trailing,
+    required List<String> labels,
+    required List<double?> values,
+    required Color color,
+    double? maxFixed,
+    String Function(double)? fmt,
+  }) {
+    String f(double v) => fmt != null ? fmt(v) : v.round().toString();
+    final maxV =
+        maxFixed ??
+        values.fold<double>(1, (m, v) => (v != null && v > m) ? v : m);
+    const chartH = 80.0;
+
+    return _Card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: _WC.ink,
+                  ),
+                ),
+              ),
+              Text(
+                trailing,
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: _WC.inkSecondary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            height: chartH + 36,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                for (int i = 0; i < values.length; i++)
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 2),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          Text(
+                            values[i] == null ? '–' : f(values[i]!),
+                            maxLines: 1,
+                            style: const TextStyle(
+                              fontSize: 9.5,
+                              fontWeight: FontWeight.w700,
+                              color: _WC.inkSecondary,
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Container(
+                            height: values[i] == null
+                                ? 2
+                                : (values[i]! / maxV * chartH).clamp(2.0, chartH),
+                            decoration: BoxDecoration(
+                              color: values[i] == null ? _WC.border : color,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            labels[i],
+                            maxLines: 1,
+                            style: const TextStyle(
+                              fontSize: 9.5,
+                              color: _WC.inkSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+    /// BARU: laporan rekap tahun ajaran Mudir dari GET /mudir/laporan.
+  Widget _pimLaporanSection() {
+    final lp = _mudirLaporan;
+    final per = (lp?['periode'] as Map?)?.cast<String, dynamic>();
+    final ta = (lp?['tahunAjaran'] as Map?)?['nama']?.toString();
+    final kh = (lp?['kehadiran'] as Map?)?.cast<String, dynamic>();
+    final pel = (lp?['pelanggaran'] as Map?)?.cast<String, dynamic>();
+    final thf = (lp?['tahfidz'] as Map?)?.cast<String, dynamic>();
+    final izin = (lp?['perizinan'] as Map?)?.cast<String, dynamic>();
+    final santriAktif = lp == null ? 0 : _num(lp, ['santriAktif']).toInt();
+
+    final perJenis = ((pel?['perJenis'] as List?) ?? const [])
+        .cast<Map<String, dynamic>>();
+    final topSantri = ((pel?['santriPoinTertinggi'] as List?) ?? const [])
+        .cast<Map<String, dynamic>>();
+    final maxJenis = [
+      1,
+      ...perJenis.map((e) => _num(e, ['jumlah']).toInt()),
+    ].reduce((a, b) => a > b ? a : b);
+
+    const bulan = [
+      '', 'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun',
+      'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des',
+    ];
+    // "2025-07-01" -> "1 Jul 2025"
+    String tgl(String? s) {
+      final p = (s ?? '').split('-');
+      if (p.length != 3) return s ?? '-';
+      final m = int.tryParse(p[1]) ?? 0;
+      return '${int.tryParse(p[2]) ?? p[2]} ${(m >= 1 && m <= 12) ? bulan[m] : p[1]} ${p[0]}';
+    }
+
+    int cnt(Map<String, dynamic>? m, String k) =>
+        m == null ? 0 : _num(m, [k]).toInt();
+
+    final izinTotal = izin == null
+        ? 0
+        : izin.values.fold<int>(0, (a, v) => a + (v is num ? v.toInt() : 0));
+    final khPct = kh?['persenHadir'];
+
+    Widget mini(String label, int v, Color c) => Expanded(
+      child: Column(
+        children: [
+          Text(
+            _fmtInt(v),
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+              color: c,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: const TextStyle(fontSize: 10.5, color: _WC.inkSecondary),
+          ),
+        ],
+      ),
+    );
+
+    const izinLabel = {
+      'DIAJUKAN': 'Diajukan',
+      'DISETUJUI': 'Disetujui',
+      'DITOLAK': 'Ditolak',
+      'KEMBALI': 'Kembali',
+      'TELAT': 'Terlambat',
+    };
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (lp == null)
+          const _Card(child: _EmptyRow(text: 'Laporan belum dapat dimuat.'))
+        else ...[
+          Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: Text(
+              'Periode ${tgl(per?['dari']?.toString())} – ${tgl(per?['sampai']?.toString())}',
+              style: const TextStyle(fontSize: 11.5, color: _WC.inkSecondary),
+            ),
+          ),
+          _TwoColGrid(
+            children: [
+              _MetricCard(
+                label: 'Santri Aktif',
+                value: _fmtInt(santriAktif),
+                icon: Icons.school,
+                iconColor: _WC.primary,
+                iconBg: _WC.sage,
+                caption: 'Terdaftar di tahun ajaran ini',
+              ),
+              _MetricCard(
+                label: 'Kehadiran',
+                value: khPct == null
+                    ? '–'
+                    : '${_num(kh!, ['persenHadir']).toDouble().toStringAsFixed(1)}%',
+                icon: Icons.fact_check,
+                iconColor: _WC.gold,
+                iconBg: _WC.goldSurface,
+                caption: 'Rata-rata sepanjang periode',
+              ),
+              _MetricCard(
+                label: 'Setoran Tahfidz',
+                value: thf == null ? '–' : _fmtInt(_num(thf, ['totalSetoran'])),
+                icon: Icons.menu_book,
+                iconColor: _WC.primary,
+                iconBg: _WC.sage,
+                caption: thf == null
+                    ? 'Data belum dapat dimuat'
+                    : '${_fmtInt(_num(thf, ['santriYangSetor']))} dari ${_fmtInt(santriAktif)} santri setor',
+              ),
+              _MetricCard(
+                label: 'Perizinan',
+                value: _fmtInt(izinTotal),
+                icon: Icons.exit_to_app,
+                iconColor: _WC.goldDark,
+                iconBg: _WC.goldSurface,
+                caption:
+                    '${cnt(izin, 'DISETUJUI')} disetujui • ${cnt(izin, 'DITOLAK')} ditolak',
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // Rincian kehadiran
+          _Card(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Rincian Kehadiran',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: _WC.ink,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    mini('Hadir', cnt(kh, 'hadir'), _WC.primary),
+                    mini('Izin', cnt(kh, 'izin'), _WC.goldDark),
+                    mini('Sakit', cnt(kh, 'sakit'), _WC.gold),
+                    mini('Alpa', cnt(kh, 'alpa'), _WC.errorText),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // Pelanggaran per jenis
+          _Card(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Pelanggaran per Jenis',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: _WC.ink,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      '10 teratas',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: _WC.inkSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                if (perJenis.isEmpty)
+                  const _EmptyRow(text: 'Belum ada pelanggaran tercatat.')
+                else
+                  for (final j in perJenis)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  '${j['jenis'] ?? '-'}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 12.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: _WC.ink,
+                                  ),
+                                ),
+                              ),
+                              Text(
+                                '${_num(j, ['jumlah']).toInt()} kasus • ${_num(j, ['poin']).toInt()} poin',
+                                style: const TextStyle(
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: _WC.primary,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 5),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(999),
+                            child: LinearProgressIndicator(
+                              value: _num(j, ['jumlah']).toDouble() / maxJenis,
+                              minHeight: 6,
+                              backgroundColor: _WC.surfaceDim,
+                              valueColor: const AlwaysStoppedAnimation(
+                                _WC.errorText,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // Santri dengan poin tertinggi sepanjang tahun ajaran
+          _Card(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Poin Pelanggaran Tertinggi',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: _WC.ink,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      'Sepanjang periode',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: _WC.inkSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                if (topSantri.isEmpty)
+                  const _EmptyRow(text: 'Belum ada pelanggaran tercatat.')
+                else
+                  for (final (i, p) in topSantri.take(5).indexed)
+                    Padding(
+                      padding: EdgeInsets.only(top: i == 0 ? 0 : 8),
+                      child: Row(
+                        children: [
+                          CircleAvatar(
+                            radius: 13,
+                            backgroundColor: _WC.sage,
+                            child: Text(
+                              '${i + 1}',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                color: _WC.primary,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  '${p['nama'] ?? '-'}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 12.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: _WC.ink,
+                                  ),
+                                ),
+                                Text(
+                                  '${p['kelas'] ?? '-'} • ${_num(p, ['jumlah']).toInt()} kasus',
+                                  style: const TextStyle(
+                                    fontSize: 10.5,
+                                    color: _WC.inkSecondary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Text(
+                            '${_num(p, ['poin']).toInt()} poin',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                              color: _WC.errorText,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // Tahfidz & perizinan
+          _Card(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Tahfidz & Perizinan',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: _WC.ink,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    mini('Ziyadah', cnt(
+                      (thf?['perJenis'] as Map?)?.cast<String, dynamic>(),
+                      'ZIYADAH',
+                    ), _WC.gold),
+                    mini('Murajaah', cnt(
+                      (thf?['perJenis'] as Map?)?.cast<String, dynamic>(),
+                      'MURAJAAH',
+                    ), _WC.primary),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                if (izinTotal == 0)
+                  const _EmptyRow(text: 'Belum ada perizinan pada periode ini.')
+                else
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final e in izinLabel.entries)
+                        if (cnt(izin, e.key) > 0)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 5,
+                            ),
+                            decoration: BoxDecoration(
+                              color: _WC.sage,
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: Text(
+                              '${e.value}: ${cnt(izin, e.key)}',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: _WC.primary,
+                              ),
+                            ),
+                          ),
+                    ],
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  //   /// BARU: satu baris log audit pondok (dari GET /audit-log/pondok).
+  // Widget _pimAuditRow(Map<String, dynamic> a) {
+  //   final tingkat = (a['tingkat'] ?? 'INFO').toString();
+  //   final (bg, fg, label) = switch (tingkat) {
+  //     'CRITICAL' => (_WC.errorBg, _WC.errorText, 'Kritis'),
+  //     'WARNING' => (_WC.pendingBg, _WC.pendingText, 'Peringatan'),
+  //     _ => (_WC.sage, _WC.primary, 'Info'),
+  //   };
+
+  //   final judul = (a['judul'] ?? '-').toString();
+  //   final aktor = (a['aktor'] ?? '').toString();
+  //   final detail = (a['aktorDetail'] ?? '').toString();
+  //   final oleh = detail.isEmpty ? aktor : '$aktor • $detail';
+  //   // Teks di antara backtick dirender monospace di aplikasi lain; di sini dibersihkan.
+  //   final deskripsi = (a['deskripsi'] ?? '')
+  //       .toString()
+  //       .replaceAll('`', '')
+  //       .trim();
+  //   final waktu = _elapsed(DateTime.tryParse('${a['waktu']}')?.toLocal());
+
+  //   return Padding(
+  //     padding: const EdgeInsets.only(bottom: 10),
+  //     child: Row(
+  //       crossAxisAlignment: CrossAxisAlignment.start,
+  //       children: [
+  //         Container(
+  //           width: 32,
+  //           height: 32,
+  //           decoration: BoxDecoration(color: bg, shape: BoxShape.circle),
+  //           child: Icon(Icons.history_rounded, size: 16, color: fg),
+  //         ),
+  //         const SizedBox(width: 10),
+  //         Expanded(
+  //           child: Column(
+  //             crossAxisAlignment: CrossAxisAlignment.start,
+  //             children: [
+  //               Text(
+  //                 judul,
+  //                 maxLines: 2,
+  //                 overflow: TextOverflow.ellipsis,
+  //                 style: const TextStyle(
+  //                   fontSize: 12.5,
+  //                   fontWeight: FontWeight.w700,
+  //                   color: _WC.ink,
+  //                 ),
+  //               ),
+  //               if (oleh.isNotEmpty)
+  //                 Text(
+  //                   oleh,
+  //                   maxLines: 1,
+  //                   overflow: TextOverflow.ellipsis,
+  //                   style: const TextStyle(
+  //                     fontSize: 10.5,
+  //                     color: _WC.inkSecondary,
+  //                   ),
+  //                 ),
+  //               if (deskripsi.isNotEmpty)
+  //                 Text(
+  //                   deskripsi,
+  //                   maxLines: 2,
+  //                   overflow: TextOverflow.ellipsis,
+  //                   style: const TextStyle(
+  //                     fontSize: 10.5,
+  //                     color: _WC.inkSecondary,
+  //                   ),
+  //                 ),
+  //               const SizedBox(height: 4),
+  //               Row(
+  //                 children: [
+  //                   Container(
+  //                     padding: const EdgeInsets.symmetric(
+  //                       horizontal: 8,
+  //                       vertical: 2,
+  //                     ),
+  //                     decoration: BoxDecoration(
+  //                       color: bg,
+  //                       borderRadius: BorderRadius.circular(999),
+  //                     ),
+  //                     child: Text(
+  //                       label,
+  //                       style: TextStyle(
+  //                         fontSize: 9.5,
+  //                         fontWeight: FontWeight.w800,
+  //                         color: fg,
+  //                       ),
+  //                     ),
+  //                   ),
+  //                   const SizedBox(width: 8),
+  //                   Text(
+  //                     waktu,
+  //                     style: const TextStyle(
+  //                       fontSize: 10.5,
+  //                       color: _WC.inkSecondary,
+  //                     ),
+  //                   ),
+  //                 ],
+  //               ),
+  //             ],
+  //           ),
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  // }
+
+    static const _pimBulan = [
+    '', 'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun',
+    'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des',
+  ];
+
+  /// "DI_BAWAH_KKM" -> "Di bawah kkm" (untuk label status dari backend).
+  String _pimRapi(String s) {
+    final t = s.replaceAll('_', ' ').toLowerCase();
+    return t.isEmpty ? s : t[0].toUpperCase() + t.substring(1);
+  }
+
+  List<Map<String, dynamic>> _pimDaftar(Object? v) => ((v as List?) ?? const [])
+      .whereType<Map>()
+      .map((e) => e.cast<String, dynamic>())
+      .toList();
+
+  // -------------------------------------------------------------------------
+  // BARU: tab Akademik, dari GET /mudir/akademik
+  // -------------------------------------------------------------------------
+  Widget _pimAkademikSection() {
+    final ak = _mudirAkademik;
+    final ta = (ak?['tahunAjaran'] as Map?)?['nama']?.toString();
+    final ujian = (ak?['ujian'] as Map?)?.cast<String, dynamic>();
+    final kkm = (ak?['santriDibawahKkm'] as Map?)?.cast<String, dynamic>();
+    final rapor = (ak?['rapor'] as Map?)?.cast<String, dynamic>();
+    final remedial =
+        (ak?['remedial'] as Map?)?.cast<String, dynamic>() ??
+        <String, dynamic>{};
+    final statusRapor =
+        (rapor?['perStatus'] as Map?)?.cast<String, dynamic>() ??
+        <String, dynamic>{};
+
+    final daftarKkm = _pimDaftar(kkm?['daftar']);
+    final terendah = _pimDaftar(ak?['rataNilai']).where((e) => e['rata'] is num).toList()
+      ..sort((a, b) => _num(a, ['rata']).compareTo(_num(b, ['rata'])));
+
+    final remedialTotal = remedial.values.fold<int>(
+      0,
+      (a, v) => a + (v is num ? v.toInt() : 0),
+    );
+    final kkmTotal = kkm == null ? null : _num(kkm, ['total']).toInt();
+    final raporRata = rapor?['rataRata'];
+    int u(String k) => ujian == null ? 0 : _num(ujian, [k]).toInt();
+
+    Widget chips(Map<String, dynamic> m) => Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        for (final e in m.entries)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+              color: _WC.sage,
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Text(
+              '${_pimRapi(e.key)}: ${e.value}',
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: _WC.primary,
+              ),
+            ),
+          ),
+      ],
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _SectionLabel(
+          title: 'Ringkasan Akademik',
+          trailing: ta ?? 'Tahun Ajaran',
+          trailingAsPill: true,
+        ),
+        const SizedBox(height: 10),
+        if (ak == null)
+          const _Card(child: _EmptyRow(text: 'Data akademik belum dapat dimuat.'))
+        else ...[
+          _TwoColGrid(
+            children: [
+              _MetricCard(
+                label: 'Ujian',
+                value: _fmtInt(u('total')),
+                icon: Icons.quiz,
+                iconColor: _WC.primary,
+                iconBg: _WC.sage,
+                caption: '${u('dikunci')} dikunci • ${u('belumDikunci')} belum',
+              ),
+              _MetricCard(
+                label: 'Nilai Di Bawah KKM',
+                value: kkmTotal == null ? '–' : _fmtInt(kkmTotal),
+                icon: Icons.trending_down,
+                iconColor: _WC.errorText,
+                iconBg: _WC.goldSurface,
+                caption: 'Pasangan santri–mapel dengan rata-rata < KKM',
+              ),
+              _MetricCard(
+                label: 'Rata-rata Rapor',
+                value: raporRata is num
+                    ? raporRata.toDouble().toStringAsFixed(1)
+                    : '–',
+                icon: Icons.description,
+                iconColor: _WC.gold,
+                iconBg: _WC.goldSurface,
+                caption: 'Seluruh rapor tahun ajaran ini',
+              ),
+              _MetricCard(
+                label: 'Remedial',
+                value: _fmtInt(remedialTotal),
+                icon: Icons.replay,
+                iconColor: _WC.goldDark,
+                iconBg: _WC.goldSurface,
+                caption: 'Semua status',
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // Rata-rata nilai terendah per kelas & mapel
+          _Card(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Rata-rata Nilai Terendah',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: _WC.ink,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      '8 terbawah',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: _WC.inkSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                if (terendah.isEmpty)
+                  const _EmptyRow(text: 'Belum ada nilai pada periode ini.')
+                else
+                  for (final r in terendah.take(8))
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  '${r['namaKelas'] ?? '-'} • ${r['namaMapel'] ?? '-'}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 12.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: _WC.ink,
+                                  ),
+                                ),
+                              ),
+                              Text(
+                                '${_num(r, ['rata']).toDouble().toStringAsFixed(1)} / KKM ${_num(r, ['kkm']).toInt()}',
+                                style: TextStyle(
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: r['dibawahKkm'] == true
+                                      ? _WC.errorText
+                                      : _WC.primary,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 5),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(999),
+                            child: LinearProgressIndicator(
+                              value: (_num(r, ['rata']).toDouble() / 100)
+                                  .clamp(0.0, 1.0)
+                                  .toDouble(),
+                              minHeight: 6,
+                              backgroundColor: _WC.surfaceDim,
+                              valueColor: AlwaysStoppedAnimation(
+                                r['dibawahKkm'] == true
+                                    ? _WC.errorText
+                                    : _WC.primary,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // Santri di bawah KKM
+          _Card(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Santri Di Bawah KKM',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: _WC.ink,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      'Nilai terendah',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: _WC.inkSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                if (daftarKkm.isEmpty)
+                  const _EmptyRow(
+                    text: 'Tidak ada santri di bawah KKM.',
+                    icon: Icons.check_circle_outline,
+                  )
+                else ...[
+                  for (final (i, r) in daftarKkm.take(5).indexed)
+                    Padding(
+                      padding: EdgeInsets.only(top: i == 0 ? 0 : 8),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  '${r['nama'] ?? '-'}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 12.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: _WC.ink,
+                                  ),
+                                ),
+                                Text(
+                                  '${r['namaKelas'] ?? '-'} • ${r['namaMapel'] ?? '-'}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 10.5,
+                                    color: _WC.inkSecondary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Text(
+                            '${_num(r, ['rata']).toDouble().toStringAsFixed(1)} / ${_num(r, ['kkm']).toInt()}',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                              color: _WC.errorText,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  if (kkmTotal != null && kkmTotal > 5)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 10),
+                      child: Text(
+                        '+ ${kkmTotal - 5} lainnya',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: _WC.inkSecondary,
+                        ),
+                      ),
+                    ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // Remedial & status rapor
+          _Card(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Remedial & Status Rapor',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: _WC.ink,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Remedial',
+                  style: TextStyle(fontSize: 11, color: _WC.inkSecondary),
+                ),
+                const SizedBox(height: 6),
+                if (remedial.isEmpty)
+                  const _EmptyRow(text: 'Belum ada remedial.')
+                else
+                  chips(remedial),
+                const SizedBox(height: 12),
+                const Text(
+                  'Rapor',
+                  style: TextStyle(fontSize: 11, color: _WC.inkSecondary),
+                ),
+                const SizedBox(height: 6),
+                if (statusRapor.isEmpty)
+                  const _EmptyRow(text: 'Belum ada rapor.')
+                else
+                  chips(statusRapor),
+              ],
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  // -------------------------------------------------------------------------
+  // BARU: tab Tren, satu grafik + pilihan metrik, dari GET /mudir/tren
+  // -------------------------------------------------------------------------
+  Widget _pimTrenSection() {
+    final tr = _mudirTren;
+    final ta = (tr?['tahunAjaran'] as Map?)?['nama']?.toString();
+    final data = _pimDaftar(tr?['data']);
+
+    const labelMetrik = {
+      'kehadiran': 'Kehadiran',
+      'pelanggaran': 'Pelanggaran',
+      'tahfidz': 'Tahfidz',
+      'nilai': 'Nilai',
+    };
+    final field = switch (_pimTrenMetrik) {
+      'pelanggaran' => 'pelanggaran',
+      'tahfidz' => 'setoranTahfidz',
+      'nilai' => 'rataNilai',
+      _ => 'persenHadir',
+    };
+    final persen = _pimTrenMetrik == 'kehadiran' || _pimTrenMetrik == 'nilai';
+    final warna = switch (_pimTrenMetrik) {
+      'pelanggaran' => _WC.errorText,
+      'tahfidz' => _WC.gold,
+      _ => _WC.primary,
+    };
+    final satuan = switch (_pimTrenMetrik) {
+      'kehadiran' => 'Persentase hadir per bulan',
+      'pelanggaran' => 'Jumlah pelanggaran per bulan',
+      'tahfidz' => 'Jumlah setoran per bulan',
+      _ => 'Rata-rata nilai per bulan',
+    };
+
+    double? nilaiDari(Map<String, dynamic> m) {
+      final x = m[field];
+      return x is num ? x.toDouble() : null;
+    }
+
+    String fmt(double x) =>
+        x == x.roundToDouble() ? x.toInt().toString() : x.toStringAsFixed(1);
+
+    final nilai = [for (final d in data) nilaiDari(d)];
+    final maxV = persen
+        ? 100.0
+        : nilai.fold<double>(1, (a, b) => b != null && b > a ? b : a);
+
+    String labelBulan(Map<String, dynamic> d) {
+      final p = '${d['periode']}'; // "YYYY-MM"
+      final m = int.tryParse(p.length >= 7 ? p.substring(5, 7) : '') ?? 0;
+      return (m >= 1 && m <= 12) ? _pimBulan[m] : p;
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _SectionLabel(
+          title: 'Tren Tahun Ajaran',
+          trailing: ta ?? 'Tahun Ajaran',
+          trailingAsPill: true,
+        ),
+        const SizedBox(height: 10),
+        SizedBox(
+          height: 36,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            children: [
+              for (final e in labelMetrik.entries) ...[
+                if (e.key != 'kehadiran') const SizedBox(width: 8),
+                _SAFilterChip(
+                  label: e.value,
+                  selected: _pimTrenMetrik == e.key,
+                  onTap: () => setState(() => _pimTrenMetrik = e.key),
+                ),
+              ],
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        _Card(
+          child: tr == null
+              ? const _EmptyRow(text: 'Tren belum dapat dimuat.')
+              : (data.isEmpty
+                    ? const _EmptyRow(text: 'Belum ada data pada periode ini.')
+                    : Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            satuan,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: _WC.inkSecondary,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          SizedBox(
+                            height: 150,
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                for (var i = 0; i < data.length; i++)
+                                  Expanded(
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 2,
+                                      ),
+                                      child: Column(
+                                        mainAxisAlignment: MainAxisAlignment.end,
+                                        children: [
+                                          Text(
+                                            nilai[i] == null ? '–' : fmt(nilai[i]!),
+                                            maxLines: 1,
+                                            style: const TextStyle(
+                                              fontSize: 9,
+                                              fontWeight: FontWeight.w700,
+                                              color: _WC.inkSecondary,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 3),
+                                          Container(
+                                            height: nilai[i] == null
+                                                ? 2
+                                                : ((nilai[i]! / maxV) * 100)
+                                                      .clamp(2.0, 100.0)
+                                                      .toDouble(),
+                                            decoration: BoxDecoration(
+                                              color: nilai[i] == null
+                                                  ? _WC.border
+                                                  : warna,
+                                              borderRadius:
+                                                  BorderRadius.circular(4),
+                                            ),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            labelBulan(data[i]),
+                                            maxLines: 1,
+                                            style: const TextStyle(
+                                              fontSize: 9.5,
+                                              color: _WC.inkSecondary,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      )),
+        ),
+      ],
+    );
+  }
+
+  // -------------------------------------------------------------------------
+  // BARU: tab Laporan, dari GET /mudir/laporan
+  // -------------------------------------------------------------------------
+  Widget _pimLaporanSection() {
+    final lp = _mudirLaporan;
+    final per = (lp?['periode'] as Map?)?.cast<String, dynamic>();
+    final ta = (lp?['tahunAjaran'] as Map?)?['nama']?.toString();
+    final kh = (lp?['kehadiran'] as Map?)?.cast<String, dynamic>();
+    final pel = (lp?['pelanggaran'] as Map?)?.cast<String, dynamic>();
+    final thf = (lp?['tahfidz'] as Map?)?.cast<String, dynamic>();
+    final izin =
+        (lp?['perizinan'] as Map?)?.cast<String, dynamic>() ??
+        <String, dynamic>{};
+    final thfJenis =
+        (thf?['perJenis'] as Map?)?.cast<String, dynamic>() ??
+        <String, dynamic>{};
+    final santriAktif = lp == null ? 0 : _num(lp, ['santriAktif']).toInt();
+
+    final perJenis = _pimDaftar(pel?['perJenis']);
+    final topSantri = _pimDaftar(pel?['santriPoinTertinggi']);
+    final maxJenis = [
+      1,
+      ...perJenis.map((e) => _num(e, ['jumlah']).toInt()),
+    ].reduce((a, b) => a > b ? a : b);
+
+    // "2025-07-01" -> "1 Jul 2025"
+    String tgl(String? s) {
+      final p = (s ?? '').split('-');
+      if (p.length != 3) return s ?? '-';
+      final m = int.tryParse(p[1]) ?? 0;
+      return '${int.tryParse(p[2]) ?? p[2]} ${(m >= 1 && m <= 12) ? _pimBulan[m] : p[1]} ${p[0]}';
+    }
+
+    int cnt(Map<String, dynamic>? m, String k) =>
+        m == null ? 0 : _num(m, [k]).toInt();
+
+    final izinTotal = izin.values.fold<int>(
+      0,
+      (a, v) => a + (v is num ? v.toInt() : 0),
+    );
+    final khPct = kh?['persenHadir'];
+
+    Widget mini(String label, int v, Color c) => Expanded(
+      child: Column(
+        children: [
+          Text(
+            _fmtInt(v),
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+              color: c,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: const TextStyle(fontSize: 10.5, color: _WC.inkSecondary),
+          ),
+        ],
+      ),
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _SectionLabel(
+          title: 'Laporan Tahun Ajaran',
+          trailing: ta ?? 'Tahun Ajaran',
+          trailingAsPill: true,
+        ),
+        const SizedBox(height: 10),
+        if (lp == null)
+          const _Card(child: _EmptyRow(text: 'Laporan belum dapat dimuat.'))
+        else ...[
+          Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: Text(
+              'Periode ${tgl(per?['dari']?.toString())} – ${tgl(per?['sampai']?.toString())}',
+              style: const TextStyle(fontSize: 11.5, color: _WC.inkSecondary),
+            ),
+          ),
+          _TwoColGrid(
+            children: [
+              _MetricCard(
+                label: 'Santri Aktif',
+                value: _fmtInt(santriAktif),
+                icon: Icons.school,
+                iconColor: _WC.primary,
+                iconBg: _WC.sage,
+                caption: 'Terdaftar di tahun ajaran ini',
+              ),
+              _MetricCard(
+                label: 'Kehadiran',
+                value: khPct is num
+                    ? '${khPct.toDouble().toStringAsFixed(1)}%'
+                    : '–',
+                icon: Icons.fact_check,
+                iconColor: _WC.gold,
+                iconBg: _WC.goldSurface,
+                caption: 'Rata-rata sepanjang periode',
+              ),
+              _MetricCard(
+                label: 'Setoran Tahfidz',
+                value: thf == null ? '–' : _fmtInt(_num(thf, ['totalSetoran'])),
+                icon: Icons.menu_book,
+                iconColor: _WC.primary,
+                iconBg: _WC.sage,
+                caption: thf == null
+                    ? 'Data belum dapat dimuat'
+                    : '${_fmtInt(_num(thf, ['santriYangSetor']))} dari ${_fmtInt(santriAktif)} santri setor',
+              ),
+              _MetricCard(
+                label: 'Perizinan',
+                value: _fmtInt(izinTotal),
+                icon: Icons.exit_to_app,
+                iconColor: _WC.goldDark,
+                iconBg: _WC.goldSurface,
+                caption:
+                    '${cnt(izin, 'DISETUJUI')} disetujui • ${cnt(izin, 'DITOLAK')} ditolak',
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // Rincian kehadiran
+          _Card(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Rincian Kehadiran',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: _WC.ink,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    mini('Hadir', cnt(kh, 'hadir'), _WC.primary),
+                    mini('Izin', cnt(kh, 'izin'), _WC.goldDark),
+                    mini('Sakit', cnt(kh, 'sakit'), _WC.gold),
+                    mini('Alpa', cnt(kh, 'alpa'), _WC.errorText),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // Pelanggaran per jenis
+          _Card(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Pelanggaran per Jenis',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: _WC.ink,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      '10 teratas',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: _WC.inkSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                if (perJenis.isEmpty)
+                  const _EmptyRow(text: 'Belum ada pelanggaran tercatat.')
+                else
+                  for (final j in perJenis)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  '${j['jenis'] ?? '-'}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 12.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: _WC.ink,
+                                  ),
+                                ),
+                              ),
+                              Text(
+                                '${_num(j, ['jumlah']).toInt()} kasus • ${_num(j, ['poin']).toInt()} poin',
+                                style: const TextStyle(
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: _WC.primary,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 5),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(999),
+                            child: LinearProgressIndicator(
+                              value: _num(j, ['jumlah']).toDouble() / maxJenis,
+                              minHeight: 6,
+                              backgroundColor: _WC.surfaceDim,
+                              valueColor: const AlwaysStoppedAnimation(
+                                _WC.errorText,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // Santri dengan poin tertinggi sepanjang tahun ajaran
+          _Card(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Poin Pelanggaran Tertinggi',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: _WC.ink,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      'Sepanjang periode',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: _WC.inkSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                if (topSantri.isEmpty)
+                  const _EmptyRow(text: 'Belum ada pelanggaran tercatat.')
+                else
+                  for (final (i, p) in topSantri.take(5).indexed)
+                    Padding(
+                      padding: EdgeInsets.only(top: i == 0 ? 0 : 8),
+                      child: Row(
+                        children: [
+                          CircleAvatar(
+                            radius: 13,
+                            backgroundColor: _WC.sage,
+                            child: Text(
+                              '${i + 1}',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                color: _WC.primary,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  '${p['nama'] ?? '-'}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 12.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: _WC.ink,
+                                  ),
+                                ),
+                                Text(
+                                  '${p['kelas'] ?? '-'} • ${_num(p, ['jumlah']).toInt()} kasus',
+                                  style: const TextStyle(
+                                    fontSize: 10.5,
+                                    color: _WC.inkSecondary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Text(
+                            '${_num(p, ['poin']).toInt()} poin',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                              color: _WC.errorText,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // Tahfidz & perizinan (label diambil dari data, bukan ditebak)
+          _Card(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Tahfidz & Perizinan',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: _WC.ink,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                if (thfJenis.isEmpty)
+                  const _EmptyRow(text: 'Belum ada setoran tahfidz.')
+                else
+                  Row(
+                    children: [
+                      for (final e in thfJenis.entries)
+                        mini(_pimRapi(e.key), cnt(thfJenis, e.key), _WC.primary),
+                    ],
+                  ),
+                const SizedBox(height: 12),
+                if (izinTotal == 0)
+                  const _EmptyRow(text: 'Belum ada perizinan pada periode ini.')
+                else
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final e in izin.entries)
+                        if (e.value is num && (e.value as num) > 0)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 5,
+                            ),
+                            decoration: BoxDecoration(
+                              color: _WC.sage,
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: Text(
+                              '${_pimRapi(e.key)}: ${(e.value as num).toInt()}',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: _WC.primary,
+                              ),
+                            ),
+                          ),
+                    ],
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  // -------------------------------------------------------------------------
+  // BARU: satu baris log audit pondok (dari GET /audit-log/pondok)
+  // -------------------------------------------------------------------------
+  Widget _pimAuditRow(Map<String, dynamic> a) {
+    final tingkat = (a['tingkat'] ?? 'INFO').toString();
+    final (bg, fg, label) = switch (tingkat) {
+      'CRITICAL' => (_WC.errorBg, _WC.errorText, 'Kritis'),
+      'WARNING' => (_WC.pendingBg, _WC.pendingText, 'Peringatan'),
+      _ => (_WC.sage, _WC.primary, 'Info'),
+    };
+
+    final judul = (a['judul'] ?? '-').toString();
+    final aktor = (a['aktor'] ?? '').toString();
+    final detail = (a['aktorDetail'] ?? '').toString();
+    final oleh = detail.isEmpty ? aktor : '$aktor • $detail';
+    final deskripsi = (a['deskripsi'] ?? '').toString().replaceAll('`', '').trim();
+    final waktu = _elapsed(DateTime.tryParse('${a['waktu']}')?.toLocal());
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(color: bg, shape: BoxShape.circle),
+            child: Icon(Icons.history_rounded, size: 16, color: fg),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  judul,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                    color: _WC.ink,
+                  ),
+                ),
+                if (oleh.isNotEmpty)
+                  Text(
+                    oleh,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 10.5,
+                      color: _WC.inkSecondary,
+                    ),
+                  ),
+                if (deskripsi.isNotEmpty)
+                  Text(
+                    deskripsi,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 10.5,
+                      color: _WC.inkSecondary,
+                    ),
+                  ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: bg,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        label,
+                        style: TextStyle(
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w800,
+                          color: fg,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      waktu,
+                      style: const TextStyle(
+                        fontSize: 10.5,
+                        color: _WC.inkSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -3662,6 +5747,94 @@ class _EmptyRow extends StatelessWidget {
   }
 }
 
+/// BARU: section yang bisa dilipat. Awalnya tertutup, ketuk judul untuk membuka.
+class _PimLipat extends StatefulWidget {
+  final String title;
+  final String trailing;
+  final Widget child;
+  final bool initiallyOpen;
+  const _PimLipat({
+    required this.title,
+    required this.trailing,
+    required this.child,
+    this.initiallyOpen = false,
+  });
+
+  @override
+  State<_PimLipat> createState() => _PimLipatState();
+}
+
+class _PimLipatState extends State<_PimLipat> {
+  late bool _open = widget.initiallyOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        InkWell(
+          onTap: () => setState(() => _open = !_open),
+          borderRadius: BorderRadius.circular(16),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: _WC.surface,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: _WC.border),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    widget.title,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: _WC.ink,
+                    ),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: _WC.surfaceDim,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    widget.trailing,
+                    style: const TextStyle(
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w600,
+                      color: _WC.inkSecondary,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                AnimatedRotation(
+                  turns: _open ? 0.5 : 0,
+                  duration: const Duration(milliseconds: 200),
+                  child: const Icon(
+                    Icons.keyboard_arrow_down_rounded,
+                    size: 22,
+                    color: _WC.inkSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        if (_open) ...[
+          const SizedBox(height: 10),
+          widget.child,
+        ],
+      ],
+    );
+  }
+}
+
 /// Faint 8-point "Rub el Hizb" style geometric watermark used on hero banners.
 class _RubElHizb extends StatelessWidget {
   final double size;
@@ -3990,12 +6163,10 @@ class _UKelasCard extends StatelessWidget {
                               _chip(Icons.layers_outlined, tingkat),
                             if (jumlah != null)
                               _chip(Icons.groups_2_outlined, '$jumlah santri'),
-                            if (jumlahMapel != null)
+                                                        if (mapelTerisi != null && mapelTerisi > 0)
                               _chip(
                                 Icons.menu_book_outlined,
-                                mapelTerisi != null
-                                    ? '$jumlahMapel mapel • $mapelTerisi terisi'
-                                    : '$jumlahMapel mapel',
+                                '$mapelTerisi mapel terisi hari ini',
                               ),
                           ],
                         ),
