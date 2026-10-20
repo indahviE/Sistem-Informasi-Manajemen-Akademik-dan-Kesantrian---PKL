@@ -1,0 +1,5 @@
+-- AlterTable
+ALTER TABLE `kunjungan_walis`
+    ADD COLUMN `namaWali` VARCHAR(191) NULL,
+    ADD COLUMN `status` VARCHAR(191) NOT NULL DEFAULT 'BERLANGSUNG',
+    ADD COLUMN `selesaiAt` DATETIME(3) NULL;

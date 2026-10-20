@@ -2,11 +2,12 @@ import 'package:flutter/material.dart';
 
 import '../../services/api_client.dart';
 import '../../services/app_scope.dart';
+import 'santri_ui.dart';
 import '../notifikasi/notifikasi_screen.dart';
 import '../kesantrian/pelanggaran_screen.dart';
 import '../kesantrian/perizinan_screen.dart';
 import '../kesantrian/kesehatan_screen.dart';
-import '../kesantrian/kunjungan_screen.dart';
+import '../kesantrian/kunjungan_wali_screen.dart';
 
 /// ---------------------------------------------------------------------------
 /// Design tokens — mirrored 1:1 dari signup_screen.dart (PColors/PText) dan
@@ -18,13 +19,13 @@ import '../kesantrian/kunjungan_screen.dart';
 class _DC {
   _DC._();
 
-  static const primary = Color(0xFF00231A);
+  static Color get primary => SC.primary;
   static const onPrimary = Color(0xFFFFFFFF);
-  static const primaryContainer = Color(0xFF0F3A2E);
+  static Color get primaryContainer => SC.primaryEnd;
   static const onPrimaryContainer = Color(0xFF7AA494);
-  static const primaryFixed = Color(0xFFC0ECDA);
-  static const primaryFixedDim = Color(0xFFA4D0BF);
-  static const onPrimaryFixedVariant = Color(0xFF254E41);
+  static Color get primaryFixed => SC.mint;
+  static Color get primaryFixedDim => Color.lerp(SC.mint, SC.primary, 0.12)!;
+  static Color get onPrimaryFixedVariant => SC.primary;
 
   static const secondary = Color(0xFF775A19);
   static const onSecondary = Color(0xFFFFFFFF);
@@ -51,27 +52,27 @@ class _DC {
 
 class _DT {
   _DT._();
-  static const _font = 'Nunito';
+  static final _font = 'Nunito';
 
-  static const headlineSm = TextStyle(
+  static final headlineSm = TextStyle(
     fontFamily: _font, fontSize: 18, fontWeight: FontWeight.w700, height: 24 / 18, color: _DC.primaryContainer,
   );
-  static const headlineXs = TextStyle(
+  static final headlineXs = TextStyle(
     fontFamily: _font, fontSize: 13, fontWeight: FontWeight.w800, height: 16 / 13, color: _DC.onSurface,
   );
-  static const bodyMd = TextStyle(
+  static final bodyMd = TextStyle(
     fontFamily: _font, fontSize: 14, fontWeight: FontWeight.w400, height: 20 / 14, color: _DC.onSurfaceVariant,
   );
-  static const bodySm = TextStyle(
+  static final bodySm = TextStyle(
     fontFamily: _font, fontSize: 12.5, fontWeight: FontWeight.w400, height: 18 / 12.5, color: _DC.onSurfaceVariant,
   );
-  static const labelLg = TextStyle(
+  static final labelLg = TextStyle(
     fontFamily: _font, fontSize: 14, fontWeight: FontWeight.w700, height: 20 / 14, color: _DC.onSurface,
   );
-  static const labelMd = TextStyle(
+  static final labelMd = TextStyle(
     fontFamily: _font, fontSize: 12, fontWeight: FontWeight.w700, height: 16 / 12, color: _DC.onSurfaceVariant,
   );
-  static const labelSm = TextStyle(
+  static final labelSm = TextStyle(
     fontFamily: _font, fontSize: 11, fontWeight: FontWeight.w700, height: 14 / 11, color: _DC.onSurfaceVariant,
   );
 }
@@ -199,7 +200,7 @@ class _DirektoriSantriScreenState extends State<DirektoriSantriScreen> {
 
   void _notAvailable() {
     ScaffoldMessenger.of(context)
-        .showSnackBar(const SnackBar(content: Text('Fitur ini akan segera tersedia.')));
+        .showSnackBar(SnackBar(content: Text('Fitur ini akan segera tersedia.')));
   }
 
   Future<void> _editKamarSantri(_SantriItem santri) async {
@@ -213,7 +214,7 @@ class _DirektoriSantriScreenState extends State<DirektoriSantriScreen> {
           children: [
             TextField(
               controller: kamarCtrl,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 labelText: 'Kamar / Asrama',
                 hintText: 'Contoh: C-04, A-12, B-08',
                 border: OutlineInputBorder(),
@@ -222,8 +223,8 @@ class _DirektoriSantriScreenState extends State<DirektoriSantriScreen> {
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Batal')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Simpan')),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text('Batal')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text('Simpan')),
         ],
       ),
     );
@@ -232,7 +233,7 @@ class _DirektoriSantriScreenState extends State<DirektoriSantriScreen> {
     final newKamar = kamarCtrl.text.trim();
     if (newKamar.isEmpty) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Kamar tidak boleh kosong.')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Kamar tidak boleh kosong.')));
       return;
     }
     
@@ -240,14 +241,14 @@ class _DirektoriSantriScreenState extends State<DirektoriSantriScreen> {
       final api = AppScope.of(context).api;
       await api.patch('${ApiUrl.santri}/${santri.id}', {'asrama': newKamar});
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Kamar berhasil diubah.')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Kamar berhasil diubah.')));
       _load(showSpinner: false);
     } on ApiException catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Gagal mengubah kamar.')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Gagal mengubah kamar.')));
     }
   }
 
@@ -364,33 +365,43 @@ class _DirektoriSantriScreenState extends State<DirektoriSantriScreen> {
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 480),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+            constraints: BoxConstraints(maxWidth: 480),
+            child: Stack(
               children: [
-                _buildHeader(),
-                _buildStickyBar(),
-                Expanded(
-                  child: _loading
-                      ? const Center(child: CircularProgressIndicator())
-                      : _error != null
-                          ? _buildErrorView()
-                          : RefreshIndicator(
-                              onRefresh: () => _load(showSpinner: false),
-                              child: _buildContent(),
-                            ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _buildHeader(),
+                    _buildStickyBar(),
+                    Expanded(
+                      child: _loading
+                          ? Center(child: CircularProgressIndicator())
+                          : _error != null
+                              ? _buildErrorView()
+                              : RefreshIndicator(
+                                  onRefresh: () => _load(showSpinner: false),
+                                  child: _buildContent(),
+                                ),
+                    ),
+                  ],
+                ),
+                Positioned(
+                  right: 16,
+                  bottom: 16,
+                  child: FloatingActionButton.extended(
+                    onPressed: _tambahSantriDialog,
+                    tooltip: 'Tambah Santri',
+                    backgroundColor: _DC.primaryContainer,
+                    foregroundColor: Colors.white,
+                    icon: Icon(Icons.person_add_alt_1),
+                    label: Text('Tambah Santri',
+                        style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w700)),
+                  ),
                 ),
               ],
             ),
           ),
         ),
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _tambahSantriDialog,
-        backgroundColor: _DC.primaryContainer,
-        icon: const Icon(Icons.person_add_alt_1, color: Colors.white),
-        label: const Text('Tambah Santri',
-            style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w700, color: Colors.white)),
       ),
     );
   }
@@ -398,15 +409,15 @@ class _DirektoriSantriScreenState extends State<DirektoriSantriScreen> {
   Widget _buildErrorView() {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(24),
+        padding: EdgeInsets.all(24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.error_outline, color: _DC.error, size: 40),
-            const SizedBox(height: 12),
+            Icon(Icons.error_outline, color: _DC.error, size: 40),
+            SizedBox(height: 12),
             Text(_error!, textAlign: TextAlign.center, style: _DT.bodyMd),
-            const SizedBox(height: 12),
-            FilledButton(onPressed: _load, child: const Text('Coba Lagi')),
+            SizedBox(height: 12),
+            FilledButton(onPressed: _load, child: Text('Coba Lagi')),
           ],
         ),
       ),
@@ -429,7 +440,7 @@ class _DirektoriSantriScreenState extends State<DirektoriSantriScreen> {
             IconButton(
               onPressed: widget.onBack,
               tooltip: 'Kembali',
-              icon: const Icon(Icons.arrow_back, color: _DC.primary),
+              icon: Icon(Icons.arrow_back, color: _DC.primary),
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints(minWidth: 36, minHeight: 40),
             ),
@@ -439,36 +450,23 @@ class _DirektoriSantriScreenState extends State<DirektoriSantriScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Direktori Santri', style: TextStyle(fontFamily: 'Nunito', fontSize: 20, fontWeight: FontWeight.w800, color: _DC.primaryContainer)),
+                Row(children: [
+                  const Text('Direktori Santri',
+                      style: TextStyle(
+                          fontFamily: 'Nunito', fontSize: 19, fontWeight: FontWeight.w800, color: Color(0xFF1B1C1A))),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+                    decoration: BoxDecoration(color: _DC.primary, borderRadius: BorderRadius.circular(999)),
+                    child: Text('${_all.length} Santri',
+                        style: const TextStyle(
+                            fontFamily: 'Nunito', fontSize: 10.5, fontWeight: FontWeight.w800, color: Colors.white)),
+                  ),
+                ]),
                 const SizedBox(height: 1),
                 Text(widget.subtitle, style: _DT.labelSm),
               ],
             ),
-          ),
-          IconButton(
-            onPressed: () => FocusScope.of(context).requestFocus(FocusNode()),
-            tooltip: 'Pencarian',
-            icon: const Icon(Icons.search, color: _DC.onSurfaceVariant),
-          ),
-          Stack(
-            clipBehavior: Clip.none,
-            children: [
-              IconButton(
-                onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const NotifikasiScreen())),
-                tooltip: 'Notifikasi',
-                icon: const Icon(Icons.notifications_outlined, color: _DC.onSurfaceVariant),
-              ),
-              Positioned(
-                top: 10, right: 10,
-                child: Container(width: 8, height: 8, decoration: const BoxDecoration(color: _DC.secondary, shape: BoxShape.circle)),
-              ),
-            ],
-          ),
-          Container(
-            width: 32, height: 32,
-            margin: const EdgeInsets.only(left: 2),
-            decoration: const BoxDecoration(color: _DC.primary, shape: BoxShape.circle),
-            child: const Icon(Icons.person, color: Colors.white, size: 18),
           ),
         ],
       ),
@@ -481,7 +479,7 @@ class _DirektoriSantriScreenState extends State<DirektoriSantriScreen> {
   Widget _buildStickyBar() {
     return Container(
       color: _DC.background,
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+      padding: EdgeInsets.fromLTRB(16, 8, 16, 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -491,7 +489,7 @@ class _DirektoriSantriScreenState extends State<DirektoriSantriScreen> {
             decoration: BoxDecoration(
               color: _DC.surfaceContainerLowest,
               borderRadius: BorderRadius.circular(14),
-              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 4, offset: const Offset(0, 1))],
+              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 4, offset: Offset(0, 1))],
             ),
             child: TextField(
               controller: _searchCtrl,
@@ -499,20 +497,20 @@ class _DirektoriSantriScreenState extends State<DirektoriSantriScreen> {
               decoration: InputDecoration(
                 border: InputBorder.none,
                 isDense: true,
-                contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                contentPadding: EdgeInsets.symmetric(vertical: 12),
                 hintText: 'Cari nama atau NIS santri...',
                 hintStyle: _DT.bodyMd,
-                prefixIcon: const Icon(Icons.search, size: 20, color: _DC.onSurfaceVariant),
+                prefixIcon: Icon(Icons.search, size: 20, color: _DC.onSurfaceVariant),
                 suffixIcon: _query.isEmpty
                     ? null
                     : IconButton(
-                        icon: const Icon(Icons.close, size: 16, color: _DC.onSurfaceVariant),
+                        icon: Icon(Icons.close, size: 16, color: _DC.onSurfaceVariant),
                         onPressed: () => _searchCtrl.clear(),
                       ),
               ),
             ),
           ),
-          const SizedBox(height: 10),
+          SizedBox(height: 10),
           // Room chips
           SizedBox(
             height: 34,
@@ -525,12 +523,12 @@ class _DirektoriSantriScreenState extends State<DirektoriSantriScreen> {
                     selected: _roomFilter == room,
                     onTap: () => setState(() => _roomFilter = room),
                   ),
-                  const SizedBox(width: 8),
+                  SizedBox(width: 8),
                 ],
               ],
             ),
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           // Status chips
           SizedBox(
             height: 30,
@@ -538,16 +536,16 @@ class _DirektoriSantriScreenState extends State<DirektoriSantriScreen> {
               scrollDirection: Axis.horizontal,
               children: [
                 _statusChip('Semua', _all.length),
-                const SizedBox(width: 6),
+                SizedBox(width: 6),
                 _statusChip('Hadir', _countStatus('Hadir'), dot: _DC.primaryFixedDim),
-                const SizedBox(width: 6),
+                SizedBox(width: 6),
                 _statusChip('Izin', _countStatus('Izin'), dot: _DC.secondaryFixed),
-                const SizedBox(width: 6),
+                SizedBox(width: 6),
                 _statusChip('Sakit', _countStatus('Sakit'), dot: _DC.error),
               ],
             ),
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           // Summary line
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -555,17 +553,17 @@ class _DirektoriSantriScreenState extends State<DirektoriSantriScreen> {
               Expanded(
                 child: Row(
                   children: [
-                    const Icon(Icons.verified, size: 15, color: _DC.secondary),
-                    const SizedBox(width: 4),
+                    Icon(Icons.verified, size: 15, color: _DC.secondary),
+                    SizedBox(width: 4),
                     Expanded(
                       child: RichText(
                         overflow: TextOverflow.ellipsis,
                         text: TextSpan(style: _DT.labelSm, children: [
-                          const TextSpan(text: 'Menampilkan '),
+                          TextSpan(text: 'Menampilkan '),
                           TextSpan(
                               text: '${_filtered.length} Santri ',
-                              style: const TextStyle(fontFamily: 'Nunito', fontSize: 11, fontWeight: FontWeight.w800, color: _DC.primaryContainer)),
-                          const TextSpan(text: 'Asuhan'),
+                              style: TextStyle(fontFamily: 'Nunito', fontSize: 11, fontWeight: FontWeight.w800, color: _DC.primaryContainer)),
+                          TextSpan(text: 'Asuhan'),
                         ]),
                       ),
                     ),
@@ -573,7 +571,7 @@ class _DirektoriSantriScreenState extends State<DirektoriSantriScreen> {
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(color: _DC.secondaryFixed.withOpacity(0.5), borderRadius: BorderRadius.circular(999)),
                 child: Text(_blokBadge, style: _DT.labelSm.copyWith(color: _DC.secondary, fontWeight: FontWeight.w800)),
               ),
@@ -589,7 +587,7 @@ class _DirektoriSantriScreenState extends State<DirektoriSantriScreen> {
       onTap: onTap,
       borderRadius: BorderRadius.circular(999),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        padding: EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
           color: selected ? _DC.primaryContainer : _DC.surfaceContainerLowest,
           borderRadius: BorderRadius.circular(999),
@@ -607,7 +605,7 @@ class _DirektoriSantriScreenState extends State<DirektoriSantriScreen> {
       onTap: () => setState(() => _statusFilter = label),
       borderRadius: BorderRadius.circular(999),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        padding: EdgeInsets.symmetric(horizontal: 10, vertical: 5),
         decoration: BoxDecoration(
           color: selected ? _DC.surfaceContainerHighest : _DC.surfaceContainerLowest,
           borderRadius: BorderRadius.circular(999),
@@ -619,14 +617,14 @@ class _DirektoriSantriScreenState extends State<DirektoriSantriScreen> {
           children: [
             if (dot != null) ...[
               Container(width: 7, height: 7, decoration: BoxDecoration(color: dot, shape: BoxShape.circle)),
-              const SizedBox(width: 5),
+              SizedBox(width: 5),
             ],
             Text(label, style: _DT.labelSm.copyWith(color: _DC.onSurface)),
-            const SizedBox(width: 5),
+            SizedBox(width: 5),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+              padding: EdgeInsets.symmetric(horizontal: 5, vertical: 1),
               decoration: BoxDecoration(color: _DC.surfaceContainerLow, borderRadius: BorderRadius.circular(999)),
-              child: Text('$count', style: const TextStyle(fontFamily: 'Nunito', fontSize: 9.5, fontWeight: FontWeight.w800, color: _DC.onSurface)),
+              child: Text('$count', style: TextStyle(fontFamily: 'Nunito', fontSize: 9.5, fontWeight: FontWeight.w800, color: _DC.onSurface)),
             ),
           ],
         ),
@@ -640,25 +638,25 @@ class _DirektoriSantriScreenState extends State<DirektoriSantriScreen> {
   Widget _buildContent() {
     final filtered = _filtered;
     return ListView(
-      physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 100),
+      physics: AlwaysScrollableScrollPhysics(),
+      padding: EdgeInsets.fromLTRB(16, 4, 16, 100),
       children: [
         if (filtered.isEmpty)
           _buildEmptyState()
         else
           GridView.builder(
             shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
+            physics: NeverScrollableScrollPhysics(),
             itemCount: filtered.length,
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 2,
               mainAxisSpacing: 12,
               crossAxisSpacing: 12,
-              childAspectRatio: 0.74,
+              mainAxisExtent: 218,
             ),
             itemBuilder: (_, i) => _santriCard(filtered[i]),
           ),
-        const SizedBox(height: 20),
+        SizedBox(height: 20),
         _buildTipsCard(),
       ],
     );
@@ -666,29 +664,29 @@ class _DirektoriSantriScreenState extends State<DirektoriSantriScreen> {
 
   Widget _buildEmptyState() {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 48),
+      padding: EdgeInsets.symmetric(vertical: 48),
       child: Column(
         children: [
           Container(
             width: 64, height: 64,
-            decoration: const BoxDecoration(color: _DC.surfaceContainerHigh, shape: BoxShape.circle),
-            child: const Icon(Icons.person_search, size: 30, color: _DC.onSurfaceVariant),
+            decoration: BoxDecoration(color: _DC.surfaceContainerHigh, shape: BoxShape.circle),
+            child: Icon(Icons.person_search, size: 30, color: _DC.onSurfaceVariant),
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
           Text(_all.isEmpty ? 'Belum Ada Santri' : 'Santri Tidak Ditemukan', style: _DT.headlineSm.copyWith(fontSize: 16)),
-          const SizedBox(height: 4),
+          SizedBox(height: 4),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
+            padding: EdgeInsets.symmetric(horizontal: 24),
             child: Text(
               _all.isEmpty
-                  ? 'Belum ada data santri yang bisa ditampilkan di sini. Tambahkan santri lewat tombol "Tambah Santri" di bawah.'
+                  ? 'Belum ada data santri yang bisa ditampilkan di sini. Tambahkan santri lewat tombol "Tambah Santri" di pojok kanan bawah.'
                   : 'Coba gunakan kata kunci pencarian lain atau sesuaikan filter kamar & status santri.',
               textAlign: TextAlign.center,
               style: _DT.bodySm,
             ),
           ),
           if (_all.isNotEmpty) ...[
-            const SizedBox(height: 14),
+            SizedBox(height: 14),
             FilledButton(
               style: FilledButton.styleFrom(
                 backgroundColor: _DC.primaryContainer,
@@ -699,7 +697,7 @@ class _DirektoriSantriScreenState extends State<DirektoriSantriScreen> {
                 _roomFilter = 'Semua Kamar';
                 _statusFilter = 'Semua';
               }),
-              child: const Text('Reset Pencarian'),
+              child: Text('Reset Pencarian'),
             ),
           ],
         ],
@@ -709,7 +707,7 @@ class _DirektoriSantriScreenState extends State<DirektoriSantriScreen> {
 
   Widget _buildTipsCard() {
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: EdgeInsets.all(14),
       decoration: BoxDecoration(color: _DC.surfaceContainerLow, borderRadius: BorderRadius.circular(16)),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -717,15 +715,15 @@ class _DirektoriSantriScreenState extends State<DirektoriSantriScreen> {
           Container(
             width: 32, height: 32,
             decoration: BoxDecoration(color: _DC.secondary.withOpacity(0.15), shape: BoxShape.circle),
-            child: const Icon(Icons.lightbulb_outline, size: 17, color: _DC.secondary),
+            child: Icon(Icons.lightbulb_outline, size: 17, color: _DC.secondary),
           ),
-          const SizedBox(width: 10),
+          SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('Pedoman Musyrif', style: _DT.labelLg.copyWith(color: _DC.primaryContainer)),
-                const SizedBox(height: 2),
+                SizedBox(height: 2),
                 Text(
                   'Ketuk kartu santri untuk membuka menu pembinaan harian: perizinan malam, pantau takzir, input kesehatan, dan rekap wali.',
                   style: _DT.bodySm,
@@ -746,12 +744,12 @@ class _DirektoriSantriScreenState extends State<DirektoriSantriScreen> {
       borderRadius: BorderRadius.circular(16),
       onTap: () => _openKelolaSheet(s),
       child: Container(
-        padding: const EdgeInsets.all(12),
+        padding: EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: _DC.surfaceContainerLowest,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: _DC.surfaceContainerHighest, width: 1),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 6, offset: const Offset(0, 2))],
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 6, offset: Offset(0, 2))],
         ),
         child: Column(
           children: [
@@ -759,56 +757,55 @@ class _DirektoriSantriScreenState extends State<DirektoriSantriScreen> {
               width: 56, height: 56,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(16),
-                gradient: const LinearGradient(
+                gradient: LinearGradient(
                   begin: Alignment.topLeft, end: Alignment.bottomRight,
                   colors: [_DC.primaryContainer, _DC.primary],
                 ),
               ),
               alignment: Alignment.center,
-              child: Text(s.initials, style: const TextStyle(fontFamily: 'Nunito', fontSize: 20, fontWeight: FontWeight.w800, color: Colors.white)),
+              child: Text(s.initials, style: TextStyle(fontFamily: 'Nunito', fontSize: 20, fontWeight: FontWeight.w800, color: Colors.white)),
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
             Text(s.nama, maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center, style: _DT.headlineXs),
-            const SizedBox(height: 2),
+            SizedBox(height: 2),
             Text('NIS ${s.nis}', style: _DT.labelSm.copyWith(fontSize: 10.5)),
-            const SizedBox(height: 6),
+            SizedBox(height: 6),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+              padding: EdgeInsets.symmetric(horizontal: 9, vertical: 3),
               decoration: BoxDecoration(color: _DC.primaryFixed, borderRadius: BorderRadius.circular(999)),
               child: Text(s.kamar, style: _DT.labelSm.copyWith(color: _DC.onPrimaryFixedVariant, fontSize: 10.5)),
             ),
-            const SizedBox(height: 6),
+            SizedBox(height: 6),
             Wrap(
               alignment: WrapAlignment.center,
               spacing: 5, runSpacing: 4,
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  padding: EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(color: _statusBg(s.status), borderRadius: BorderRadius.circular(999)),
                   child: Text(s.status,
                       style: TextStyle(fontFamily: 'Nunito', fontSize: 9.5, fontWeight: FontWeight.w800, color: _statusFg(s.status))),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                  padding: EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                   decoration: BoxDecoration(color: _DC.surfaceContainerHigh, borderRadius: BorderRadius.circular(999)),
                   child: Text(
                     s.poin > 0 ? '${s.poin}P' : (s.statusNote ?? '0 Poin'),
-                    style: const TextStyle(fontFamily: 'Nunito', fontSize: 9.5, fontWeight: FontWeight.w700, color: _DC.onSurfaceVariant),
+                    style: TextStyle(fontFamily: 'Nunito', fontSize: 9.5, fontWeight: FontWeight.w700, color: _DC.onSurfaceVariant),
                   ),
                 ),
               ],
             ),
-            const Spacer(),
-            const SizedBox(height: 6),
+            SizedBox(height: 8),
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 6),
+              padding: EdgeInsets.symmetric(vertical: 6),
               decoration: BoxDecoration(color: _DC.surfaceContainerLow, borderRadius: BorderRadius.circular(10)),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text('Kelola Santri', style: _DT.labelSm.copyWith(color: _DC.primaryContainer, fontWeight: FontWeight.w800)),
-                  const Icon(Icons.expand_more, size: 15, color: _DC.primaryContainer),
+                  Icon(Icons.expand_more, size: 15, color: _DC.primaryContainer),
                 ],
               ),
             ),
@@ -831,10 +828,10 @@ class _DirektoriSantriScreenState extends State<DirektoriSantriScreen> {
         statusBg: _statusBg(s.status),
         statusFg: _statusFg(s.status),
         onDetail: _notAvailable,
-        onPelanggaran: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PelanggaranScreen())),
-        onIzin: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PerizinanScreen())),
-        onKesehatan: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const KesehatanScreen())),
-        onKunjungan: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const KunjunganScreen())),
+        onPelanggaran: () => Navigator.push(context, MaterialPageRoute(builder: (_) => PelanggaranScreen())),
+        onIzin: () => Navigator.push(context, MaterialPageRoute(builder: (_) => PerizinanScreen())),
+        onKesehatan: () => Navigator.push(context, MaterialPageRoute(builder: (_) => KesehatanScreen())),
+        onKunjungan: () => Navigator.push(context, MaterialPageRoute(builder: (_) => KunjunganScreen())),
         onKelolaKamar: () => _editKamarSantri(s),
       ),
     );
@@ -854,42 +851,42 @@ class _DirektoriSantriScreenState extends State<DirektoriSantriScreen> {
       context: context,
       builder: (_) => StatefulBuilder(
         builder: (ctx, setSt) => AlertDialog(
-          title: const Text('Tambah Santri'),
+          title: Text('Tambah Santri'),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                TextField(controller: nama, decoration: const InputDecoration(labelText: 'Nama Lengkap')),
-                const SizedBox(height: 8),
-                TextField(controller: nis, decoration: const InputDecoration(labelText: 'NIS')),
-                const SizedBox(height: 8),
+                TextField(controller: nama, decoration: InputDecoration(labelText: 'Nama Lengkap')),
+                SizedBox(height: 8),
+                TextField(controller: nis, decoration: InputDecoration(labelText: 'NIS')),
+                SizedBox(height: 8),
                 DropdownButtonFormField<String>(
                   value: jenisKelamin,
-                  decoration: const InputDecoration(labelText: 'Jenis Kelamin'),
-                  items: const [
+                  decoration: InputDecoration(labelText: 'Jenis Kelamin'),
+                  items: [
                     DropdownMenuItem(value: 'L', child: Text('Laki-laki')),
                     DropdownMenuItem(value: 'P', child: Text('Perempuan')),
                   ],
                   onChanged: (v) => setSt(() => jenisKelamin = v ?? jenisKelamin),
                 ),
-                const SizedBox(height: 8),
-                TextField(controller: kamar, decoration: const InputDecoration(labelText: 'Kamar / Asrama (mis. C-04)')),
-                const SizedBox(height: 8),
-                TextField(controller: tahunMasuk, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Tahun Masuk')),
+                SizedBox(height: 8),
+                TextField(controller: kamar, decoration: InputDecoration(labelText: 'Kamar / Asrama (mis. C-04)')),
+                SizedBox(height: 8),
+                TextField(controller: tahunMasuk, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: 'Tahun Masuk')),
               ],
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Batal')),
-            FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Simpan')),
+            TextButton(onPressed: () => Navigator.pop(context, false), child: Text('Batal')),
+            FilledButton(onPressed: () => Navigator.pop(context, true), child: Text('Simpan')),
           ],
         ),
       ),
     );
     if (ok != true) return;
     if (nama.text.trim().isEmpty || nis.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Nama dan NIS wajib diisi.')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Nama dan NIS wajib diisi.')));
       return;
     }
     try {
@@ -902,14 +899,14 @@ class _DirektoriSantriScreenState extends State<DirektoriSantriScreen> {
         'tahunMasuk': int.tryParse(tahunMasuk.text.trim()) ?? DateTime.now().year,
       });
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Santri berhasil ditambahkan.')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Santri berhasil ditambahkan.')));
       _load(showSpinner: false);
     } on ApiException catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Gagal menambahkan santri.')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Gagal menambahkan santri.')));
     }
   }
 }
@@ -944,40 +941,40 @@ class _KelolaSantriSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     return SafeArea(
       child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 12),
-        decoration: const BoxDecoration(
+        margin: EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(
           color: _DC.surfaceContainerLowest,
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const SizedBox(height: 10),
+            SizedBox(height: 10),
             Container(width: 44, height: 5, decoration: BoxDecoration(color: _DC.surfaceContainerHighest, borderRadius: BorderRadius.circular(999))),
-            const SizedBox(height: 12),
+            SizedBox(height: 12),
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
+              padding: EdgeInsets.symmetric(horizontal: 16),
               child: Row(
                 children: [
                   Container(
                     width: 48, height: 48,
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(14),
-                      gradient: const LinearGradient(colors: [_DC.primaryContainer, _DC.primary]),
+                      gradient: LinearGradient(colors: [_DC.primaryContainer, _DC.primary]),
                     ),
                     alignment: Alignment.center,
-                    child: Text(santri.initials, style: const TextStyle(fontFamily: 'Nunito', fontSize: 16, fontWeight: FontWeight.w800, color: Colors.white)),
+                    child: Text(santri.initials, style: TextStyle(fontFamily: 'Nunito', fontSize: 16, fontWeight: FontWeight.w800, color: Colors.white)),
                   ),
-                  const SizedBox(width: 12),
+                  SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(santri.nama, maxLines: 1, overflow: TextOverflow.ellipsis, style: _DT.headlineSm.copyWith(fontSize: 15)),
                         Text('NIS ${santri.nis} • ${santri.kamar}', maxLines: 1, overflow: TextOverflow.ellipsis, style: _DT.labelSm),
-                        const SizedBox(height: 4),
+                        SizedBox(height: 4),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          padding: EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                           decoration: BoxDecoration(color: statusBg, borderRadius: BorderRadius.circular(999)),
                           child: Text(santri.status, style: TextStyle(fontFamily: 'Nunito', fontSize: 10, fontWeight: FontWeight.w800, color: statusFg)),
                         ),
@@ -986,15 +983,15 @@ class _KelolaSantriSheet extends StatelessWidget {
                   ),
                   IconButton(
                     onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.close, size: 18),
+                    icon: Icon(Icons.close, size: 18),
                     tooltip: 'Tutup',
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
             Padding(
-              padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
+              padding: EdgeInsets.fromLTRB(12, 0, 12, 4),
               child: Column(
                 children: [
                   _action(context, Icons.badge, 'Lihat Detail Santri', 'Biodata, riwayat akademik & rekam jejak',
@@ -1013,7 +1010,7 @@ class _KelolaSantriSheet extends StatelessWidget {
               ),
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+              padding: EdgeInsets.fromLTRB(16, 4, 16, 16),
               child: SizedBox(
                 width: double.infinity,
                 height: 44,
@@ -1024,7 +1021,7 @@ class _KelolaSantriSheet extends StatelessWidget {
                     side: BorderSide.none,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
                   ),
-                  child: const Text('Tutup', style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w700, color: _DC.onSurface)),
+                  child: Text('Tutup', style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w700, color: _DC.onSurface)),
                 ),
               ),
             ),
@@ -1042,7 +1039,7 @@ class _KelolaSantriSheet extends StatelessWidget {
         onTap();
       },
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+        padding: EdgeInsets.symmetric(vertical: 8, horizontal: 4),
         child: Row(
           children: [
             Container(
@@ -1050,7 +1047,7 @@ class _KelolaSantriSheet extends StatelessWidget {
               decoration: BoxDecoration(color: iconBg, borderRadius: BorderRadius.circular(12)),
               child: Icon(icon, size: 20, color: iconFg),
             ),
-            const SizedBox(width: 12),
+            SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1060,7 +1057,7 @@ class _KelolaSantriSheet extends StatelessWidget {
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right, size: 18, color: _DC.outlineVariant),
+            Icon(Icons.chevron_right, size: 18, color: _DC.outlineVariant),
           ],
         ),
       ),
