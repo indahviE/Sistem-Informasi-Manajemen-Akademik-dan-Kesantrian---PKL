@@ -22,7 +22,7 @@ import 'akademik/kelulusan_screen.dart';
 import 'kesantrian/pelanggaran_screen.dart';
 import 'kesantrian/perizinan_screen.dart';
 import 'kesantrian/kesehatan_screen.dart';
-import 'kesantrian/kunjungan_screen.dart';
+import 'kesantrian/kunjungan_wali_screen.dart';
 import 'kesantrian/konseling_screen.dart';
 import 'kesantrian/pembinaan_karakter_screen.dart';
 import 'kesantrian/pembinaan_ibadah_screen.dart';
@@ -74,7 +74,6 @@ class _ShellScreenState extends State<ShellScreen> {
   // (super admin's 5-item menu is shown in full, without this cap).
   static const _pinned = ['Dashboard', 'Santri', 'Absensi', 'Kurikulum'];
   static const _adminPinned = ['Dashboard', 'Santri', 'Absensi', 'Pengaturan'];
-  static const _mudirPinned = ['Dashboard', 'Santri', 'Kurikulum', 'Pengaturan'];
   static const _waliPinned = ['Beranda', 'Anak Saya', 'Perizinan', 'Pelanggaran'];
 
   // Keeps the bottom nav pinned to a mobile-sized width and centered,
@@ -112,9 +111,7 @@ class _ShellScreenState extends State<ShellScreen> {
       chosen = List.of(all);
     } else {
       chosen = <_MenuItem>[];
-      for (final label in (user.isAdmin
-          ? _adminPinned
-          : (user.isPimpinan ? _mudirPinned : (user.isWali ? _waliPinned : _pinned)))) {
+      for (final label in (user.isAdmin ? _adminPinned : (user.isWali ? _waliPinned : _pinned))) {
         final i = all.indexWhere((e) => e.label == label);
         if (i >= 0) chosen.add(all[i]);
       }
@@ -233,7 +230,7 @@ class _ShellScreenState extends State<ShellScreen> {
       m.add(_MenuItem('Kesehatan', Icons.medical_services, (_) => const KesehatanScreen()));
       m.add(_MenuItem('Rekam Medis', Icons.health_and_safety, (_) => const RekamMedisScreen()));
       m.add(_MenuItem('Kunjungan Wali', Icons.people, (_) => const KunjunganScreen()));
-      m.add(_MenuItem('Pengaturan', Icons.tune, (_) => PengaturanMudirScreen()));
+      m.add(_MenuItem('Pengaturan', Icons.tune, (_) => const PengaturanMudirScreen()));
     }
 
     if (user.isAdmin) {
