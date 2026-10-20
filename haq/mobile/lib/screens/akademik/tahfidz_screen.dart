@@ -415,15 +415,6 @@ class _TahfidzScreenState extends State<TahfidzScreen> {
     }
   }
 
-  void _segera(String fitur) {
-    _toast(
-      context,
-      '$fitur segera hadir',
-      subtitle: 'Fitur ini sedang disiapkan',
-      icon: Icons.hourglass_empty_rounded,
-    );
-  }
-
   void _detail(Map<String, dynamic> santri) {
     final t = _ringkas['${santri['id']}']?.terakhir;
     Widget baris(String k, String v) => Padding(
@@ -537,7 +528,6 @@ class _TahfidzScreenState extends State<TahfidzScreen> {
                         giliran: !_readOnly && '${s['id']}' == giliranId,
                         onInput: _readOnly ? () => _detail(s) : () => _bukaSheet(s),
                         onDetail: () => _detail(s),
-                        onSegera: _segera,
                       ),
                     ),
               ],
@@ -724,42 +714,7 @@ class _TahfidzScreenState extends State<TahfidzScreen> {
                 const SizedBox(height: 10),
                 Row(
                   children: [
-                    InkWell(
-                      onTap: () => _segera('Unduh syahadah'),
-                      borderRadius: BorderRadius.circular(999),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: _C.surface,
-                          borderRadius: BorderRadius.circular(999),
-                          border: Border.all(color: _C.secondary.withOpacity(0.3)),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.workspace_premium_outlined, size: 15, color: _C.secondary),
-                            const SizedBox(width: 6),
-                            Text('Unduh Syahadah Juz', style: _lb(11, FontWeight.w600, _C.secondary)),
-                          ],
-                        ),
-                      ),
-                    ),
                     const SizedBox(width: 8),
-                    InkWell(
-                      onTap: () => _segera('Kirim ucapan'),
-                      borderRadius: BorderRadius.circular(999),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.favorite_border, size: 15, color: _C.onSurfaceVariant),
-                            const SizedBox(width: 4),
-                            Text('Kirim Ucapan', style: _lb(11, FontWeight.w500, _C.onSurfaceVariant)),
-                          ],
-                        ),
-                      ),
-                    ),
                   ],
                 ),
               ],
@@ -969,7 +924,6 @@ class _SantriCard extends StatelessWidget {
   final bool giliran;
   final VoidCallback onInput;
   final VoidCallback onDetail;
-  final void Function(String fitur) onSegera;
   const _SantriCard({
     required this.santri,
     required this.ringkas,
@@ -977,7 +931,6 @@ class _SantriCard extends StatelessWidget {
     required this.giliran,
     required this.onInput,
     required this.onDetail,
-    required this.onSegera,
   });
 
   @override
@@ -1244,21 +1197,6 @@ class _SantriCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 8),
-                InkWell(
-                  onTap: () => onSegera("Mutaba'ah"),
-                  borderRadius: BorderRadius.circular(999),
-                  child: Container(
-                    padding: const EdgeInsets.only(left: 12, right: 6, top: 5, bottom: 5),
-                    decoration: BoxDecoration(color: _C.container, borderRadius: BorderRadius.circular(999)),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text("Mutaba'ah", style: _lb(11, FontWeight.w500, _C.primary)),
-                        Icon(Icons.chevron_right, size: 14, color: _C.primary),
-                      ],
-                    ),
-                  ),
-                ),
               ],
             )
           else if (sudah)
@@ -1315,15 +1253,6 @@ class _SantriCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 8),
-                InkWell(
-                  onTap: () => onSegera('Panggil santri'),
-                  borderRadius: BorderRadius.circular(999),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-                    decoration: BoxDecoration(color: _C.tertiaryFixed, borderRadius: BorderRadius.circular(999)),
-                    child: Text('Panggil Santri', style: _lb(11, FontWeight.w600, _C.primary)),
-                  ),
-                ),
               ],
             ),
         ],
@@ -1769,24 +1698,6 @@ class _SetoranSheetState extends State<_SetoranSheet> {
             const SizedBox(height: 8),
             SizedBox(
               width: double.infinity,
-              child: TextButton.icon(
-                onPressed: _saving
-                    ? null
-                    : () => _toast(
-                          context,
-                          'Mushaf digital segera hadir',
-                          subtitle: 'Fitur ini sedang disiapkan',
-                          icon: Icons.auto_stories_outlined,
-                        ),
-                icon: const Icon(Icons.auto_stories_outlined, size: 18),
-                label: Text('Buka Mushaf Digital Halaman $_halMulai', style: _lb(12.5, FontWeight.w600, _C.primary)),
-                style: TextButton.styleFrom(
-                  backgroundColor: _C.container,
-                  foregroundColor: _C.primary,
-                  padding: const EdgeInsets.symmetric(vertical: 11),
-                  shape: const StadiumBorder(),
-                ),
-              ),
             ),
           ],
         ),

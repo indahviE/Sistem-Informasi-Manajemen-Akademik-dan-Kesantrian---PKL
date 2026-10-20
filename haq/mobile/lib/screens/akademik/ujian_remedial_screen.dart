@@ -471,14 +471,6 @@ class _UjianRemedialScreenState extends State<UjianRemedialScreen> {
     return null;
   }
 
-  /// Notifikasi "segera hadir" bertema.
-  void _segera(String fitur) => _toast(
-        context,
-        '$fitur segera hadir',
-        subtitle: 'Fitur ini sedang disiapkan',
-        icon: Icons.hourglass_empty_rounded,
-      );
-
   // ───────────────────────────── AKSI ─────────────────────────────
 
   void _fillForm(_Rem r) {
@@ -1448,9 +1440,6 @@ class _UjianRemedialScreenState extends State<UjianRemedialScreen> {
                       r.tenggat == null ? '' : 'Tenggat: ${_tglRingkas(r.tenggat!)}',
                       style: const TextStyle(fontSize: 11.5, color: _C.ink2)),
                 ),
-                if (!_readOnly)
-                  _smallBtn('Ingatkan Musyrif', Icons.notifications_none,
-                      onTap: () => _segera('Pengingat musyrif')),
               ],
             ),
           ],
@@ -1696,19 +1685,6 @@ class _UjianRemedialScreenState extends State<UjianRemedialScreen> {
                     ),
                   ),
                   const SizedBox(width: 10),
-                  FilledButton.icon(
-                    style: FilledButton.styleFrom(
-                      backgroundColor: _C.emerald,
-                      foregroundColor: Colors.white,
-                      minimumSize: const Size(0, 46),
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      shape: const StadiumBorder(),
-                      textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
-                    ),
-                    onPressed: () => _segera('Cetak rekap'),
-                    icon: const Icon(Icons.print_outlined, size: 18),
-                    label: const Text('Cetak Rekap'),
-                  ),
                 ],
               ),
             ),
