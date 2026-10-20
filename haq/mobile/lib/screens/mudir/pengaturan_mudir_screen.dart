@@ -15,7 +15,7 @@
 //
 // Bentuk response GET /pengaturan/mudir (yang dipakai layar ini):
 //   {
-//     notifikasi: { ringkasanHarian, laporanKesantrian, pendaftaranBaru, laporanKeuangan }
+//     notifikasi: { ringkasanHarian, laporanKesantrian, pendaftaranBaru }
 //   }
 
 import 'package:flutter/material.dart';
@@ -62,11 +62,6 @@ const List<({String key, String title, String desc})> _notifItems = [
     title: 'Pendaftaran Santri Baru',
     desc: 'Pemberitahuan saat ada pendaftar PPDB baru atau berkas masuk',
   ),
-  (
-    key: 'laporanKeuangan',
-    title: 'Ringkasan Keuangan',
-    desc: 'Rekap pembayaran dan tunggakan yang perlu Anda pantau',
-  ),
 ];
 
 IconData _notifIcon(String key) {
@@ -77,8 +72,6 @@ IconData _notifIcon(String key) {
       return Icons.shield_outlined;
     case 'pendaftaranBaru':
       return Icons.person_add_alt_outlined;
-    case 'laporanKeuangan':
-      return Icons.account_balance_wallet_outlined;
     default:
       return Icons.notifications_none;
   }
