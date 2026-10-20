@@ -603,17 +603,6 @@ class _UjianDetailScreenState extends State<UjianDetailScreen> {
               ),
             ),
             const SizedBox(width: 8),
-            InkWell(
-              borderRadius: BorderRadius.circular(12),
-              onTap: () => _toast(
-                context,
-                'Bagikan hasil segera hadir',
-                subtitle: 'Fitur ini sedang disiapkan',
-                icon: Icons.hourglass_empty_rounded,
-              ),
-              child: _iconBox(Icons.ios_share),
-            ),
-            const SizedBox(width: 8),
             PopupMenuButton<String>(
               onSelected: (v) {
                 if (v == 'muat') _load();

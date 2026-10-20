@@ -1,15 +1,15 @@
-// pengaturan_mudir_screen.dart  ->  
+// pengaturan_mudir_screen.dart
 //
 // Pengaturan — Mudir.
 //
-// Sama seperti Pengaturan Admin, Wali & Ustadz: TIDAK punya Scaffold/AppBar
-// sendiri, nempel di dalam ShellScreen (header + bottom nav dibawa shell).
+// Tidak punya Scaffold/AppBar sendiri, nempel di dalam ShellScreen
+// (header + bottom nav dibawa shell). Susunan disamakan dengan Pengaturan Admin.
 //
 // Warna utama mengikuti tema pondok (SC.primary dkk). Supaya tampilan ikut
 // berubah saat tema diganti, widget yang memakai warna tema TIDAK dibuat
 // const di titik pemanggilan.
 //
-// Data dari backend (perlu dibuat di NestJS kalau belum ada):
+// Data dari backend:
 //   GET   /pengaturan/mudir
 //   PATCH /pengaturan/mudir/notifikasi
 // Yang sudah ada & dipakai ulang:
@@ -19,7 +19,7 @@
 //   {
 //     profil:      { nama, email, noHp },
 //     tenant:      { namaPondok },
-//     notifikasi:  { ringkasanHarian, laporanKesantrian, pendaftaranBaru, laporanKeuangan }
+//     notifikasi:  { ringkasanHarian, laporanKesantrian, pendaftaranBaru }
 //   }
 
 import 'package:flutter/material.dart';
@@ -71,11 +71,6 @@ const List<({String key, String title, String desc})> _notifItems = [
     title: 'Pendaftaran Santri Baru',
     desc: 'Pemberitahuan saat ada pendaftar PPDB baru atau berkas masuk',
   ),
-  (
-    key: 'laporanKeuangan',
-    title: 'Ringkasan Keuangan',
-    desc: 'Rekap pembayaran dan tunggakan yang perlu Anda pantau',
-  ),
 ];
 
 IconData _notifIcon(String key) {
@@ -86,8 +81,6 @@ IconData _notifIcon(String key) {
       return Icons.shield_outlined;
     case 'pendaftaranBaru':
       return Icons.person_add_alt_outlined;
-    case 'laporanKeuangan':
-      return Icons.account_balance_wallet_outlined;
     default:
       return Icons.notifications_none;
   }
@@ -206,10 +199,10 @@ class _PengaturanMudirScreenState extends State<PengaturanMudirScreen> {
     setState(() => _notif[key] = value);
     try {
       await _api.patch('$_urlMudir/notifikasi', {key: value});
-    } on ApiException catch (e) {
+    } catch (e) {
       if (!mounted) return;
       setState(() => _notif[key] = prev);
-      _showError(e.message);
+      _showError(e is ApiException ? e.message : 'Gagal menyimpan pengaturan notifikasi');
     }
   }
 
@@ -308,12 +301,10 @@ class _PengaturanMudirScreenState extends State<PengaturanMudirScreen> {
           const SizedBox(height: 16),
           _Reveal(index: 3, child: _NotifCard(values: _notif, onChanged: _toggleNotif)),
           const SizedBox(height: 16),
-          _Reveal(index: 4, child: _InfoNote()),
-          const SizedBox(height: 16),
-          _Reveal(index: 5, child: _LogoutButton(onPressed: _confirmLogout)),
+          _Reveal(index: 4, child: _LogoutButton(onPressed: _confirmLogout)),
           const SizedBox(height: 18),
           _Reveal(
-            index: 6,
+            index: 5,
             child: Center(
               child: Column(
                 children: [
@@ -616,6 +607,7 @@ class _ProfileCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Banner gradient + avatar yang menimpa tepi bawah banner.
           Stack(
             clipBehavior: Clip.none,
             children: [
@@ -842,7 +834,7 @@ class _ActionButton extends StatelessWidget {
 }
 
 // ============================================================================
-// Kartu pondok (gradient besar, setara _PaketCard di Pengaturan Admin)
+// Kartu pondok (gradient besar, setara kartu paket di Pengaturan Admin)
 // ============================================================================
 
 class _PondokCard extends StatelessWidget {
@@ -937,37 +929,6 @@ class _PondokCard extends StatelessWidget {
                   child: Text('MUDIR', style: _t(10, FontWeight.w800, _PM.primary)),
                 ),
               ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ============================================================================
-// Catatan (ikut tema pondok)
-// ============================================================================
-
-class _InfoNote extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: _PM.sage,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _PM.primary.withOpacity(0.15)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(Icons.lock_outline, size: 16, color: _PM.primary),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              'Data pengguna, kelas, dan konfigurasi sistem dikelola oleh admin pondok. Akun Mudir bersifat memantau.',
-              style: _t(11.5, FontWeight.w500, _PM.primary, height: 1.45),
             ),
           ),
         ],
