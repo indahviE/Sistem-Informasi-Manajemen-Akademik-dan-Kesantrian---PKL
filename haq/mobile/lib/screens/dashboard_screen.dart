@@ -110,6 +110,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
   // Metrik grafik tren: kehadiran | pelanggaran | tahfidz | nilai
   String _pimTrenMetrik = 'kehadiran';
 
+  // Periode Mudir. null = tahun ajaran berjalan / tanpa rentang khusus.
+  List<Map<String, dynamic>>? _pimTahunAjaran;
+  String? _pimTaId;
+  DateTimeRange? _pimRentang;
+  bool _pimMuatPeriode = false;
+
 
   bool get _isPimpinan => AppScope.of(context).user?.isPimpinan == true;
 
@@ -197,6 +203,63 @@ class _DashboardScreenState extends State<DashboardScreen> {
   String _mudirUrl(String path) =>
       ApiUrl.dashboard.replaceFirst(RegExp(r'/dashboard/?$'), path);
 
+  String _ymd(DateTime d) =>
+      '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+  /// Query periode. Tren otomatis per bulan kalau rentang > 60 hari, selain itu per minggu.
+  String _pimQuery({bool tren = false}) {
+    final q = <String>[];
+    if (_pimTaId != null) q.add('tahunAjaranId=$_pimTaId');
+    final r = _pimRentang;
+    if (r != null) {
+      q.add('dari=${_ymd(r.start)}');
+      q.add('sampai=${_ymd(r.end)}');
+    }
+    if (tren) {
+      final hari = r == null ? 999 : r.end.difference(r.start).inDays + 1;
+      q.add('granularitas=${hari > 60 ? 'bulan' : 'minggu'}');
+    }
+    return q.isEmpty ? '' : '?${q.join('&')}';
+  }
+
+  Future<void> _muatTahunAjaran() async {
+    try {
+      final res = await AppScope.of(context).api.get(_mudirUrl('/mudir/tahun-ajaran'));
+      if (res is! List || !mounted) return;
+      setState(() {
+        _pimTahunAjaran =
+            res.whereType<Map>().map((e) => e.cast<String, dynamic>()).toList();
+      });
+    } catch (_) {}
+  }
+
+  /// Muat ulang hanya tab Akademik, Tren, Laporan sesuai periode terpilih.
+  Future<void> _muatPeriode() async {
+    final api = AppScope.of(context).api;
+    Future<Map<String, dynamic>?> ambil(String path) async {
+      try {
+        final res = await api.get(_mudirUrl(path));
+        return res is Map ? res.cast<String, dynamic>() : null;
+      } catch (_) {
+        return null;
+      }
+    }
+
+    setState(() => _pimMuatPeriode = true);
+    final h = await Future.wait<Map<String, dynamic>?>([
+      ambil('/mudir/akademik${_pimQuery()}'),
+      ambil('/mudir/tren${_pimQuery(tren: true)}'),
+      ambil('/mudir/laporan${_pimQuery()}'),
+    ]);
+    if (!mounted) return;
+    setState(() {
+      _mudirAkademik = h[0];
+      _mudirTren = h[1];
+      _mudirLaporan = h[2];
+      _pimMuatPeriode = false;
+    });
+  }
+
   /// Muat data beranda Mudir. Tiap endpoint dimuat terpisah:
   /// satu gagal tidak menggagalkan yang lain (hasilnya null, tampil "belum dapat dimuat").
   Future<void> _loadPimpinan() async {
@@ -245,15 +308,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
       }
     }
 
+        if (_pimTahunAjaran == null) _muatTahunAjaran();
     final hasil = await Future.wait<Object?>([
       ambil(ApiUrl.perizinan),
       ambil(ApiUrl.pelanggaran),
       ambil(ApiUrl.keadaanDarurat),
-      ambilMap('/mudir/akademik'),
-      ambilMap('/mudir/tren?granularitas=bulan'),
-      ambilMap('/mudir/laporan'),
+      ambilMap('/mudir/akademik${_pimQuery()}'),
+      ambilMap('/mudir/tren${_pimQuery(tren: true)}'),
+      ambilMap('/mudir/laporan${_pimQuery()}'),
       ambilAudit(),
     ]);
+
     if (!mounted) return;
     setState(() {
       _pimIzin = hasil[0] as List<Map<String, dynamic>>?;
@@ -1831,12 +1896,201 @@ List<(String, int)> _topPelanggar(
             ],
           ),
         ),
-        const SizedBox(height: 16),
+      const SizedBox(height: 16),
+        if (_pimTab != 0) ...[
+          _pimPeriodeBar(),
+          const SizedBox(height: 12),
+        ],
         isi,
       ],
     );
   }
 
+  Widget _pimPeriodeBar() {
+    final daftar = _pimTahunAjaran ?? const <Map<String, dynamic>>[];
+    final r = _pimRentang;
+    String tgl(DateTime d) => '${d.day} ${_pimBulan[d.month]} ${d.year}';
+    final aktif = r != null || _pimTaId != null;
+
+    Widget kotak({required Widget child, VoidCallback? onTap}) => InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        width: double.infinity,
+        height: 44,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(
+          color: _WC.surfaceDim,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: _WC.border),
+        ),
+        child: child,
+      ),
+    );
+
+    return _Card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  'Periode',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: _WC.ink,
+                  ),
+                ),
+              ),
+              if (aktif)
+                InkWell(
+                  onTap: () {
+                    setState(() {
+                      _pimTaId = null;
+                      _pimRentang = null;
+                    });
+                    _muatPeriode();
+                  },
+                  borderRadius: BorderRadius.circular(999),
+                  child: Padding(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    child: Text(
+                      'Reset',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: _TC.primary,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+
+          // Tahun ajaran
+          kotak(
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String?>(
+                isExpanded: true,
+                value: _pimTaId,
+                icon: Icon(Icons.keyboard_arrow_down_rounded,
+                    color: _TC.primary),
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: _WC.ink,
+                ),
+                items: [
+                  const DropdownMenuItem<String?>(
+                    value: null,
+                    child: Text('Tahun ajaran berjalan'),
+                  ),
+                  for (final t in daftar)
+                    DropdownMenuItem<String?>(
+                      value: '${t['id']}',
+                      child: Text('${t['nama']}'),
+                    ),
+                ],
+                onChanged: (v) {
+                  setState(() => _pimTaId = v);
+                  _muatPeriode();
+                },
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+
+          // Rentang tanggal: teks di tengah, mengecil otomatis kalau panjang
+          kotak(
+              onTap: () async {
+              final hasil = await _pilihRentang(r);
+              if (hasil == null || !mounted) return;
+              setState(() => _pimRentang = hasil);
+              _muatPeriode();
+            },
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.date_range, size: 17, color: _TC.primary),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      r == null
+                          ? 'Pilih rentang tanggal'
+                          : '${tgl(r.start)}  –  ${tgl(r.end)}',
+                      maxLines: 1,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: _TC.primary,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          if (_pimMuatPeriode) ...[
+            const SizedBox(height: 10),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(999),
+              child: LinearProgressIndicator(
+                minHeight: 3,
+                color: _TC.primary,
+                backgroundColor: _WC.surfaceDim,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Future<DateTimeRange?> _pilihRentang(DateTimeRange? awal) {
+    final now = DateTime.now();
+    return showDateRangePicker(
+      context: context,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(now.year + 1, 12, 31),
+      initialDateRange: awal,
+      initialEntryMode: DatePickerEntryMode.input,
+      helpText: 'PILIH PERIODE',
+      cancelText: 'Batal',
+      confirmText: 'Terapkan',
+      saveText: 'Terapkan',
+      fieldStartLabelText: 'Dari',
+      fieldEndLabelText: 'Sampai',
+      builder: (ctx, child) {
+        final mq = MediaQuery.of(ctx);
+        return Theme(
+          data: Theme.of(ctx).copyWith(
+            colorScheme: Theme.of(ctx).colorScheme.copyWith(
+              primary: _TC.primary,
+              onPrimary: Colors.white,
+            ),
+          ),
+          child: MediaQuery(
+            // Layar dibuat "tegak" supaya Flutter memakai dialog ringkas.
+            // Jangan ubah textScaler / tinggi, itu yang membuat isi terpotong.
+            data: mq.copyWith(
+              size: const Size(360, 720),
+              textScaler: TextScaler.noScaling,
+            ),
+            child: child!,
+          ),
+        );
+      },
+    );
+  }
+        
   /// Isi tab Ringkasan (dulu bernama _pimpinanBody, isinya tidak berubah).
   Widget _pimRingkasanBody() {
     final s =
@@ -2822,11 +3076,13 @@ List<(String, int)> _topPelanggar(
       'tahfidz' => _WC.gold,
       _ => _TC.primary,
     };
+        final mingguan = data.isNotEmpty && '${data.first['periode']}'.length >= 10;
+    final per = mingguan ? 'minggu' : 'bulan';
     final satuan = switch (_pimTrenMetrik) {
-      'kehadiran' => 'Persentase hadir per bulan',
-      'pelanggaran' => 'Jumlah pelanggaran per bulan',
-      'tahfidz' => 'Jumlah setoran per bulan',
-      _ => 'Rata-rata nilai per bulan',
+      'kehadiran' => 'Persentase hadir per $per',
+      'pelanggaran' => 'Jumlah pelanggaran per $per',
+      'tahfidz' => 'Jumlah setoran per $per',
+      _ => 'Rata-rata nilai per $per',
     };
 
     double? nilaiDari(Map<String, dynamic> m) {
@@ -2842,8 +3098,9 @@ List<(String, int)> _topPelanggar(
         ? 100.0
         : nilai.fold<double>(1, (a, b) => b != null && b > a ? b : a);
 
-    String labelBulan(Map<String, dynamic> d) {
-      final p = '${d['periode']}'; // "YYYY-MM"
+        String labelBulan(Map<String, dynamic> d) {
+      final p = '${d['periode']}'; // "YYYY-MM" atau "YYYY-MM-DD" (mingguan)
+      if (p.length >= 10) return '${p.substring(8, 10)}/${p.substring(5, 7)}';
       final m = int.tryParse(p.length >= 7 ? p.substring(5, 7) : '') ?? 0;
       return (m >= 1 && m <= 12) ? _pimBulan[m] : p;
     }

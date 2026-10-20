@@ -26,6 +26,12 @@ export class MudirController {
     return tenantId;
   }
 
+  // GET /mudir/tahun-ajaran
+  @Get('tahun-ajaran')
+  tahunAjaran(@Req() req: any) {
+    return this.mudirService.daftarTahunAjaran(this.getTenantId(req));
+  }
+
   // GET /mudir/akademik?tahunAjaranId=&dari=&sampai=
   @Get('akademik')
   akademik(

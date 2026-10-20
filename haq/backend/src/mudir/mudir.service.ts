@@ -59,6 +59,15 @@ function kunciPeriode(hari: string, g: Granularitas): string {
 export class MudirService {
   constructor(private prisma: PrismaService) {}
 
+  // Daftar tahun ajaran untuk pemilih periode di aplikasi
+  async daftarTahunAjaran(tenantId: string) {
+    return this.prisma.tahunAjaran.findMany({
+      where: { tenantId },
+      select: { id: true, nama: true, aktif: true },
+      orderBy: { nama: 'desc' },
+    });
+  }
+
   // ---------------------------------------------------------------------------
   // Periode: tahun ajaran -> rentang tanggal WIB
   // ---------------------------------------------------------------------------
