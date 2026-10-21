@@ -258,7 +258,7 @@ class _PelanggaranScreenState extends State<PelanggaranScreen> {
           behavior: SnackBarBehavior.floating,
           backgroundColor: error ? errorBg : PTheme.primary,
           elevation: 6,
-          // angka 88 = jarak dari bawah supaya tidak menutupi tombol Catat Pelanggaran
+          // angka 88 = jarak dari bawah supaya tidak menutupi tombol Catat Pelanggaran (pojok kanan bawah)
           margin: EdgeInsets.fromLTRB(side, 0, side, 88),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           duration: Duration(seconds: error ? 4 : 3),
@@ -379,31 +379,19 @@ class _PelanggaranScreenState extends State<PelanggaranScreen> {
                     ),
                   ],
                 ),
-                // Tombol berada di dalam kotak konten (maxWidth 480), tetap di bawah.
+                // Tombol tambah di pojok kanan bawah (sama seperti Catat Sakit di Kesehatan).
                 if (!isWali && !_isPimpinan)
                   Positioned(
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    child: Container(
-                      padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
-                      decoration: const BoxDecoration(
-                        color: Colors.white,
-                        border: Border(top: BorderSide(color: Color(0xFFEAE6DC))),
-                      ),
-                      child: SizedBox(
-                        height: 50,
-                        child: FilledButton.icon(
-                          onPressed: _openInput,
-                          style: FilledButton.styleFrom(
-                            backgroundColor: PTheme.primary,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-                          ),
-                          icon: const Icon(Icons.add_circle_outline, size: 18, color: Colors.white),
-                          label: const Text('Catat Pelanggaran',
-                              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Colors.white)),
-                        ),
-                      ),
+                    right: 16,
+                    bottom: 16,
+                    child: FloatingActionButton.extended(
+                      onPressed: _openInput,
+                      tooltip: 'Catat Pelanggaran',
+                      backgroundColor: PTheme.primary,
+                      foregroundColor: Colors.white,
+                      icon: const Icon(Icons.add_rounded),
+                      label: const Text('Catat Pelanggaran',
+                          style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w700)),
                     ),
                   ),
               ],

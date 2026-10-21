@@ -419,26 +419,6 @@ class _PerizinanScreenState extends State<PerizinanScreen> {
     );
   }
 
-  Widget _buildAjukanButton() {
-    return SizedBox(
-      width: double.infinity,
-      height: 46,
-      child: FilledButton.icon(
-        onPressed: _add,
-        style: FilledButton.styleFrom(
-          backgroundColor: PTheme.primary,
-          foregroundColor: PColors.gold,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9999)),
-        ),
-        icon: const Icon(Icons.add_circle_outline, size: 18),
-        label: const Text(
-          'Catat Perizinan',
-          style: TextStyle(fontFamily: 'Nunito', fontSize: 13.5, fontWeight: FontWeight.w700),
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final user = AppScope.of(context).user;
@@ -451,7 +431,10 @@ class _PerizinanScreenState extends State<PerizinanScreen> {
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 480),
-          child: SafeArea(
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: SafeArea(
             child: _loading
                 ? loadingView()
                 : _error != null
@@ -460,17 +443,13 @@ class _PerizinanScreenState extends State<PerizinanScreen> {
                         color: PTheme.primary,
                         onRefresh: _load,
                         child: ListView(
-                          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                          padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
                           children: [
                             if (isWali) ..._buildWaliHeader(),
                             _buildRiwayatHeader(),
                             const SizedBox(height: 10),
                             _buildFilterChips(),
                             const SizedBox(height: 12),
-                            if (bisaKelola) ...[
-                              _buildAjukanButton(),
-                              const SizedBox(height: 14),
-                            ],
                             if (riwayat.isEmpty)
                               Padding(
                                 padding: const EdgeInsets.symmetric(vertical: 24),
@@ -493,6 +472,22 @@ class _PerizinanScreenState extends State<PerizinanScreen> {
                           ],
                         ),
                       ),
+                ),
+              ),
+              if (bisaKelola)
+                Positioned(
+                  right: 16,
+                  bottom: 16,
+                  child: FloatingActionButton.extended(
+                    onPressed: _add,
+                    tooltip: 'Catat Perizinan',
+                    backgroundColor: PTheme.primary,
+                    foregroundColor: Colors.white,
+                    icon: const Icon(Icons.add_rounded),
+                    label: const Text('Catat Perizinan', style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w700)),
+                  ),
+                ),
+            ],
           ),
         ),
       ),
