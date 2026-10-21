@@ -104,6 +104,11 @@ private async buildSantriScope(
       JenisNotifikasi.PELANGGARAN,
       `${santri.nama} tercatat pelanggaran: ${dto.jenisPelanggaran} (${dto.poin} poin).`,
     );
+    await this.notifikasi.kirimKeMusyrifTenant(
+      tenantId,
+      JenisNotifikasi.PELANGGARAN,
+      `${santri.nama} tercatat pelanggaran: ${dto.jenisPelanggaran} (${dto.poin} poin).`,
+    );
     await this.notifikasi.kirimKeMudirTenant(
       tenantId,
       JenisNotifikasi.LAPORAN_KESANTRIAN,
@@ -167,6 +172,11 @@ private async buildSantriScope(
       `${santri.nama} mengajukan izin ${dto.jenis === 'PULANG' ? 'pulang' : 'keluar'} dengan alasan: ${dto.alasan}.`,
     );
     await this.notifikasi.kirimKeAdminTenant(
+      tenantId,
+      JenisNotifikasi.PERIZINAN,
+      `${santri.nama} mengajukan izin ${dto.jenis === 'PULANG' ? 'pulang' : 'keluar'} dengan alasan: ${dto.alasan}.`,
+    );
+    await this.notifikasi.kirimKeMusyrifTenant(
       tenantId,
       JenisNotifikasi.PERIZINAN,
       `${santri.nama} mengajukan izin ${dto.jenis === 'PULANG' ? 'pulang' : 'keluar'} dengan alasan: ${dto.alasan}.`,
@@ -260,6 +270,11 @@ private async buildSantriScope(
       `${santri.nama} sedang sakit: ${dto.keluhan}.`,
     );
     await this.notifikasi.kirimKeAdminTenant(
+      tenantId,
+      JenisNotifikasi.KESEHATAN,
+      `${santri.nama} sedang sakit: ${dto.keluhan}.`,
+    );
+    await this.notifikasi.kirimKeMusyrifTenant(
       tenantId,
       JenisNotifikasi.KESEHATAN,
       `${santri.nama} sedang sakit: ${dto.keluhan}.`,

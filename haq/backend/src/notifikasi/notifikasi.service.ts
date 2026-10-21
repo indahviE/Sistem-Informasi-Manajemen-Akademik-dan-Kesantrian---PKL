@@ -203,6 +203,35 @@ export class NotifikasiService {
   }
 
   // -------------------------------------------------------------------------
+  // Pengiriman notifikasi ke Musyrif (per tenant)
+  // -------------------------------------------------------------------------
+
+  /**
+   * Kirim ke semua Musyrif aktif di satu tenant, satu baris per musyrif.
+   * Musyrif belum punya toggle di Pengaturan, jadi selalu dikirim.
+   * Tidak pernah melempar error.
+   */
+  async kirimKeMusyrifTenant(
+    tenantId: string,
+    jenis: JenisNotifikasi,
+    pesan: string,
+  ): Promise<void> {
+    try {
+      const musyrifs = await this.prisma.user.findMany({
+        where: { tenantId, role: Role.MUSYRIF, status: UserStatus.AKTIF },
+        select: { id: true },
+      });
+      if (musyrifs.length === 0) return;
+
+      await this.prisma.notifikasi.createMany({
+        data: musyrifs.map((m) => ({ tenantId, userId: m.id, jenis, pesan })),
+      });
+    } catch (e) {
+      this.logger.error(`Gagal kirim notifikasi musyrif ${jenis}: ${(e as Error).message}`);
+    }
+  }
+
+  // -------------------------------------------------------------------------
   // Pengiriman notifikasi ke Mudir (per tenant)
   // -------------------------------------------------------------------------
 

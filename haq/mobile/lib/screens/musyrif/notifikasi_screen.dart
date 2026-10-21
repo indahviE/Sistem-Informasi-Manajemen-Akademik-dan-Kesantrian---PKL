@@ -181,9 +181,12 @@ class _NotifikasiMusyrifScreenState extends State<NotifikasiMusyrifScreen> {
 
   List<Map<String, dynamic>> get _filtered => _items.where((n) => _match(_filter, n)).toList();
 
-  /// "Penting": kabar darurat yang belum dibaca.
-  List<Map<String, dynamic>> get _urgent =>
-      _items.where((n) => _isUnread(n) && _katOf('${n['jenis']}') == _Kat.darurat).toList();
+  /// "Mendesak": eskalasi darurat/medis yang belum dibaca.
+  List<Map<String, dynamic>> get _urgent => _items.where((n) {
+        if (!_isUnread(n)) return false;
+        final k = _katOf('${n['jenis']}');
+        return k == _Kat.darurat || k == _Kat.kesehatan;
+      }).toList();
 
   // ----------------------------------------------------------------- build
   @override
@@ -223,8 +226,7 @@ class _NotifikasiMusyrifScreenState extends State<NotifikasiMusyrifScreen> {
   Widget _buildHeader() {
     // Admin   : 'Pusat Informasi & Peringatan'
     // Wali    : 'Kabar tentang anak Anda'
-    // Musyrif : 'Pantauan Santri & Asrama'
-    const subtitle = 'Pantauan Santri & Asrama';
+    const subtitle = 'Pusat Informasi & Peringatan';
     final unread = _unreadCount;
 
     return Container(
@@ -366,6 +368,7 @@ class _NotifikasiMusyrifScreenState extends State<NotifikasiMusyrifScreen> {
   // ------------------------------------------------------------ status card
   Widget _buildStatusCard() {
     final urgent = _urgent;
+    final labels = urgent.map((n) => _katLabel(_katOf('${n['jenis']}'))).toSet().join(' & ');
     final total = _items.length;
     final progress = total == 0 ? 1.0 : (total - _unreadCount) / total;
 
@@ -419,7 +422,7 @@ class _NotifikasiMusyrifScreenState extends State<NotifikasiMusyrifScreen> {
                     Row(children: const [
                       Icon(Icons.circle, size: 8, color: _NC.gold),
                       SizedBox(width: 6),
-                      Text('KABAR ASRAMA',
+                      Text('STATUS OPERASIONAL',
                           style: TextStyle(
                               color: Colors.white,
                               fontSize: 11,
@@ -431,7 +434,7 @@ class _NotifikasiMusyrifScreenState extends State<NotifikasiMusyrifScreen> {
                       decoration: BoxDecoration(
                           color: Colors.white.withOpacity(0.14),
                           borderRadius: BorderRadius.circular(999)),
-                      child: const Text('Pantau Asrama',
+                      child: const Text('Pekan Ini',
                           style: TextStyle(color: Colors.white, fontSize: 11)),
                     ),
                   ],
@@ -487,14 +490,14 @@ class _NotifikasiMusyrifScreenState extends State<NotifikasiMusyrifScreen> {
                         Expanded(
                           child: Text.rich(TextSpan(children: [
                             TextSpan(
-                                text: '${urgent.length} Kabar Penting: ',
+                                text: '${urgent.length} Peringatan Mendesak: ',
                                 style: const TextStyle(
                                     color: _NC.goldLight,
                                     fontWeight: FontWeight.w700,
                                     fontSize: 12.5)),
-                            const TextSpan(
-                                text: 'ada keadaan darurat yang perlu segera ditindaklanjuti.',
-                                style: TextStyle(color: Colors.white, fontSize: 12.5)),
+                            TextSpan(
+                                text: '$labels membutuhkan tindak lanjut.',
+                                style: const TextStyle(color: Colors.white, fontSize: 12.5)),
                           ])),
                         ),
                       ],
@@ -797,7 +800,7 @@ class _NotifikasiMusyrifScreenState extends State<NotifikasiMusyrifScreen> {
   ({IconData icon, Color bg, Color fg}) _style(_Kat k) {
     switch (k) {
       case _Kat.perizinan:
-        return (icon: Icons.exit_to_app, bg: _NC.mint, fg: _NC.primary);
+        return (icon: Icons.exit_to_app, bg: _NC.errorBg, fg: _NC.errorText);
       case _Kat.pelanggaran:
         return (icon: Icons.gavel, bg: const Color(0xFFFFE9B8), fg: const Color(0xFF7A5B10));
       case _Kat.kesehatan:
