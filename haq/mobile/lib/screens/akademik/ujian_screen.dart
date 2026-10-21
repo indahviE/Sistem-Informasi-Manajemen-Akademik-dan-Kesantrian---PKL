@@ -859,7 +859,11 @@ class _UjianScreenState extends State<UjianScreen> {
     } else {
       footLeft = Text(
         _tenggat(u) ??
-            (total != null ? '${total - count} santri belum dinilai' : 'Nilai sedang diinput'),
+            (total != null
+                ? '${total - count} santri belum dinilai / menunggu susulan'
+                : 'Nilai sedang diinput'),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
         style: const TextStyle(fontSize: 11.5, color: _C.ink2),
       );
     }

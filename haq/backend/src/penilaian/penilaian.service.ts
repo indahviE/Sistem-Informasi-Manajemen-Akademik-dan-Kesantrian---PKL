@@ -357,19 +357,36 @@ export class PenilaianService {
       ? await this.prisma.santri.count({ where: { tenantId, status: SantriStatus.AKTIF } })
       : 0;
 
-    // jumlah nilai yang sudah masuk, hanya untuk ujian yang dibatasi (satu query untuk semua)
-    const idDibatasi = list.filter((u) => batasPerUjian.get(u.id)).map((u) => u.id);
-    const barisNilai = idDibatasi.length
-      ? await this.prisma.nilaiUjian.findMany({
-          where: { tenantId, ujianId: { in: idDibatasi } },
-          select: { ujianId: true, santri: { select: { kelasId: true } } },
-        })
-      : [];
+    // "Sudah dinilai" = hadir dan nilainya terisi (sakit/izin/alpa menunggu susulan, belum terhitung).
+    const hanyaBernilai: Prisma.NilaiUjianWhereInput = {
+      status: StatusKehadiranUjian.HADIR,
+      nilai: { not: null },
+    };
     const dinilaiPerUjian = new Map<string, number>();
-    for (const b of barisNilai) {
-      const batas = batasPerUjian.get(b.ujianId);
-      if (batas && b.santri.kelasId && batas.includes(b.santri.kelasId)) {
-        dinilaiPerUjian.set(b.ujianId, (dinilaiPerUjian.get(b.ujianId) ?? 0) + 1);
+
+    // Ujian tanpa batas kelas: cukup satu groupBy
+    const idBebas = list.filter((u) => !batasPerUjian.get(u.id)).map((u) => u.id);
+    if (idBebas.length) {
+      const grupNilai = await this.prisma.nilaiUjian.groupBy({
+        by: ['ujianId'],
+        where: { tenantId, ujianId: { in: idBebas }, ...hanyaBernilai },
+        _count: { _all: true },
+      });
+      for (const g of grupNilai) dinilaiPerUjian.set(g.ujianId, g._count._all);
+    }
+
+    // Ujian "Semua kelas" untuk ustadz: hitung hanya dari kelas yang ia ajar (satu query)
+    const idDibatasi = list.filter((u) => batasPerUjian.get(u.id)).map((u) => u.id);
+    if (idDibatasi.length) {
+      const barisNilai = await this.prisma.nilaiUjian.findMany({
+        where: { tenantId, ujianId: { in: idDibatasi }, ...hanyaBernilai },
+        select: { ujianId: true, santri: { select: { kelasId: true } } },
+      });
+      for (const b of barisNilai) {
+        const batas = batasPerUjian.get(b.ujianId);
+        if (batas && b.santri.kelasId && batas.includes(b.santri.kelasId)) {
+          dinilaiPerUjian.set(b.ujianId, (dinilaiPerUjian.get(b.ujianId) ?? 0) + 1);
+        }
       }
     }
 
@@ -382,8 +399,8 @@ export class PenilaianService {
           : totalSemua;
       return {
         ...u,
-        // Ustadz pada "Semua kelas": jumlah nilai hanya dari kelasnya
-        ...(batas ? { _count: { ...u._count, nilais: dinilaiPerUjian.get(u.id) ?? 0 } } : {}),
+        // Jumlah yang benar-benar sudah bernilai (bukan sekadar punya baris nilai)
+        _count: { ...u._count, nilais: dinilaiPerUjian.get(u.id) ?? 0 },
         // KKM efektif: ikut mata pelajaran (cadangan: KKM lama di ujian)
         kkm: u.mapel?.kkm ?? u.kkm,
         terkunci: !!u.dikunciPada,
