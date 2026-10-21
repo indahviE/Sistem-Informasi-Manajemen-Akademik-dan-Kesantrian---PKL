@@ -116,7 +116,7 @@ export class NotifikasiScheduler {
    * Maksimal sekali per tenant per hari. Tenant tanpa aktivitas hari ini dilewati.
    * Toggle "Ringkasan Harian" tiap Mudir dihormati di kirimKeMudirTenant.
    */
-  @Cron('33 10 * * *', { timeZone: 'Asia/Jakarta' })
+  @Cron('0 19 * * *', { timeZone: 'Asia/Jakarta' })
   async ringkasanHarianMudir(filterTenantId?: string) {
     try {
       // Awal hari ini menurut WIB, dalam UTC.
@@ -124,7 +124,7 @@ export class NotifikasiScheduler {
 
       // Mode on-open: baru dibuat kalau sudah lewat jam 19:00 WIB,
       // supaya ringkasan tidak keluar setengah jadi di pagi hari.
-      if (filterTenantId && wib.getUTCHours() < 0) return;
+      if (filterTenantId && wib.getUTCHours() < 19) return;
 
       const mulai = new Date(
         Date.UTC(wib.getUTCFullYear(), wib.getUTCMonth(), wib.getUTCDate()) - MS_WIB,
