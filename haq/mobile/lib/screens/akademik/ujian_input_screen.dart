@@ -230,7 +230,8 @@ class _UjianInputScreenState extends State<UjianInputScreen> {
 
   List<Map<String, dynamic>> get _santris {
     // Kalau backend sudah mengirim santri di detail ujian, pakai itu.
-    final embedded = _listOf(_data?['santris'] ?? _data?['kelas']?['santris']);
+    if (_data?['santris'] is List) return _listOf(_data!['santris']).where(_aktif).toList();
+    final embedded = _listOf(_data?['kelas']?['santris']);
     if (embedded.isNotEmpty) return embedded.where(_aktif).toList();
 
     // Kalau tidak, saring dari daftar semua santri berdasarkan kelas ujian.

@@ -39,10 +39,22 @@ export class PenilaianController {
     return this.penilaianService.findAllUjian(tenantId, kelasId, user, saya === 'true');
   }
 
+  // BARU: mapel + kelas yang boleh dipilih di form ujian.
+  // Harus di ATAS 'ujian/:id', kalau tidak 'penugasan-saya' dianggap sebagai :id.
+  @Roles(...WRITE)
+  @Get('ujian/penugasan-saya')
+  penugasanSaya(@TenantId() tenantId: string, @CurrentUser() user: RequestUser) {
+    return this.penilaianService.penugasanSaya(tenantId, user);
+  }
+
   @Roles(...PENGELOLA)
   @Get('ujian/:id')
-  getUjian(@TenantId() tenantId: string, @Param('id') id: string) {
-    return this.penilaianService.getUjian(tenantId, id);
+  getUjian(
+    @TenantId() tenantId: string,
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+  ) {
+    return this.penilaianService.getUjian(tenantId, id, user);
   }
 
   @Roles(...WRITE)
