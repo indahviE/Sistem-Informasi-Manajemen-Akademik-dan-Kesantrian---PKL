@@ -164,9 +164,11 @@ double? _numOf(dynamic v) => v is num ? v.toDouble() : (v is String ? double.try
 
 DateTime? _dt(dynamic v) => v == null ? null : DateTime.tryParse('$v')?.toLocal();
 
-List<Map<String, dynamic>> _listOf(dynamic v) =>
-    ((v as List?) ?? []).whereType<Map<String, dynamic>>().toList();
-
+List<Map<String, dynamic>> _listOf(dynamic v) => ((v as List?) ?? [])
+    .whereType<Map>()
+    .map((e) => e.cast<String, dynamic>())
+    .toList();
+    
 String _initials(String nama) {
   final parts = nama.trim().split(RegExp(r'\s+')).where((e) => e.isNotEmpty).toList();
   if (parts.isEmpty) return '?';
@@ -226,6 +228,9 @@ String _normStatus(dynamic s) {
 /// Status final: remedial sudah dinilai dan hasilnya sudah ditentukan backend.
 bool _isFinal(String s) => s == 'TUNTAS' || s == 'BELUM_TUNTAS';
 
+/// Santri yang boleh diisi remedialnya: belum final DAN nilai ujian utamanya sudah ada.
+bool _bisaDiisi(_Rem r) => !_isFinal(r.status) && !r.belumNilai;
+
 /// Satu baris santri dalam sesi remedial.
 class _Rem {
   final dynamic santriId;
@@ -241,6 +246,7 @@ class _Rem {
   final String catatanNilai; // catatan dari nilai ujian utama
   final DateTime? jadwal;
   final DateTime? tenggat;
+  final bool belumNilai; // nilai ujian utama belum diinput
 
   const _Rem({
     required this.santriId,
@@ -256,6 +262,7 @@ class _Rem {
     required this.catatanNilai,
     required this.jadwal,
     required this.tenggat,
+    this.belumNilai = false,
   });
 }
 
@@ -344,12 +351,12 @@ class _UjianRemedialScreenState extends State<UjianRemedialScreen> {
       _Rem? target;
       if (_selId != null) {
         for (final r in rows) {
-          if (r.santriId == _selId && !_isFinal(r.status)) target = r;
+          if (r.santriId == _selId && _bisaDiisi(r)) target = r;
         }
       }
       if (target == null) {
         for (final r in _sorted(rows)) {
-          if (!_isFinal(r.status)) {
+        if (_bisaDiisi(r)) {
             target = r;
             break;
           }
@@ -375,9 +382,9 @@ class _UjianRemedialScreenState extends State<UjianRemedialScreen> {
   Map<String, dynamic> get _ujian => {...widget.ujian, ...?_data};
 
   /// KKM milik ujian ini (dikirim backend, mengikuti mata pelajaran; jatuh ke bawaan bila belum ada).
-  double get _kkm =>
-      (_ujian['kkm'] is num) ? (_ujian['kkm'] as num).toDouble() : _kkmDefault;
-
+double get _kkm =>
+    _numOf(_ujian['kkm']) ?? _numOf(_ujian['mapel']?['kkm']) ?? _kkmDefault;
+    
   String get _kkmText =>
       _kkm == _kkm.roundToDouble() ? _kkm.toStringAsFixed(0) : _kkm.toStringAsFixed(1);
 
@@ -392,27 +399,31 @@ class _UjianRemedialScreenState extends State<UjianRemedialScreen> {
   List<_Rem> get _rows {
     final byId = <dynamic, _Rem>{};
 
-    for (final n in _nilais) {
-      final v = _numOf(n['nilai']);
-      if (v == null || v >= _kkm) continue;
-      final s = (n['santri'] as Map?)?.cast<String, dynamic>() ?? <String, dynamic>{};
-      final id = n['santriId'] ?? s['id'];
-      byId[id] = _Rem(
-        santriId: id,
-        nama: '${s['nama'] ?? '-'}',
-        nis: '${s['nis'] ?? ''}',
-        awal: v,
-        hasil: null,
-        akhir: null,
-        status: 'BELUM_TES',
-        keterangan: '',
-        ruang: '',
-        catatan: '',
-        catatanNilai: '${n['catatan'] ?? ''}'.trim(),
-        jadwal: null,
-        tenggat: null,
-      );
-    }
+for (final n in _nilais) {
+  final v = _numOf(n['nilai']);
+  final kosong = v == null;
+  if (!kosong && v >= _kkm) continue; // sudah lulus: lewati
+  final s = (n['santri'] as Map?)?.cast<String, dynamic>() ?? <String, dynamic>{};
+  final id = n['santriId'] ?? s['id'];
+  byId[id] = _Rem(
+    santriId: id,
+    nama: '${s['nama'] ?? '-'}',
+    nis: '${s['nis'] ?? ''}',
+    awal: v,
+    hasil: null,
+    akhir: null,
+    status: 'BELUM_TES',
+    keterangan: '',
+    ruang: '',
+    catatan: '',
+    catatanNilai: kosong
+        ? 'Nilai ujian utama belum diinput'
+        : '${n['catatan'] ?? ''}'.trim(),
+    jadwal: null,
+    tenggat: null,
+    belumNilai: kosong,
+  );
+}
 
     for (final r in _remedials) {
       final s = (r['santri'] as Map?)?.cast<String, dynamic>() ?? <String, dynamic>{};
@@ -432,6 +443,7 @@ class _UjianRemedialScreenState extends State<UjianRemedialScreen> {
         catatanNilai: base?.catatanNilai ?? '',
         jadwal: _dt(r['jadwal']),
         tenggat: _dt(r['tenggat']),
+        belumNilai: false, // sudah punya data remedial = sudah dinilai
       );
     }
 
@@ -488,7 +500,7 @@ class _UjianRemedialScreenState extends State<UjianRemedialScreen> {
   }
 
     void _select(_Rem r) {
-    if (_readOnly || _isFinal(r.status)) return; // hasil final dikunci
+    if (_readOnly || !_bisaDiisi(r)) return; // final / belum ada nilai: tidak bisa diisi
     setState(() => _fillForm(r));
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final c = _formKey.currentContext;
@@ -823,7 +835,7 @@ class _UjianRemedialScreenState extends State<UjianRemedialScreen> {
             ),
           )
         else ...[
-        if (sel != null && !_readOnly && !_isFinal(sel.status)) _formCard(sel),
+        if (sel != null && !_readOnly && _bisaDiisi(sel)) _formCard(sel),
           const SizedBox(height: 18),
           _listHeader(rows.length),
           const SizedBox(height: 10),
@@ -1430,7 +1442,7 @@ class _UjianRemedialScreenState extends State<UjianRemedialScreen> {
 
   Widget _riwayatTile(_Rem r) {
     final st = _stOf(r.status);
-    final isSel = !_readOnly && !_isFinal(r.status) && r.santriId == _selId;
+    final isSel = !_readOnly && _bisaDiisi(r) && r.santriId == _selId;
     final tuntas = r.status == 'TUNTAS';
     final belumTuntas = r.status == 'BELUM_TUNTAS';
     final sub = r.keterangan.isNotEmpty
@@ -1497,7 +1509,7 @@ class _UjianRemedialScreenState extends State<UjianRemedialScreen> {
               width: double.infinity,
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               decoration: BoxDecoration(
-                  color: _C.badField, borderRadius: BorderRadius.circular(10)),
+                  color: Colors.white, borderRadius: BorderRadius.circular(10)),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -1549,69 +1561,96 @@ class _UjianRemedialScreenState extends State<UjianRemedialScreen> {
         );
     }
 
+    // Pembeda card: krem = belum ada nilai, merah muda = perlu remedial, putih = final
+    final perluTindakan = !_isFinal(r.status);
+    final bgCard = r.belumNilai ? _C.goldSoft : (perluTindakan ? _C.badField : Colors.white);
+    final aksen = r.belumNilai
+        ? _C.gold
+        : (perluTindakan ? _C.badFg : (tuntas ? _C.okFg : _C.badFg));
+
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: bgCard,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: isSel ? _C.goldBorder : _C.border, width: isSel ? 1.5 : 1),
+        border: Border.all(
+            color: isSel ? _C.goldBorder : (r.belumNilai ? _C.goldBorder : _C.border),
+            width: isSel ? 1.5 : 1),
         boxShadow: [
           BoxShadow(color: _C.emerald.withOpacity(0.04), blurRadius: 6, offset: const Offset(0, 2)),
         ],
       ),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: (_readOnly || _isFinal(r.status)) ? null : () => _select(r),
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
+      child: Stack(
+        children: [
+          InkWell(
+            onTap: (_readOnly || !_bisaDiisi(r)) ? null : () => _select(r),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(18, 14, 14, 14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    width: 40,
-                    height: 40,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: tuntas
-                          ? const Color(0xFFCDE8DC)
-                          : (belumTuntas ? _C.badBg : _C.chipGray),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Text(_initials(r.nama),
-                        style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w800,
-                            color: tuntas ? _C.okFg : (belumTuntas ? _C.badFg : _C.ink))),
+                  Row(
+                    children: [
+                      Container(
+                        width: 40,
+                        height: 40,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: tuntas
+                              ? const Color(0xFFCDE8DC)
+                              : (belumTuntas ? _C.badBg : _C.chipGray),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(_initials(r.nama),
+                            style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w800,
+                                color: tuntas ? _C.okFg : (belumTuntas ? _C.badFg : _C.ink))),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(r.nama,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                    fontSize: 14, fontWeight: FontWeight.w700, color: _C.ink)),
+                            const SizedBox(height: 2),
+                            Text(sub,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(fontSize: 11.5, color: _C.ink2)),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      _pill(
+                        r.belumNilai ? 'BELUM ADA NILAI' : st.pill,
+                        r.belumNilai ? _C.goldChip : st.bg,
+                        r.belumNilai ? _C.goldText : st.fg,
+                        bd: r.belumNilai ? _C.goldBorder : st.bd,
+                        fs: 10,
+                        icon: _stIcon(r.status),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(r.nama,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                                fontSize: 14, fontWeight: FontWeight.w700, color: _C.ink)),
-                        const SizedBox(height: 2),
-                        Text(sub,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontSize: 11.5, color: _C.ink2)),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  _pill(st.pill, st.bg, st.fg, bd: st.bd, fs: 10, icon: _stIcon(r.status)),
+                  const SizedBox(height: 12),
+                  body,
                 ],
               ),
-              const SizedBox(height: 12),
-              body,
-            ],
+            ),
           ),
-        ),
+          Positioned(
+            left: 0,
+            top: 0,
+            bottom: 0,
+            width: 4,
+            child: ColoredBox(color: aksen),
+          ),
+        ],
       ),
     );
   }

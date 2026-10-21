@@ -322,6 +322,9 @@ class _UjianDetailScreenState extends State<UjianDetailScreen> {
 
   bool get _terkunci => _ujian['dikunciPada'] != null;
 
+  /// Ujian "Semua kelas": kunci hanya oleh Admin (backend mengirim bolehKunci=false untuk ustadz).
+  bool get _bolehKunci => _ujian['bolehKunci'] != false;
+
   // Buka halaman Input Nilai, lalu muat ulang data setelah kembali.
   Future<void> _openInput() async {
     if (_readOnly) return;
@@ -468,13 +471,15 @@ class _UjianDetailScreenState extends State<UjianDetailScreen> {
                       ? (tgl.isEmpty
                           ? 'Tidak bisa diubah kecuali kunci dibuka (ujian susulan tetap bisa diisi).'
                           : 'Dikunci $tgl. Tidak bisa diubah kecuali kunci dibuka (ujian susulan tetap bisa diisi).')
-                      : 'Kunci setelah semua nilai dan remedial selesai.',
+                      : (_bolehKunci
+                          ? 'Kunci setelah semua nilai dan remedial selesai.'
+                          : 'Ujian semua kelas dikunci oleh Admin setelah semua ustadz selesai input.'),
                   style: const TextStyle(fontSize: 11.5, color: _C.ink2, height: 1.3),
                 ),
               ],
             ),
           ),
-          if (!_readOnly) ...[
+          if (!_readOnly && _bolehKunci) ...[
             const SizedBox(width: 8),
             _busyKunci
                 ? const SizedBox(

@@ -97,6 +97,12 @@ _JenisStyle _jenisStyle(String j) {
 }
 
 String _jenisOf(Map<String, dynamic> u) => (u['jenis'] ?? 'ULANGAN') as String;
+double? _numOf(dynamic v) => v is num ? v.toDouble() : (v is String ? double.tryParse(v) : null);
+
+List<Map<String, dynamic>> _maps(dynamic v) => ((v as List?) ?? [])
+    .whereType<Map>()
+    .map((e) => e.cast<String, dynamic>())
+    .toList();
 
 ButtonStyle _primaryBtn({double h = 44}) => FilledButton.styleFrom(
       backgroundColor: _C.emerald,
@@ -240,6 +246,8 @@ class UjianScreen extends StatefulWidget {
 class _UjianScreenState extends State<UjianScreen> {
   List<dynamic> _ujian = [];
   int? _remedialCount;
+  Map<dynamic, int> _remedialById = {}; // id ujian -> santri remedial aktif
+  bool _filterRemedial = false; // ketuk kartu Remedial untuk menyaring
   bool _loading = true;
   String? _error;
   String _filter = 'SEMUA';
@@ -286,15 +294,7 @@ class _UjianScreenState extends State<UjianScreen> {
         _loading = false;
       });
 
-      // Kalau backend mengirim remedialAktif untuk semua ujian, jumlahkan langsung.
-      // Kalau tidak, pakai cara lama (GET /remedial) sebagai cadangan.
-      final maps = _ujian.whereType<Map>().toList();
-      if (maps.isNotEmpty && maps.every((u) => u['remedialAktif'] is int)) {
-        setState(() => _remedialCount =
-            maps.fold<int>(0, (a, u) => a + (u['remedialAktif'] as int)));
-      } else {
-        _loadRemedial();
-      }
+      _hitungRemedial();
     } on ApiException catch (e) {
       if (mounted) {
         setState(() {
@@ -305,22 +305,66 @@ class _UjianScreenState extends State<UjianScreen> {
     }
   }
 
-  /// Cadangan: hitung remedial yang masih menunggu. TUNTAS dan BELUM_TUNTAS
-  /// sudah final, jadi tidak dihitung (sama dengan layar Remedial & Detail Ujian).
-  /// Diam-diam diabaikan kalau endpoint GET belum ada.
-  Future<void> _loadRemedial() async {
+  /// Hitung remedial yang masih aktif per ujian. Aturannya sama dengan layar Remedial:
+  /// nilai < KKM (KKM mapel), kecuali yang sudah final (TUNTAS / BELUM_TUNTAS).
+  /// Santri izin yang nilainya belum diinput TIDAK dihitung.
+  Future<void> _hitungRemedial() async {
+    final list = _all;
+    final hasil = <dynamic, int>{};
+
+    await Future.wait(list.map((u) async {
+      final dariApi = u['remedialAktif'];
+      if (dariApi is int) {
+        hasil[u['id']] = dariApi;
+        return;
+      }
+      if (_countNilai(u) == 0) {
+        hasil[u['id']] = 0;
+        return;
+      }
+      try {
+        hasil[u['id']] = await _remedialUjian(u);
+      } catch (_) {}
+    }));
+
+    if (!mounted) return;
+    setState(() {
+      _remedialById = hasil;
+      _remedialCount = (hasil.isEmpty && list.isNotEmpty)
+          ? null
+          : hasil.values.fold<int>(0, (a, b) => a + b);
+      // Kalau tidak ada lagi remedial, matikan filter supaya daftar tidak kosong.
+      if ((_remedialCount ?? 0) == 0) _filterRemedial = false;
+    });
+  }
+
+  Future<int> _remedialUjian(Map<String, dynamic> u) async {
+    final api = AppScope.of(context).api;
+    final res = await api.get('${ApiUrl.ujian}/${u['id']}');
+    final d = <String, dynamic>{...u, ...(res as Map).cast<String, dynamic>()};
+    final kkm = _numOf(d['kkm']) ?? _numOf(d['mapel']?['kkm']) ?? 75;
+
+    // santriId -> status
+    final status = <dynamic, String>{};
+    for (final n in _maps(d['nilais'])) {
+      final v = _numOf(n['nilai']);
+      if (v == null || v >= kkm) continue;
+      final s = n['santri'] is Map ? n['santri'] as Map : const {};
+      status[n['santriId'] ?? s['id']] = 'BELUM_TES';
+    }
+
     try {
-      final res = await AppScope.of(context).api.get(ApiUrl.remedial);
-      final raw =
-          res is List ? res : (res is Map<String, dynamic> ? (res['data'] ?? res['items']) : null);
-      if (raw is! List || !mounted) return;
-      final n = raw.where((r) {
-        if (r is! Map) return false;
-        final h = '${r['status'] ?? r['hasil'] ?? 'PROSES'}'.toUpperCase();
-        return h != 'TUNTAS' && h != 'BELUM_TUNTAS';
-      }).length;
-      setState(() => _remedialCount = n);
-    } catch (_) {}
+      final rr = await api.get('${ApiUrl.ujian}/${u['id']}/remedial');
+      final raw = rr is Map ? (rr['data'] ?? rr['remedials'] ?? rr['items']) : rr;
+      for (final r in _maps(raw)) {
+        final s = r['santri'] is Map ? r['santri'] as Map : const {};
+        status[r['santriId'] ?? s['id']] = '${r['status'] ?? ''}'.toUpperCase();
+      }
+    } on ApiException {
+      // endpoint remedial belum ada: pakai hasil dari nilai saja
+    }
+
+    return status.values.where((s) => s != 'TUNTAS' && s != 'BELUM_TUNTAS').length;
   }
 
   Future<void> _addUjian() async {
@@ -348,6 +392,7 @@ class _UjianScreenState extends State<UjianScreen> {
     final q = _query.trim().toLowerCase();
     final list = _all.where((u) {
       if (_filter != 'SEMUA' && _jenisOf(u) != _filter) return false;
+      if (_filterRemedial && (_remedialById[u['id']] ?? 0) == 0) return false;
       if (q.isEmpty) return true;
       final s =
           '${u['nama']} ${u['mapel']?['namaMapel'] ?? ''} ${u['kelas']?['namaKelas'] ?? ''}'
@@ -489,13 +534,23 @@ class _UjianScreenState extends State<UjianScreen> {
               _statCard(
                 label: 'Remedial',
                 value: _remedialCount == null ? '–' : '$_remedialCount',
-                sub: 'Perlu Bimbingan',
+                sub: _remedialCount == null
+                    ? 'Perlu Bimbingan'
+                    : (_remedialCount == 0
+                        ? 'Semua aman'
+                        : (_filterRemedial
+                            ? 'Ketuk: tampilkan semua'
+                            : 'dari ${_remedialById.values.where((v) => v > 0).length} ujian')),
                 icon: Icons.priority_high_rounded,
                 iconBg: _C.badBg,
                 iconFg: _C.badFg,
-                valueColor: _C.badFg,
-                subColor: _C.badFg,
-                subBold: true,
+                valueColor: (_remedialCount ?? 0) > 0 ? _C.badFg : _C.ink,
+                subColor: (_remedialCount ?? 0) > 0 ? _C.badFg : _C.ink2,
+                subBold: (_remedialCount ?? 0) > 0,
+                active: _filterRemedial,
+                onTap: (_remedialCount ?? 0) > 0
+                    ? () => setState(() => _filterRemedial = !_filterRemedial)
+                    : null,
               ),
             ],
           ),
@@ -716,42 +771,49 @@ class _UjianScreenState extends State<UjianScreen> {
     Color valueColor = _C.ink,
     Color subColor = _C.ink2,
     bool subBold = false,
+    bool active = false,
+    VoidCallback? onTap,
   }) {
     return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: _cardDeco(),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(label,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 11.5, color: _C.ink2)),
-                ),
-                Container(
-                  width: 24,
-                  height: 24,
-                  decoration:
-                      BoxDecoration(color: iconBg, borderRadius: BorderRadius.circular(8)),
-                  child: Icon(icon, size: 14, color: iconFg),
-                ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            Text(value,
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: valueColor)),
-            const SizedBox(height: 2),
-            Text(sub,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                    fontSize: 11,
-                    color: subColor,
-                    fontWeight: subBold ? FontWeight.w700 : FontWeight.w400)),
-          ],
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: active
+              ? _cardDeco().copyWith(border: Border.all(color: _C.badFg, width: 1.5))
+              : _cardDeco(),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(label,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 11.5, color: _C.ink2)),
+                  ),
+                  Container(
+                    width: 24,
+                    height: 24,
+                    decoration:
+                        BoxDecoration(color: iconBg, borderRadius: BorderRadius.circular(8)),
+                    child: Icon(icon, size: 14, color: iconFg),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Text(value,
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: valueColor)),
+              const SizedBox(height: 2),
+              Text(sub,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                      fontSize: 11,
+                      color: subColor,
+                      fontWeight: subBold ? FontWeight.w700 : FontWeight.w400)),
+            ],
+          ),
         ),
       ),
     );
@@ -764,9 +826,9 @@ class _UjianScreenState extends State<UjianScreen> {
     final complete = total != null && count >= total;
     final double? progress =
         total == null ? null : (count / total).clamp(0.0, 1.0).toDouble();
-    // Hanya remedial yang masih menunggu (dihitung backend). Tidak memakai
-    // jumlah seluruh remedial supaya angkanya sama dengan layar Detail & Remedial.
-    final remed = (u['remedialAktif'] as int?) ?? 0;
+    // Hanya remedial yang masih menunggu (belum final). Dihitung di dashboard
+    // dari detail ujian, atau dari backend (remedialAktif) kalau tersedia.
+    final remed = _remedialById[u['id']] ?? (u['remedialAktif'] as int?) ?? 0;
     final mapel = u['mapel']?['namaMapel'] ?? 'Umum';
     final kelas = u['kelas']?['namaKelas'] ?? 'Semua kelas';
 
@@ -991,6 +1053,10 @@ class _FormUjianSheetState extends State<_FormUjianSheet> {
   bool _mapelError = false;
   List<Map<String, dynamic>> _kelasList = [];
   Map<String, dynamic>? _kelas;
+  // Ustadz: mapel & kelas dibatasi penugasan (endpoint ujian/penugasan-saya).
+  bool _dibatasi = false;
+  List<Map<String, dynamic>> _tugas = [];
+  bool _kelasError = false;
   DateTime _jadwal = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day, 8, 0);
   bool _namaError = false;
   bool _kkmError = false;
@@ -1001,11 +1067,68 @@ class _FormUjianSheetState extends State<_FormUjianSheet> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      // SESUDAH
       if (!mounted) return;
-      _loadMapel();
-      _loadKelas();
+      _loadPenugasan();
     });
   }
+
+  /// Ustadz: dropdown mapel/kelas hanya berisi penugasannya.
+  /// Admin (dibatasi=false) atau endpoint gagal: alur lama (semua mapel & kelas).
+  /// Catatan: kalau endpoint gagal, backend tetap menolak pilihan di luar penugasan.
+  Future<void> _loadPenugasan() async {
+    try {
+      final res = await AppScope.of(context).api.get('${ApiUrl.ujian}/penugasan-saya');
+      final raw = res is Map ? res.cast<String, dynamic>() : <String, dynamic>{};
+      final data = raw['data'] is Map ? (raw['data'] as Map).cast<String, dynamic>() : raw;
+      if (data['dibatasi'] == true) {
+        final tugas = _maps(data['items']);
+        final seen = <dynamic>{};
+        final mapel = <Map<String, dynamic>>[];
+        for (final t in tugas) {
+          final mp = t['mapel'];
+          if (mp is Map && seen.add(mp['id'])) mapel.add(mp.cast<String, dynamic>());
+        }
+        if (!mounted) return;
+        setState(() {
+          _dibatasi = true;
+          _tugas = tugas;
+          _mapel = mapel;
+          _mapelLoading = false;
+          _mapelGagal = false;
+          _kelasList = _kelasDariTugas(null);
+        });
+        return;
+      }
+    } catch (_) {}
+    if (!mounted) return;
+    _loadMapel();
+    _loadKelas();
+  }
+
+  /// Kelas dari penugasan. mapelId null = semua kelas yang diajar.
+  List<Map<String, dynamic>> _kelasDariTugas(dynamic mapelId) {
+    final seen = <dynamic>{};
+    final out = <Map<String, dynamic>>[];
+    for (final t in _tugas) {
+      final k = t['kelas'];
+      if (k is! Map) continue;
+      if (mapelId != null && t['mapel']?['id'] != mapelId) continue;
+      if (seen.add(k['id'])) out.add({'id': k['id'], 'nama': k['namaKelas'], 'count': null});
+    }
+    return out;
+  }
+
+  void _pilihMapel(dynamic v) => setState(() {
+        _mapelId = v;
+        _mapelError = false;
+        _syncKkm();
+        if (_dibatasi) {
+          _kelasList = _kelasDariTugas(v);
+          _kelas = _kelasList.length == 1 ? _kelasList.first : null;
+          _kelasError = false;
+        }
+      });
 
   Future<void> _loadMapel() async {
     try {
@@ -1104,7 +1227,8 @@ class _FormUjianSheetState extends State<_FormUjianSheet> {
 
   Future<void> _pilihKelasLain() async {
     final res = await _showSheet<Map<String, dynamic>>(
-        context, _KelasChooser(list: _kelasList, selected: _kelas));
+        // SESUDAH
+        context, _KelasChooser(list: _kelasList, selected: _kelas, bolehSemua: !_dibatasi));
     if (res == null || !mounted) return;
     setState(() => _kelas = res['nama'] == '__ALL__' ? null : res);
   }
@@ -1115,15 +1239,28 @@ class _FormUjianSheetState extends State<_FormUjianSheet> {
     final kkm = _kkmMapel ?? double.tryParse(_kkm.text.replaceAll(',', '.'));
     final namaBad = nama.isEmpty;
     final kkmBad = kkm == null || kkm < 0 || kkm > 100;
+    // Ustadz: UTS/UAS wajib lewat mapel + kelas penugasan (sama dengan aturan backend).
+    final terpusat = _jenis == 'UTS' || _jenis == 'UAS';
+    if (_dibatasi && terpusat && !_pakaiMapel) {
+      setState(() {
+        _pakaiMapel = true;
+        _mapelError = true;
+        _kelasList = _kelasDariTugas(_mapelId);
+      });
+      return;
+    }
     final mapelBad = _pakaiMapel && _mapelId == null;
-    if (namaBad || kkmBad || mapelBad) {
+    final kelasBad = _dibatasi && _pakaiMapel && terpusat && _kelas == null;
+    if (namaBad || kkmBad || mapelBad || kelasBad) {
       setState(() {
         _namaError = namaBad;
         _kkmError = kkmBad;
         _mapelError = mapelBad;
+        _kelasError = kelasBad;
       });
       return;
     }
+
     final payload = <String, dynamic>{
       'nama': nama,
       'jenis': _jenis,
@@ -1202,7 +1339,8 @@ class _FormUjianSheetState extends State<_FormUjianSheet> {
   String _kelasText(Map<String, dynamic> k) {
     final n = '${k['nama']}';
     final base = n.toLowerCase().startsWith('kelas') ? n : 'Kelas $n';
-    return '$base (${k['count']} Santri)';
+    final c = k['count'];
+    return c == null ? base : '$base ($c Santri)';
   }
 
   @override
@@ -1368,7 +1506,9 @@ class _FormUjianSheetState extends State<_FormUjianSheet> {
                               const SizedBox(width: 6),
                               Flexible(
                                 child: Text(
-                                    _kelas == null ? 'Semua kelas' : _kelasText(_kelas!),
+                                    _kelas == null
+                                        ? (_dibatasi && _pakaiMapel ? 'Pilih kelas' : 'Semua kelas')
+                                        : _kelasText(_kelas!),
                                     style: const TextStyle(
                                         fontSize: 12.5,
                                         fontWeight: FontWeight.w600,
@@ -1426,6 +1566,15 @@ class _FormUjianSheetState extends State<_FormUjianSheet> {
                         ],
                       ),
                     ],
+
+                    if (_kelasError)
+                      const Padding(
+                        padding: EdgeInsets.only(top: 6),
+                        child: Text('Pilih kelas yang Anda ajar untuk mapel ini',
+                            style: TextStyle(fontSize: 11.5, color: _C.badFg)),
+                      ),
+
+
                     const SizedBox(height: 14),
 
                     Row(
@@ -1645,16 +1794,23 @@ class _FormUjianSheetState extends State<_FormUjianSheet> {
       children: [
         Row(
           children: [
+            // SESUDAH
             _alurChip('Mapel Terdaftar', Icons.menu_book_outlined, _pakaiMapel,
                 () => setState(() {
                       _pakaiMapel = true;
                       _mapelError = false;
+                      if (_dibatasi) {
+                        _kelasList = _kelasDariTugas(_mapelId);
+                        _kelas = _kelasList.length == 1 ? _kelasList.first : null;
+                      }
                     })),
             const SizedBox(width: 8),
             _alurChip('Non-Mapel (Umum)', Icons.edit_note_outlined, !_pakaiMapel,
                 () => setState(() {
                       _pakaiMapel = false;
                       _mapelError = false;
+                      _kelasError = false;
+                      if (_dibatasi) _kelasList = _kelasDariTugas(null);
                     })),
           ],
         ),
@@ -1707,13 +1863,7 @@ class _FormUjianSheetState extends State<_FormUjianSheet> {
                 ),
               ),
           ],
-          onChanged: items.isEmpty
-              ? null
-              : (v) => setState(() {
-                    _mapelId = v;
-                    _mapelError = false;
-                    _syncKkm();
-                  }),
+          onChanged: items.isEmpty ? null : _pilihMapel,
         ),
         if (helper != null) ...[
           const SizedBox(height: 6),
@@ -1821,7 +1971,8 @@ class _FormUjianSheetState extends State<_FormUjianSheet> {
 class _KelasChooser extends StatelessWidget {
   final List<Map<String, dynamic>> list;
   final Map<String, dynamic>? selected;
-  const _KelasChooser({required this.list, required this.selected});
+  final bool bolehSemua;
+  const _KelasChooser({required this.list, required this.selected, this.bolehSemua = true});
 
   @override
   Widget build(BuildContext context) {
@@ -1851,6 +2002,7 @@ class _KelasChooser extends StatelessWidget {
               child: ListView(
                 shrinkWrap: true,
                 children: [
+                  if (bolehSemua)
                   ListTile(
                     dense: true,
                     leading: Icon(Icons.groups_2_outlined, size: 20, color: _C.emerald),
@@ -1867,8 +2019,10 @@ class _KelasChooser extends StatelessWidget {
                       leading: Icon(Icons.apartment_outlined, size: 20, color: _C.emerald),
                       title: Text('${k['nama']}',
                           style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600)),
-                      subtitle: Text('${k['count']} Santri',
-                          style: const TextStyle(fontSize: 11.5, color: _C.ink2)),
+                      subtitle: k['count'] == null
+                          ? null
+                          : Text('${k['count']} Santri',
+                              style: const TextStyle(fontSize: 11.5, color: _C.ink2)),
                       trailing: selected?['nama'] == k['nama']
                           ? Icon(Icons.check_circle, size: 18, color: _C.emerald)
                           : null,
