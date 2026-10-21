@@ -83,10 +83,32 @@ class NilaiScreen extends StatefulWidget {
 class _NilaiScreenState extends State<NilaiScreen> {
   /// Pimpinan/Mudir hanya memantau: hanya bisa melihat riwayat nilai.
   bool get _readOnly => AppScope.of(context).user?.isPimpinan == true;
-
   List<Map<String, dynamic>> _kelas = [];
   List<Map<String, dynamic>> _mapel = [];
   List<Map<String, dynamic>> _santris = [];
+
+  /// Penugasan ustadz yang login: [{kelasId, mapelId}, ...].
+  /// null = tidak dibatasi (admin/pimpinan), tampil semua mapel.
+  List<Map<String, dynamic>>? _tugas;
+
+  /// Mapel yang boleh dipilih untuk kelas yang sedang dipilih.
+  List<Map<String, dynamic>> get _mapelTersedia {
+    final t = _tugas;
+    if (t == null) return _mapel;
+    final ids = t
+        .where((e) => e['kelasId']?.toString() == _kelasId)
+        .map((e) => e['mapelId']?.toString())
+        .toSet();
+    return _mapel.where((m) => ids.contains(m['id']?.toString())).toList();
+  }
+
+  /// Pastikan _mapelId valid untuk kelas saat ini.
+  void _selaraskanMapel() {
+    final list = _mapelTersedia;
+    if (list.any((m) => m['id'] == _mapelId)) return;
+    _mapelId = list.isEmpty ? null : list.first['id'] as String;
+  }
+
   String? _kelasId;
   String? _mapelId;
   String _jenis = 'HARIAN';
@@ -148,9 +170,11 @@ class _NilaiScreenState extends State<NilaiScreen> {
 
   Future<void> _init() async {
     final api = AppScope.of(context).api;
+    final isUstadz = AppScope.of(context).user?.role == 'USTADZ';
     String? err;
     try {
-      _kelas = _asList(await api.get(ApiUrl.kelas));
+      // Backend yang menyaring: ustadz hanya dapat kelas yang diampu.
+      _kelas = _asList(await api.get(ApiUrl.kelas, query: {'diampu': 'true'}));
     } catch (_) {
       err = 'Gagal memuat daftar kelas.';
     }
@@ -159,13 +183,27 @@ class _NilaiScreenState extends State<NilaiScreen> {
     } catch (_) {
       err ??= 'Gagal memuat daftar mapel.';
     }
+
+    // Mapel yang dipegang per kelas (khusus ustadz).
+    if (isUstadz) {
+      try {
+        _tugas = _asList(await api.get('/mengajar/saya'));
+      } catch (_) {
+        _tugas = null; // gagal: tampilkan semua mapel
+      }
+    }
+
     if (!mounted) return;
     setState(() {
       _loadingMeta = false;
       _error = err;
       if (_readOnly) _tab = 1;
       if (_kelas.isNotEmpty) _kelasId = _kelas.first['id'] as String;
-      if (_mapel.isNotEmpty) _mapelId = _mapel.first['id'] as String;
+      _mapelId = null;
+      _selaraskanMapel();
+      if (_tugas == null && _mapelId == null && _mapel.isNotEmpty) {
+        _mapelId = _mapel.first['id'] as String;
+      }
     });
     await _loadSantri();
   }
@@ -671,7 +709,10 @@ class _NilaiScreenState extends State<NilaiScreen> {
                             items: [for (final k in _kelas) MapEntry(k['id'] as String, '${k['namaKelas']}')],
                             selectedId: _kelasId,
                             onSelect: (v) {
-                              setState(() => _kelasId = v);
+                              setState(() {
+                                _kelasId = v;
+                                _selaraskanMapel();
+                              });
                               _loadSantri(); // sudah memuat nilai tersimpan di dalamnya
                             },
                           ),
@@ -682,18 +723,18 @@ class _NilaiScreenState extends State<NilaiScreen> {
                 child: _selectField(
                   label: 'Mata Pelajaran',
                   value: _nameOf(_mapel, _mapelId, 'namaMapel'),
-                  onTap: _mapel.isEmpty
-                      ? null
-                      : () => _showPicker(
-                            title: 'Pilih Mata Pelajaran',
-                            items: [for (final m in _mapel) MapEntry(m['id'] as String, '${m['namaMapel']}')],
-                            selectedId: _mapelId,
-                            onSelect: (v) {
-                              setState(() => _mapelId = v);
-                              _loadTersimpan();
-                              if (_tab == 1) _loadRiwayat();
-                            },
-                          ),
+                  onTap: _mapelTersedia.isEmpty
+                    ? null
+                    : () => _showPicker(
+                          title: 'Pilih Mata Pelajaran',
+                          items: [for (final m in _mapelTersedia) MapEntry(m['id'] as String, '${m['namaMapel']}')],
+                          selectedId: _mapelId,
+                          onSelect: (v) {
+                            setState(() => _mapelId = v);
+                            _loadTersimpan();
+                            if (_tab == 1) _loadRiwayat();
+                          },
+                        ),
                 ),
               ),
             ],

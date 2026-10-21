@@ -197,6 +197,19 @@ export class MasterDataService {
     });
   }
 
+    /** Penugasan mengajar milik ustadz yang sedang login. */
+  async findMengajarSaya(tenantId: string, user: RequestUser) {
+    const ustadz = await this.prisma.ustadz.findFirst({
+      where: { tenantId, userId: user.userId },
+      select: { id: true },
+    });
+    if (!ustadz) return [];
+    return this.prisma.ustadzMengajar.findMany({
+      where: { tenantId, ustadzId: ustadz.id },
+      select: { kelasId: true, mapelId: true },
+    });
+  }
+
   async addMengajar(tenantId: string, ustadzId: string, dto: CreateMengajarDto) {
     const [ustadz, kelas, mapel] = await Promise.all([
       this.prisma.ustadz.findFirst({ where: { id: ustadzId, tenantId }, select: { id: true } }),

@@ -136,4 +136,10 @@ export class MasterDataController {
   removeMengajar(@TenantId() tenantId: string, @Param('id') id: string) {
     return this.masterService.removeMengajar(tenantId, id);
   }
+
+  @Roles(Role.USTADZ)
+  @Get('mengajar/saya')
+  findMengajarSaya(@TenantId() tenantId: string, @CurrentUser() user: RequestUser) {
+    return this.masterService.findMengajarSaya(tenantId, user);
+  }
 }

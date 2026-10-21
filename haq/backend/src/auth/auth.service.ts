@@ -15,7 +15,7 @@ import { NotifikasiService } from '../notifikasi/notifikasi.service';
 
 /** Batas login gagal per (email + IP) dalam satu jendela waktu. */
 const MAX_LOGIN_GAGAL = 5;
-const JENDELA_MENIT = 30;
+const JENDELA_MENIT = 5;
 
 @Injectable()
 export class AuthService {

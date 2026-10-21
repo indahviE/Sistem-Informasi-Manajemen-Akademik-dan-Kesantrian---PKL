@@ -61,6 +61,29 @@ class _AbsensiScreenState extends State<AbsensiScreen> {
   List<Map<String, dynamic>> _kelas = [];
   List<Map<String, dynamic>> _mapel = [];
   List<dynamic> _santris = [];
+
+  /// Penugasan ustadz yang login: [{kelasId, mapelId}, ...].
+  /// null = tidak dibatasi (admin/pimpinan), tampil semua mapel.
+  List<Map<String, dynamic>>? _tugas;
+
+  /// Mapel yang boleh dipilih untuk kelas yang sedang dipilih.
+  List<Map<String, dynamic>> get _mapelTersedia {
+    final t = _tugas;
+    if (t == null) return _mapel;
+    final ids = t
+        .where((e) => e['kelasId']?.toString() == _kelasId)
+        .map((e) => e['mapelId']?.toString())
+        .toSet();
+    return _mapel.where((m) => ids.contains(m['id']?.toString())).toList();
+  }
+
+  /// Pastikan _mapelId valid untuk kelas saat ini.
+  void _selaraskanMapel() {
+    final list = _mapelTersedia;
+    if (list.any((m) => m['id'] == _mapelId)) return;
+    _mapelId = list.isEmpty ? null : list.first['id'] as String;
+  }
+
   String? _kelasId;
   String? _mapelId;
   final Map<String, String> _status = {}; // santriId -> status
@@ -112,7 +135,7 @@ class _AbsensiScreenState extends State<AbsensiScreen> {
     final api = AppScope.of(context).api;
     String? err;
     try {
-      // Ustadz hanya mendapat kelas yang ia menjadi wali kelasnya (difilter server).
+      // Ustadz hanya mendapat kelas yang ia ampu (difilter server).
       _kelas = _asList(await api.get(ApiUrl.kelas, query: {
         if (_isUstadz) 'diampu': 'true',
       }));
@@ -124,12 +147,26 @@ class _AbsensiScreenState extends State<AbsensiScreen> {
     } catch (_) {
       err ??= 'Gagal memuat daftar mapel.';
     }
+
+    // Mapel yang dipegang per kelas (khusus ustadz).
+    if (_isUstadz) {
+      try {
+        _tugas = _asList(await api.get('/mengajar/saya'));
+      } catch (_) {
+        _tugas = null; // gagal: tampilkan semua mapel
+      }
+    }
+
     if (!mounted) return;
     setState(() {
       _loadingMeta = false;
       _error = err;
       if (_kelas.isNotEmpty) _kelasId = _kelas.first['id'] as String;
-      if (_mapel.isNotEmpty) _mapelId = _mapel.first['id'] as String;
+      _mapelId = null;
+      _selaraskanMapel();
+      if (_tugas == null && _mapelId == null && _mapel.isNotEmpty) {
+        _mapelId = _mapel.first['id'] as String;
+      }
     });
     await _loadSantri();
   }
@@ -633,7 +670,10 @@ class _AbsensiScreenState extends State<AbsensiScreen> {
                       labelKey: 'namaKelas',
                       selectedId: _kelasId,
                       onSelect: (v) {
-                        setState(() => _kelasId = v);
+                        setState(() {
+                          _kelasId = v;
+                          _selaraskanMapel();
+                        });
                         _loadSantri();
                       },
                     ),
@@ -646,11 +686,11 @@ class _AbsensiScreenState extends State<AbsensiScreen> {
             icon: Icons.menu_book_outlined,
             label: 'MATA PELAJARAN',
             value: _nameOf(_mapel, _mapelId, 'namaMapel'),
-            onTap: _mapel.isEmpty
+            onTap: _mapelTersedia.isEmpty
                 ? null
                 : () => _showPicker(
                       title: 'Pilih Mata Pelajaran',
-                      items: _mapel,
+                      items: _mapelTersedia,
                       labelKey: 'namaMapel',
                       selectedId: _mapelId,
                       onSelect: (v) {
