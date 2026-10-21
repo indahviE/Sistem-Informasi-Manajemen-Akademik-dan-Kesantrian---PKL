@@ -344,7 +344,7 @@ class _UjianRemedialScreenState extends State<UjianRemedialScreen> {
       _Rem? target;
       if (_selId != null) {
         for (final r in rows) {
-          if (r.santriId == _selId) target = r;
+          if (r.santriId == _selId && !_isFinal(r.status)) target = r;
         }
       }
       if (target == null) {
@@ -355,9 +355,14 @@ class _UjianRemedialScreenState extends State<UjianRemedialScreen> {
           }
         }
       }
-      if (target != null && mounted && !_readOnly) {
-        setState(() => _fillForm(target!));
+      if (mounted && !_readOnly) {
+        if (target != null) {
+          setState(() => _fillForm(target!));
+        } else {
+          setState(() => _selId = null); // semua sudah final: tidak ada form
+        }
       }
+
     } on ApiException catch (e) {
       if (!mounted || silent) return;
       setState(() {
@@ -482,8 +487,8 @@ class _UjianRemedialScreenState extends State<UjianRemedialScreen> {
     _jadwal = r.jadwal;
   }
 
-  void _select(_Rem r) {
-    if (_readOnly) return;
+    void _select(_Rem r) {
+    if (_readOnly || _isFinal(r.status)) return; // hasil final dikunci
     setState(() => _fillForm(r));
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final c = _formKey.currentContext;
@@ -541,6 +546,101 @@ class _UjianRemedialScreenState extends State<UjianRemedialScreen> {
     );
   }
 
+    /// Dialog "sudah benar?" sebelum menyimpan. Kalau nilai perbaikan terisi,
+  /// hasilnya final dan tidak bisa diubah lagi, jadi ditampilkan lengkap.
+  Future<bool> _konfirmasiSimpan(_Rem r, double? v) async {
+    final awal = r.awal;
+    final double? rata = (v != null && awal != null) ? (awal + v) / 2 : null;
+    final double? akhir = rata == null ? null : (rata < _kkm ? rata : _kkm);
+    final st = _stOf(_statusPreview(r));
+
+    Widget baris(String label, String value, {Color? warna}) => Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                width: 104,
+                child: Text(label, style: const TextStyle(fontSize: 12.5, color: _C.ink2)),
+              ),
+              Expanded(
+                child: Text(value,
+                    style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: warna ?? _C.ink)),
+              ),
+            ],
+          ),
+        );
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Periksa sebelum menyimpan',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _C.ink)),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              baris('Santri', r.nama),
+              baris('Nilai Awal', _fmtNum(r.awal), warna: _C.badFg),
+              if (v != null) ...[
+                baris('Nilai Perbaikan', _fmtNum(v)),
+                baris('Nilai Akhir', _fmtNum(akhir), warna: st.fg),
+                baris('Status', st.label, warna: st.fg),
+                const SizedBox(height: 4),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: _C.goldSoft,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: _C.goldBorder),
+                  ),
+                  child: const Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(Icons.lock_outline, size: 15, color: _C.goldText),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                            'Setelah disimpan, hasil remedial dikunci dan tidak bisa diubah lagi.',
+                            style: TextStyle(fontSize: 12, height: 1.35, color: _C.goldText)),
+                      ),
+                    ],
+                  ),
+                ),
+              ] else
+                const Text(
+                    'Nilai perbaikan belum diisi. Yang disimpan hanya keterangan materi, catatan, dan jadwal.',
+                    style: TextStyle(fontSize: 12.5, height: 1.35, color: _C.ink2)),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Periksa Lagi',
+                style: TextStyle(fontWeight: FontWeight.w700, color: _C.ink2)),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(
+              backgroundColor: _C.emerald,
+              shape: const StadiumBorder(),
+            ),
+            child: const Text('Ya, Simpan',
+                style: TextStyle(fontWeight: FontWeight.w700, color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+    return ok == true;
+  }
+
   Future<void> _save() async {
     if (_readOnly) return;
     final r = _selected;
@@ -559,6 +659,9 @@ class _UjianRemedialScreenState extends State<UjianRemedialScreen> {
           subtitle: 'Isi dengan angka antara 0 – 100', error: true);
       return;
     }
+
+    if (!await _konfirmasiSimpan(r, v)) return;
+    if (!mounted) return;
 
     // Status Tuntas / Belum Tuntas ditentukan backend dari nilai perbaikan.
     // Dari layar ini hanya BELUM_TES atau PROSES yang dikirim.
@@ -720,7 +823,7 @@ class _UjianRemedialScreenState extends State<UjianRemedialScreen> {
             ),
           )
         else ...[
-          if (sel != null && !_readOnly) _formCard(sel),
+        if (sel != null && !_readOnly && !_isFinal(sel.status)) _formCard(sel),
           const SizedBox(height: 18),
           _listHeader(rows.length),
           const SizedBox(height: 10),
@@ -1327,7 +1430,7 @@ class _UjianRemedialScreenState extends State<UjianRemedialScreen> {
 
   Widget _riwayatTile(_Rem r) {
     final st = _stOf(r.status);
-    final isSel = !_readOnly && r.santriId == _selId;
+    final isSel = !_readOnly && !_isFinal(r.status) && r.santriId == _selId;
     final tuntas = r.status == 'TUNTAS';
     final belumTuntas = r.status == 'BELUM_TUNTAS';
     final sub = r.keterangan.isNotEmpty
@@ -1458,7 +1561,7 @@ class _UjianRemedialScreenState extends State<UjianRemedialScreen> {
       ),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
-        onTap: _readOnly ? null : () => _select(r),
+        onTap: (_readOnly || _isFinal(r.status)) ? null : () => _select(r),
         child: Padding(
           padding: const EdgeInsets.all(14),
           child: Column(
