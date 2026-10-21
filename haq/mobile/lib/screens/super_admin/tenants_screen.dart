@@ -234,7 +234,274 @@ class _TenantsScreenState extends State<TenantsScreen> {
     }
   }
 
+    // ---------------------------------------------------------------------
+  // Alert konfirmasi & snackbar bertema Super Admin (emerald + emas)
+  // ---------------------------------------------------------------------
+
+  _AksiInfo? _infoAksi(String action, String nama) {
+    switch (action) {
+      case 'approve':
+        return _AksiInfo(
+          title: 'Setujui & Aktifkan Tenant?',
+          message: '"$nama" akan diaktifkan dan seluruh user-nya bisa login.',
+          confirmLabel: 'Ya, Aktifkan',
+          icon: Icons.verified_rounded,
+          sukses: 'Tenant Diaktifkan',
+          suksesSub: '$nama telah diaktifkan.',
+        );
+      case 'restore':
+        return _AksiInfo(
+          title: 'Pulihkan Akses Tenant?',
+          message: 'Akses "$nama" akan dipulihkan dan statusnya kembali Aktif.',
+          confirmLabel: 'Ya, Pulihkan',
+          icon: Icons.lock_open_rounded,
+          sukses: 'Akses Dipulihkan',
+          suksesSub: '$nama kembali aktif.',
+        );
+      case 'suspend':
+        return _AksiInfo(
+          title: 'Suspend Tenant?',
+          message:
+              '"$nama" akan ditangguhkan. Seluruh user tidak bisa mengakses sistem sampai akses dipulihkan.',
+          confirmLabel: 'Ya, Suspend',
+          icon: Icons.pause_circle_outline_rounded,
+          danger: true,
+          sukses: 'Tenant Di-suspend',
+          suksesSub: '$nama tidak dapat diakses sementara.',
+        );
+      case 'archive':
+        return _AksiInfo(
+          title: 'Arsipkan Tenant?',
+          message:
+              '"$nama" akan diarsipkan dan seluruh user tidak bisa login. Kamu bisa memulihkannya dari folder Arsip.',
+          confirmLabel: 'Ya, Arsipkan',
+          icon: Icons.archive_outlined,
+          sukses: 'Tenant Diarsipkan',
+          suksesSub: '$nama dipindahkan ke Arsip.',
+        );
+      case 'unarchive':
+        return _AksiInfo(
+          title: 'Pulihkan dari Arsip?',
+          message: '"$nama" akan dikembalikan ke daftar tenant.',
+          confirmLabel: 'Ya, Pulihkan',
+          icon: Icons.unarchive_outlined,
+          sukses: 'Tenant Dipulihkan',
+          suksesSub: '$nama dikembalikan dari Arsip.',
+        );
+      case 'trash':
+        return _AksiInfo(
+          title: 'Pindahkan ke Sampah?',
+          message:
+              '"$nama" akan dipindahkan ke Sampah dan dihapus permanen otomatis setelah masa retensi. Masih bisa dipulihkan sebelum itu.',
+          confirmLabel: 'Ya, Pindahkan',
+          icon: Icons.delete_outline_rounded,
+          danger: true,
+          sukses: 'Dipindahkan ke Sampah',
+          suksesSub: '$nama ada di folder Sampah.',
+        );
+      case 'restoreTrash':
+        return _AksiInfo(
+          title: 'Pulihkan dari Sampah?',
+          message: '"$nama" akan dikembalikan dari Sampah.',
+          confirmLabel: 'Ya, Pulihkan',
+          icon: Icons.restore_from_trash_rounded,
+          sukses: 'Tenant Dipulihkan',
+          suksesSub: '$nama dikembalikan dari Sampah.',
+        );
+      case 'delete':
+        return _AksiInfo(
+          title: 'Hapus Pendaftaran?',
+          message: 'Pendaftaran "$nama" akan dihapus. Tindakan ini tidak bisa dibatalkan.',
+          confirmLabel: 'Ya, Hapus',
+          icon: Icons.delete_forever_outlined,
+          danger: true,
+          sukses: 'Pendaftaran Dihapus',
+          suksesSub: '$nama telah dihapus.',
+        );
+      case 'deletePermanent':
+        return _AksiInfo(
+          title: 'Hapus Permanen?',
+          message:
+              '"$nama" beserta semua datanya (user, tahun ajaran, dll) akan dihapus permanen dan tidak bisa dikembalikan.',
+          confirmLabel: 'Hapus Permanen',
+          icon: Icons.delete_forever_outlined,
+          danger: true,
+          sukses: 'Dihapus Permanen',
+          suksesSub: '$nama telah dihapus permanen.',
+        );
+    }
+    return null;
+  }
+
+  Future<bool> _konfirmasi(_AksiInfo info) async {
+    final accent = info.danger ? PColors.errorText : PColors.primary;
+    final soft = info.danger ? PColors.errorSoftBg : PColors.sage;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: PColors.surface,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(
+            color: info.danger ? PColors.errorBorder : PColors.goldBorder,
+          ),
+        ),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 400),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 22, 20, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(color: soft, shape: BoxShape.circle),
+                  child: Icon(info.icon, size: 26, color: accent),
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  info.title,
+                  textAlign: TextAlign.center,
+                  style: PText.headlineSm.copyWith(
+                    fontSize: 16,
+                    color: info.danger ? PColors.errorText : PColors.primary,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  info.message,
+                  textAlign: TextAlign.center,
+                  style: PText.bodyMd.copyWith(height: 1.45),
+                ),
+                const SizedBox(height: 18),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.pop(ctx, false),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: PColors.inkSecondary,
+                          side: const BorderSide(color: PColors.border),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(9999),
+                          ),
+                        ),
+                        child: const Text('Batal',
+                            style: TextStyle(
+                                fontSize: 12.5, fontWeight: FontWeight.w700)),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      flex: 2,
+                      child: FilledButton(
+                        onPressed: () => Navigator.pop(ctx, true),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: accent,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(9999),
+                          ),
+                        ),
+                        child: Text(info.confirmLabel,
+                            style: const TextStyle(
+                                fontSize: 12.5, fontWeight: FontWeight.w700)),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    return ok == true;
+  }
+
+  void _snack({
+    required String title,
+    String? subtitle,
+    IconData icon = Icons.check_circle_outline_rounded,
+    bool error = false,
+  }) {
+    if (!mounted) return;
+    final w = MediaQuery.of(context).size.width;
+    final side = w > 472 ? (w - 440) / 2 : 16.0;
+    final bg = error ? PColors.errorText : PColors.primary;
+    final accent = error ? Colors.white : PColors.gold;
+
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: bg,
+          elevation: 6,
+          margin: EdgeInsets.fromLTRB(side, 0, side, 16),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          duration: const Duration(seconds: 3),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(color: accent.withOpacity(0.5)),
+          ),
+          content: Row(
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: accent.withOpacity(0.18),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, size: 18, color: accent),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                      ),
+                    ),
+                    if (subtitle != null) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle,
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          height: 1.35,
+                          color: Colors.white.withOpacity(0.75),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+  }
+
   Future<void> _action(Map<String, dynamic> t, String action) async {
+    final nama = (t['namaPondok'] ?? 'Tenant').toString();
+    final info = _infoAksi(action, nama);
+
+    if (info != null) {
+      final ok = await _konfirmasi(info);
+      if (!ok || !mounted) return;
+    }
+
     try {
       final api = AppScope.of(context).api;
       // 'restore' dipetakan ke endpoint approve karena keduanya sama-sama
@@ -251,41 +518,36 @@ class _TenantsScreenState extends State<TenantsScreen> {
         _ => ApiUrl.tenantSuspend,
       };
       await api.post(url, {'tenantId': t['id']});
+      if (!mounted) return;
+      if (info != null) {
+        _snack(
+          title: info.sukses,
+          subtitle: info.suksesSub,
+          icon: info.icon,
+        );
+      }
       _load();
     } on ApiException catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(e.message)));
-      }
+      _snack(
+        title: 'Aksi Gagal',
+        subtitle: e.message,
+        icon: Icons.error_outline_rounded,
+        error: true,
+      );
+    } catch (e) {
+      _snack(
+        title: 'Aksi Gagal',
+        subtitle: 'Terjadi kesalahan. Coba lagi.',
+        icon: Icons.error_outline_rounded,
+        error: true,
+      );
     }
   }
 
-  Future<void> _confirmDeletePermanent(Map<String, dynamic> t) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: PColors.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Hapus Permanen?', style: PText.headlineSm),
-        content: Text(
-          'Tenant "${t['namaPondok']}" beserta semua data (user, tahun ajaran, dll) akan dihapus permanen dan tidak bisa dikembalikan.',
-          style: PText.bodyMd,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text('Batal', style: PText.labelMd.copyWith(color: PColors.inkSecondary)),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: FilledButton.styleFrom(backgroundColor: PColors.errorText),
-            child: const Text('Hapus Permanen'),
-          ),
-        ],
-      ),
-    );
-    if (ok == true) _action(t, 'deletePermanent');
-  }
+  // Konfirmasi hapus permanen sekarang ditangani langsung di _action,
+  // fungsi ini dipertahankan supaya pemanggilnya tidak perlu diubah.
+  Future<void> _confirmDeletePermanent(Map<String, dynamic> t) =>
+      _action(t, 'deletePermanent');
 
   void _showTenantDetail(Map<String, dynamic> t) {
     Navigator.push(
@@ -1783,4 +2045,24 @@ class _TrashedTenantRow extends StatelessWidget {
       ),
     );
   }
+}
+
+class _AksiInfo {
+  const _AksiInfo({
+    required this.title,
+    required this.message,
+    required this.confirmLabel,
+    required this.icon,
+    required this.sukses,
+    required this.suksesSub,
+    this.danger = false,
+  });
+
+  final String title;
+  final String message;
+  final String confirmLabel;
+  final IconData icon;
+  final String sukses;
+  final String suksesSub;
+  final bool danger;
 }

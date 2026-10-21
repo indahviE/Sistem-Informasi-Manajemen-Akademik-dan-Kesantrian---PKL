@@ -226,9 +226,11 @@ String _fmtCsvTime(DateTime d) =>
 /// Escape sel CSV. Sel yang diawali = + - @ diberi apostrof di depan supaya
 /// tidak dieksekusi sebagai formula di Excel/Sheets (isi audit log bisa
 /// berasal dari input user, mis. email saat login gagal).
-String _csvCell(Object? v) {
+const _csvSep = ';';
+
+String _csvCell(Object? v, {bool guard = true}) {
   var s = (v ?? '').toString();
-  if (s.isNotEmpty && '=+-@\t\r'.contains(s[0])) s = "'$s";
+  if (guard && s.isNotEmpty && '=+-@\t\r'.contains(s[0])) s = "'$s";
   return '"${s.replaceAll('"', '""')}"';
 }
 
@@ -237,23 +239,23 @@ String _buildCsv(List<AuditEvent> events) {
     'Waktu', 'Kode', 'Judul', 'Tingkat', 'Kategori', 'Pelaku',
     'Detail Pelaku', 'Tenant', 'Handle Tenant', 'Deskripsi', 'IP', 'Meta', 'Data',
   ];
-  final buf = StringBuffer()..writeln(header.map(_csvCell).join(','));
+  final buf = StringBuffer()..writeln(header.map(_csvCell).join(_csvSep));
   for (final e in events) {
     buf.writeln([
-      _fmtCsvTime(e.time),
-      e.aksi,
-      e.title,
-      _sevLabel(e.severity),
-      e.category.name,
-      e.actor,
-      e.actorDetail,
-      e.tenantName,
-      e.tenantHandle,
-      e.description.replaceAll('`', ''),
-      e.ip,
-      e.metaLabel,
-      e.data == null ? '' : jsonEncode(_redact(e.data)),
-    ].map(_csvCell).join(','));
+      _csvCell(_fmtCsvTime(e.time)),
+      _csvCell(e.aksi),
+      _csvCell(e.title),
+      _csvCell(_sevLabel(e.severity)),
+      _csvCell(e.category.name),
+      _csvCell(e.actor),
+      _csvCell(e.actorDetail),
+      _csvCell(e.tenantName),
+      _csvCell(e.tenantHandle, guard: false),
+      _csvCell(e.description.replaceAll('`', '')),
+      _csvCell(e.ip),
+      _csvCell(e.metaLabel),
+      _csvCell(e.data == null ? '' : jsonEncode(_redact(e.data))),
+    ].join(_csvSep));
   }
   return buf.toString();
 }
@@ -581,7 +583,12 @@ class _AuditLogScreenState extends State<AuditLogScreen> {
         if (!silent && _events.isEmpty) _error = msg;
       });
       if (!silent && _events.isNotEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+        _snack(
+          title: 'Gagal Memuat',
+          subtitle: msg,
+          icon: Icons.error_outline_rounded,
+          error: true,
+        );
       }
     }
   }
@@ -633,57 +640,74 @@ class _AuditLogScreenState extends State<AuditLogScreen> {
     return _pdfSafe(parts.join('  |  '));
   }
 
-  /// Ekspor semua log sesuai filter aktif ke CSV (maks. _exportMax baris).
+    /// Ekspor semua log sesuai filter aktif ke CSV (maks. _exportMax baris).
   Future<void> _exportCsv() async {
     if (_exporting) return;
     setState(() => _exporting = true);
-    final messenger = ScaffoldMessenger.of(context);
-    messenger.showSnackBar(const SnackBar(content: Text('Menyiapkan file CSV...')));
+    _snack(
+      title: 'Menyiapkan CSV',
+      subtitle: 'Mengambil log sesuai filter aktif...',
+      loading: true,
+    );
 
     try {
       final (all, truncated) = await _fetchExportData();
 
       if (all.isEmpty) {
-        messenger.hideCurrentSnackBar();
-        messenger.showSnackBar(const SnackBar(content: Text('Tidak ada log untuk diekspor.')));
+        _snack(
+          title: 'Tidak Ada Data',
+          subtitle: 'Tidak ada log untuk diekspor.',
+          icon: Icons.inbox_outlined,
+        );
         return;
       }
 
       final name = '${_exportBaseName(DateTime.now())}.csv';
 
-      messenger.hideCurrentSnackBar();
-      if (truncated) {
-        messenger.showSnackBar(
-          SnackBar(
-            content: Text('Hanya $_exportMax log terbaru yang diekspor. Persempit filter untuk data lebih spesifik.'),
-          ),
-        );
-      }
-
       // BOM (\uFEFF) supaya Excel membaca UTF-8 dengan benar.
       await saveCsv(name, '\uFEFF${_buildCsv(all)}');
+
+      _snack(
+        title: 'CSV Siap',
+        subtitle: truncated
+            ? 'Hanya $_exportMax log terbaru yang diekspor. Persempit filter untuk data lebih spesifik.'
+            : '${_fmtInt(all.length)} log berhasil diekspor.',
+        icon: truncated
+            ? Icons.info_outline_rounded
+            : Icons.table_chart_outlined,
+        duration: Duration(seconds: truncated ? 5 : 3),
+      );
     } catch (e) {
-      messenger.hideCurrentSnackBar();
-      final msg = e is ApiException ? e.message : 'Gagal mengekspor: $e';
-      messenger.showSnackBar(SnackBar(content: Text(msg)));
+      _snack(
+        title: 'Ekspor Gagal',
+        subtitle: e is ApiException ? e.message : 'Gagal mengekspor: $e',
+        icon: Icons.error_outline_rounded,
+        error: true,
+      );
     } finally {
       if (mounted) setState(() => _exporting = false);
     }
   }
 
-  /// Ekspor semua log sesuai filter aktif ke PDF (maks. _exportMax baris).
+    /// Ekspor semua log sesuai filter aktif ke PDF (maks. _exportMax baris).
   Future<void> _exportPdf() async {
     if (_exporting) return;
     setState(() => _exporting = true);
-    final messenger = ScaffoldMessenger.of(context);
-    messenger.showSnackBar(const SnackBar(content: Text('Menyiapkan file PDF...')));
+    _snack(
+      title: 'Menyiapkan PDF',
+      subtitle: 'Mengambil log sesuai filter aktif...',
+      loading: true,
+    );
 
     try {
       final (all, truncated) = await _fetchExportData();
 
       if (all.isEmpty) {
-        messenger.hideCurrentSnackBar();
-        messenger.showSnackBar(const SnackBar(content: Text('Tidak ada log untuk diekspor.')));
+        _snack(
+          title: 'Tidak Ada Data',
+          subtitle: 'Tidak ada log untuk diekspor.',
+          icon: Icons.inbox_outlined,
+        );
         return;
       }
 
@@ -691,23 +715,118 @@ class _AuditLogScreenState extends State<AuditLogScreen> {
       final name = '${_exportBaseName(now)}.pdf';
       final bytes = await _buildPdf(all, subtitle: _filterSummary());
 
-      messenger.hideCurrentSnackBar();
-      if (truncated) {
-        messenger.showSnackBar(
-          SnackBar(
-            content: Text('Hanya $_exportMax log terbaru yang diekspor. Persempit filter untuk data lebih spesifik.'),
-          ),
-        );
-      }
-
       await savePdf(name, bytes);
+
+      _snack(
+        title: 'PDF Siap',
+        subtitle: truncated
+            ? 'Hanya $_exportMax log terbaru yang diekspor. Persempit filter untuk data lebih spesifik.'
+            : '${_fmtInt(all.length)} log berhasil diekspor.',
+        icon: truncated
+            ? Icons.info_outline_rounded
+            : Icons.picture_as_pdf_outlined,
+        duration: Duration(seconds: truncated ? 5 : 3),
+      );
     } catch (e) {
-      messenger.hideCurrentSnackBar();
-      final msg = e is ApiException ? e.message : 'Gagal mengekspor: $e';
-      messenger.showSnackBar(SnackBar(content: Text(msg)));
+      _snack(
+        title: 'Ekspor Gagal',
+        subtitle: e is ApiException ? e.message : 'Gagal mengekspor: $e',
+        icon: Icons.error_outline_rounded,
+        error: true,
+      );
     } finally {
       if (mounted) setState(() => _exporting = false);
     }
+  }
+
+    /// Snackbar melayang bertema Super Admin (emerald + emas, merah untuk error).
+  /// `loading: true` menampilkan spinner dan bertahan lama; tutup manual
+  /// dengan hideCurrentSnackBar() setelah proses selesai.
+  void _snack({
+    required String title,
+    String? subtitle,
+    IconData icon = Icons.check_circle_outline_rounded,
+    bool error = false,
+    bool loading = false,
+    Duration duration = const Duration(seconds: 3),
+  }) {
+    if (!mounted) return;
+    final w = MediaQuery.of(context).size.width;
+    final side = w > 472 ? (w - 440) / 2 : 16.0;
+    final bg = error ? PColors.errorText : PColors.primary;
+    final accent = error ? Colors.white : PColors.gold;
+
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: bg,
+          elevation: 6,
+          margin: EdgeInsets.fromLTRB(side, 0, side, 16),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          duration: loading ? const Duration(minutes: 2) : duration,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(color: accent.withOpacity(0.5)),
+          ),
+          content: Row(
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: accent.withOpacity(0.18),
+                  shape: BoxShape.circle,
+                ),
+                child: loading
+                    ? SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: accent),
+                      )
+                    : Icon(icon, size: 18, color: accent),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontFamily: 'Nunito',
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                      ),
+                    ),
+                    if (subtitle != null) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle,
+                        style: TextStyle(
+                          fontFamily: 'Nunito',
+                          fontSize: 11.5,
+                          height: 1.35,
+                          color: Colors.white.withOpacity(0.75),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+  }
+
+  void _hideSnack() {
+    if (mounted) ScaffoldMessenger.of(context).hideCurrentSnackBar();
   }
 
   void _applyFilter(VoidCallback change) {
@@ -716,8 +835,9 @@ class _AuditLogScreenState extends State<AuditLogScreen> {
   }
 
   void _soon() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Fitur ini akan segera tersedia.')),
+    _snack(
+      title: 'Fitur ini akan segera tersedia.',
+      icon: Icons.hourglass_top_rounded,
     );
   }
 

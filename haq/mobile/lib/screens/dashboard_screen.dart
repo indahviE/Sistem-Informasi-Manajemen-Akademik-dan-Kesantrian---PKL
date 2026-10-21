@@ -1501,7 +1501,81 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+    /// Snackbar melayang bertema (emerald + border emas), sama gayanya dengan
+  /// _notAvailable & alert ustadz. `error: true` => latar merah tua.
+  void _showThemedSnack({
+    required String title,
+    String? subtitle,
+    IconData icon = Icons.check_circle_outline_rounded,
+    bool error = false,
+  }) {
+    if (!mounted) return;
+    final w = MediaQuery.of(context).size.width;
+    final side = w > 472 ? (w - 440) / 2 : 16.0;
+    final bg = error ? _WC.errorText : _TC.primary;
+    final accent = error ? Colors.white : _WC.gold;
+
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: bg,
+          elevation: 6,
+          margin: EdgeInsets.fromLTRB(side, 0, side, 16),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          duration: const Duration(seconds: 3),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(color: accent.withOpacity(0.5)),
+          ),
+          content: Row(
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: accent.withOpacity(0.18),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, size: 18, color: accent),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                      ),
+                    ),
+                    if (subtitle != null) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle,
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          height: 1.35,
+                          color: Colors.white.withOpacity(0.75),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+  }
+
   Future<void> _tenantAction(Map<String, dynamic> t, String action) async {
+    final nama = (t['namaPondok'] ?? 'Tenant').toString();
     try {
       final api = AppScope.of(context).api;
       await api.post(
@@ -1509,21 +1583,36 @@ class _DashboardScreenState extends State<DashboardScreen> {
         {'tenantId': t['id']},
       );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            action == 'approve'
-                ? '${t['namaPondok']} telah diaktifkan.'
-                : 'Tenant di-suspend.',
-          ),
-        ),
-      );
+      if (action == 'approve') {
+        _showThemedSnack(
+          title: 'Tenant Diaktifkan',
+          subtitle: '$nama telah diaktifkan.',
+          icon: Icons.verified_rounded,
+        );
+      } else {
+        _showThemedSnack(
+          title: 'Tenant Di-suspend',
+          subtitle: '$nama tidak dapat diakses sementara.',
+          icon: Icons.pause_circle_outline_rounded,
+        );
+      }
       _load();
     } on ApiException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(e.message)));
+      _showThemedSnack(
+        title: 'Aksi Gagal',
+        subtitle: e.message,
+        icon: Icons.error_outline_rounded,
+        error: true,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      _showThemedSnack(
+        title: 'Aksi Gagal',
+        subtitle: 'Terjadi kesalahan. Coba lagi.',
+        icon: Icons.error_outline_rounded,
+        error: true,
+      );
     }
   }
 
@@ -1774,7 +1863,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               icon: Icons.assignment_ind,
               iconBg: _WC.goldSurface,
               iconColor: _WC.gold,
-              onTap: _notAvailable,
+              onTap: _bukaUstadz,
             ),
             _QuickAction(
               title: 'Rombel & Halaqah',
@@ -1782,7 +1871,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               icon: Icons.meeting_room,
               iconBg: _TC.sage,
               iconColor: _TC.primary,
-              onTap: _notAvailable,
+              onTap: _bukaKelas,
             ),
             _QuickAction(
               title: 'Akun Pengguna',

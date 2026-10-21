@@ -1053,6 +1053,8 @@ class _BillingAdminScreenState extends State<BillingAdminScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             _quickActions(s),
+            const SizedBox(height: 12),
+            _paketActions(),
             const SizedBox(height: 14),
             _summaryCard(s),
             const SizedBox(height: 22),
@@ -1655,6 +1657,50 @@ class _BillingAdminScreenState extends State<BillingAdminScreen> {
   }
 
   // ---------------------------------------------------------------------
+  // Tombol aksi paket (Assign & Tambah)
+  // ---------------------------------------------------------------------
+  Widget _paketActions() {
+    return Row(
+      children: [
+        Expanded(
+          child: SizedBox(
+            height: 46,
+            child: OutlinedButton.icon(
+              onPressed: _assign,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: SC.primary,
+                side: BorderSide(color: SC.border),
+                backgroundColor: SC.surface,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+              ),
+              icon: Icon(Icons.assignment_ind_outlined, size: 18, color: SC.primary),
+              label: Text('Assign ke pondok', style: sty(12.5, FontWeight.w700, SC.primary)),
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: SizedBox(
+            height: 46,
+            child: FilledButton.icon(
+              onPressed: () => _paketDialog(),
+              style: FilledButton.styleFrom(
+                backgroundColor: SC.primary,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(999),
+                  side: BorderSide(color: SC.gold.withValues(alpha: 0.6)),
+                ),
+              ),
+              icon: Icon(Icons.add_rounded, size: 18, color: SC.gold),
+              label: Text('Tambah paket', style: sty(12.5, FontWeight.w700, Colors.white)),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ---------------------------------------------------------------------
   // Katalog paket
   // ---------------------------------------------------------------------
   Widget _catalogSection() {
@@ -1677,45 +1723,6 @@ class _BillingAdminScreenState extends State<BillingAdminScreen> {
               style: sty(11.5, FontWeight.w500, SC.inkSecondary)),
         ),
         const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: SizedBox(
-                height: 46,
-                child: OutlinedButton.icon(
-                  onPressed: _assign,
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: SC.primary,
-                    side: BorderSide(color: SC.border),
-                    backgroundColor: SC.surface,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-                  ),
-                  icon: Icon(Icons.assignment_ind_outlined, size: 18, color: SC.primary),
-                  label: Text('Assign ke pondok', style: sty(12.5, FontWeight.w700, SC.primary)),
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: SizedBox(
-                height: 46,
-                child: FilledButton.icon(
-                  onPressed: () => _paketDialog(),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: SC.primary,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(999),
-                      side: BorderSide(color: SC.gold.withValues(alpha: 0.6)),
-                    ),
-                  ),
-                  icon: Icon(Icons.add_rounded, size: 18, color: SC.gold),
-                  label: Text('Tambah paket', style: sty(12.5, FontWeight.w700, Colors.white)),
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 14),
         if (pakets.isEmpty)
           _emptyCard('Belum ada paket. Tekan "Tambah paket" untuk membuat.')
         else
