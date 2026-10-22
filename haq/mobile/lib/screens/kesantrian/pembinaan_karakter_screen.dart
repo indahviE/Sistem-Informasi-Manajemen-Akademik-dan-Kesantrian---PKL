@@ -289,7 +289,7 @@ class _PembinaanKarakterScreenState extends State<PembinaanKarakterScreen> {
       backgroundColor: _PC.background,
       constraints: const BoxConstraints(maxWidth: 480),
       shape: _sheetShape,
-      builder: (_) => const _FormSheet(),
+      builder: (_) => _FormSheet(santriDibina: _santriDibina),
     );
     if (result == null || !mounted) return;
 
@@ -376,6 +376,21 @@ class _PembinaanKarakterScreenState extends State<PembinaanKarakterScreen> {
     }
     final keys = count.keys.toList()..sort((a, b) => count[b]!.compareTo(count[a]!));
     return [for (final k in keys.take(8)) label[k]!];
+  }
+
+    /// Santri unik yang sudah punya catatan pembinaan, urut nama.
+  List<Map<String, dynamic>> get _santriDibina {
+    final seen = <String>{};
+    final out = <Map<String, dynamic>>[];
+    for (final p in _list) {
+      final s = p['santri'];
+      if (s is! Map) continue;
+      final id = (s['id'] ?? p['santriId'] ?? '').toString();
+      if (id.isEmpty || !seen.add(id)) continue;
+      out.add({...Map<String, dynamic>.from(s), 'id': s['id'] ?? p['santriId']});
+    }
+    out.sort((a, b) => (a['nama'] ?? '').toString().compareTo((b['nama'] ?? '').toString()));
+    return out;
   }
 
   List<Map<String, dynamic>> get _filtered {
@@ -1235,46 +1250,22 @@ class _DetailSheet extends StatelessWidget {
 // Bottom sheet: pilih santri
 // ---------------------------------------------------------------------
 class _PilihSantriSheet extends StatefulWidget {
-  const _PilihSantriSheet();
+  final List<Map<String, dynamic>> santri;
+  const _PilihSantriSheet({required this.santri});
 
   @override
   State<_PilihSantriSheet> createState() => _PilihSantriSheetState();
 }
 
 class _PilihSantriSheetState extends State<_PilihSantriSheet> {
-  List<Map<String, dynamic>> _santri = [];
-  bool _loading = true;
   String _query = '';
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _load();
-    });
-  }
-
-  Future<void> _load() async {
-    try {
-      final res = await AppScope.of(context).api.get(ApiUrl.santri, query: {'perPage': '100'});
-      final items = _asList(res);
-      if (mounted) {
-        setState(() {
-          _santri = items;
-          _loading = false;
-        });
-      }
-    } catch (_) {
-      if (mounted) setState(() => _loading = false);
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
     final q = _query.trim().toLowerCase();
     final list = q.isEmpty
-        ? _santri
-        : _santri.where((s) {
+        ? widget.santri
+        : widget.santri.where((s) {
             final nama = (s['nama'] ?? '').toString().toLowerCase();
             final nis = (s['nis'] ?? '').toString().toLowerCase();
             return nama.contains(q) || nis.contains(q);
@@ -1321,11 +1312,9 @@ class _PilihSantriSheetState extends State<_PilihSantriSheet> {
                 ),
                 const SizedBox(height: 8),
                 Expanded(
-                  child: _loading
-                      ? loadingView()
-                      : list.isEmpty
-                          ? emptyView('Santri tidak ditemukan.')
-                          : ListView.builder(
+                  child: list.isEmpty
+                      ? emptyView('Belum ada santri yang dibina.')
+                      : ListView.builder(
                               itemCount: list.length,
                               itemBuilder: (ctx, i) {
                                 final s = list[i];
@@ -1365,7 +1354,8 @@ class _PilihSantriSheetState extends State<_PilihSantriSheet> {
 // Bottom sheet: form catatan baru
 // ---------------------------------------------------------------------
 class _FormSheet extends StatefulWidget {
-  const _FormSheet();
+  final List<Map<String, dynamic>> santriDibina;
+  const _FormSheet({required this.santriDibina});
 
   @override
   State<_FormSheet> createState() => _FormSheetState();
@@ -1408,7 +1398,7 @@ class _FormSheetState extends State<_FormSheet> {
       backgroundColor: _PC.surface,
       constraints: const BoxConstraints(maxWidth: 480),
       shape: _sheetShape,
-      builder: (_) => const _PilihSantriSheet(),
+      builder: (_) => _PilihSantriSheet(santri: widget.santriDibina),
     );
     if (s != null && mounted) setState(() => _santri = s);
   }
