@@ -4793,30 +4793,40 @@ Widget _pimAntrean({
               caption: _pick(r, ['kehadiranKet']) ?? 'Rata-rata kelas Anda',
             ),
             _USummaryCard(
-              label: 'Absensi Belum',
+              label: 'Kelas Belum Diabsen',
               tag: absensiBelum > 0 ? 'Perlu' : null,
               tagBg: _WC.pendingBg,
               tagFg: _WC.pendingText,
               value: '$absensiBelum',
               unit: 'Kelas',
-              caption: absensiBelum > 0
-                  ? 'Belum ada rekap hari ini'
-                  : 'Semua kelas ada rekap',
-              captionColor: absensiBelum > 0 ? _WC.errorText : _WC.successText,
+              caption: kelas.isEmpty
+                  ? 'Belum ada kelas'
+                  : (absensiBelum > 0
+                        ? 'Belum ada rekap hari ini'
+                        : 'Semua kelas sudah direkap hari ini'),
+              captionColor: kelas.isEmpty
+                  ? _WC.inkSecondary
+                  : (absensiBelum > 0 ? _WC.errorText : _WC.successText),
             ),
             _USummaryCard(
-              label: 'Nilai Belum',
+              label: 'Ujian Belum Dinilai',
               icon: Icons.rate_review_outlined,
               iconBg: _TC.sage,
               iconFg: _TC.primary,
               value: '$nilaiBelum',
               unit: 'Ujian',
-              caption: nilaiBelum == 0
-                  ? 'Semua nilai sudah masuk'
-                  : (nilaiBelum == 1
-                        ? '${nilaiBelumList.first['nama'] ?? 'Ujian'}'
-                        : 'Menunggu input nilai'),
-              captionColor: nilaiBelum > 0 ? _WC.errorText : _WC.successText,
+              caption: _ujianList.isEmpty
+                  ? 'Belum ada ujian tercatat'
+                  : (nilaiBelum == 0
+                        ? 'Semua ujian sudah dinilai'
+                        : (nilaiBelum == 1
+                              ? '${nilaiBelumList.first['nama'] ?? 'Ujian'}'
+                              : 'Menunggu input nilai')),
+              captionColor: nilaiBelum > 0
+                  ? _WC.errorText
+                  : (_ujianList.isEmpty
+                        ? _WC.inkSecondary
+                        : _WC.successText),
             ),
             _USummaryCard(
               label: 'Santri Diampu',
