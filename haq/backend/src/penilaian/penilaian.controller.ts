@@ -101,8 +101,8 @@ export class PenilaianController {
   // ===== Nilai Ujian =====
   @Roles(...PENGELOLA)
   @Get('ujian/:id/nilai')
-  listNilaiUjian(@TenantId() tenantId: string, @Param('id') id: string) {
-    return this.penilaianService.listNilaiUjian(tenantId, id);
+  listNilaiUjian(@TenantId() tenantId: string, @Param('id') id: string, @CurrentUser() user: RequestUser) {
+    return this.penilaianService.listNilaiUjian(tenantId, id, user);
   }
 
   @Roles(...WRITE)
@@ -141,8 +141,8 @@ export class PenilaianController {
   // ===== Remedial per Ujian =====
   @Roles(...PENGELOLA)
   @Get('ujian/:id/remedial')
-  listRemedialUjian(@TenantId() tenantId: string, @Param('id') id: string) {
-    return this.penilaianService.listRemedialUjian(tenantId, id);
+  listRemedialUjian(@TenantId() tenantId: string, @Param('id') id: string, @CurrentUser() user: RequestUser) {
+    return this.penilaianService.listRemedialUjian(tenantId, id, user);
   }
 
   @Roles(...WRITE)
@@ -180,34 +180,46 @@ export class PenilaianController {
     return this.penilaianService.removeRemedial(tenantId, id, user);
   }
   // ===== Rapor =====
-  @Roles(...TERBATAS)
+  @Roles(...TERBATAS, Role.USTADZ)
   @Get('rapor')
-  findAllRapor(@TenantId() tenantId: string, @Query('santriId') santriId?: string, @Query('periode') periode?: string) {
-    return this.penilaianService.findAllRapor(tenantId, santriId, periode);
+  findAllRapor(
+    @TenantId() tenantId: string,
+    @CurrentUser() user: RequestUser,
+    @Query('santriId') santriId?: string,
+    @Query('periode') periode?: string,
+  ) {
+    return this.penilaianService.findAllRapor(tenantId, santriId, periode, user);
   }
 
-  @Roles(...TERBATAS)
+  // Harus di ATAS 'rapor/:id', kalau tidak 'santri' dianggap sebagai :id.
+  @Roles(...WRITE, Role.PIMPINAN)
+  @Get('rapor/santri')
+  santriRapor(@TenantId() tenantId: string, @CurrentUser() user: RequestUser) {
+    return this.penilaianService.santriRapor(tenantId, user);
+  }
+
+  @Roles(...TERBATAS, Role.USTADZ)
   @Get('rapor/:id')
-  getRapor(@TenantId() tenantId: string, @Param('id') id: string) {
-    return this.penilaianService.getRapor(tenantId, id);
+  getRapor(@TenantId() tenantId: string, @Param('id') id: string, @CurrentUser() user: RequestUser) {
+    return this.penilaianService.getRapor(tenantId, id, user);
   }
 
   @Roles(...WRITE)
   @Post('rapor/generate')
-  generateRapor(@TenantId() tenantId: string, @Body() dto: GenerateRaporDto) {
-    return this.penilaianService.generateRapor(tenantId, dto);
+  generateRapor(@TenantId() tenantId: string, @Body() dto: GenerateRaporDto, @CurrentUser() user: RequestUser) {
+    return this.penilaianService.generateRapor(tenantId, dto, user);
   }
 
   @Roles(...WRITE)
   @Patch('rapor/:id/terbit')
-  terbitRapor(@TenantId() tenantId: string, @Param('id') id: string) {
-    return this.penilaianService.terbitRapor(tenantId, id);
+  terbitRapor(@TenantId() tenantId: string, @Param('id') id: string, @CurrentUser() user: RequestUser) {
+    return this.penilaianService.terbitRapor(tenantId, id, user);
   }
 
   @Roles(...WRITE)
   @Delete('rapor/:id')
-  removeRapor(@TenantId() tenantId: string, @Param('id') id: string) {
-    return this.penilaianService.removeRapor(tenantId, id);
+  removeRapor(@TenantId() tenantId: string, @Param('id') id: string, @CurrentUser() user: RequestUser) {
+    return this.penilaianService.removeRapor(tenantId, id, user);
   }
 
   // ===== Kelulusan & Wisuda Tahfidz =====

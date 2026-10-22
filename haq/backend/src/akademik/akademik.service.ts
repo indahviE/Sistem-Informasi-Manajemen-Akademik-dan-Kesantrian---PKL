@@ -205,6 +205,7 @@ export class AkademikService {
   // sama tidak lagi error karena unique constraint (santri + mapel + jenis + tanggal).
   async createNilai(tenantId: string, dto: CreateNilaiDto, user: RequestUser) {
     await this.assertSantriInTenant(tenantId, dto.santriId);
+    await this.assertUstadzMengajar(tenantId, user, dto.mapelId, [dto.santriId]);
     const tanggal = new Date(String(dto.tanggal).slice(0, 10)); // tanggal saja, tanpa jam
     const skill = this.normalSkill(dto.jenis, dto.skill);
     return this.prisma.nilai.upsert({
@@ -236,6 +237,35 @@ export class AkademikService {
     });
   }
 
+    // Ustadz hanya boleh mengisi nilai mapel + kelas yang ia ajar (tabel ustadz_mengajar).
+  // Admin bebas. Kelas ditentukan dari kelas masing-masing santri.
+  private async assertUstadzMengajar(
+    tenantId: string,
+    user: RequestUser,
+    mapelId: string,
+    santriIds: string[],
+  ) {
+    if (user.role !== Role.USTADZ) return;
+    const ustadz = await this.prisma.ustadz.findFirst({
+      where: { tenantId, userId: user.userId },
+      select: { id: true },
+    });
+    const tugas = ustadz
+      ? await this.prisma.ustadzMengajar.findMany({
+          where: { tenantId, ustadzId: ustadz.id, mapelId },
+          select: { kelasId: true },
+        })
+      : [];
+    const kelasIds = [...new Set(tugas.map((t) => t.kelasId))];
+    const ids = [...new Set(santriIds)];
+    const sah = await this.prisma.santri.count({
+      where: { tenantId, id: { in: ids }, kelasId: { in: kelasIds } },
+    });
+    if (sah !== ids.length) {
+      throw new ForbiddenException('Anda tidak mengajar mapel ini di kelas santri tersebut.');
+    }
+  }
+
   // BARU: simpan banyak nilai sekaligus. Satu transaksi, upsert per santri.
   // Tanggal selalu hari ini menurut WIB (ditentukan server, bukan dari HP).
   async bulkNilai(tenantId: string, dto: BulkNilaiDto, user: RequestUser) {
@@ -254,6 +284,7 @@ export class AkademikService {
     if (valid !== ids.length) {
       throw new NotFoundException('Ada santri yang tidak ditemukan di pondok ini.');
     }
+    await this.assertUstadzMengajar(tenantId, user, dto.mapelId, ids);
 
     const tanggal = this.tanggalHariIniWib();
     const skill = this.normalSkill(dto.jenis, dto.skill);
