@@ -190,6 +190,7 @@ model User {
   waliSantris            WaliSantri[]
   tenantSebagaiAdminAwal Tenant[]          @relation("TenantAdminAwal")
   notifSetting           UserNotifSetting?
+  konselingDibuat Konseling[] @relation("KonselingCreatedBy")
 
   @@unique([tenantId, email])
   @@index([tenantId])
@@ -925,6 +926,7 @@ model Konseling {
   santriId     String
   tanggal      DateTime @default(now())
   konselorId   String?
+  createdById  String? 
   topik        String
   catatan      String
   tindakLanjut String?
@@ -935,8 +937,10 @@ model Konseling {
   tenant   Tenant  @relation(fields: [tenantId], references: [id])
   santri   Santri  @relation(fields: [santriId], references: [id], onDelete: Cascade)
   konselor Ustadz? @relation(fields: [konselorId], references: [id])
+  createdBy User?  @relation("KonselingCreatedBy", fields: [createdById], references: [id])
 
   @@index([tenantId])
+  @@index([tenantId, createdById])
   @@map("konselings")
 }
 

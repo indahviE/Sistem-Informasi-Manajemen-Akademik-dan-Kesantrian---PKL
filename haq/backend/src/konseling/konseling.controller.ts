@@ -17,25 +17,42 @@ export class KonselingController {
 
   @Roles(...VIEW)
   @Get()
-  findAll(@TenantId() tenantId: string, @Query('santriId') santriId?: string) {
-    return this.konselingService.findAllKonseling(tenantId, santriId);
+  findAll(
+    @TenantId() tenantId: string,
+    @CurrentUser() user: RequestUser,
+    @Query('santriId') santriId?: string,
+  ) {
+    return this.konselingService.findAllKonseling(tenantId, user, santriId);
   }
 
   @Roles(...WRITE)
   @Post()
-  create(@TenantId() tenantId: string, @Body() dto: CreateKonselingDto, @CurrentUser() user: RequestUser) {
+  create(
+    @TenantId() tenantId: string,
+    @Body() dto: CreateKonselingDto,
+    @CurrentUser() user: RequestUser,
+  ) {
     return this.konselingService.createKonseling(tenantId, dto, user);
   }
 
   @Roles(...WRITE)
   @Patch(':id')
-  update(@TenantId() tenantId: string, @Param('id') id: string, @Body() dto: UpdateKonselingDto) {
-    return this.konselingService.updateKonseling(tenantId, id, dto);
+  update(
+    @TenantId() tenantId: string,
+    @Param('id') id: string,
+    @Body() dto: UpdateKonselingDto,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return this.konselingService.updateKonseling(tenantId, id, dto, user);
   }
 
   @Roles(...WRITE)
   @Delete(':id')
-  remove(@TenantId() tenantId: string, @Param('id') id: string) {
-    return this.konselingService.removeKonseling(tenantId, id);
+  remove(
+    @TenantId() tenantId: string,
+    @Param('id') id: string,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return this.konselingService.removeKonseling(tenantId, id, user);
   }
 }
