@@ -161,8 +161,10 @@ class _RaporScreenState extends State<RaporScreen> {
       _error = null;
     });
     try {
-      final res = await AppScope.of(context).api.get(ApiUrl.santri);
-      final items = (res as Map<String, dynamic>)['items'] as List;
+      final res = await AppScope.of(context).api.get('${ApiUrl.rapor}/santri');
+      final items = res is List
+          ? res
+          : ((res as Map<String, dynamic>)['items'] as List? ?? []);
       if (!mounted) return;
       setState(() {
         _santri = items;

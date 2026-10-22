@@ -192,7 +192,7 @@ export class PenilaianController {
   }
 
   // Harus di ATAS 'rapor/:id', kalau tidak 'santri' dianggap sebagai :id.
-  @Roles(...WRITE)
+  @Roles(...WRITE, Role.PIMPINAN)
   @Get('rapor/santri')
   santriRapor(@TenantId() tenantId: string, @CurrentUser() user: RequestUser) {
     return this.penilaianService.santriRapor(tenantId, user);

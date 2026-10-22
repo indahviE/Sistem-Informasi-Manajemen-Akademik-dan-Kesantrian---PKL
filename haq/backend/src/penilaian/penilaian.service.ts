@@ -38,6 +38,10 @@ type Actor = { id: string | null; nama: string | null; role: string | null };
 // Jenis ujian yang dibatasi penugasan + dicek duplikat
 const JENIS_TERPUSAT = ['UTS', 'UAS'];
 
+// Bobot nilai akhir rapor per mapel (jumlah harus 1). Sesuaikan dengan aturan pondok.
+const BOBOT_HARIAN = 0.5;
+const BOBOT_UJIAN = 0.5;
+
 @Injectable()
 export class PenilaianService {
   constructor(private prisma: PrismaService) {}
@@ -1078,14 +1082,16 @@ export class PenilaianService {
     const santri = await this.assertSantri(tenantId, dto.santriId);
     await this.assertWaliKelasSantri(tenantId, santri, actor);
 
+    // Nilai harian: rata-rata per mapel
     const nilaiGroup = await this.prisma.nilai.groupBy({
       by: ['mapelId'],
       where: { tenantId, santriId: dto.santriId },
       _avg: { nilai: true },
     });
-    const mapelIds = nilaiGroup.map((n) => n.mapelId).filter(Boolean) as string[];
-    const mapels = await this.prisma.mataPelajaran.findMany({ where: { tenantId, id: { in: mapelIds } } });
-    const mapelMap = new Map(mapels.map((m) => [m.id, m.namaMapel]));
+    const harianPerMapel = new Map<string, number>();
+    for (const n of nilaiGroup) {
+      if (n.mapelId) harianPerMapel.set(n.mapelId as string, n._avg.nilai ?? 0);
+    }
 
     // Nilai ujian santri (hanya yang hadir dan sudah bernilai)
     const nilaiUjianList = await this.prisma.nilaiUjian.findMany({
@@ -1110,6 +1116,43 @@ export class PenilaianService {
       include: { mapel: { select: { namaMapel: true } } },
     });
     const ujianMap = new Map(ujians.map((u) => [u.id, u.mapel?.namaMapel ?? u.nama]));
+    const mapelDariUjian = new Map(ujians.map((u) => [u.id, u.mapelId]));
+
+    // Nilai ujian dikelompokkan per mapel (pakai nilai akhir remedial kalau ada)
+    const ujianPerMapel = new Map<string, number[]>();
+    for (const n of nilaiUjianList) {
+      const mapelId = mapelDariUjian.get(n.ujianId);
+      if (!mapelId) continue;
+      const nilaiPakai = akhirMap.get(n.ujianId) ?? (n.nilai as number);
+      ujianPerMapel.set(mapelId, [...(ujianPerMapel.get(mapelId) ?? []), nilaiPakai]);
+    }
+
+    // Nama mapel untuk semua mapel yang punya nilai harian atau ujian
+    const semuaMapelId = [...new Set([...harianPerMapel.keys(), ...ujianPerMapel.keys()])];
+    const mapels = await this.prisma.mataPelajaran.findMany({
+      where: { tenantId, id: { in: semuaMapelId } },
+    });
+    const namaMapel = new Map(mapels.map((m) => [m.id, m.namaMapel]));
+
+    const rata = (a: number[]) => a.reduce((s, x) => s + x, 0) / a.length;
+    const mapelRingkas = semuaMapelId
+      .filter((id) => namaMapel.has(id))
+      .map((id) => {
+        const harian = harianPerMapel.has(id) ? (harianPerMapel.get(id) as number) : null;
+        const ujianList = ujianPerMapel.get(id);
+        const ujianRata = ujianList && ujianList.length ? rata(ujianList) : null;
+        // Kalau hanya salah satu yang ada, pakai itu saja (tidak dibobot dengan nol)
+        const akhir =
+          harian !== null && ujianRata !== null
+            ? harian * BOBOT_HARIAN + ujianRata * BOBOT_UJIAN
+            : harian ?? ujianRata ?? 0;
+        return {
+          mapel: namaMapel.get(id),
+          harian: harian !== null ? Number(harian.toFixed(1)) : null,
+          ujian: ujianRata !== null ? Number(ujianRata.toFixed(1)) : null,
+          rataRata: Number(akhir.toFixed(1)),
+        };
+      });
 
     const kehadiran = await this.prisma.absensi.count({
       where: { tenantId, santriId: dto.santriId, status: 'HADIR' },
@@ -1119,9 +1162,7 @@ export class PenilaianService {
     });
 
     const ringkasan: Prisma.JsonObject = {
-      mapel: nilaiGroup
-        .filter((n) => mapelMap.get(n.mapelId))
-        .map((n) => ({ mapel: mapelMap.get(n.mapelId), rataRata: Number(n._avg.nilai?.toFixed(1) ?? 0) })),
+      mapel: mapelRingkas,
       ujian: nilaiUjianList
         .filter((n) => ujianMap.get(n.ujianId))
         .map((n) => {
@@ -1138,8 +1179,9 @@ export class PenilaianService {
       kehadiran: { hadir: kehadiran, total: totalAbsensi },
     };
 
-    const rataRata = nilaiGroup.length
-      ? Number((nilaiGroup.reduce((s, n) => s + (n._avg.nilai ?? 0), 0) / nilaiGroup.length).toFixed(1))
+    // Rata-rata rapor = rata-rata nilai akhir semua mapel
+    const rataRata = mapelRingkas.length
+      ? Number((mapelRingkas.reduce((s, m) => s + m.rataRata, 0) / mapelRingkas.length).toFixed(1))
       : null;
 
     const status = dto.status === 'TERBIT' ? StatusRapor.TERBIT : StatusRapor.DRAFT;
@@ -1159,7 +1201,7 @@ export class PenilaianService {
       include: { santri: { select: { id: true, nama: true, nis: true, kelas: { select: { namaKelas: true } } } } },
     });
   }
-
+  
   async terbitRapor(tenantId: string, id: string, user?: RequestUser) {
     const actor = this.actor(user);
     const found = await this.prisma.rapor.findFirst({
