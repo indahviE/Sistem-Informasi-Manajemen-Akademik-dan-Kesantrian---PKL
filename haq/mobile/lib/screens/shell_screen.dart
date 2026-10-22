@@ -347,6 +347,7 @@ class _ShellScreenState extends State<ShellScreen> {
                               email: user.email,
                               hasUnread: _unreadCount > 0,
                               onNotifikasi: () => setState(() => _notifikasiOpen = true),
+                              onPengaturan: () => _goToMenu('Pengaturan'),
                               onLogout: _logout,
                             )
                       : AppBar(
