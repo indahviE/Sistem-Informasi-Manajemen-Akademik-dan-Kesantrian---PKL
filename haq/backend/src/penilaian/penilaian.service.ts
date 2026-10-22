@@ -246,6 +246,33 @@ export class PenilaianService {
     if (ujian) await this.assertBolehKelola(tenantId, ujian, actor);
   }
 
+    // Kelas yang dijadikan wali kelas oleh ustadz ini.
+  private async kelasWaliSaya(tenantId: string, actor: Actor): Promise<string[]> {
+    const ustadz = await this.prisma.ustadz.findFirst({
+      where: { tenantId, userId: actor.id ?? '__none__' },
+      select: { id: true },
+    });
+    if (!ustadz) return [];
+    const kelas = await this.prisma.kelas.findMany({
+      where: { tenantId, waliKelasId: ustadz.id },
+      select: { id: true },
+    });
+    return kelas.map((k) => k.id);
+  }
+
+  // Ustadz hanya boleh menyentuh rapor santri di kelas yang ia jadi wali kelasnya.
+  private async assertWaliKelasSantri(
+    tenantId: string,
+    santri: { kelasId: string | null },
+    actor: Actor,
+  ) {
+    if (actor.role !== Role.USTADZ) return;
+    const kelasIds = await this.kelasWaliSaya(tenantId, actor);
+    if (!santri.kelasId || !kelasIds.includes(santri.kelasId)) {
+      throw new ForbiddenException('Anda bukan wali kelas santri ini.');
+    }
+  }
+
   private audit(
     tenantId: string,
     actor: Actor,
@@ -1002,26 +1029,54 @@ export class PenilaianService {
     });
   }
 
+    // Santri yang boleh dibuatkan rapor oleh user ini (ustadz: hanya kelas yang ia walikan).
+  async santriRapor(tenantId: string, user?: RequestUser) {
+    const actor = this.actor(user);
+    const batasan: Prisma.SantriWhereInput =
+      actor.role === Role.USTADZ
+        ? { kelasId: { in: await this.kelasWaliSaya(tenantId, actor) } }
+        : {};
+    return this.prisma.santri.findMany({
+      where: { tenantId, status: SantriStatus.AKTIF, ...batasan },
+      select: {
+        id: true,
+        nama: true,
+        nis: true,
+        kelasId: true,
+        kelas: { select: { id: true, namaKelas: true } },
+      },
+      orderBy: { nama: 'asc' },
+    });
+  }
+
   // ===== RAPOR =====
-  async findAllRapor(tenantId: string, santriId?: string, periode?: string) {
+  async findAllRapor(tenantId: string, santriId?: string, periode?: string, user?: RequestUser) {
+    const actor = this.actor(user);
+    const batasan: Prisma.RaporWhereInput =
+      actor.role === Role.USTADZ
+        ? { santri: { kelasId: { in: await this.kelasWaliSaya(tenantId, actor) } } }
+        : {};
     return this.prisma.rapor.findMany({
-      where: { tenantId, ...(santriId ? { santriId } : {}), ...(periode ? { periode } : {}) },
+      where: { tenantId, ...batasan, ...(santriId ? { santriId } : {}), ...(periode ? { periode } : {}) },
       include: { santri: { select: { id: true, nama: true, nis: true, kelas: { select: { namaKelas: true } } } } },
       orderBy: { periode: 'desc' },
     });
   }
 
-  async getRapor(tenantId: string, id: string) {
+  async getRapor(tenantId: string, id: string, user?: RequestUser) {
+    const actor = this.actor(user);
     const rapor = await this.prisma.rapor.findFirst({
       where: { id, tenantId },
-      include: { santri: { select: { id: true, nama: true, nis: true, kelas: { select: { namaKelas: true } } } } },
+      include: { santri: { select: { id: true, nama: true, nis: true, kelasId: true, kelas: { select: { namaKelas: true } } } } },
     });
     if (!rapor) throw new NotFoundException('Rapor tidak ditemukan.');
+    await this.assertWaliKelasSantri(tenantId, rapor.santri, actor);
     return rapor;
   }
-
-  async generateRapor(tenantId: string, dto: GenerateRaporDto) {
-    await this.assertSantri(tenantId, dto.santriId);
+  async generateRapor(tenantId: string, dto: GenerateRaporDto, user?: RequestUser) {
+    const actor = this.actor(user);
+    const santri = await this.assertSantri(tenantId, dto.santriId);
+    await this.assertWaliKelasSantri(tenantId, santri, actor);
 
     const nilaiGroup = await this.prisma.nilai.groupBy({
       by: ['mapelId'],
@@ -1089,6 +1144,14 @@ export class PenilaianService {
 
     const status = dto.status === 'TERBIT' ? StatusRapor.TERBIT : StatusRapor.DRAFT;
 
+    const ada = await this.prisma.rapor.findUnique({
+      where: { tenantId_santriId_periode: { tenantId, santriId: dto.santriId, periode: dto.periode } },
+      select: { status: true },
+    });
+    if (ada?.status === StatusRapor.TERBIT) {
+      throw new ConflictException('Rapor periode ini sudah diterbitkan dan tidak dapat digenerate ulang.');
+    }
+
     return this.prisma.rapor.upsert({
       where: { tenantId_santriId_periode: { tenantId, santriId: dto.santriId, periode: dto.periode } },
       create: { tenantId, santriId: dto.santriId, periode: dto.periode, ringkasan, rataRata, status },
@@ -1097,15 +1160,25 @@ export class PenilaianService {
     });
   }
 
-  async terbitRapor(tenantId: string, id: string) {
-    const found = await this.prisma.rapor.findFirst({ where: { id, tenantId } });
+  async terbitRapor(tenantId: string, id: string, user?: RequestUser) {
+    const actor = this.actor(user);
+    const found = await this.prisma.rapor.findFirst({
+      where: { id, tenantId },
+      include: { santri: { select: { kelasId: true } } },
+    });
     if (!found) throw new NotFoundException('Rapor tidak ditemukan.');
+    await this.assertWaliKelasSantri(tenantId, found.santri, actor);
     return this.prisma.rapor.update({ where: { id }, data: { status: StatusRapor.TERBIT } });
   }
 
-  async removeRapor(tenantId: string, id: string) {
-    const found = await this.prisma.rapor.findFirst({ where: { id, tenantId } });
+  async removeRapor(tenantId: string, id: string, user?: RequestUser) {
+    const actor = this.actor(user);
+    const found = await this.prisma.rapor.findFirst({
+      where: { id, tenantId },
+      include: { santri: { select: { kelasId: true } } },
+    });
     if (!found) throw new NotFoundException('Rapor tidak ditemukan.');
+    await this.assertWaliKelasSantri(tenantId, found.santri, actor);
     return this.prisma.rapor.delete({ where: { id } });
   }
 
