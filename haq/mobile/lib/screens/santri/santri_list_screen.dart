@@ -64,6 +64,9 @@ class _SantriListScreenState extends State<SantriListScreen> {
   bool get _readOnly => AppScope.of(context).user?.isPimpinan == true;
 
   List<Map<String, dynamic>> _items = [];
+
+  /// null = tanpa batasan (admin, pimpinan, dll). Terisi = id kelas yang boleh dilihat ustadz.
+  Set<String>? _kelasBoleh;
   bool _loading = true;
   String? _error;
   final _search = TextEditingController();
@@ -115,8 +118,13 @@ class _SantriListScreenState extends State<SantriListScreen> {
       );
       if (!mounted) return;
       final raw = (res['items'] as List? ?? []);
+      await _muatKelasBoleh();
+      if (!mounted) return;
+      final semua = raw.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
       setState(() {
-        _items = raw.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
+        _items = _kelasBoleh == null
+            ? semua
+            : semua.where((s) => _kelasBoleh!.contains(_kelasIdOf(s))).toList();
         _loading = false;
         _error = null;
         if (_kelasFilter != null &&
@@ -134,6 +142,30 @@ class _SantriListScreenState extends State<SantriListScreen> {
         });
       }
     }
+  }
+
+  bool get _isUstadz => AppScope.of(context).user?.isUstadz == true;
+
+  /// Ustadz: ambil id kelas yang dia ajar / dia jadi wali kelasnya.
+  Future<void> _muatKelasBoleh() async {
+    if (!_isUstadz) return;
+    if (_kelasBoleh != null && _kelasBoleh!.isNotEmpty) return;
+    try {
+      final res = await AppScope.of(context).api.get(ApiUrl.kelas, query: {'diampu': 'true'});
+      final raw = res is List ? res : (res is Map ? (res['items'] ?? res['data']) : null);
+      _kelasBoleh = (raw is List ? raw : const [])
+          .whereType<Map>()
+          .map((k) => '${k['id']}')
+          .toSet();
+    } catch (_) {
+      // Gagal muat: tampilkan kosong, jangan tampilkan semua santri.
+      _kelasBoleh = <String>{};
+    }
+  }
+
+  String? _kelasIdOf(Map<String, dynamic> s) {
+    final v = s['kelasId'] ?? (s['kelas'] as Map?)?['id'];
+    return v?.toString();
   }
 
   void _onSearchChanged(String _) {
