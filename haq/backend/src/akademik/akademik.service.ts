@@ -293,15 +293,30 @@ export class AkademikService {
 
   // ===== Tahfidz =====
 
-  /** ID santri binaan seorang ustadz = santri di kelas yang dia jadi wali kelasnya. */
+  /**
+   * ID santri binaan seorang ustadz = santri di kelas yang dia jadi wali kelasnya
+   * ATAU kelas yang dia ampu (tabel ustadz_mengajar). Harus sama dengan
+   * santriIdsBinaan di santri.service.ts.
+   */
   private async santriIdsBinaan(tenantId: string, user: RequestUser): Promise<string[]> {
     const ustadz = await this.prisma.ustadz.findFirst({
       where: { tenantId, userId: user.userId },
       select: { id: true },
     });
     if (!ustadz) return [];
+    const mengajar = await this.prisma.ustadzMengajar.findMany({
+      where: { tenantId, ustadzId: ustadz.id },
+      select: { kelasId: true },
+    });
+    const kelasIdsDiampu = [...new Set(mengajar.map((m) => m.kelasId))];
     const santris = await this.prisma.santri.findMany({
-      where: { tenantId, kelas: { waliKelasId: ustadz.id } },
+      where: {
+        tenantId,
+        OR: [
+          { kelas: { waliKelasId: ustadz.id } },
+          { kelasId: { in: kelasIdsDiampu } },
+        ],
+      },
       select: { id: true },
     });
     return santris.map((s) => s.id);
