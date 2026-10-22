@@ -153,10 +153,29 @@ export class MasterDataService {
     });
   }
 
-  createTahunAjaran(tenantId: string, dto: CreateTahunAjaranDto) {
+  async findTahunAjaranAktif(tenantId: string) {
+  const ta = await this.prisma.tahunAjaran.findFirst({
+    where: { tenantId, aktif: true },
+    select: { id: true, nama: true },
+    orderBy: { nama: 'desc' },
+  });
+  return ta ?? { id: null, nama: null };
+}
+
+async createTahunAjaran(tenantId: string, dto: CreateTahunAjaranDto) {
+  const aktif = (dto as any).aktif ?? true; // default schema = true
+
+  if (!aktif) {
     return this.prisma.tahunAjaran.create({ data: { tenantId, ...dto } });
   }
 
+  // Kalau yang baru aktif, matikan yang lain supaya tetap hanya satu.
+  const [, baru] = await this.prisma.$transaction([
+    this.prisma.tahunAjaran.updateMany({ where: { tenantId }, data: { aktif: false } }),
+    this.prisma.tahunAjaran.create({ data: { tenantId, ...dto, aktif: true } }),
+  ]);
+  return baru;
+}
   async setTahunAjaranAktif(tenantId: string, id: string) {
     // Pastikan tahun ajaran dengan id ini memang milik tenant yang login —
     // tanpa cek ini, admin tenant lain bisa mengaktifkan tahun ajaran

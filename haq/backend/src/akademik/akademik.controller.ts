@@ -62,6 +62,7 @@ export class AkademikController {
     @Query('santriId') santriId?: string,
     @Query('mapelId') mapelId?: string,
     @Query('jenis') jenis?: JenisNilai,
+    @Query('tahunAjaranId') tahunAjaranId?: string,
   ) {
     let allowed: string[] | undefined;
     if (user.role === Role.WALI_SANTRI) {
@@ -70,7 +71,7 @@ export class AkademikController {
         throw new ForbiddenException('Anda tidak memiliki akses ke data santri ini.');
       }
     }
-    return this.akademikService.findAllNilai(tenantId, santriId, mapelId, jenis, allowed);
+    return this.akademikService.findAllNilai(tenantId, santriId, mapelId, jenis, allowed, tahunAjaranId);
   }
 
   @Roles(Role.ADMIN, Role.USTADZ)

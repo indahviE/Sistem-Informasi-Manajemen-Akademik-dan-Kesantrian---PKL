@@ -107,6 +107,12 @@ export class MasterDataController {
     return this.masterService.findAllTahunAjaran(tenantId);
   }
 
+  @Roles(Role.ADMIN, Role.PIMPINAN, Role.USTADZ, Role.MUSYRIF)
+  @Get('tahun-ajaran/aktif')
+  findTahunAjaranAktif(@TenantId() tenantId: string) {
+    return this.masterService.findTahunAjaranAktif(tenantId);
+  }
+
   @Roles(Role.ADMIN)
   @Post('tahun-ajaran')
   createTahunAjaran(@TenantId() tenantId: string, @Body() dto: CreateTahunAjaranDto) {
