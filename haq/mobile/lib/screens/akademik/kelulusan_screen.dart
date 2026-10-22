@@ -64,6 +64,13 @@ _Pred _predOf(String? v) {
 const int _kMaxJuz = 30;
 const int _kMaxCatatan = 150;
 
+/// Ambil id kelas dari data santri (mendukung `kelasId` atau `kelas.id`).
+String? _kelasIdOf(dynamic s) {
+  if (s is! Map) return null;
+  final id = s['kelasId'] ?? (s['kelas'] is Map ? (s['kelas'] as Map)['id'] : null);
+  return id?.toString();
+}
+
 class KelulusanScreen extends StatefulWidget {
   const KelulusanScreen({super.key});
 
@@ -102,9 +109,13 @@ class _KelulusanScreenState extends State<KelulusanScreen> {
     try {
       final res = await AppScope.of(context).api.get(ApiUrl.kelulusan);
       final raw = res is List ? res : ((res as Map<String, dynamic>)['data'] as List? ?? []);
-      final items =
-          raw.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
       if (!mounted) return;
+      final user = AppScope.of(context).user!;
+      final items = raw
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .where((k) => user.bolehAksesKelas(_kelasIdOf(k['santri'])))
+          .toList();
       setState(() {
         _kelulusan = items;
         _loading = false;
@@ -873,8 +884,13 @@ class _PilihSantriSheetState extends State<_PilihSantriSheet> {
           await AppScope.of(context).api.get(ApiUrl.santri, query: {'perPage': '100'});
       final raw = (res as Map<String, dynamic>)['items'] as List? ?? [];
       if (!mounted) return;
+      final user = AppScope.of(context).user!;
       setState(() {
-        _santri = raw.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
+        _santri = raw
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .where((s) => user.bolehAksesKelas(_kelasIdOf(s)))
+            .toList();
         _loading = false;
       });
     } on ApiException catch (e) {

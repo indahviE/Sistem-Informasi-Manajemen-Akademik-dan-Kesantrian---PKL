@@ -37,6 +37,13 @@ TextStyle _t(double size, FontWeight w, Color c, {double? height}) => TextStyle(
   height: height,
 );
 
+/// Ambil id kelas dari data santri (mendukung `kelasId` atau `kelas.id`).
+String? _kelasIdOf(dynamic s) {
+  if (s is! Map) return null;
+  final id = s['kelasId'] ?? (s['kelas'] is Map ? (s['kelas'] as Map)['id'] : null);
+  return id?.toString();
+}
+
 BoxDecoration _cardDeco() => BoxDecoration(
   color: _RC.surface,
   borderRadius: BorderRadius.circular(20),
@@ -162,8 +169,10 @@ class _RaporScreenState extends State<RaporScreen> {
     });
     try {
       final res = await AppScope.of(context).api.get(ApiUrl.santri);
-      final items = (res as Map<String, dynamic>)['items'] as List;
+      final raw = (res as Map<String, dynamic>)['items'] as List;
       if (!mounted) return;
+      final user = AppScope.of(context).user!;
+      final items = raw.where((s) => user.bolehAksesKelas(_kelasIdOf(s))).toList();
       setState(() {
         _santri = items;
         _loading = false;

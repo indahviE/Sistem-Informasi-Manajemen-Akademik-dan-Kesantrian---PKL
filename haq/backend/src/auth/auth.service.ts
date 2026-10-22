@@ -84,6 +84,8 @@ export class AuthService {
       });
     }
 
+    const waliKelasIds = await this.waliKelasIdsOf(user);
+
     return {
       ...tokens,
       user: {
@@ -99,8 +101,30 @@ export class AuthService {
               status: user.tenant.status,
             }
           : null,
+        waliKelasIds,
       },
     };
+  }
+
+  /** ID kelas yang diwalikan user ini (hanya relevan untuk role USTADZ). */
+  private async waliKelasIdsOf(user: {
+    id: string;
+    role: Role;
+    tenantId: string | null;
+  }): Promise<string[]> {
+    if (user.role !== Role.USTADZ || !user.tenantId) return [];
+
+    const ustadz = await this.prisma.ustadz.findFirst({
+      where: { userId: user.id, tenantId: user.tenantId },
+      select: { id: true },
+    });
+    if (!ustadz) return [];
+
+    const kelas = await this.prisma.kelas.findMany({
+      where: { waliKelasId: ustadz.id, tenantId: user.tenantId },
+      select: { id: true },
+    });
+    return kelas.map((k) => k.id);
   }
 
   async refresh(refreshToken: string) {
