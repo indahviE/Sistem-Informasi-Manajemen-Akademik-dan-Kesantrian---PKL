@@ -1197,9 +1197,17 @@ class _RaporDetailScreenState extends State<RaporDetailScreen> {
                   const SizedBox(height: 10),
                   ...mapelList.map((m) {
                     final mm = m as Map<String, dynamic>;
+                    final harian = mm['harian'] as num?;
+                    final ujian = mm['ujian'] as num?;
+                    final rincian = [
+                      if (harian != null) 'Harian ${harian.toStringAsFixed(1)}',
+                      if (ujian != null) 'Ujian ${ujian.toStringAsFixed(1)}',
+                    ].join('  •  ');
                     return _nilaiBar(
                       mm['mapel'].toString(),
                       (mm['rataRata'] as num).toDouble(),
+                      kkm: (mm['kkm'] as num?)?.toDouble(),
+                      rincian: rincian,
                     );
                   }),
                 ],
@@ -1212,6 +1220,10 @@ class _RaporDetailScreenState extends State<RaporDetailScreen> {
                     return _nilaiBar(
                       mm['ujian'].toString(),
                       (mm['rataRata'] as num).toDouble(),
+                      kkm: (mm['kkm'] as num?)?.toDouble(),
+                      rincian: mm['remedial'] == true
+                          ? 'Awal ${(mm['nilaiAwal'] as num).toStringAsFixed(1)} • Remedial'
+                          : null,
                     );
                   }),
                 ],
@@ -1304,13 +1316,37 @@ class _RaporDetailScreenState extends State<RaporDetailScreen> {
               valueColor: AlwaysStoppedAnimation<Color>(_RC.primary),
             ),
           ),
+          if (k['sakit'] != null) ...[
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                _kehadiranChip('Sakit', k['sakit']),
+                const SizedBox(width: 8),
+                _kehadiranChip('Izin', k['izin']),
+                const SizedBox(width: 8),
+                _kehadiranChip('Alpa', k['alpa']),
+              ],
+            ),
+          ],
         ],
       ),
     );
   }
 
-  Widget _nilaiBar(String label, double nilai) {
-    final lulus = nilai >= _RC.kkm;
+  Widget _kehadiranChip(String label, dynamic value) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: _RC.surface,
+        borderRadius: BorderRadius.circular(9999),
+        border: Border.all(color: _RC.line),
+      ),
+      child: Text('$label ${value ?? 0}', style: _t(11.5, FontWeight.w700, _RC.inkSecondary)),
+    );
+  }
+
+  Widget _nilaiBar(String label, double nilai, {double? kkm, String? rincian}) {
+    final lulus = nilai >= (kkm ?? _RC.kkm);
     final fg = lulus ? _RC.greenFg : _RC.redFg;
     final bg = lulus ? _RC.greenBg : _RC.redBg;
     final bar = lulus ? _RC.primary : const Color(0xFFDC2626);
@@ -1343,6 +1379,13 @@ class _RaporDetailScreenState extends State<RaporDetailScreen> {
               ),
             ],
           ),
+          if (rincian != null && rincian.isNotEmpty) ...[
+            const SizedBox(height: 3),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(rincian, style: _t(11, FontWeight.w500, _RC.inkSecondary)),
+            ),
+          ],
           const SizedBox(height: 6),
           ClipRRect(
             borderRadius: BorderRadius.circular(9999),
