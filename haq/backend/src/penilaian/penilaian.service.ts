@@ -20,8 +20,10 @@ import {
   UpdateUjianDto,
 } from './dto/penilaian.dto';
 import {
+  AbsensiStatus,
   AuditKategori,
   AuditTingkat,
+  JenisNilai,
   NilaiUjian,
   PredikatKelulusan,
   Prisma,
@@ -37,6 +39,39 @@ type Actor = { id: string | null; nama: string | null; role: string | null };
 
 // Jenis ujian yang dibatasi penugasan + dicek duplikat
 const JENIS_TERPUSAT = ['UTS', 'UAS'];
+
+// Bobot nilai akhir rapor per mapel (jumlah harus 1). Sesuaikan dengan aturan pondok.
+const BOBOT_HARIAN = 0.5;
+const BOBOT_UJIAN = 0.5;
+
+// Jenis di tabel Nilai yang dihitung sebagai nilai non-ujian pada rapor.
+// Kalau ULANGAN di sini sama dengan ujian di layar Ujian, hapus agar tidak dobel.
+const JENIS_NILAI_RAPOR: JenisNilai[] = [
+  JenisNilai.HARIAN,
+  JenisNilai.ULANGAN,
+  JenisNilai.TAHFIDZ,
+  JenisNilai.BAHASA_ARAB,
+];
+
+// Label periode ("2026/2027 - Ganjil") menjadi rentang tanggal.
+// Ganjil = Juli-Desember tahun pertama, Genap = Januari-Juni tahun kedua.
+// Format tidak dikenal = null (tidak menyaring).
+function rentangPeriode(periode: string): { gte: Date; lt: Date } | null {
+  const m = periode.match(/(\d{4})\s*\/\s*(\d{4})\s*-\s*(Ganjil|Genap)/i);
+  if (!m) return null;
+  const awal = Number(m[1]);
+  const akhir = Number(m[2]);
+  if (m[3].toLowerCase() === 'ganjil') {
+    return { gte: new Date(Date.UTC(awal, 6, 1)), lt: new Date(Date.UTC(akhir, 0, 1)) };
+  }
+  return { gte: new Date(Date.UTC(akhir, 0, 1)), lt: new Date(Date.UTC(akhir, 6, 1)) };
+}
+
+// Kebalikan rentangPeriode: tanggal menjadi label periode ("2026/2027 - Ganjil").
+function periodeDariTanggal(d: Date): string {
+  const y = d.getUTCFullYear();
+  return d.getUTCMonth() >= 6 ? `${y}/${y + 1} - Ganjil` : `${y - 1}/${y} - Genap`;
+}
 
 @Injectable()
 export class PenilaianService {
@@ -244,6 +279,43 @@ export class PenilaianService {
     if (!ujianId) return;
     const ujian = await this.prisma.ujian.findFirst({ where: { id: ujianId, tenantId } });
     if (ujian) await this.assertBolehKelola(tenantId, ujian, actor);
+  }
+
+    // Kelas yang dijadikan wali kelas oleh ustadz ini.
+  private async kelasWaliSaya(tenantId: string, actor: Actor): Promise<string[]> {
+    const ustadz = await this.prisma.ustadz.findFirst({
+      where: { tenantId, userId: actor.id ?? '__none__' },
+      select: { id: true },
+    });
+    if (!ustadz) return [];
+    const kelas = await this.prisma.kelas.findMany({
+      where: { tenantId, waliKelasId: ustadz.id },
+      select: { id: true },
+    });
+    return kelas.map((k) => k.id);
+  }
+
+  // Ustadz hanya boleh menyentuh rapor santri di kelas yang ia jadi wali kelasnya.
+  private async assertWaliKelasSantri(
+    tenantId: string,
+    santri: { kelasId: string | null },
+    actor: Actor,
+  ) {
+    if (actor.role !== Role.USTADZ) return;
+    const kelasIds = await this.kelasWaliSaya(tenantId, actor);
+    if (!santri.kelasId || !kelasIds.includes(santri.kelasId)) {
+      throw new ForbiddenException('Anda bukan wali kelas santri ini.');
+    }
+  }
+
+    // Id WaliSantri milik user ini (untuk membatasi wali ke anaknya).
+  private async waliIdsSaya(tenantId: string, actor: Actor): Promise<string[]> {
+    if (!actor.id) return [];
+    const wali = await this.prisma.waliSantri.findMany({
+      where: { tenantId, userId: actor.id },
+      select: { id: true },
+    });
+    return wali.map((w) => w.id);
   }
 
   private audit(
@@ -502,6 +574,7 @@ export class PenilaianService {
         mapelId: dto.mapelId ?? null,
         kelasId: dto.kelasId ?? null,
         tanggal: dto.tanggal ? new Date(dto.tanggal) : null,
+        periode: periodeDariTanggal(dto.tanggal ? new Date(dto.tanggal) : new Date()),
         durasiMenit: dto.durasiMenit ?? null,
         kkm: dto.kkm ?? 75,
         dibuatOleh: actor.id,
@@ -540,6 +613,7 @@ export class PenilaianService {
         mapelId: dto.mapelId ?? undefined,
         kelasId: dto.kelasId ?? undefined,
         tanggal: dto.tanggal ? new Date(dto.tanggal) : undefined,
+        periode: dto.tanggal ? periodeDariTanggal(new Date(dto.tanggal)) : undefined,
         durasiMenit: dto.durasiMenit,
         kkm: dto.kkm,
       },
@@ -642,7 +716,8 @@ export class PenilaianService {
     if (alasan.length < 10) throw new BadRequestException('Alasan buka kunci minimal 10 karakter.');
 
     // Jika nilai sudah masuk rapor yang terbit, hanya Admin/Pimpinan yang boleh membuka kunci
-    if (ujian.periode) {
+    const periodeUjian = ujian.periode ?? periodeDariTanggal(ujian.tanggal ?? ujian.createdAt);
+    if (periodeUjian) {
       const peserta = await this.prisma.nilaiUjian.findMany({
         where: { ujianId, tenantId },
         select: { santriId: true },
@@ -650,7 +725,7 @@ export class PenilaianService {
       const raporTerbit = await this.prisma.rapor.count({
         where: {
           tenantId,
-          periode: ujian.periode,
+          periode: periodeUjian,
           status: StatusRapor.TERBIT,
           santriId: { in: peserta.map((p) => p.santriId) },
         },
@@ -1002,35 +1077,101 @@ export class PenilaianService {
     });
   }
 
+    // Santri yang boleh dibuatkan rapor oleh user ini (ustadz: hanya kelas yang ia walikan).
+  async santriRapor(tenantId: string, user?: RequestUser) {
+    const actor = this.actor(user);
+    const batasan: Prisma.SantriWhereInput =
+      actor.role === Role.USTADZ
+        ? { kelasId: { in: await this.kelasWaliSaya(tenantId, actor) } }
+        : {};
+    return this.prisma.santri.findMany({
+      where: { tenantId, status: SantriStatus.AKTIF, ...batasan },
+      select: {
+        id: true,
+        nama: true,
+        nis: true,
+        kelasId: true,
+        kelas: { select: { id: true, namaKelas: true } },
+      },
+      orderBy: { nama: 'asc' },
+    });
+  }
+
   // ===== RAPOR =====
-  async findAllRapor(tenantId: string, santriId?: string, periode?: string) {
+  async findAllRapor(tenantId: string, santriId?: string, periode?: string, user?: RequestUser) {
+    const actor = this.actor(user);
+    let batasan: Prisma.RaporWhereInput = {};
+    if (actor.role === Role.USTADZ) {
+      batasan = { santri: { kelasId: { in: await this.kelasWaliSaya(tenantId, actor) } } };
+    } else if (actor.role === Role.WALI_SANTRI) {
+      // Wali hanya melihat rapor anaknya yang sudah terbit
+      batasan = {
+        status: StatusRapor.TERBIT,
+        santri: { waliId: { in: await this.waliIdsSaya(tenantId, actor) } },
+      };
+    }
     return this.prisma.rapor.findMany({
-      where: { tenantId, ...(santriId ? { santriId } : {}), ...(periode ? { periode } : {}) },
+      where: { tenantId, ...batasan, ...(santriId ? { santriId } : {}), ...(periode ? { periode } : {}) },
       include: { santri: { select: { id: true, nama: true, nis: true, kelas: { select: { namaKelas: true } } } } },
       orderBy: { periode: 'desc' },
     });
   }
 
-  async getRapor(tenantId: string, id: string) {
+    async getRapor(tenantId: string, id: string, user?: RequestUser) {
+    const actor = this.actor(user);
     const rapor = await this.prisma.rapor.findFirst({
       where: { id, tenantId },
-      include: { santri: { select: { id: true, nama: true, nis: true, kelas: { select: { namaKelas: true } } } } },
+      include: { santri: { select: { id: true, nama: true, nis: true, kelasId: true, waliId: true, kelas: { select: { namaKelas: true } } } } },
     });
     if (!rapor) throw new NotFoundException('Rapor tidak ditemukan.');
+    if (actor.role === Role.WALI_SANTRI) {
+      const waliIds = await this.waliIdsSaya(tenantId, actor);
+      const anaknya = !!rapor.santri.waliId && waliIds.includes(rapor.santri.waliId);
+      // 404 (bukan 403) supaya wali tidak bisa menebak id rapor orang lain
+      if (!anaknya || rapor.status !== StatusRapor.TERBIT) {
+        throw new NotFoundException('Rapor tidak ditemukan.');
+      }
+    }
+    await this.assertWaliKelasSantri(tenantId, rapor.santri, actor);
     return rapor;
   }
 
-  async generateRapor(tenantId: string, dto: GenerateRaporDto) {
-    await this.assertSantri(tenantId, dto.santriId);
+  async generateRapor(tenantId: string, dto: GenerateRaporDto, user?: RequestUser) {
+    const actor = this.actor(user);
+    const santri = await this.assertSantri(tenantId, dto.santriId);
+    await this.assertWaliKelasSantri(tenantId, santri, actor);
 
+    // Rapor yang sudah terbit tidak boleh tertimpa (dicek di awal, sebelum menghitung)
+    const ada = await this.prisma.rapor.findUnique({
+      where: { tenantId_santriId_periode: { tenantId, santriId: dto.santriId, periode: dto.periode } },
+      select: { status: true },
+    });
+    if (ada?.status === StatusRapor.TERBIT) {
+      throw new ConflictException('Rapor periode ini sudah diterbitkan dan tidak dapat digenerate ulang.');
+    }
+
+    // Rentang tanggal periode (null = format tidak dikenal, tidak menyaring)
+    const rentang = rentangPeriode(dto.periode);
+    const batasTanggal = rentang ? { tanggal: rentang } : {};
+
+    // Nilai non-ujian: rata-rata per mapel dalam periode
     const nilaiGroup = await this.prisma.nilai.groupBy({
       by: ['mapelId'],
-      where: { tenantId, santriId: dto.santriId },
+      where: {
+        tenantId,
+        santriId: dto.santriId,
+        jenis: { in: JENIS_NILAI_RAPOR },
+        ...batasTanggal,
+      },
       _avg: { nilai: true },
     });
-    const mapelIds = nilaiGroup.map((n) => n.mapelId).filter(Boolean) as string[];
-    const mapels = await this.prisma.mataPelajaran.findMany({ where: { tenantId, id: { in: mapelIds } } });
-    const mapelMap = new Map(mapels.map((m) => [m.id, m.namaMapel]));
+    const harianPerMapel = new Map(nilaiGroup.map((n) => [n.mapelId, n._avg.nilai ?? 0]));
+
+    // Ujian dalam periode: periode cocok, atau tanggal di rentang,
+    // atau (ujian tanpa tanggal) dibuat dalam rentang
+    const filterUjian: Prisma.UjianWhereInput = rentang
+      ? { OR: [{ periode: dto.periode }, { tanggal: rentang }, { tanggal: null, createdAt: rentang }] }
+      : {};
 
     // Nilai ujian santri (hanya yang hadir dan sudah bernilai)
     const nilaiUjianList = await this.prisma.nilaiUjian.findMany({
@@ -1039,52 +1180,98 @@ export class PenilaianService {
         santriId: dto.santriId,
         status: StatusKehadiranUjian.HADIR,
         nilai: { not: null },
+        ujian: filterUjian,
       },
-      select: { ujianId: true, nilai: true },
+      select: {
+        ujianId: true,
+        nilai: true,
+        ujian: { select: { nama: true, mapelId: true, mapel: { select: { namaMapel: true } } } },
+      },
     });
 
-    // Hasil remedial: kalau ada, nilai akhir dipakai menggantikan nilai awal
+    // Hasil remedial untuk ujian di periode ini: nilai akhir menggantikan nilai awal
     const remedialList = await this.prisma.remedial.findMany({
-      where: { tenantId, santriId: dto.santriId, ujianId: { not: null }, nilaiAkhir: { not: null } },
+      where: {
+        tenantId,
+        santriId: dto.santriId,
+        ujianId: { in: nilaiUjianList.map((n) => n.ujianId) },
+        nilaiAkhir: { not: null },
+      },
       select: { ujianId: true, nilaiAkhir: true },
     });
     const akhirMap = new Map(remedialList.map((r) => [r.ujianId as string, r.nilaiAkhir as number]));
 
-    const ujians = await this.prisma.ujian.findMany({
-      where: { tenantId, id: { in: nilaiUjianList.map((n) => n.ujianId) } },
-      include: { mapel: { select: { namaMapel: true } } },
-    });
-    const ujianMap = new Map(ujians.map((u) => [u.id, u.mapel?.namaMapel ?? u.nama]));
+    // Nilai ujian per mapel (pakai nilai akhir remedial kalau ada)
+    const ujianPerMapel = new Map<string, number[]>();
+    for (const n of nilaiUjianList) {
+      const mapelId = n.ujian.mapelId;
+      if (!mapelId) continue;
+      const dipakai = akhirMap.get(n.ujianId) ?? (n.nilai as number);
+      ujianPerMapel.set(mapelId, [...(ujianPerMapel.get(mapelId) ?? []), dipakai]);
+    }
 
-    const kehadiran = await this.prisma.absensi.count({
-      where: { tenantId, santriId: dto.santriId, status: 'HADIR' },
+    // Nama mapel untuk semua mapel yang punya nilai harian atau ujian
+    const semuaMapelId = [...new Set([...harianPerMapel.keys(), ...ujianPerMapel.keys()])];
+    const mapels = await this.prisma.mataPelajaran.findMany({
+      where: { tenantId, id: { in: semuaMapelId } },
     });
-    const totalAbsensi = await this.prisma.absensi.count({
-      where: { tenantId, santriId: dto.santriId },
+    const namaMapel = new Map(mapels.map((m) => [m.id, m.namaMapel]));
+    const kkmMapel = new Map(mapels.map((m) => [m.id, m.kkm]));
+
+    const rata = (a: number[]) => a.reduce((s, x) => s + x, 0) / a.length;
+    const mapelRingkas = semuaMapelId
+      .filter((id) => namaMapel.has(id))
+      .map((id) => {
+        const harian = harianPerMapel.has(id) ? (harianPerMapel.get(id) as number) : null;
+        const ujianList = ujianPerMapel.get(id);
+        const ujianRata = ujianList && ujianList.length ? rata(ujianList) : null;
+        // Kalau hanya salah satu yang ada, pakai itu saja (tidak dibobot dengan nol)
+        const akhir =
+          harian !== null && ujianRata !== null
+            ? harian * BOBOT_HARIAN + ujianRata * BOBOT_UJIAN
+            : harian ?? ujianRata ?? 0;
+        return {
+          mapel: namaMapel.get(id),
+          kkm: kkmMapel.get(id) ?? null,
+          harian: harian !== null ? Number(harian.toFixed(1)) : null,
+          ujian: ujianRata !== null ? Number(ujianRata.toFixed(1)) : null,
+          rataRata: Number(akhir.toFixed(1)),
+        };
+      });
+
+    // Kehadiran dalam periode, dengan rincian
+    const absensiGroup = await this.prisma.absensi.groupBy({
+      by: ['status'],
+      where: { tenantId, santriId: dto.santriId, ...batasTanggal },
+      _count: { _all: true },
     });
+    const hitung = (s: AbsensiStatus) => absensiGroup.find((g) => g.status === s)?._count._all ?? 0;
+    const hadir = hitung(AbsensiStatus.HADIR);
+    const sakit = hitung(AbsensiStatus.SAKIT);
+    const izin = hitung(AbsensiStatus.IZIN);
+    const alpa = hitung(AbsensiStatus.ALPA);
 
     const ringkasan: Prisma.JsonObject = {
-      mapel: nilaiGroup
-        .filter((n) => mapelMap.get(n.mapelId))
-        .map((n) => ({ mapel: mapelMap.get(n.mapelId), rataRata: Number(n._avg.nilai?.toFixed(1) ?? 0) })),
-      ujian: nilaiUjianList
-        .filter((n) => ujianMap.get(n.ujianId))
-        .map((n) => {
-          const awal = n.nilai as number;
-          const akhir = akhirMap.get(n.ujianId);
-          return {
-            ujian: ujianMap.get(n.ujianId),
-            nilaiAwal: awal,
-            nilaiAkhir: akhir ?? awal,
-            remedial: akhir !== undefined,
-            rataRata: Number((akhir ?? awal).toFixed(1)),
-          };
-        }),
-      kehadiran: { hadir: kehadiran, total: totalAbsensi },
+      mapel: mapelRingkas,
+      ujian: nilaiUjianList.map((n) => {
+        const awal = n.nilai as number;
+        const akhir = akhirMap.get(n.ujianId);
+        return {
+          ujian: n.ujian.mapel?.namaMapel ?? n.ujian.nama,
+          kkm: kkmMapel.get(n.ujian.mapelId ?? '') ?? null,
+          nilaiAwal: awal,
+          nilaiAkhir: akhir ?? awal,
+          remedial: akhir !== undefined,
+          rataRata: Number((akhir ?? awal).toFixed(1)),
+        };
+      }),
+      // key hadir dan total tetap ada, jadi layar Flutter lama tidak rusak
+      kehadiran: { hadir, sakit, izin, alpa, total: hadir + sakit + izin + alpa },
     };
 
-    const rataRata = nilaiGroup.length
-      ? Number((nilaiGroup.reduce((s, n) => s + (n._avg.nilai ?? 0), 0) / nilaiGroup.length).toFixed(1))
+    // Rata-rata rapor = rata-rata nilai akhir semua mapel
+    const rataRata = mapelRingkas.length
+      ? Number((mapelRingkas.reduce((s, m) => s + m.rataRata, 0) / mapelRingkas.length).toFixed(1))
       : null;
 
     const status = dto.status === 'TERBIT' ? StatusRapor.TERBIT : StatusRapor.DRAFT;
@@ -1097,15 +1284,25 @@ export class PenilaianService {
     });
   }
 
-  async terbitRapor(tenantId: string, id: string) {
-    const found = await this.prisma.rapor.findFirst({ where: { id, tenantId } });
+    async terbitRapor(tenantId: string, id: string, user?: RequestUser) {
+    const actor = this.actor(user);
+    const found = await this.prisma.rapor.findFirst({
+      where: { id, tenantId },
+      include: { santri: { select: { kelasId: true } } },
+    });
     if (!found) throw new NotFoundException('Rapor tidak ditemukan.');
+    await this.assertWaliKelasSantri(tenantId, found.santri, actor);
     return this.prisma.rapor.update({ where: { id }, data: { status: StatusRapor.TERBIT } });
   }
 
-  async removeRapor(tenantId: string, id: string) {
-    const found = await this.prisma.rapor.findFirst({ where: { id, tenantId } });
+  async removeRapor(tenantId: string, id: string, user?: RequestUser) {
+    const actor = this.actor(user);
+    const found = await this.prisma.rapor.findFirst({
+      where: { id, tenantId },
+      include: { santri: { select: { kelasId: true } } },
+    });
     if (!found) throw new NotFoundException('Rapor tidak ditemukan.');
+    await this.assertWaliKelasSantri(tenantId, found.santri, actor);
     return this.prisma.rapor.delete({ where: { id } });
   }
 

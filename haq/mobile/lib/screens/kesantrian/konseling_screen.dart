@@ -1283,7 +1283,7 @@ class _PilihSantriSheetState extends State<_PilihSantriSheet> {
 
   Future<void> _load() async {
     try {
-      final res = await AppScope.of(context).api.get(ApiUrl.santri);
+      final res = await AppScope.of(context).api.get('${ApiUrl.santri}?binaan=true');
       final items = _asList(res);
       if (mounted) {
         setState(() {

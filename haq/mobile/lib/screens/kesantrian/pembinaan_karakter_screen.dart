@@ -1256,8 +1256,31 @@ class _PilihSantriSheetState extends State<_PilihSantriSheet> {
 
   Future<void> _load() async {
     try {
-      final res = await AppScope.of(context).api.get(ApiUrl.santri, query: {'perPage': '100'});
-      final items = _asList(res);
+      final api = AppScope.of(context).api;
+      final res = await api.get(ApiUrl.santri, query: {'perPage': '100'});
+      var items = _asList(res);
+
+      // Ustadz: hanya santri dari kelas yang diampu (dari /dashboard).
+      // Role lain tidak punya `kelasDiampu`, jadi daftar tetap lengkap.
+      try {
+        final dash = await api.get(ApiUrl.dashboard);
+        final kd = dash is Map ? dash['kelasDiampu'] : null;
+        if (kd is List) {
+          final diampu = kd
+              .whereType<Map>()
+              .map((k) => (k['namaKelas'] ?? '').toString().trim().toLowerCase())
+              .where((e) => e.isNotEmpty)
+              .toSet();
+          items = items.where((s) {
+            final n = ((s['kelas'] as Map?)?['namaKelas'] ?? '')
+                .toString()
+                .trim()
+                .toLowerCase();
+            return diampu.contains(n);
+          }).toList();
+        }
+      } catch (_) {}
+
       if (mounted) {
         setState(() {
           _santri = items;

@@ -190,6 +190,7 @@ model User {
   waliSantris            WaliSantri[]
   tenantSebagaiAdminAwal Tenant[]          @relation("TenantAdminAwal")
   notifSetting           UserNotifSetting?
+  konselingDibuat Konseling[] @relation("KonselingCreatedBy")
 
   @@unique([tenantId, email])
   @@index([tenantId])
@@ -365,6 +366,7 @@ model TahunAjaran {
   tenant     Tenant      @relation(fields: [tenantId], references: [id])
   kelas      Kelas[]
   kurikulums Kurikulum[]
+  nilais     Nilai[]                                                                 // BARU
 
   @@unique([tenantId, nama])
   @@map("tahun_ajarans")
@@ -392,23 +394,26 @@ model Absensi {
 }
 
 model Nilai {
-  id         String     @id @default(cuid())
-  tenantId   String
-  santriId   String
-  mapelId    String
-  jenis      JenisNilai
-  nilai      Float
-  keterangan String?
-  skill      String     @default("")
-  tanggal    DateTime   @db.Date
-  inputOleh  String
-  createdAt  DateTime   @default(now())
+  id            String     @id @default(cuid())
+  tenantId      String
+  santriId      String
+  mapelId       String
+  tahunAjaranId String?                                                              // BARU
+  jenis         JenisNilai
+  nilai         Float
+  keterangan    String?
+  skill         String     @default("")
+  tanggal       DateTime   @db.Date
+  inputOleh     String
+  createdAt     DateTime   @default(now())
 
-  santri Santri        @relation(fields: [santriId], references: [id], onDelete: Cascade)
-  mapel  MataPelajaran @relation(fields: [mapelId], references: [id])
+  santri      Santri        @relation(fields: [santriId], references: [id], onDelete: Cascade)
+  mapel       MataPelajaran @relation(fields: [mapelId], references: [id])
+  tahunAjaran TahunAjaran?  @relation(fields: [tahunAjaranId], references: [id])    // BARU
 
   @@unique([santriId, mapelId, jenis, skill, tanggal])
   @@index([tenantId, santriId, mapelId])
+  @@index([tenantId, tahunAjaranId])                                                 // BARU
   @@index([tenantId])
   @@map("nilais")
 }
@@ -925,6 +930,7 @@ model Konseling {
   santriId     String
   tanggal      DateTime @default(now())
   konselorId   String?
+  createdById  String? 
   topik        String
   catatan      String
   tindakLanjut String?
@@ -935,8 +941,10 @@ model Konseling {
   tenant   Tenant  @relation(fields: [tenantId], references: [id])
   santri   Santri  @relation(fields: [santriId], references: [id], onDelete: Cascade)
   konselor Ustadz? @relation(fields: [konselorId], references: [id])
+  createdBy User?  @relation("KonselingCreatedBy", fields: [createdById], references: [id])
 
   @@index([tenantId])
+  @@index([tenantId, createdById])
   @@map("konselings")
 }
 

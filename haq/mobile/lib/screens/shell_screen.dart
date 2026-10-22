@@ -74,7 +74,7 @@ class _ShellScreenState extends State<ShellScreen> {
   // Fallback pin order used only when a role has more than 5 menu items
   // (super admin's 5-item menu is shown in full, without this cap).
   static const _pinned = ['Dashboard', 'Santri', 'Absensi', 'Kurikulum'];
-  static const _adminPinned = ['Dashboard', 'Santri', 'Absensi', 'Pengaturan'];
+  static const _adminPinned = ['Dashboard', 'Santri', 'Absensi', 'Kurikulum'];
   static const _waliPinned = ['Beranda', 'Anak Saya', 'Perizinan', 'Pelanggaran'];
 
   // Keeps the bottom nav pinned to a mobile-sized width and centered,
@@ -123,7 +123,14 @@ class _ShellScreenState extends State<ShellScreen> {
     }
 
     _navItems = chosen;
-    _moreItems = all.where((e) => !chosen.contains(e)).toList();
+    // Urut abjad, tapi "Pengaturan" selalu paling bawah.
+    _moreItems = all.where((e) => !chosen.contains(e)).toList()
+      ..sort((a, b) {
+        final ra = a.label == 'Pengaturan' ? 1 : 0;
+        final rb = b.label == 'Pengaturan' ? 1 : 0;
+        if (ra != rb) return ra.compareTo(rb);
+        return a.label.toLowerCase().compareTo(b.label.toLowerCase());
+      });
     if (_navIndex >= _navItems.length) _navIndex = 0;
     _activeExtra = null;
 
@@ -175,7 +182,7 @@ class _ShellScreenState extends State<ShellScreen> {
       m.add(_MenuItem('Kurikulum', Icons.folder_copy, (_) => const KurikulumScreen()));
       if (user.isAdmin) {
       m.add(_MenuItem('Identitas Pondok', Icons.palette, (_) => const BrandingScreen()));
-      m.add(_MenuItem('& Tagihan', Icons.receipt_long, (_) => const BillingTenantScreen()));
+      m.add(_MenuItem('Tagihan', Icons.receipt_long, (_) => const BillingTenantScreen()));
       }
     }
 
@@ -186,6 +193,10 @@ class _ShellScreenState extends State<ShellScreen> {
       m.add(_MenuItem('Nilai', Icons.grade, (_) => const NilaiScreen()));
       m.add(_MenuItem('Tahfidz', Icons.auto_stories, (_) => const TahfidzScreen()));
       m.add(_MenuItem('Ujian & Remedial', Icons.fact_check, (_) => const UjianScreen()));
+    }
+    // Rapor & Kelulusan: Admin (semua kelas) atau Ustadz yang jadi wali kelas
+    // (hanya kelasnya). Ustadz biasa tidak melihat dua menu ini.
+    if (user.isAdmin || (user.isUstadz && user.isWaliKelas)) {
       m.add(_MenuItem('Rapor Digital', Icons.description, (_) => const RaporScreen()));
       m.add(_MenuItem('Kelulusan & Wisuda', Icons.military_tech, (_) => const KelulusanScreen()));
     }

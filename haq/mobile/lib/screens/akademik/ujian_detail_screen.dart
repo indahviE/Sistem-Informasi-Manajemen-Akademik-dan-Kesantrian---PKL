@@ -535,6 +535,9 @@ class _UjianDetailScreenState extends State<UjianDetailScreen> {
   int get _remedialAktif =>
       _nilais.where((n) => _akhirOf(n) == _Akhir.belumMenunggu).length;
 
+  /// Ada santri tanpa nilai (sakit/izin/alpa) yang masih bisa diisi susulan.
+  bool get _adaSusulan => _nilais.any((n) => _nilaiNum(n) == null);
+
   // ───────────────────────────── BUILD ─────────────────────────────
 
   @override
@@ -1159,7 +1162,9 @@ class _UjianDetailScreenState extends State<UjianDetailScreen> {
                       icon: Icon(_readOnly ? Icons.visibility_outlined : Icons.replay, size: 18),
                       label: Text(_readOnly
                           ? (remedial > 0 ? 'Lihat Remedial ($remedial)' : 'Lihat Remedial')
-                          : (remedial > 0 ? 'Remedial ($remedial)' : 'Remedial')),
+                          : (remedial > 0
+                              ? 'Remedial ($remedial)'
+                              : (_remedials.isNotEmpty ? 'Riwayat Remedial' : 'Remedial'))),
                     ),
                   ),
                   if (!_readOnly) ...[
@@ -1173,7 +1178,7 @@ class _UjianDetailScreenState extends State<UjianDetailScreen> {
                           shape: const StadiumBorder(),
                           textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
                         ),
-                        onPressed: _openInput,
+                        onPressed: (_terkunci && !_adaSusulan) ? null : _openInput,
                         icon: const Icon(Icons.edit_note, size: 20),
                         label: const Text('Input Nilai'),
                       ),

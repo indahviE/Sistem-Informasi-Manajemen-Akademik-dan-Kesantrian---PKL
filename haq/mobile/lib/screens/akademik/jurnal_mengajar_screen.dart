@@ -48,6 +48,7 @@ class _JurnalMengajarScreenState extends State<JurnalMengajarScreen> {
   List<Map<String, dynamic>> _items = [];
   List<Map<String, dynamic>> _kelas = [];
   List<Map<String, dynamic>> _mapel = [];
+  List<Map<String, dynamic>> _diampu = []; // kelasDiampu milik ustadz login
   String _filterKelasId = '';
   String _periode = 'semua'; // semua | minggu | bulan
   String _q = '';
@@ -110,6 +111,36 @@ class _JurnalMengajarScreenState extends State<JurnalMengajarScreen> {
         _mapel = (m as List).cast<Map<String, dynamic>>();
       });
     } catch (_) {}
+
+    // Ustadz (bukan admin): ambil kelas & mapel yang diampu dari dashboard.
+    if (!_isAdmin && mounted) {
+      try {
+        // GANTI path ini dengan route controller untuk findMengajarSaya
+        final res = await AppScope.of(context).api.get('/mengajar/saya');
+        final list = res is List ? res : const [];
+        if (!mounted) return;
+        setState(() => _diampu = list.whereType<Map<String, dynamic>>().toList());
+        debugPrint('penugasan saya = $list');
+      } catch (_) {}
+    }
+  }
+
+
+  /// Admin: semua kelas. Ustadz: hanya kelas yang ada di penugasan mengajarnya.
+  List<Map<String, dynamic>> get _kelasBoleh {
+    if (_isAdmin) return _kelas;
+    final ids = _diampu.map((d) => '${d['kelasId']}').toSet();
+    return _kelas.where((k) => ids.contains('${k['id']}')).toList();
+  }
+
+  /// Admin: semua mapel. Ustadz: hanya mapel yang ditugaskan di kelas tsb.
+  List<Map<String, dynamic>> _mapelBoleh(String kelasId) {
+    if (_isAdmin) return _mapel;
+    final ids = _diampu
+        .where((d) => '${d['kelasId']}' == kelasId)
+        .map((d) => '${d['mapelId']}')
+        .toSet();
+    return _mapel.where((m) => ids.contains('${m['id']}')).toList();
   }
 
   Future<void> _load() async {
@@ -278,7 +309,7 @@ class _JurnalMengajarScreenState extends State<JurnalMengajarScreen> {
                     trailing: _filterKelasId.isEmpty ? Icon(Icons.check, color: _JC.primary) : null,
                     onTap: () => Navigator.pop(ctx, ''),
                   ),
-                  for (final k in _kelas)
+                  for (final k in _kelasBoleh)
                     ListTile(
                       title: Text('${k['namaKelas']}'),
                       trailing: _filterKelasId == k['id'] ? Icon(Icons.check, color: _JC.primary) : null,
@@ -323,16 +354,24 @@ class _JurnalMengajarScreenState extends State<JurnalMengajarScreen> {
   // ---- form tambah / ubah ----
   Future<void> _form([Map<String, dynamic>? old]) async {
     if (_readOnly) return;
-    if (_kelas.isEmpty) await _loadMaster();
-    if (_kelas.isEmpty) {
-      _toast('Belum ada data kelas', error: true);
+    if (_kelas.isEmpty || (!_isAdmin && _diampu.isEmpty)) await _loadMaster();
+    if (_kelasBoleh.isEmpty) {
+      _toast('Belum ada kelas yang Anda ampu', error: true);
       return;
     }
 
     final materi = TextEditingController(text: (old?['materi'] ?? '') as String);
     final catatan = TextEditingController(text: (old?['catatan'] ?? '') as String);
-    String kelasId = (old?['kelasId'] ?? _kelas.first['id']) as String;
+    final boleh = _kelasBoleh;
+    String kelasId = (old?['kelasId'] ?? boleh.first['id']) as String;
+    if (!boleh.any((k) => k['id'] == kelasId)) kelasId = boleh.first['id'] as String;
     String mapelId = (old?['mapelId'] ?? '') as String;
+    {
+      final mb = _mapelBoleh(kelasId);
+      if (!mb.any((m) => m['id'] == mapelId)) {
+        mapelId = (!_isAdmin && mb.isNotEmpty) ? mb.first['id'] as String : '';
+      }
+    }
     DateTime tanggal = old != null ? _parseTanggal(old['tanggal']) : DateTime.now();
     String? err;
 
@@ -409,10 +448,17 @@ class _JurnalMengajarScreenState extends State<JurnalMengajarScreen> {
                     borderRadius: BorderRadius.circular(14),
                     style: const TextStyle(fontSize: 13.5, color: _JC.ink),
                     items: [
-                      for (final k in _kelas)
+                      for (final k in boleh)
                         DropdownMenuItem(value: k['id'] as String, child: Text('${k['namaKelas']}')),
                     ],
-                    onChanged: (v) => setLocal(() => kelasId = v ?? kelasId),
+                    onChanged: (v) => setLocal(() {
+                      kelasId = v ?? kelasId;
+                      // mapel ikut menyesuaikan kelas yang dipilih
+                      final mb = _mapelBoleh(kelasId);
+                      if (!mb.any((m) => m['id'] == mapelId)) {
+                        mapelId = (!_isAdmin && mb.isNotEmpty) ? mb.first['id'] as String : '';
+                      }
+                    }),
                   ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
@@ -422,8 +468,9 @@ class _JurnalMengajarScreenState extends State<JurnalMengajarScreen> {
                     borderRadius: BorderRadius.circular(14),
                     style: const TextStyle(fontSize: 13.5, color: _JC.ink),
                     items: [
-                      const DropdownMenuItem(value: '', child: Text('— tanpa mapel —')),
-                      for (final m in _mapel)
+                      if (_isAdmin || _mapelBoleh(kelasId).isEmpty)
+                        const DropdownMenuItem(value: '', child: Text('— tanpa mapel —')),
+                      for (final m in _mapelBoleh(kelasId))
                         DropdownMenuItem(value: m['id'] as String, child: Text('${m['namaMapel']}')),
                     ],
                     onChanged: (v) => setLocal(() => mapelId = v ?? ''),

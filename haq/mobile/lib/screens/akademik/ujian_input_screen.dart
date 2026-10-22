@@ -130,13 +130,15 @@ class UjianInputScreen extends StatefulWidget {
 }
 
 class _UjianInputScreenState extends State<UjianInputScreen> {
-  Map<String, dynamic>? _data;
+    Map<String, dynamic>? _data;
   List<Map<String, dynamic>> _santriAll = [];
+  List<Map<String, dynamic>> _remedials = [];
   bool _loading = true;
   String? _error;
 
   // Tahap 1
   String _query = '';
+  String _filter = 'ALL'; // ALL | BELUM | SUDAH
   bool _showAll = false;
   Map<String, dynamic>? _selected;
 
@@ -183,6 +185,15 @@ class _UjianInputScreenState extends State<UjianInputScreen> {
       final api = AppScope.of(context).api;
       final res = await api.get('${ApiUrl.ujian}/$_id');
 
+      // Data remedial (opsional): untuk badge status akhir.
+      var rem = <Map<String, dynamic>>[];
+      try {
+        final rr = await api.get('${ApiUrl.ujian}/$_id/remedial');
+        rem = _listOf(rr is Map ? (rr['data'] ?? rr['remedials'] ?? rr['items']) : rr);
+      } on ApiException {
+        // endpoint remedial belum ada: anggap kosong
+      }
+
       // Ambil daftar santri sekali saja (kalau sebelumnya masih kosong).
       var santri = _santriAll;
       if (santri.isEmpty) {
@@ -197,6 +208,7 @@ class _UjianInputScreenState extends State<UjianInputScreen> {
       if (!mounted) return;
       setState(() {
         _data = res as Map<String, dynamic>;
+        _remedials = rem;
         _santriAll = santri;
         _loading = false;
       });
@@ -246,12 +258,23 @@ class _UjianInputScreenState extends State<UjianInputScreen> {
 
   dynamic _sidOf(Map<String, dynamic> n) => n['santriId'] ?? (n['santri'] as Map?)?['id'];
 
-  Map<String, dynamic>? _nilaiOf(dynamic santriId) {
+    Map<String, dynamic>? _nilaiOf(dynamic santriId) {
     for (final n in _nilais) {
       if (_sidOf(n) == santriId) return n;
     }
     return null;
   }
+
+  Map<String, dynamic>? _remedialOf(dynamic santriId) {
+    for (final r in _remedials) {
+      final id = r['santriId'] ?? (r['santri'] as Map?)?['id'];
+      if (id == santriId) return r;
+    }
+    return null;
+  }
+
+  /// Sudah punya angka nilai. Santri sakit/izin/alpa belum dihitung.
+  bool _sudahDinilai(Map<String, dynamic> s) => _nilaiOf(s['id'])?['nilai'] is num;
 
   String get _kelasNama => '${_ujian['kelas']?['namaKelas'] ?? ''}';
 
@@ -479,6 +502,26 @@ class _UjianInputScreenState extends State<UjianInputScreen> {
         _flowHeader(),
         const SizedBox(height: 12),
         if (_terkunci) ...[_kunciInfo(), const SizedBox(height: 12)],
+        if (!_terkunci && _santris.isNotEmpty && _santris.every(_sudahDinilai)) ...[
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: _C.okBg,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: _C.okBd),
+            ),
+            child: const Row(children: [
+              Icon(Icons.check_circle_outline, size: 18, color: _C.okFg),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                    'Semua santri sudah dinilai. Ketuk santri untuk koreksi, lalu kunci nilai di halaman Detail Ujian.',
+                    style: TextStyle(fontSize: 12, height: 1.35, color: _C.okFg)),
+              ),
+            ]),
+          ),
+          const SizedBox(height: 12),
+        ],
         _step1(),
         if (_selected != null) ...[
           const SizedBox(height: 12),
@@ -564,10 +607,18 @@ class _UjianInputScreenState extends State<UjianInputScreen> {
     final q = _query.trim().toLowerCase();
     final all = _santris;
     final filtered = all.where((s) {
-      if (q.isEmpty) return true;
-      return '${s['nama']} ${s['nis']}'.toLowerCase().contains(q);
-    }).toList();
-    final visible = (_showAll || q.isNotEmpty || filtered.length <= _initialCount)
+      if (q.isNotEmpty && !'${s['nama']} ${s['nis']}'.toLowerCase().contains(q)) return false;
+      if (_filter == 'BELUM') return !_sudahDinilai(s);
+      if (_filter == 'SUDAH') return _sudahDinilai(s);
+      return true;
+    }).toList()
+      ..sort((a, b) {
+        // belum dinilai di atas, lalu urut nama
+        final c = (_sudahDinilai(a) ? 1 : 0).compareTo(_sudahDinilai(b) ? 1 : 0);
+        return c != 0 ? c : '${a['nama']}'.toLowerCase().compareTo('${b['nama']}'.toLowerCase());
+      });
+    final nSudah = all.where(_sudahDinilai).length;
+    final visible = (_showAll || q.isNotEmpty || _filter != 'ALL' || filtered.length <= _initialCount)
         ? filtered
         : filtered.take(_initialCount).toList();
 
@@ -611,6 +662,12 @@ class _UjianInputScreenState extends State<UjianInputScreen> {
                   borderSide: BorderSide(color: _C.emerald, width: 2)),
             ),
           ),
+          const SizedBox(height: 10),
+          Wrap(spacing: 8, runSpacing: 8, children: [
+            _filterChip('Semua', all.length, 'ALL'),
+            _filterChip('Belum Dinilai', all.length - nSudah, 'BELUM'),
+            _filterChip('Sudah Dinilai', nSudah, 'SUDAH'),
+          ]),
           const SizedBox(height: 10),
           if (all.isEmpty)
             _emptyHint('Belum ada data santri di kelas ini.')
@@ -663,6 +720,25 @@ class _UjianInputScreenState extends State<UjianInputScreen> {
         ),
       );
 
+        Widget _filterChip(String label, int n, String value) {
+    final sel = _filter == value;
+    return GestureDetector(
+      onTap: () => setState(() => _filter = value),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        decoration: BoxDecoration(
+          color: sel ? _C.emerald : _C.chipGray,
+          borderRadius: BorderRadius.circular(99),
+        ),
+        child: Text('$label ($n)',
+            style: TextStyle(
+                fontSize: 12,
+                fontWeight: sel ? FontWeight.w700 : FontWeight.w500,
+                color: sel ? Colors.white : _C.ink2)),
+      ),
+    );
+  }
+
   Widget _santriTile(Map<String, dynamic> s) {
     final sel = _selected != null && _selected!['id'] == s['id'];
     final n = _nilaiOf(s['id']);
@@ -675,10 +751,21 @@ class _UjianInputScreenState extends State<UjianInputScreen> {
       if (v == null) {
         status = _pill(_labelKehadiran('${n['status']}'), _C.goldChip, _C.goldText,
             bd: _C.goldBorder, fs: 10);
+      } else if (v >= _kkm) {
+        status = _pill('Dinilai ${_fmtNum(v)}', _C.okBg, _C.okFg, bd: _C.okBd, fs: 10);
       } else {
-        status = v >= _kkm
-            ? _pill('Dinilai ${_fmtNum(v)}', _C.okBg, _C.okFg, bd: _C.okBd, fs: 10)
-            : _pill('Dinilai ${_fmtNum(v)}', _C.badBg, _C.badFg, bd: _C.badBd, fs: 10);
+        final rem = _remedialOf(s['id']);
+        final st = '${rem?['status'] ?? ''}'.toUpperCase();
+        final ak = _fmtNum(rem?['nilaiAkhir']);
+        final alur = '${_fmtNum(v)}${ak.isEmpty ? '' : ' → $ak'}';
+        if (st == 'TUNTAS') {
+          status = _pill('$alur Remedial', _C.okBg, _C.okFg, bd: _C.okBd, fs: 10);
+        } else if (st == 'BELUM_TUNTAS') {
+          status = _pill('$alur Belum tuntas', _C.badBg, _C.badFg, bd: _C.badBd, fs: 10);
+        } else {
+          status = _pill('Dinilai ${_fmtNum(v)} • Remedial', _C.badBg, _C.badFg,
+              bd: _C.badBd, fs: 10);
+        }
       }
     } else if (sel) {
       status = _pill('Belum Dinilai', _C.goldChip, _C.goldText, fs: 10);
@@ -686,11 +773,13 @@ class _UjianInputScreenState extends State<UjianInputScreen> {
       status = _pill('Siap Dinilai', _C.chipGray, _C.ink2, fs: 10);
     }
 
+    final terkunciRapi = _terkunci && _sudahDinilai(s);
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: InkWell(
         borderRadius: BorderRadius.circular(14),
-        onTap: () => _select(s),
+        onTap: terkunciRapi ? null : () => _select(s),
         child: Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
@@ -739,6 +828,11 @@ class _UjianInputScreenState extends State<UjianInputScreen> {
                 ),
               ),
               const SizedBox(width: 6),
+              if (terkunciRapi)
+                const Padding(
+                  padding: EdgeInsets.only(right: 6),
+                  child: Icon(Icons.lock_outline, size: 15, color: _C.ink2),
+                ),
               status,
             ],
           ),

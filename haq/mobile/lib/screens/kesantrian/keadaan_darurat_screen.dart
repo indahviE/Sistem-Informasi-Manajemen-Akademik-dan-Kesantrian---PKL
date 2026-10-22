@@ -1119,7 +1119,7 @@ class _LaporSheetState extends State<_LaporSheet> {
   Widget build(BuildContext context) {
     return _SheetShell(
       title: 'Lapor Keadaan Darurat',
-      subtitle: 'Admin dan Pimpinan akan mendapat notifikasi segera.',
+      subtitle: 'Admin dan Musyrif akan mendapat notifikasi segera.',
       icon: Icons.emergency_rounded,
       iconBg: _DC.errorBg,
       iconFg: _DC.errorText,
