@@ -5,7 +5,17 @@ class UserData {
   final String role;
   final Map<String, dynamic>? tenant;
 
-  UserData({required this.id, required this.nama, required this.email, required this.role, this.tenant});
+  /// ID kelas yang diwalikan ustadz ini (kosong kalau bukan wali kelas).
+  final List<String> waliKelasIds;
+
+  UserData({
+    required this.id,
+    required this.nama,
+    required this.email,
+    required this.role,
+    this.tenant,
+    this.waliKelasIds = const [],
+  });
 
   factory UserData.fromJson(Map<String, dynamic> j) => UserData(
         id: j['id'] as String,
@@ -13,6 +23,7 @@ class UserData {
         email: j['email'] as String,
         role: j['role'] as String,
         tenant: j['tenant'] as Map<String, dynamic>?,
+        waliKelasIds: (j['waliKelasIds'] as List? ?? []).map((e) => e.toString()).toList(),
       );
 
   String get tenantNama => (tenant?['namaPondok'] as String?) ?? '';
@@ -23,6 +34,7 @@ class UserData {
         email: email ?? this.email,
         role: role,
         tenant: tenant,
+        waliKelasIds: waliKelasIds,
       );
 
   bool get isSuperAdmin => role == 'SUPER_ADMIN';
@@ -31,6 +43,15 @@ class UserData {
   bool get isUstadz => role == 'USTADZ';
   bool get isMusyrif => role == 'MUSYRIF';
   bool get isWali => role == 'WALI_SANTRI';
+
+  /// Ustadz yang menjadi wali kelas minimal satu kelas.
+  bool get isWaliKelas => waliKelasIds.isNotEmpty;
+
+  /// Admin: semua kelas. Ustadz wali kelas: hanya kelas yang diwalikannya.
+  bool bolehAksesKelas(String? kelasId) {
+    if (isAdmin) return true;
+    return kelasId != null && waliKelasIds.contains(kelasId);
+  }
 }
 
 class LoginResult {
