@@ -157,8 +157,8 @@ class _PelanggaranScreenState extends State<PelanggaranScreen> {
           .map((e) => (e as Map).cast<String, dynamic>())
           .toList();
       list.sort((a, b) {
-        final ta = DateTime.tryParse(a['tanggal']?.toString() ?? '') ?? DateTime(2000);
-        final tb = DateTime.tryParse(b['tanggal']?.toString() ?? '') ?? DateTime(2000);
+        final ta = DateTime.tryParse(a['tanggal']?.toString() ?? '')?.toLocal() ?? DateTime(2000);
+        final tb = DateTime.tryParse(b['tanggal']?.toString() ?? '')?.toLocal() ?? DateTime(2000);
         return tb.compareTo(ta);
       });
       if (!mounted) return;
@@ -219,7 +219,7 @@ class _PelanggaranScreenState extends State<PelanggaranScreen> {
 
   int _countTime(String filter) {
     return _all.where((p) {
-      final t = DateTime.tryParse(p['tanggal']?.toString() ?? '');
+      final t = DateTime.tryParse(p['tanggal']?.toString() ?? '')?.toLocal();
       return t != null && _matchesTime(t, filter);
     }).length;
   }
@@ -234,7 +234,7 @@ class _PelanggaranScreenState extends State<PelanggaranScreen> {
 
       final matchRoom = _roomFilter == 'Semua Kamar' || (santri?['asrama']?.toString() == _roomFilter);
 
-      final t = DateTime.tryParse(p['tanggal']?.toString() ?? '');
+      final t = DateTime.tryParse(p['tanggal']?.toString() ?? '')?.toLocal();
       final matchTime = t == null || _matchesTime(t, _timeFilter);
 
       return matchQuery && matchRoom && matchTime;
@@ -258,8 +258,7 @@ class _PelanggaranScreenState extends State<PelanggaranScreen> {
           behavior: SnackBarBehavior.floating,
           backgroundColor: error ? errorBg : PTheme.primary,
           elevation: 6,
-          // angka 88 = jarak dari bawah supaya tidak menutupi tombol Catat Pelanggaran (pojok kanan bawah)
-          margin: EdgeInsets.fromLTRB(side, 0, side, 88),
+                margin: EdgeInsets.fromLTRB(side, 0, side, 16),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           duration: Duration(seconds: error ? 4 : 3),
           shape: RoundedRectangleBorder(
@@ -682,7 +681,7 @@ class _PelanggaranScreenState extends State<PelanggaranScreen> {
     final status = (p['status'] ?? 'DICATAT').toString();
     final selesai = status != 'DICATAT';
     final tindakLanjut = p['tindakLanjut']?.toString().trim();
-    final tanggal = DateTime.tryParse(p['tanggal']?.toString() ?? '');
+    final tanggal = DateTime.tryParse(p['tanggal']?.toString() ?? '')?.toLocal();
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
