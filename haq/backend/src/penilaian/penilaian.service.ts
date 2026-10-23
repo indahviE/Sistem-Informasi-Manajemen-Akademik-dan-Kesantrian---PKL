@@ -1310,7 +1310,7 @@ export class PenilaianService {
   async findAllKelulusan(tenantId: string) {
     return this.prisma.kelulusan.findMany({
       where: { tenantId },
-      include: { santri: { select: { id: true, nama: true, nis: true, kelas: { select: { namaKelas: true } } } } },
+      include: { santri: { select: { id: true, nama: true, nis: true, kelasId: true, kelas: { select: { id: true, namaKelas: true } } } } },
       orderBy: { tanggalKelulusan: 'desc' },
     });
   }

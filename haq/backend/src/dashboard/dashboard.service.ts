@@ -54,10 +54,20 @@ export class DashboardService {
     });
     if (!ustadz || ustadz.jenis !== 'GURU') return null;
 
-        const mengajar = await this.prisma.ustadzMengajar.findMany({
+    const mengajar = await this.prisma.ustadzMengajar.findMany({
       where: { tenantId, ustadzId: ustadz.id },
-      select: { kelasId: true },
+      select: { kelasId: true, mapelId: true },
     });
+
+    // kelasId -> mapelId yang diampu ustadz ini di kelas tersebut
+    const mapelDiampuPerKelas = new Map<string, Set<string>>();
+    for (const m of mengajar) {
+      if (!m.mapelId) continue;
+      if (!mapelDiampuPerKelas.has(m.kelasId)) {
+        mapelDiampuPerKelas.set(m.kelasId, new Set());
+      }
+      mapelDiampuPerKelas.get(m.kelasId)!.add(m.mapelId);
+    }
     const kelasList = await this.prisma.kelas.findMany({
       where: {
         tenantId,
@@ -88,8 +98,6 @@ export class DashboardService {
     const todayStart = new Date(`${hariIniWib}T00:00:00+07:00`);
     const tomorrowStart = new Date(todayStart.getTime() + 24 * 3600 * 1000);
 
-const jumlahMapel = await this.prisma.mataPelajaran.count({ where: { tenantId } });
-
     const absensiHariIni = await this.prisma.absensi.findMany({
       where: {
         tenantId,
@@ -111,17 +119,23 @@ const jumlahMapel = await this.prisma.mataPelajaran.count({ where: { tenantId } 
 
     const kelasTerisi = new Set(absensiHariIni.map((a) => a.kelasId));
 
-    const kelasDiampu = kelasList.map((k) => ({
-      id: k.id,
-      namaKelas: k.namaKelas,
-      mapel: null as string | null,
-      tingkat: k.tingkat,
-      jumlahSantri: k._count.santris,
-      absensiHariIniTerisi: kelasTerisi.has(k.id),
-      jumlahMapel,
-      mapelTerisiHariIni: mapelTerisiPerKelas.get(k.id)?.size ?? 0,
-    }));
+    const kelasDiampu = kelasList.map((k) => {
+      const diampu = mapelDiampuPerKelas.get(k.id) ?? new Set<string>();
+      const terisiSemua = mapelTerisiPerKelas.get(k.id) ?? new Set<string>();
+      // Hanya hitung mapel yang diampu ustadz ini
+      const terisiMilikku = [...terisiSemua].filter((id) => diampu.has(id)).length;
 
+      return {
+        id: k.id,
+        namaKelas: k.namaKelas,
+        mapel: null as string | null,
+        tingkat: k.tingkat,
+        jumlahSantri: k._count.santris,
+        absensiHariIniTerisi: kelasTerisi.has(k.id),
+        jumlahMapel: diampu.size,
+        mapelTerisiHariIni: terisiMilikku,
+      };
+    });
     const total = absensiHariIni.length;
     const hadir = absensiHariIni.filter((a) => a.status === 'HADIR').length;
 

@@ -223,7 +223,7 @@ export class PenilaianController {
   }
 
   // ===== Kelulusan & Wisuda Tahfidz =====
-  @Roles(...TERBATAS)
+  @Roles(...TERBATAS, Role.USTADZ)
   @Get('kelulusan')
   findAllKelulusan(@TenantId() tenantId: string) {
     return this.penilaianService.findAllKelulusan(tenantId);
@@ -241,7 +241,7 @@ export class PenilaianController {
     return this.penilaianService.updateKelulusan(tenantId, id, dto);
   }
 
-  @Roles(...WRITE)
+  @Roles(Role.ADMIN)
   @Delete('kelulusan/:id')
   removeKelulusan(@TenantId() tenantId: string, @Param('id') id: string) {
     return this.penilaianService.removeKelulusan(tenantId, id);
