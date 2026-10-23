@@ -101,8 +101,20 @@ export class MasterDataService {
 
   async createKelas(tenantId: string, dto: CreateKelasDto) {
     await this.cekWaliKelas(tenantId, dto.waliKelasId);
+
+    // Kalau tahun ajaran tidak dikirim, pakai tahun ajaran aktif tenant ini.
+    let tahunAjaranId = (dto as any).tahunAjaranId ?? null;
+    if (!tahunAjaranId) {
+      const aktif = await this.prisma.tahunAjaran.findFirst({
+        where: { tenantId, aktif: true },
+        select: { id: true },
+        orderBy: { nama: 'desc' },
+      });
+      tahunAjaranId = aktif?.id ?? null;
+    }
+
     return this.prisma.kelas.create({
-      data: { tenantId, ...dto },
+      data: { tenantId, ...dto, tahunAjaranId },
     });
   }
 

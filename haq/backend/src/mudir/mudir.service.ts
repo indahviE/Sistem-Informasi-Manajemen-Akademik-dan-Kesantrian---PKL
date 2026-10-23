@@ -1,4 +1,4 @@
-// src/mudir/mudir.service.ts  (FILE BARU, khusus role PIMPINAN / Mudir)
+// src/mudir/mudir.service.ts  (khusus role PIMPINAN / Mudir)
 //
 // Isi: ringkasan akademik, tren lintas modul, dan laporan rekap per tahun ajaran.
 // Semua query dibatasi tenantId (data terisolasi per pondok).
@@ -8,7 +8,7 @@
 //    Jadi rentang tanggal diturunkan dari nama, mis. "2025/2026" => 1 Juli 2025 s.d. 30 Juni 2026.
 //    Kalau nama tidak berpola begitu, kirim `dari` dan `sampai` (YYYY-MM-DD) secara manual.
 // 2. Data dikaitkan ke tahun ajaran lewat Santri -> Kelas -> tahunAjaranId.
-// 3. Import PrismaService di bawah mengikuti pola umum NestJS. Sesuaikan path kalau di proyekmu beda.
+// 3. Ujian dan Remedial mengikuti rentang tanggal. Rapor tidak (hanya punya `periode` berupa teks).
 
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, SantriStatus } from '@prisma/client';
@@ -118,6 +118,7 @@ export class MudirService {
     const p = await this.tentukanPeriode(tenantId, tahunAjaranId, dari, sampai);
     const taId = p.tahunAjaran.id;
     const scopeSantri = { kelas: { tahunAjaranId: taId } };
+    const rentang = { gte: p.awal, lt: p.akhir };
 
     const [jumlahPerKelas, rataKelasMapel, bawahKkmRows, totalUjian, ujianDikunci, remedial, rapor] =
       await Promise.all([
@@ -137,6 +138,7 @@ export class MudirService {
           JOIN mata_pelajarans m ON m.id = n.mapelId AND m.tenantId = ${tenantId}
           WHERE n.tenantId = ${tenantId}
             AND k.tahunAjaranId = ${taId}
+            AND s.status = 'AKTIF'
             AND n.tanggal >= ${p.awalTgl} AND n.tanggal < ${p.akhirTgl}
           GROUP BY s.kelasId, k.namaKelas, n.mapelId, m.namaMapel, m.kkm
           ORDER BY k.namaKelas, m.namaMapel
@@ -159,13 +161,20 @@ export class MudirService {
           ORDER BY rata ASC
           LIMIT 5000
         `),
-        this.prisma.ujian.count({ where: { tenantId, kelas: { tahunAjaranId: taId } } }),
         this.prisma.ujian.count({
-          where: { tenantId, kelas: { tahunAjaranId: taId }, dikunciPada: { not: null } },
+          where: { tenantId, kelas: { tahunAjaranId: taId }, tanggal: rentang },
+        }),
+        this.prisma.ujian.count({
+          where: {
+            tenantId,
+            kelas: { tahunAjaranId: taId },
+            tanggal: rentang,
+            dikunciPada: { not: null },
+          },
         }),
         this.prisma.remedial.groupBy({
           by: ['status'],
-          where: { tenantId, santri: scopeSantri },
+          where: { tenantId, santri: scopeSantri, tanggal: rentang },
           _count: { _all: true },
         }),
         this.prisma.rapor.groupBy({

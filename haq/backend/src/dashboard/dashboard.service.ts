@@ -250,16 +250,43 @@ export class DashboardService {
       orderBy: { tanggal: 'asc' },
     });
 
-    // Kepatuhan rekap absensi: rombel yang punya minimal 1 data absensi hari ini
-    const absensiHariIni = await this.prisma.absensi.findMany({
-      where: {
-        tenantId,
-        kelasId: { not: null },
-        tanggal: { gte: todayStart, lte: todayEnd },
-      },
-      select: { kelasId: true },
-      distinct: ['kelasId'],
-    });
+    // Kepatuhan rekap absensi: rombel dianggap terisi kalau SEMUA mapel
+    // yang diajarkan di kelas itu sudah diabsen hari ini (WIB).
+    const hariIniWib = new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 10);
+    const awalWib = new Date(`${hariIniWib}T00:00:00+07:00`);
+    const akhirWib = new Date(awalWib.getTime() + 24 * 3600 * 1000);
+
+    const [absensiHariIni, pengampu] = await Promise.all([
+      this.prisma.absensi.findMany({
+        where: {
+          tenantId,
+          kelasId: { not: null },
+          tanggal: { gte: awalWib, lt: akhirWib },
+        },
+        select: { kelasId: true, mapelId: true },
+      }),
+      this.prisma.ustadzMengajar.findMany({
+        where: { tenantId },
+        select: { kelasId: true, mapelId: true },
+      }),
+    ]);
+
+    // kelasId -> mapel yang seharusnya diabsen
+    const mapelWajib = new Map<string, Set<string>>();
+    for (const m of pengampu) {
+      if (!mapelWajib.has(m.kelasId)) mapelWajib.set(m.kelasId, new Set());
+      mapelWajib.get(m.kelasId)!.add(m.mapelId);
+    }
+    // kelasId -> mapel yang sudah diabsen hari ini
+    const mapelSudah = new Map<string, Set<string>>();
+    for (const a of absensiHariIni) {
+      if (!a.kelasId) continue;
+      if (!mapelSudah.has(a.kelasId)) mapelSudah.set(a.kelasId, new Set());
+      if (a.mapelId) mapelSudah.get(a.kelasId)!.add(a.mapelId);
+    }
+    const kelasAdaAbsensi = new Set(
+      absensiHariIni.map((a) => a.kelasId).filter((x): x is string => !!x),
+    );
     // Log aktivitas memuat nama pengguna/aksi, jadi hanya untuk Admin & Pimpinan.
     const logAktivitas = lihatNama ? await this.audit.recentTenant(tenantId, 5) : [];
 
@@ -311,8 +338,14 @@ export class DashboardService {
       },
     ].filter(Boolean);
     const idKelasTenant = new Set(distribusiKelas.map((k) => k.id));
+    const rombelTerisi = [...idKelasTenant].filter((id) => {
+      const wajib = mapelWajib.get(id);
+      if (!wajib || wajib.size === 0) return kelasAdaAbsensi.has(id); // aturan lama
+      const sudah = mapelSudah.get(id) ?? new Set<string>();
+      return [...wajib].every((m) => sudah.has(m));
+    }).length;
     const kepatuhanAbsensi = {
-      terisi: absensiHariIni.filter((a) => a.kelasId && idKelasTenant.has(a.kelasId)).length,
+      terisi: rombelTerisi,
       total: distribusiKelas.length,
     };
 
