@@ -466,6 +466,7 @@ model Perizinan {
   tanggalKeluar  DateTime
   tanggalKembali DateTime?
   rencanaKembali DateTime?
+  pendamping     String?
   alasan         String
   statusApproval StatusApproval @default(DIAJUKAN)
   disetujuiOleh  String?
