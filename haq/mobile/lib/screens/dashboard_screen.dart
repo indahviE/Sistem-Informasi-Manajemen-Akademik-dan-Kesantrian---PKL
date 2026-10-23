@@ -4454,8 +4454,12 @@ Widget _pimAntrean({
 
   /// Kelas dianggap "sudah ada rekap" kalau minimal 1 mapel terisi hari ini.
   /// Fallback ke field lama kalau backend belum mengirim mapelTerisiHariIni.
+  /// Kelas dianggap "sudah ada rekap" kalau SEMUA mapel hari ini terisi.
+  /// Kalau jumlahMapel tidak dikirim server, pakai aturan lama (minimal 1).
   bool _kelasSudahDirekap(Map<String, dynamic> k) {
     final n = k['mapelTerisiHariIni'];
+    final total = k['jumlahMapel'];
+    if (n is num && total is num && total > 0) return n >= total;
     if (n is num) return n > 0;
     return k['absensiHariIniTerisi'] == true;
   }
@@ -5573,6 +5577,10 @@ class _UKelasCard extends StatelessWidget {
     final terisi = mapelTerisi != null
         ? mapelTerisi > 0
         : kelas['absensiHariIniTerisi'] == true;
+    final lengkap = jumlahMapel != null &&
+        jumlahMapel > 0 &&
+        mapelTerisi != null &&
+        mapelTerisi >= jumlahMapel;    
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(16),
@@ -5589,7 +5597,7 @@ class _UKelasCard extends StatelessWidget {
               // Garis aksen kiri: hanya untuk kelas yang belum diabsen.
               Container(
                 width: 4,
-                color: terisi ? Colors.transparent : _TC.primary,
+                color: lengkap ? Colors.transparent : _TC.primary,
               ),
               Expanded(
                 child: Padding(
@@ -5637,21 +5645,29 @@ class _UKelasCard extends StatelessWidget {
                             crossAxisAlignment: CrossAxisAlignment.end,
                             children: [
                               terisi
-                                  ? const _UPill(
-                                      label: 'Sudah Ada Rekap',
-                                      bg: _WC.successBg,
-                                      fg: _WC.successText,
-                                      dot: _WC.successText,
-                                    )
+                                  ? (lengkap
+                                      ? const _UPill(
+                                          label: 'Lengkap',
+                                          bg: _WC.successBg,
+                                          fg: _WC.successText,
+                                          dot: _WC.successText,
+                                        )
+                                      : const _UPill(
+                                          label: 'Sebagian',
+                                          bg: _WC.pendingBg,
+                                          fg: _WC.pendingText,
+                                          dot: _WC.pendingText,
+                                        ))
                                   : const _UPill(
                                       label: 'Belum Ada Rekap',
                                       bg: _WC.pendingBg,
                                       fg: _WC.pendingText,
                                       dot: _WC.pendingText,
                                     ),
-                              const SizedBox(height: 10),
-                              FilledButton(
-                                style: FilledButton.styleFrom(
+                              if (!lengkap) ...[
+                                const SizedBox(height: 10),
+                                FilledButton(
+                                  style: FilledButton.styleFrom(
                                   backgroundColor: _TC.primary,
                                   padding: const EdgeInsets.symmetric(
                                     horizontal: 14,
@@ -5665,7 +5681,7 @@ class _UKelasCard extends StatelessWidget {
                                   ),
                                 ),
                                 onPressed: onAbsensi,
-                                child: const Row(
+                                  child: const Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     Text(
@@ -5685,6 +5701,7 @@ class _UKelasCard extends StatelessWidget {
                                   ],
                                 ),
                               ),
+                              ],
                             ],
                           ),
                         ],
@@ -5701,10 +5718,13 @@ class _UKelasCard extends StatelessWidget {
                               _chip(Icons.layers_outlined, tingkat),
                             if (jumlah != null)
                               _chip(Icons.groups_2_outlined, '$jumlah santri'),
-                                                        if (mapelTerisi != null && mapelTerisi > 0)
+                            if (mapelTerisi != null &&
+                                (mapelTerisi > 0 || jumlahMapel != null))
                               _chip(
                                 Icons.menu_book_outlined,
-                                '$mapelTerisi mapel terisi hari ini',
+                                jumlahMapel != null
+                                    ? '$mapelTerisi dari $jumlahMapel mapel terisi hari ini'
+                                    : '$mapelTerisi mapel terisi hari ini',
                               ),
                           ],
                         ),
