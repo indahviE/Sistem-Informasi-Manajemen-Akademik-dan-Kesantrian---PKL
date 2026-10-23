@@ -151,6 +151,7 @@ class ApiUrl {
   static const santri = '/santri';
   static const ustadz = '/ustadz';
   static const kelas = '/kelas';
+  static const tahunAjaran = '/tahun-ajaran';
   static const mapel = '/mapel';
   static const absensi = '/absensi';
   static const nilai = '/nilai';

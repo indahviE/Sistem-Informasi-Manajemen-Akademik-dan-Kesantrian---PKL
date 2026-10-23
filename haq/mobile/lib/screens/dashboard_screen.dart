@@ -124,6 +124,95 @@ class _DashboardScreenState extends State<DashboardScreen> {
   // Alert ustadz cukup tampil sekali per sesi, bukan tiap pull-to-refresh.
   bool _alertUstadzShown = false;
 
+    // Peringatan tahun ajaran (khusus Admin). Null = tidak ada peringatan.
+  String? _taPeringatan;
+
+  /// Tahun ajaran yang seharusnya berjalan sekarang (dimulai bulan Juli).
+  String get _taSeharusnya {
+    final now = DateTime.now();
+    final y = now.month >= 7 ? now.year : now.year - 1;
+    return '$y/${y + 1}';
+  }
+
+  /// Gagal dimuat = diam-diam diabaikan, dashboard tidak ikut error.
+  Future<void> _cekTahunAjaran() async {
+    try {
+      final res = await AppScope.of(context).api.get(ApiUrl.tahunAjaran);
+      final list = res is List
+          ? res
+          : (res is Map && res['data'] is List ? res['data'] as List : const []);
+      final nama = <String>[];
+      final aktif = <String>[];
+      for (final e in list) {
+        if (e is! Map) continue;
+        final n = '${e['nama'] ?? ''}'.trim();
+        nama.add(n);
+        if (e['aktif'] == true) aktif.add(n);
+      }
+      final seharusnya = _taSeharusnya;
+      String? pesan;
+      if (!aktif.contains(seharusnya)) {
+        final kondisi = aktif.isEmpty
+            ? 'Belum ada tahun ajaran yang aktif.'
+            : 'Tahun ajaran aktif saat ini ${aktif.first}.';
+        final saran = nama.contains(seharusnya)
+            ? 'Aktifkan $seharusnya'
+            : 'Tambahkan lalu aktifkan $seharusnya';
+        pesan =
+            '$kondisi Menurut tanggal hari ini seharusnya $seharusnya. $saran agar nilai baru tercatat di tahun yang benar.';
+      }
+      if (!mounted) return;
+      setState(() => _taPeringatan = pesan);
+    } catch (_) {}
+  }
+
+  Widget _taBanner() {
+    return InkWell(
+      onTap: () => _goto('Tahun Ajaran'),
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: _WC.errorBg,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: _WC.errorText.withOpacity(0.25)),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Icon(Icons.warning_amber_rounded, size: 22, color: _WC.errorText),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Sudah waktunya tahun ajaran baru?',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      color: _WC.errorText,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    _taPeringatan!,
+                    style: TextStyle(
+                      fontSize: 12,
+                      height: 1.4,
+                      color: _WC.errorText.withOpacity(0.85),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right, size: 18, color: _WC.errorText),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -177,6 +266,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
     } finally {
       if (mounted) setState(() => _syncing = false);
     }
+
+          final rolePeringatan = (_data?['role'] ?? '').toString();
+      if (rolePeringatan != 'WALI_SANTRI' &&
+          rolePeringatan != 'SUPER_ADMIN' &&
+          !_isPimpinan &&
+          !_isUstadzUser(rolePeringatan)) {
+        _cekTahunAjaran();
+      }
   }
 
     // Pengecekan notifikasi Mudir cukup sekali per sesi, bukan tiap pull-to-refresh.
@@ -1786,6 +1883,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+      if (_taPeringatan != null) ...[
+          _taBanner(),
+          const SizedBox(height: 16),
+        ],
         // ---- 2. Ringkasan angka pondok ----
         _SectionLabel(
           title: 'Master Data Terdata',

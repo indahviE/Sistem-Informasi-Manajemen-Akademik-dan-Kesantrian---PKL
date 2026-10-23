@@ -1,4 +1,4 @@
-import { IsEnum, IsNotEmpty, IsNumber, IsOptional, IsString, Max, Min } from 'class-validator';
+import { IsEnum, IsNotEmpty, IsNumber, IsOptional, IsBoolean, IsString, Max, Min } from 'class-validator';
 import { JenisUstadz } from '@prisma/client';
 
 export class CreateUstadzDto {
@@ -108,6 +108,10 @@ export class CreateTahunAjaranDto {
   @IsString()
   @IsNotEmpty()
   nama: string;
+
+  @IsOptional()
+  @IsBoolean()
+  aktif?: boolean;
 }
 
 export class CreateMengajarDto {

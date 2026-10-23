@@ -19,6 +19,7 @@ import 'akademik/tahfidz_screen.dart';
 import 'akademik/ujian_screen.dart';
 import 'akademik/rapor_screen.dart';
 import 'akademik/kelulusan_screen.dart';
+import 'akademik/tahun_ajaran_screen.dart';
 import 'kesantrian/pelanggaran_screen.dart';
 import 'kesantrian/perizinan_screen.dart';
 import 'kesantrian/kesehatan_screen.dart';
@@ -180,6 +181,7 @@ class _ShellScreenState extends State<ShellScreen> {
       m.add(_MenuItem('Ustadz / Pembina', Icons.person_search, (_) => const UstadzListScreen()));
       m.add(_MenuItem('Mata Pelajaran', Icons.menu_book, (_) => const MapelListScreen()));
       m.add(_MenuItem('Kurikulum', Icons.folder_copy, (_) => const KurikulumScreen()));
+            m.add(_MenuItem('Tahun Ajaran', Icons.event_note, (_) => const TahunAjaranScreen()));
       if (user.isAdmin) {
       m.add(_MenuItem('Identitas Pondok', Icons.palette, (_) => const BrandingScreen()));
       m.add(_MenuItem('Tagihan', Icons.receipt_long, (_) => const BillingTenantScreen()));
