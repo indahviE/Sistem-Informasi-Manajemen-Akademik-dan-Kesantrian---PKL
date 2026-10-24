@@ -69,9 +69,22 @@ export class SantriService {
     return { items, total, page, perPage };
   }
 
-  async findOne(tenantId: string, id: string) {
+  async findOne(tenantId: string, id: string, user?: RequestUser) {
+    // Wali hanya boleh melihat anaknya sendiri.
+    let waliId: string | undefined;
+    if (user?.role === Role.WALI_SANTRI) {
+      const wali = await this.prisma.waliSantri.findFirst({
+        where: { tenantId, userId: user.userId },
+        select: { id: true },
+      });
+      // Pesan sengaja sama dengan "tidak ditemukan" supaya tidak membocorkan
+      // apakah santri dengan ID itu ada.
+      if (!wali) throw new NotFoundException('Santri tidak ditemukan.');
+      waliId = wali.id;
+    }
+
     const santri = await this.prisma.santri.findFirst({
-      where: { id, tenantId },
+      where: { id, tenantId, ...(waliId ? { waliId } : {}) },
       include: {
         kelas: true,
         wali: true,
