@@ -1,43 +1,37 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../../services/api_client.dart';
 import '../../services/app_scope.dart';
 import '../ui_utils.dart';
 import '../santri/santri_ui.dart' show SC;
 
-/// Palet sama dengan `_KC` di konseling_screen.dart (desain Khadim al-Ma'had).
+/// Palet layar Pembinaan Karakter. Warna utama ikut identitas pondok (SC),
+/// aksen emas dan warna status tetap. Selaras dengan dashboard wali.
 class _PC {
   _PC._();
 
-  // Ikut tema pondok (diatur admin).
   static Color get primary => SC.primary;
-  static Color get primaryGradientEnd => SC.primaryEnd;
+  static Color get primaryEnd => SC.primaryEnd;
+  static Color get mint => SC.mint;
+  static Color get sage => SC.sage;
 
   static const gold = Color(0xFFC5A059);
+  static const goldLight = Color(0xFFE2C58A);
+  static const goldSurface = Color(0xFFFAF5EC);
+  static const goldBorder = Color(0xFFE7D2A7);
   static const goldDark = Color(0xFF7A5B10);
-  static const goldTop = Color(0xFFFED488);
-  static const sage = Color(0xFFE2ECE9);
-  static const mint = Color(0xFFDDF1E8);
-  static const avatarBg = Color(0xFFD5EBE2);
 
   static const background = Color(0xFFFAF9F5);
   static const surface = Color(0xFFFFFFFF);
   static const surfaceDim = Color(0xFFF5F4EE);
-  static const surfaceLow = Color(0xFFF4F4F0);
-  static const surfaceContainer = Color(0xFFEFEEEA);
-  static const chipBg = Color(0xFFECEBE6);
-
   static const ink = Color(0xFF0F172A);
   static const inkSecondary = Color(0xFF475569);
   static const border = Color(0xFFEAE6DC);
-  static const inputBorder = Color(0xFFE2E8F0);
 
   static const errorBg = Color(0xFFFEE2E2);
   static const errorText = Color(0xFF991B1B);
   static const errorFill = Color(0xFFFCEAE6);
   static const red = Color(0xFFDC2626);
-
-  static const amber = Color(0xFFB78103);
-  static const cancelBg = Color(0xFFE3E2DF);
 }
 
 const _kPageSize = 5;
@@ -48,6 +42,8 @@ const _kBulanPenuh = [
   'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
   'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember',
 ];
+
+const _kHari = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', "Jum'at", 'Sabtu'];
 
 /// Saran kategori di form (kategori tetap teks bebas).
 const _kSaranKategori = ['Kedisiplinan', 'Adab', 'Kejujuran', 'Kebersihan', 'Tanggung Jawab'];
@@ -76,6 +72,12 @@ String _fmtTanggal(DateTime? d) =>
 
 String _fmtTanggalPenuh(DateTime d) => '${d.day} ${_kBulanPenuh[d.month - 1]} ${d.year}';
 
+String _hariTanggal(DateTime? d) =>
+    d == null ? '-' : '${_kHari[d.weekday % 7]}, ${d.day} ${_kBulan[d.month - 1]} ${d.year}';
+
+String _tanggalIndo(DateTime dt) =>
+    '${_kHari[dt.weekday % 7]}, ${dt.day} ${_kBulanPenuh[dt.month - 1]} ${dt.year}';
+
 String _isoDate(DateTime d) =>
     '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
@@ -102,6 +104,12 @@ IconData _kategoriIcon(String k) {
   return Icons.emoji_events_outlined;
 }
 
+/// Kategori bernuansa emas (selebihnya hijau pondok) supaya daftar tidak monoton.
+bool _kategoriGold(String k) {
+  final s = k.toLowerCase();
+  return s.contains('disiplin') || s.contains('waktu') || s.contains('tanggung') || s.contains('jujur');
+}
+
 /// "14 September 2026" (+ " • 16:30 WIB" bila jam pencatatan di hari yang sama).
 String _tanggalWaktu(Map<String, dynamic> k) {
   final d = _tanggal(k);
@@ -117,10 +125,11 @@ String _tanggalWaktu(Map<String, dynamic> k) {
   return out;
 }
 
-BoxDecoration _cardDeco({double radius = 16, Color color = _PC.surface}) => BoxDecoration(
-      color: color,
+BoxDecoration _cardDeco({double radius = 20}) => BoxDecoration(
+      color: _PC.surface,
       borderRadius: BorderRadius.circular(radius),
-      boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 6, offset: const Offset(0, 2))],
+      border: Border.all(color: _PC.border),
+      boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 14, offset: const Offset(0, 5))],
     );
 
 Widget _grabHandle() => Center(
@@ -128,7 +137,7 @@ Widget _grabHandle() => Center(
         width: 44,
         height: 4,
         margin: const EdgeInsets.only(bottom: 14),
-        decoration: BoxDecoration(color: _PC.inputBorder, borderRadius: BorderRadius.circular(999)),
+        decoration: BoxDecoration(color: _PC.border, borderRadius: BorderRadius.circular(999)),
       ),
     );
 
@@ -136,12 +145,448 @@ Widget _closeButton(BuildContext context) => InkWell(
       onTap: () => Navigator.of(context).pop(),
       customBorder: const CircleBorder(),
       child: Container(
-        width: 42,
-        height: 42,
-        decoration: const BoxDecoration(color: _PC.surfaceContainer, shape: BoxShape.circle),
-        child: const Icon(Icons.close, size: 21, color: _PC.ink),
+        width: 40,
+        height: 40,
+        decoration: const BoxDecoration(color: _PC.surfaceDim, shape: BoxShape.circle),
+        child: const Icon(Icons.close_rounded, size: 20, color: _PC.inkSecondary),
       ),
     );
+
+/// Judul section dengan penanda emas (sama dengan dashboard wali).
+Widget _goldTitle(String t, {String? trailing}) {
+  return Row(
+    children: [
+      Container(
+        width: 4,
+        height: 18,
+        decoration: BoxDecoration(color: _PC.gold, borderRadius: BorderRadius.circular(999)),
+      ),
+      const SizedBox(width: 9),
+      Expanded(
+        child: Text(t,
+            style: const TextStyle(
+                fontSize: 16, fontWeight: FontWeight.w800, letterSpacing: -0.2, color: _PC.ink)),
+      ),
+      if (trailing != null)
+        Text(trailing, style: const TextStyle(fontSize: 11.5, color: _PC.inkSecondary)),
+    ],
+  );
+}
+
+Widget _ornamentDivider() {
+  return const Row(
+    children: [
+      Expanded(child: Divider(color: _PC.goldBorder)),
+      Padding(
+        padding: EdgeInsets.symmetric(horizontal: 10),
+        child: Icon(Icons.auto_awesome, size: 14, color: _PC.gold),
+      ),
+      Expanded(child: Divider(color: _PC.goldBorder)),
+    ],
+  );
+}
+
+/// Avatar inisial: cincin emas + isi gradient.
+Widget _gradientAvatar(String nama, {double size = 52, double fontSize = 18}) {
+  return Container(
+    width: size,
+    height: size,
+    padding: const EdgeInsets.all(3),
+    decoration: BoxDecoration(
+      shape: BoxShape.circle,
+      border: Border.all(color: _PC.gold, width: 1.5),
+    ),
+    child: Container(
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [_PC.primary, _PC.primaryEnd],
+        ),
+      ),
+      child: Text(_initials(nama),
+          style: TextStyle(fontSize: fontSize, fontWeight: FontWeight.w800, color: _PC.goldLight)),
+    ),
+  );
+}
+
+/// Ubin ikon gradient (hijau pondok atau emas).
+Widget _iconTile(IconData icon, {double size = 40, bool gold = false}) {
+  final c1 = gold ? _PC.gold : _PC.primary;
+  final c2 = gold ? _PC.goldDark : _PC.primaryEnd;
+  return Container(
+    width: size,
+    height: size,
+    decoration: BoxDecoration(
+      borderRadius: BorderRadius.circular(size * 0.32),
+      gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [c1, c2]),
+      boxShadow: [BoxShadow(color: c1.withOpacity(0.28), blurRadius: 8, offset: const Offset(0, 3))],
+    ),
+    child: Icon(icon, size: size * 0.5, color: Colors.white),
+  );
+}
+
+/// Ornamen geometris ala rub el hizb untuk latar gradient.
+List<Widget> _ornamen({double scale = 1}) {
+  return [
+    Positioned(
+      right: -26 * scale,
+      top: -26 * scale,
+      child: Transform.rotate(
+        angle: math.pi / 4,
+        child: Container(
+          width: 130 * scale,
+          height: 130 * scale,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(26 * scale),
+            border: Border.all(color: Colors.white.withOpacity(0.10), width: 1.5),
+          ),
+        ),
+      ),
+    ),
+    Positioned(
+      right: 8 * scale,
+      top: 8 * scale,
+      child: Container(
+        width: 70 * scale,
+        height: 70 * scale,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(18 * scale),
+          border: Border.all(color: _PC.gold.withOpacity(0.25), width: 1.2),
+        ),
+      ),
+    ),
+    Positioned(
+      left: -44 * scale,
+      bottom: -54 * scale,
+      child: Container(
+        width: 140 * scale,
+        height: 140 * scale,
+        decoration: BoxDecoration(color: _PC.gold.withOpacity(0.12), shape: BoxShape.circle),
+      ),
+    ),
+  ];
+}
+
+// ---------------------------------------------------------------------
+// Potongan UI layar utama
+// ---------------------------------------------------------------------
+class _Hero extends StatelessWidget {
+  final int total;
+  final bool readOnly;
+  const _Hero({required this.total, required this.readOnly});
+
+  Widget _pill(IconData icon, String text, {required Color bg, required Color fg, Color? border}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(999),
+        border: border != null ? Border.all(color: border) : null,
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 13, color: fg),
+          const SizedBox(width: 6),
+          Text(text, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: fg)),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final tn = AppScope.of(context).user?.tenantNama;
+    final pondok = (tn != null && tn.isNotEmpty) ? tn : 'Pondok Pesantren';
+
+    return Container(
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [_PC.primary, _PC.primaryEnd],
+        ),
+        borderRadius: BorderRadius.circular(26),
+        boxShadow: [BoxShadow(color: _PC.primary.withOpacity(0.28), blurRadius: 22, offset: const Offset(0, 10))],
+      ),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          ..._ornamen(),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 22),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.white.withOpacity(0.12),
+                        border: Border.all(color: _PC.gold.withOpacity(0.7)),
+                      ),
+                      child: const Icon(Icons.spa_outlined, size: 20, color: _PC.goldLight),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('AKHLAK & ADAB SANTRI',
+                              style: TextStyle(
+                                  fontSize: 9.5,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 1.0,
+                                  color: _PC.goldLight)),
+                          const SizedBox(height: 2),
+                          Text(pondok,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                  fontSize: 13, fontWeight: FontWeight.w700, color: Colors.white)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 26),
+                Text('Bimbingan harian bersama asatidz & musyrif',
+                    style: TextStyle(
+                        fontSize: 12.5, fontWeight: FontWeight.w500, color: Colors.white.withOpacity(0.72))),
+                const SizedBox(height: 4),
+                const Text('Pembinaan Karakter',
+                    style: TextStyle(
+                        fontSize: 27,
+                        fontWeight: FontWeight.w800,
+                        height: 1.15,
+                        letterSpacing: -0.3,
+                        color: Colors.white)),
+                const SizedBox(height: 8),
+                Text('Catat dan pantau perkembangan akhlak santri secara rutin dan berkelanjutan.',
+                    style: TextStyle(fontSize: 12, height: 1.4, color: Colors.white.withOpacity(0.68))),
+                const SizedBox(height: 18),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    _pill(Icons.calendar_today_outlined, _tanggalIndo(DateTime.now()),
+                        bg: Colors.white.withOpacity(0.12), fg: Colors.white),
+                    if (total > 0)
+                      _pill(Icons.edit_note_rounded, '$total Catatan', bg: _PC.mint, fg: _PC.primary),
+                    if (readOnly)
+                      _pill(Icons.visibility_outlined, 'Mode Pantau',
+                          bg: _PC.gold.withOpacity(0.18),
+                          fg: _PC.goldLight,
+                          border: _PC.gold.withOpacity(0.5)),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Cincin progres melingkar.
+class _RingPainter extends CustomPainter {
+  final double progress;
+  final Color color;
+  final Color track;
+  final double stroke;
+
+  _RingPainter({required this.progress, required this.color, required this.track, required this.stroke});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rect = (Offset.zero & size).deflate(stroke / 2);
+    final base = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = stroke
+      ..strokeCap = StrokeCap.round
+      ..isAntiAlias = true;
+
+    canvas.drawArc(rect, 0, math.pi * 2, false, base..color = track);
+    if (progress > 0) {
+      canvas.drawArc(rect, -math.pi / 2, math.pi * 2 * progress.clamp(0.0, 1.0), false, base..color = color);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _RingPainter old) =>
+      old.progress != progress || old.color != color || old.track != track || old.stroke != stroke;
+}
+
+class _RingCard extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String center;
+  final String? centerUnit;
+  final double progress;
+  final Color color;
+  final String caption;
+  final VoidCallback? onTap;
+  const _RingCard({
+    required this.icon,
+    required this.label,
+    required this.center,
+    required this.progress,
+    required this.color,
+    required this.caption,
+    this.onTap,
+    this.centerUnit,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: _PC.border),
+      ),
+      child: Material(
+        color: _PC.surface,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    Icon(icon, size: 16, color: color),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: _PC.ink)),
+                    ),
+                    if (onTap != null) const Icon(Icons.chevron_right, size: 16, color: _PC.inkSecondary),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: 92,
+                  height: 92,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      CustomPaint(
+                        size: const Size(92, 92),
+                        painter: _RingPainter(progress: progress, color: color, track: _PC.surfaceDim, stroke: 9),
+                      ),
+                      Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(center,
+                              style: const TextStyle(
+                                  fontSize: 21, fontWeight: FontWeight.w800, height: 1.1, color: _PC.ink)),
+                          if (centerUnit != null)
+                            Text(centerUnit!, style: const TextStyle(fontSize: 8.5, color: _PC.inkSecondary)),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Text(caption,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 10.5, color: _PC.inkSecondary)),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MiniStat extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  final String unit;
+  final String caption;
+  final Color accent;
+  const _MiniStat({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.unit,
+    required this.caption,
+    required this.accent,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: _PC.surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: _PC.border),
+      ),
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(width: 4, color: accent),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(icon, size: 15, color: accent),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(label,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                  fontSize: 12, fontWeight: FontWeight.w700, color: _PC.inkSecondary)),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.baseline,
+                      textBaseline: TextBaseline.alphabetic,
+                      children: [
+                        Text(value,
+                            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: _PC.ink)),
+                        const SizedBox(width: 5),
+                        Text(unit, style: const TextStyle(fontSize: 11, color: _PC.inkSecondary)),
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    Text(caption,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 10.5, color: _PC.inkSecondary)),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
 // ---------------------------------------------------------------------
 // Layar utama
@@ -364,7 +809,7 @@ class _PembinaanKarakterScreenState extends State<PembinaanKarakterScreen> {
   // Turunan data
   // ---------------------------------------------------------------------
   /// Kategori unik dari data, diurutkan dari yang paling sering dipakai.
-  List<String> get _kategoriList {
+  List<MapEntry<String, int>> get _kategoriStats {
     final count = <String, int>{};
     final label = <String, String>{};
     for (final p in _list) {
@@ -375,7 +820,7 @@ class _PembinaanKarakterScreenState extends State<PembinaanKarakterScreen> {
       label.putIfAbsent(key, () => raw);
     }
     final keys = count.keys.toList()..sort((a, b) => count[b]!.compareTo(count[a]!));
-    return [for (final k in keys.take(8)) label[k]!];
+    return [for (final k in keys) MapEntry(label[k]!, count[k]!)];
   }
 
   List<Map<String, dynamic>> get _filtered {
@@ -396,77 +841,164 @@ class _PembinaanKarakterScreenState extends State<PembinaanKarakterScreen> {
         _shown = _kPageSize;
       });
 
+  bool _isKategoriAktif(String k) => _kategori != null && _kategori!.toLowerCase() == k.toLowerCase();
+
   // ---------------------------------------------------------------------
   // Building blocks
   // ---------------------------------------------------------------------
-  Widget _header() {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
+  Widget _pairRow(Widget a, Widget b) {
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(child: a),
+          const SizedBox(width: 10),
+          Expanded(child: b),
+        ],
+      ),
+    );
+  }
+
+  Widget _capaian(List<MapEntry<String, int>> stats) {
+    final now = DateTime.now();
+    final total = _list.length;
+    final dibina = _list
+        .map((p) => (p['santriId'] ?? (p['santri'] as Map?)?['id'] ?? p['id']).toString())
+        .toSet()
+        .length;
+    final bulanIni = _list.where((p) {
+      final d = _tanggal(p);
+      return d != null && d.year == now.year && d.month == now.month;
+    }).length;
+
+    final top = stats.isEmpty ? null : stats.first;
+    final topPct = (top == null || total == 0) ? 0 : ((top.value / total) * 100).round();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Pembinaan Karakter',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: _PC.primary, height: 1.2)),
-              SizedBox(height: 2),
-              Text('Pantau perkembangan akhlak dan adab santri',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 13, color: _PC.inkSecondary)),
-            ],
+        _goldTitle('Capaian & Ringkasan', trailing: 'Terkini'),
+        const SizedBox(height: 12),
+        _pairRow(
+          _RingCard(
+            icon: Icons.calendar_month_outlined,
+            label: 'Bulan Ini',
+            center: '$bulanIni',
+            centerUnit: 'dari $total catatan',
+            progress: total == 0 ? 0 : (bulanIni / total).clamp(0.0, 1.0).toDouble(),
+            color: _PC.primary,
+            caption: bulanIni == 0 ? 'Belum ada catatan bulan ini' : 'Catatan bulan ini',
+          ),
+          _RingCard(
+            icon: Icons.insights_outlined,
+            label: 'Fokus Utama',
+            center: '$topPct%',
+            progress: total == 0 ? 0 : (topPct / 100).clamp(0.0, 1.0).toDouble(),
+            color: _PC.gold,
+            caption: top?.key ?? 'Belum ada data',
+            onTap: top == null ? null : () => _setKategori(top.key),
           ),
         ),
-        if (!_readOnly) ...[
-          const SizedBox(width: 10),
-          SizedBox(
-            height: 42,
-            child: FilledButton.icon(
-              onPressed: _add,
-              style: FilledButton.styleFrom(
-                backgroundColor: _PC.primary,
-                padding: const EdgeInsets.symmetric(horizontal: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-              ),
-              icon: const Icon(Icons.note_add_outlined, size: 18, color: Colors.white),
-              label: const Text('+ Catatan Baru',
-                  style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: Colors.white)),
-            ),
+        const SizedBox(height: 10),
+        _pairRow(
+          _MiniStat(
+            icon: Icons.description_outlined,
+            label: 'Total Catatan',
+            value: '$total',
+            unit: 'Catatan',
+            caption: 'Seluruh riwayat pembinaan',
+            accent: _PC.primary,
           ),
-        ],
+          _MiniStat(
+            icon: Icons.groups_2_outlined,
+            label: 'Santri Dibina',
+            value: '$dibina',
+            unit: 'Santri',
+            caption: 'Santri yang sudah dicatat',
+            accent: _PC.gold,
+          ),
+        ),
       ],
     );
   }
 
-  Widget _notice() {
+  Widget _sebaran(List<MapEntry<String, int>> stats) {
+    final shown = stats.take(5).toList();
+    final maxV = shown.isEmpty ? 1 : shown.first.value;
+
     return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: _cardDeco(radius: 14, color: _PC.surfaceContainer),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
+      decoration: _cardDeco(radius: 20),
+      child: Column(
         children: [
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(color: _PC.avatarBg, borderRadius: BorderRadius.circular(10)),
-            child: Icon(Icons.spa_outlined, size: 20, color: _PC.primary),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('PEMBINAAN BERKELANJUTAN',
-                    style: TextStyle(
-                        fontSize: 11, letterSpacing: 0.6, fontWeight: FontWeight.w800, color: _PC.primary)),
-                SizedBox(height: 3),
-                Text('Catat perkembangan akhlak santri secara rutin agar bisa dievaluasi bersama para asatidz dan musyrif.',
-                    style: TextStyle(fontSize: 13, color: _PC.inkSecondary, height: 1.4)),
-              ],
-            ),
-          ),
+          for (int i = 0; i < shown.length; i++)
+            Builder(builder: (context) {
+              final e = shown[i];
+              final aktif = _isKategoriAktif(e.key);
+              final gold = _kategoriGold(e.key);
+              final frac = (e.value / maxV).clamp(0.06, 1.0).toDouble();
+              return InkWell(
+                borderRadius: BorderRadius.circular(14),
+                onTap: () => _setKategori(aktif ? null : e.key),
+                child: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: aktif ? _PC.goldSurface : Colors.transparent,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: aktif ? _PC.goldBorder : Colors.transparent),
+                  ),
+                  child: Row(
+                    children: [
+                      _iconTile(_kategoriIcon(e.key), size: 36, gold: gold),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(e.key,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                          fontSize: 13, fontWeight: FontWeight.w800, color: _PC.ink)),
+                                ),
+                                Text('${e.value}',
+                                    style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w800,
+                                        color: gold ? _PC.goldDark : _PC.primary)),
+                              ],
+                            ),
+                            const SizedBox(height: 7),
+                            Container(
+                              height: 6,
+                              decoration: BoxDecoration(
+                                color: _PC.surfaceDim,
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: FractionallySizedBox(
+                                alignment: Alignment.centerLeft,
+                                widthFactor: frac,
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(999),
+                                    gradient: LinearGradient(
+                                      colors: gold ? [_PC.goldLight, _PC.gold] : [_PC.primary, _PC.primaryEnd],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }),
         ],
       ),
     );
@@ -475,11 +1007,15 @@ class _PembinaanKarakterScreenState extends State<PembinaanKarakterScreen> {
   Widget _searchField() {
     return Container(
       height: 50,
-      decoration: _cardDeco(radius: 14),
+      decoration: BoxDecoration(
+        color: _PC.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _PC.border),
+      ),
       child: Row(
         children: [
           const SizedBox(width: 14),
-          const Icon(Icons.search, size: 21, color: _PC.inkSecondary),
+          Icon(Icons.search_rounded, size: 21, color: _PC.primary),
           const SizedBox(width: 10),
           Expanded(
             child: TextField(
@@ -490,57 +1026,66 @@ class _PembinaanKarakterScreenState extends State<PembinaanKarakterScreen> {
               }),
               style: const TextStyle(fontSize: 14, color: _PC.ink),
               decoration: const InputDecoration(
-                hintText: 'Cari nama santri / NIS / kategori...',
-                hintStyle: TextStyle(fontSize: 14, color: _PC.inkSecondary),
+                hintText: 'Cari nama santri, NIS, atau kategori...',
+                hintStyle: TextStyle(fontSize: 13.5, color: _PC.inkSecondary),
                 border: InputBorder.none,
                 isCollapsed: true,
               ),
             ),
           ),
-          IconButton(
-            onPressed: () => setState(() {
-              _searchCtrl.clear();
-              _query = '';
-              _shown = _kPageSize;
-            }),
-            icon: const Icon(Icons.close, size: 19, color: _PC.inkSecondary),
-            tooltip: 'Bersihkan',
-          ),
+          if (_query.isNotEmpty)
+            IconButton(
+              onPressed: () => setState(() {
+                _searchCtrl.clear();
+                _query = '';
+                _shown = _kPageSize;
+              }),
+              icon: const Icon(Icons.close_rounded, size: 19, color: _PC.inkSecondary),
+              tooltip: 'Bersihkan',
+            )
+          else
+            const SizedBox(width: 12),
         ],
       ),
     );
   }
 
   Widget _chip({required String label, required bool on, required VoidCallback onTap, int? count}) {
-    return InkWell(
+    return GestureDetector(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(999),
-      child: Container(
-        height: 34,
-        padding: const EdgeInsets.symmetric(horizontal: 14),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        alignment: Alignment.center,
+        padding: const EdgeInsets.symmetric(horizontal: 15),
         decoration: BoxDecoration(
           color: on ? _PC.primary : _PC.surface,
           borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: on ? _PC.primary : _PC.border),
           boxShadow: on
-              ? null
-              : [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4, offset: const Offset(0, 1))],
+              ? [BoxShadow(color: _PC.primary.withOpacity(0.25), blurRadius: 10, offset: const Offset(0, 4))]
+              : null,
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(label,
-                style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: on ? Colors.white : _PC.ink)),
+                style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                    color: on ? Colors.white : _PC.inkSecondary)),
             if (count != null) ...[
-              const SizedBox(width: 6),
+              const SizedBox(width: 7),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(on ? 0.2 : 0.0),
+                  color: on ? Colors.white.withOpacity(0.2) : _PC.surfaceDim,
                   borderRadius: BorderRadius.circular(999),
                 ),
                 child: Text('$count',
                     style: TextStyle(
-                        fontSize: 10.5, fontWeight: FontWeight.w700, color: on ? Colors.white : _PC.inkSecondary)),
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w800,
+                        color: on ? _PC.goldLight : _PC.ink)),
               ),
             ],
           ],
@@ -549,19 +1094,21 @@ class _PembinaanKarakterScreenState extends State<PembinaanKarakterScreen> {
     );
   }
 
-  Widget _filters() {
-    final cats = _kategoriList;
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
+  Widget _filters(List<MapEntry<String, int>> stats) {
+    if (stats.isEmpty) return const SizedBox.shrink();
+    return SizedBox(
+      height: 40,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
         children: [
           _chip(label: 'Semua', on: _kategori == null, count: _list.length, onTap: () => _setKategori(null)),
-          for (final c in cats) ...[
+          for (final e in stats.take(8)) ...[
             const SizedBox(width: 8),
             _chip(
-              label: c,
-              on: _kategori != null && _kategori!.toLowerCase() == c.toLowerCase(),
-              onTap: () => _setKategori(c),
+              label: e.key,
+              count: e.value,
+              on: _isKategoriAktif(e.key),
+              onTap: () => _setKategori(e.key),
             ),
           ],
         ],
@@ -569,164 +1116,137 @@ class _PembinaanKarakterScreenState extends State<PembinaanKarakterScreen> {
     );
   }
 
-  Widget _statCard({
-    required String label,
-    required String value,
-    required String unit,
-    Color? accent,
-    bool topBar = false,
-  }) {
-    return Expanded(
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(14),
-        child: Container(
-          decoration: _cardDeco(radius: 14),
-          child: Stack(
-            children: [
-              if (topBar)
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  top: 0,
-                  child: Container(height: 4, color: _PC.goldTop),
-                ),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 12),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: Column(
-                    children: [
-                      Text(label,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                              fontSize: 11.5, fontWeight: FontWeight.w600, color: accent ?? _PC.inkSecondary)),
-                      const SizedBox(height: 2),
-                      Text(value,
-                          style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: accent ?? _PC.primary)),
-                      Text(unit,
-                          style: TextStyle(fontSize: 10.5, color: (accent ?? _PC.inkSecondary).withOpacity(0.85))),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
+  Widget _monthLabel(String label) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(2, 10, 2, 12),
+      child: Row(
+        children: [
+          const Icon(Icons.calendar_month_outlined, size: 15, color: _PC.gold),
+          const SizedBox(width: 7),
+          Text(label,
+              style: const TextStyle(
+                  fontSize: 12.5, fontWeight: FontWeight.w800, color: _PC.goldDark, letterSpacing: 0.2)),
+          const SizedBox(width: 10),
+          const Expanded(child: Divider(color: _PC.goldBorder, height: 1)),
+        ],
       ),
     );
   }
 
-  Widget _stats() {
-    final now = DateTime.now();
-    final dibina = _list
-        .map((p) => (p['santriId'] ?? (p['santri'] as Map?)?['id'] ?? p['id']).toString())
-        .toSet()
-        .length;
-    final bulanIni = _list.where((p) {
-      final d = _tanggal(p);
-      return d != null && d.year == now.year && d.month == now.month;
-    }).length;
-
-    return Row(
-      children: [
-        _statCard(label: 'Total', value: '${_list.length}', unit: 'catatan'),
-        const SizedBox(width: 8),
-        _statCard(label: 'Santri Dibina', value: '$dibina', unit: 'santri', accent: _PC.goldDark, topBar: true),
-        const SizedBox(width: 8),
-        _statCard(label: 'Bulan Ini', value: '$bulanIni', unit: 'catatan'),
-      ],
-    );
-  }
-
+  /// Kartu catatan gaya kartu ID: identitas di atas, isi di tengah, strip info di bawah.
   Widget _catatanCard(Map<String, dynamic> p) {
     final s = (p['santri'] as Map?) ?? const {};
     final nama = (s['nama'] ?? '-').toString();
     final kategori = (p['kategori'] ?? '-').toString();
+    final catatan = (p['catatan'] ?? '').toString().trim();
 
     return Container(
-      decoration: _cardDeco(radius: 18),
+      clipBehavior: Clip.antiAlias,
+      decoration: _cardDeco(radius: 22),
       child: Material(
         color: _PC.surface,
-        borderRadius: BorderRadius.circular(18),
         child: InkWell(
-          borderRadius: BorderRadius.circular(18),
           onTap: () => _openDetail(p),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Container(
+                height: 4,
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(colors: [_PC.gold, _PC.goldLight, _PC.gold]),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+                child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      width: 44,
-                      height: 44,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(color: _PC.avatarBg, borderRadius: BorderRadius.circular(12)),
-                      child: Text(_initials(nama),
-                          style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _PC.primary)),
+                    Row(
+                      children: [
+                        _gradientAvatar(nama, size: 52, fontSize: 18),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(nama,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                      fontSize: 15.5, fontWeight: FontWeight.w800, color: _PC.ink)),
+                              const SizedBox(height: 3),
+                              Text(_santriInfo(s),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(fontSize: 11.5, color: _PC.inkSecondary)),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
+                    const SizedBox(height: 14),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: _PC.goldSurface,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: _PC.goldBorder.withOpacity(0.7)),
+                      ),
+                      child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(nama,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _PC.ink)),
-                          const SizedBox(height: 2),
-                          Text(_santriInfo(s),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(fontSize: 12, color: _PC.inkSecondary)),
+                          _iconTile(_kategoriIcon(kategori), size: 38, gold: _kategoriGold(kategori)),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(kategori,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                        fontSize: 14.5, fontWeight: FontWeight.w800, color: _PC.primary)),
+                                if (catatan.isNotEmpty) ...[
+                                  const SizedBox(height: 4),
+                                  Text(catatan,
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                          fontSize: 12.5, color: _PC.inkSecondary, height: 1.5)),
+                                ],
+                              ],
+                            ),
+                          ),
                         ],
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    Text(_fmtTanggal(_tanggal(p)),
-                        style: TextStyle(fontSize: 11.5, color: _PC.inkSecondary.withOpacity(0.8))),
                   ],
                 ),
-                const SizedBox(height: 12),
-                Row(
+              ),
+              Container(
+                padding: const EdgeInsets.fromLTRB(16, 11, 12, 11),
+                decoration: const BoxDecoration(
+                  color: _PC.surfaceDim,
+                  border: Border(top: BorderSide(color: _PC.border)),
+                ),
+                child: Row(
                   children: [
-                    Icon(_kategoriIcon(kategori), size: 18, color: _PC.primary),
-                    const SizedBox(width: 6),
+                    const Icon(Icons.event_note_outlined, size: 14, color: _PC.gold),
+                    const SizedBox(width: 7),
                     Expanded(
-                      child: Text(kategori,
+                      child: Text(_hariTanggal(_tanggal(p)),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w800, color: _PC.primary)),
+                          style: const TextStyle(
+                              fontSize: 11.5, fontWeight: FontWeight.w700, color: _PC.inkSecondary)),
                     ),
+                    const Text('Lihat detail',
+                        style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: _PC.goldDark)),
+                    const Icon(Icons.chevron_right_rounded, size: 18, color: _PC.goldDark),
                   ],
                 ),
-                const SizedBox(height: 6),
-                Text((p['catatan'] ?? '').toString(),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 13, color: _PC.inkSecondary, height: 1.5)),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Flexible(
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                        decoration: BoxDecoration(color: _PC.surfaceContainer, borderRadius: BorderRadius.circular(999)),
-                        child: Text(kategori,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: _PC.ink)),
-                      ),
-                    ),
-                    const Spacer(),
-                    const Icon(Icons.chevron_right_rounded, size: 21, color: Color(0xFFC0C8C3)),
-                  ],
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
@@ -738,83 +1258,164 @@ class _PembinaanKarakterScreenState extends State<PembinaanKarakterScreen> {
     return Column(
       children: [
         if (total > _shown)
-          InkWell(
-            onTap: () => setState(() => _shown += _kPageSize),
-            borderRadius: BorderRadius.circular(999),
-            child: Container(
-              height: 38,
+          OutlinedButton.icon(
+            onPressed: () => setState(() => _shown += _kPageSize),
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size(0, 44),
+              backgroundColor: _PC.surface,
+              side: const BorderSide(color: _PC.goldBorder),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
               padding: const EdgeInsets.symmetric(horizontal: 22),
-              decoration: BoxDecoration(color: _PC.surfaceLow, borderRadius: BorderRadius.circular(999)),
-              alignment: Alignment.center,
-              child: Text('Memuat Lebih Banyak',
-                  style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: _PC.primary)),
             ),
+            icon: Icon(Icons.expand_more_rounded, size: 19, color: _PC.primary),
+            label: Text('Muat Lebih Banyak',
+                style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: _PC.primary)),
           ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 10),
         Text('Menampilkan $tampil dari $total catatan',
-            style: TextStyle(fontSize: 11.5, color: _PC.inkSecondary.withOpacity(0.8))),
+            style: const TextStyle(fontSize: 11.5, color: _PC.inkSecondary)),
       ],
     );
   }
 
-  Widget _infoCard() {
+  Widget _emptyState(bool noData) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(20, 22, 20, 22),
-      decoration: _cardDeco(radius: 20, color: _PC.surfaceContainer),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 30),
+      decoration: _cardDeco(radius: 22),
       child: Column(
         children: [
           Container(
-            width: 48,
-            height: 48,
-            decoration: _cardDeco(radius: 16),
-            child: Icon(Icons.auto_stories_outlined, size: 24, color: _PC.primary),
+            width: 64,
+            height: 64,
+            decoration: const BoxDecoration(color: _PC.goldSurface, shape: BoxShape.circle),
+            child: Icon(noData ? Icons.edit_note_rounded : Icons.search_off_rounded, color: _PC.gold, size: 32),
           ),
-          const SizedBox(height: 12),
-          Text('Pembinaan Karakter & Adab',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: _PC.primary)),
-          const SizedBox(height: 6),
-          const Text(
-            'Mencatat dan mengawal adab santri sehari-hari demi terwujudnya insan bertakwa yang berakhlak karimah.',
+          const SizedBox(height: 14),
+          Text(noData ? 'Belum ada catatan pembinaan' : 'Tidak ada catatan yang cocok',
+              style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w800, color: _PC.ink)),
+          const SizedBox(height: 5),
+          Text(
+            noData
+                ? (_readOnly
+                    ? 'Catatan perkembangan akhlak santri akan tampil di sini.'
+                    : 'Mulai catat perkembangan akhlak dan adab santri agar bisa dievaluasi bersama.')
+                : 'Coba ubah kata kunci atau pilih kategori lain.',
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 13, color: _PC.inkSecondary, height: 1.5),
+            style: const TextStyle(fontSize: 12, color: _PC.inkSecondary, height: 1.45),
           ),
+          if (noData && !_readOnly) ...[
+            const SizedBox(height: 18),
+            FilledButton.icon(
+              onPressed: _add,
+              style: FilledButton.styleFrom(
+                backgroundColor: _PC.primary,
+                minimumSize: const Size(0, 46),
+                padding: const EdgeInsets.symmetric(horizontal: 22),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+              ),
+              icon: const Icon(Icons.add_rounded, size: 20, color: _PC.goldLight),
+              label: const Text('Tambah Catatan',
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Colors.white)),
+            ),
+          ],
         ],
       ),
     );
   }
 
-  Widget _emptyCard(bool noData) {
+  Widget _footer() {
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: _PC.goldSurface,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: _PC.goldBorder),
+          ),
+          child: const Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.lock_outline, size: 16, color: _PC.goldDark),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Catatan pembinaan bersifat rahasia dan hanya dapat dilihat oleh pihak yang berwenang (Asatidz, Musyrif, dan Pimpinan).',
+                  style: TextStyle(fontSize: 11.5, color: _PC.goldDark, height: 1.45),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 26),
+        _ornamentDivider(),
+        const SizedBox(height: 12),
+        const Text(
+          'إِنَّمَا بُعِثْتُ لِأُتَمِّمَ مَكَارِمَ الْأَخْلَاقِ',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 19, fontWeight: FontWeight.w600, color: _PC.gold),
+        ),
+        const SizedBox(height: 6),
+        const Text(
+          '"Sesungguhnya aku diutus untuk menyempurnakan akhlak yang mulia."',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: _PC.inkSecondary),
+        ),
+      ],
+    );
+  }
+
+  Widget _tombolTambah() {
     return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(20, 22, 20, 22),
-      decoration: BoxDecoration(color: _PC.surfaceLow, borderRadius: BorderRadius.circular(18)),
-      child: Column(
-        children: [
-          Container(
-            width: 42,
-            height: 42,
-            decoration: const BoxDecoration(color: Color(0xFFE9E8E4), shape: BoxShape.circle),
-            child: Icon(Icons.inbox_outlined, size: 22, color: _PC.inkSecondary.withOpacity(0.7)),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(999),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [_PC.primary, _PC.primaryEnd],
+        ),
+        border: Border.all(color: _PC.gold.withOpacity(0.7)),
+        boxShadow: [BoxShadow(color: _PC.primary.withOpacity(0.35), blurRadius: 16, offset: const Offset(0, 6))],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: _add,
+          borderRadius: BorderRadius.circular(999),
+          child: const Padding(
+            padding: EdgeInsets.fromLTRB(14, 12, 20, 12),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.add_circle_outline_rounded, size: 21, color: _PC.goldLight),
+                SizedBox(width: 8),
+                Text('Catatan Baru',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Colors.white)),
+              ],
+            ),
           ),
-          const SizedBox(height: 10),
-          Text(noData ? 'Belum ada catatan pembinaan karakter' : 'Tidak ada catatan yang cocok',
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: _PC.ink)),
-          const SizedBox(height: 4),
-          Text(
-            noData
-                ? (_readOnly
-                    ? 'Catatan perkembangan santri akan tampil di sini.'
-                    : 'Gunakan tombol "+ Catatan Baru" di atas untuk menambahkan catatan perkembangan santri.')
-                : 'Coba ubah kata kunci atau pilih kategori lain.',
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 12.5, color: _PC.inkSecondary, height: 1.45),
-          ),
-        ],
+        ),
       ),
     );
+  }
+
+  List<Widget> _daftarCatatan(List<Map<String, dynamic>> visible) {
+    final out = <Widget>[];
+    String? last;
+    for (final p in visible) {
+      final d = _tanggal(p);
+      final key = d == null ? '-' : '${d.year}-${d.month}';
+      if (key != last) {
+        out.add(_monthLabel(d == null ? 'Tanpa Tanggal' : '${_kBulanPenuh[d.month - 1]} ${d.year}'));
+        last = key;
+      }
+      out.add(Padding(
+        padding: const EdgeInsets.only(bottom: 14),
+        child: _catatanCard(p),
+      ));
+    }
+    return out;
   }
 
   // ---------------------------------------------------------------------
@@ -824,6 +1425,7 @@ class _PembinaanKarakterScreenState extends State<PembinaanKarakterScreen> {
   Widget build(BuildContext context) {
     final filtered = _filtered;
     final visible = filtered.take(_shown).toList();
+    final stats = _kategoriStats;
 
     return Scaffold(
       backgroundColor: _PC.background,
@@ -835,38 +1437,51 @@ class _PembinaanKarakterScreenState extends State<PembinaanKarakterScreen> {
                   alignment: Alignment.topCenter,
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 480),
-                    child: RefreshIndicator(
-                      onRefresh: _load,
-                      color: _PC.primary,
-                      child: ListView(
-                        physics: const AlwaysScrollableScrollPhysics(),
-                        padding: const EdgeInsets.fromLTRB(12, 16, 12, 24),
-                        children: [
-                          _header(),
-                          const SizedBox(height: 14),
-                          _notice(),
-                          const SizedBox(height: 14),
-                          _searchField(),
-                          const SizedBox(height: 12),
-                          _filters(),
-                          const SizedBox(height: 14),
-                          _stats(),
-                          const SizedBox(height: 16),
-                          if (filtered.isEmpty)
-                            _emptyCard(_list.isEmpty)
-                          else ...[
-                            for (final p in visible)
-                              Padding(
-                                padding: const EdgeInsets.only(bottom: 12),
-                                child: _catatanCard(p),
-                              ),
-                            const SizedBox(height: 4),
-                            _muatLebih(filtered.length),
-                          ],
-                          const SizedBox(height: 22),
-                          _infoCard(),
-                        ],
-                      ),
+                    child: Stack(
+                      children: [
+                        RefreshIndicator(
+                          onRefresh: _load,
+                          color: _PC.primary,
+                          child: ListView(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            padding: EdgeInsets.fromLTRB(16, 16, 16, _readOnly ? 32 : 104),
+                            children: [
+                              _Hero(total: _list.length, readOnly: _readOnly),
+                              const SizedBox(height: 26),
+                              if (_list.isNotEmpty) ...[
+                                _capaian(stats),
+                                const SizedBox(height: 26),
+                                _goldTitle('Sebaran Kategori', trailing: 'Ketuk untuk menyaring'),
+                                const SizedBox(height: 12),
+                                _sebaran(stats),
+                                const SizedBox(height: 26),
+                              ],
+                              _goldTitle('Riwayat Pembinaan', trailing: '${filtered.length} catatan'),
+                              const SizedBox(height: 12),
+                              _searchField(),
+                              if (stats.isNotEmpty) ...[
+                                const SizedBox(height: 12),
+                                _filters(stats),
+                              ],
+                              const SizedBox(height: 10),
+                              if (filtered.isEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 6),
+                                  child: _emptyState(_list.isEmpty),
+                                )
+                              else ...[
+                                ..._daftarCatatan(visible),
+                                const SizedBox(height: 2),
+                                _muatLebih(filtered.length),
+                              ],
+                              const SizedBox(height: 28),
+                              _footer(),
+                            ],
+                          ),
+                        ),
+                        if (!_readOnly && _list.isNotEmpty)
+                          Positioned(right: 16, bottom: 18, child: _tombolTambah()),
+                      ],
                     ),
                   ),
                 ),
@@ -886,22 +1501,12 @@ class _DetailSheet extends StatelessWidget {
         width: double.infinity,
         padding: const EdgeInsets.all(16),
         margin: const EdgeInsets.only(bottom: 12),
-        decoration: _cardDeco(radius: 16),
+        decoration: _cardDeco(radius: 18),
         child: child,
       );
 
-  Widget _cardTitle(String text, IconData icon) => Row(
-        children: [
-          Icon(icon, size: 17, color: _PC.inkSecondary),
-          const SizedBox(width: 8),
-          Text(text.toUpperCase(),
-              style: const TextStyle(
-                  fontSize: 11.5, letterSpacing: 0.6, fontWeight: FontWeight.w700, color: _PC.inkSecondary)),
-        ],
-      );
-
   Widget _infoRow(String label, String value) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 10),
+        padding: const EdgeInsets.symmetric(vertical: 11),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -916,36 +1521,7 @@ class _DetailSheet extends StatelessWidget {
         ),
       );
 
-  Widget _divider() => const Divider(height: 1, thickness: 1, color: Color(0xFFF0EFEA));
-
-  Widget _watermark() {
-    final c = Colors.white.withOpacity(0.06);
-    return Positioned(
-      right: -22,
-      bottom: -22,
-      child: SizedBox(
-        width: 110,
-        height: 110,
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            Container(
-                width: 58, height: 58, decoration: BoxDecoration(color: c, borderRadius: BorderRadius.circular(6))),
-            Transform.rotate(
-              angle: 0.785398,
-              child: Container(
-                  width: 58, height: 58, decoration: BoxDecoration(color: c, borderRadius: BorderRadius.circular(6))),
-            ),
-            Container(
-              width: 34,
-              height: 34,
-              decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: c, width: 3)),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  Widget _divider() => const Divider(height: 1, thickness: 1, color: _PC.border);
 
   @override
   Widget build(BuildContext context) {
@@ -962,16 +1538,13 @@ class _DetailSheet extends StatelessWidget {
         children: [
           // Header tetap
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 10, 16, 8),
+            padding: const EdgeInsets.fromLTRB(20, 10, 16, 10),
             child: Column(
               children: [
                 _grabHandle(),
                 Row(
                   children: [
-                    Expanded(
-                      child: Text('Detail Pembinaan Karakter',
-                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: _PC.primary)),
-                    ),
+                    Expanded(child: _goldTitle('Detail Pembinaan')),
                     _closeButton(context),
                   ],
                 ),
@@ -986,39 +1559,32 @@ class _DetailSheet extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Hero
+                  // Hero identitas
                   Container(
                     width: double.infinity,
                     clipBehavior: Clip.antiAlias,
                     margin: const EdgeInsets.only(bottom: 12),
                     decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(18),
+                      borderRadius: BorderRadius.circular(22),
                       gradient: LinearGradient(
-                        colors: [_PC.primary, _PC.primaryGradientEnd],
+                        colors: [_PC.primary, _PC.primaryEnd],
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                       ),
+                      boxShadow: [
+                        BoxShadow(color: _PC.primary.withOpacity(0.25), blurRadius: 18, offset: const Offset(0, 8)),
+                      ],
                     ),
                     child: Stack(
+                      clipBehavior: Clip.none,
                       children: [
-                        _watermark(),
+                        ..._ornamen(scale: 0.8),
                         Padding(
-                          padding: const EdgeInsets.all(16),
+                          padding: const EdgeInsets.all(18),
                           child: Row(
                             crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
-                              Container(
-                                width: 72,
-                                height: 72,
-                                alignment: Alignment.center,
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withOpacity(0.14),
-                                  borderRadius: BorderRadius.circular(16),
-                                ),
-                                child: Text(_initials(nama),
-                                    style: const TextStyle(
-                                        fontSize: 26, fontWeight: FontWeight.w800, color: Color(0xFFF3D690))),
-                              ),
+                              _gradientAvatar(nama, size: 70, fontSize: 24),
                               const SizedBox(width: 14),
                               Expanded(
                                 child: Column(
@@ -1026,42 +1592,37 @@ class _DetailSheet extends StatelessWidget {
                                   children: [
                                     const Text('PEMBINAAN KARAKTER',
                                         style: TextStyle(
-                                            fontSize: 10.5,
-                                            letterSpacing: 0.8,
-                                            fontWeight: FontWeight.w700,
-                                            color: Color(0xFFF3D690))),
-                                    const SizedBox(height: 2),
+                                            fontSize: 9.5,
+                                            letterSpacing: 1.0,
+                                            fontWeight: FontWeight.w800,
+                                            color: _PC.goldLight)),
+                                    const SizedBox(height: 3),
                                     Text(nama,
                                         style: const TextStyle(
-                                            fontSize: 20, fontWeight: FontWeight.w800, color: Colors.white, height: 1.2)),
+                                            fontSize: 19, fontWeight: FontWeight.w800, color: Colors.white, height: 1.2)),
                                     const SizedBox(height: 3),
                                     Text(_santriInfo(s),
-                                        style: const TextStyle(fontSize: 12.5, color: Colors.white70)),
-                                    const SizedBox(height: 8),
+                                        style: const TextStyle(fontSize: 12, color: Colors.white70)),
+                                    const SizedBox(height: 9),
                                     Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                                       decoration: BoxDecoration(
-                                        color: Colors.white.withOpacity(0.14),
+                                        color: _PC.mint,
                                         borderRadius: BorderRadius.circular(999),
                                       ),
                                       child: Row(
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
-                                          Container(
-                                            width: 6,
-                                            height: 6,
-                                            decoration: const BoxDecoration(
-                                                color: Color(0xFFF3D690), shape: BoxShape.circle),
-                                          ),
+                                          Icon(_kategoriIcon(kategori), size: 13, color: _PC.primary),
                                           const SizedBox(width: 6),
                                           Flexible(
                                             child: Text(kategori,
                                                 maxLines: 1,
                                                 overflow: TextOverflow.ellipsis,
-                                                style: const TextStyle(
+                                                style: TextStyle(
                                                     fontSize: 11.5,
-                                                    fontWeight: FontWeight.w700,
-                                                    color: Colors.white)),
+                                                    fontWeight: FontWeight.w800,
+                                                    color: _PC.primary)),
                                           ),
                                         ],
                                       ),
@@ -1078,53 +1639,35 @@ class _DetailSheet extends StatelessWidget {
 
                   // Kategori & tanggal
                   _card(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    child: Row(
                       children: [
-                        Row(
-                          children: [
-                            const Expanded(
-                              child: Text('KATEGORI PEMBINAAN',
+                        _iconTile(_kategoriIcon(kategori), size: 44, gold: _kategoriGold(kategori)),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text('KATEGORI PEMBINAAN',
                                   style: TextStyle(
-                                      fontSize: 11.5,
-                                      letterSpacing: 0.6,
+                                      fontSize: 9.5,
+                                      letterSpacing: 0.8,
                                       fontWeight: FontWeight.w700,
                                       color: _PC.inkSecondary)),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                              decoration: BoxDecoration(
-                                  color: _PC.surfaceContainer, borderRadius: BorderRadius.circular(999)),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
+                              const SizedBox(height: 3),
+                              Text(kategori,
+                                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: _PC.primary)),
+                              const SizedBox(height: 4),
+                              Row(
                                 children: [
-                                  const Icon(Icons.calendar_today_outlined, size: 13, color: _PC.goldDark),
+                                  const Icon(Icons.calendar_today_outlined, size: 12, color: _PC.gold),
                                   const SizedBox(width: 5),
                                   Text(tanggal == null ? '-' : _fmtTanggalPenuh(tanggal),
                                       style: const TextStyle(
                                           fontSize: 11.5, fontWeight: FontWeight.w600, color: _PC.goldDark)),
                                 ],
                               ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        Row(
-                          children: [
-                            Container(
-                              width: 38,
-                              height: 38,
-                              decoration:
-                                  BoxDecoration(color: _PC.surfaceContainer, borderRadius: BorderRadius.circular(10)),
-                              child: Icon(_kategoriIcon(kategori), size: 20, color: _PC.primary),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(kategori,
-                                  style: TextStyle(
-                                      fontSize: 18, fontWeight: FontWeight.w800, color: _PC.primary)),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ],
                     ),
@@ -1135,14 +1678,29 @@ class _DetailSheet extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        _cardTitle('Catatan Pembinaan', Icons.edit_note_rounded),
+                        const Row(
+                          children: [
+                            Icon(Icons.edit_note_rounded, size: 18, color: _PC.gold),
+                            SizedBox(width: 8),
+                            Text('CATATAN PEMBINAAN',
+                                style: TextStyle(
+                                    fontSize: 11.5,
+                                    letterSpacing: 0.6,
+                                    fontWeight: FontWeight.w800,
+                                    color: _PC.inkSecondary)),
+                          ],
+                        ),
                         const SizedBox(height: 12),
                         Container(
                           width: double.infinity,
                           padding: const EdgeInsets.all(14),
-                          decoration: BoxDecoration(color: _PC.surfaceLow, borderRadius: BorderRadius.circular(12)),
+                          decoration: BoxDecoration(
+                            color: _PC.goldSurface,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: _PC.goldBorder.withOpacity(0.8)),
+                          ),
                           child: Text((p['catatan'] ?? '-').toString(),
-                              style: const TextStyle(fontSize: 14, color: _PC.ink, height: 1.65)),
+                              style: const TextStyle(fontSize: 14, color: _PC.ink, height: 1.7)),
                         ),
                       ],
                     ),
@@ -1153,9 +1711,20 @@ class _DetailSheet extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        _cardTitle('Informasi Pembinaan', Icons.info_outline_rounded),
-                        const SizedBox(height: 6),
-                        _infoRow('Tanggal', _tanggalWaktu(p)),
+                        const Row(
+                          children: [
+                            Icon(Icons.info_outline_rounded, size: 17, color: _PC.gold),
+                            SizedBox(width: 8),
+                            Text('INFORMASI PEMBINAAN',
+                                style: TextStyle(
+                                    fontSize: 11.5,
+                                    letterSpacing: 0.6,
+                                    fontWeight: FontWeight.w800,
+                                    color: _PC.inkSecondary)),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        _infoRow('Dicatat pada', _tanggalWaktu(p)),
                         _divider(),
                         _infoRow('Kategori', kategori),
                         _divider(),
@@ -1167,16 +1736,20 @@ class _DetailSheet extends StatelessWidget {
                   // Catatan akses
                   Container(
                     padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(color: _PC.sage, borderRadius: BorderRadius.circular(14)),
-                    child: Row(
+                    decoration: BoxDecoration(
+                      color: _PC.goldSurface,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: _PC.goldBorder),
+                    ),
+                    child: const Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Icon(Icons.verified_user_outlined, size: 19, color: _PC.primary),
+                        Icon(Icons.lock_outline, size: 16, color: _PC.goldDark),
                         SizedBox(width: 10),
                         Expanded(
                           child: Text(
                             'Catatan pembinaan hanya dapat dilihat oleh pihak yang berwenang (Asatidz, Musyrif, dan Pimpinan).',
-                            style: TextStyle(fontSize: 12.5, color: _PC.primary, height: 1.45),
+                            style: TextStyle(fontSize: 11.5, color: _PC.goldDark, height: 1.45),
                           ),
                         ),
                       ],
@@ -1188,39 +1761,32 @@ class _DetailSheet extends StatelessWidget {
             ),
           ),
 
-          // Bar aksi tetap (tombol Hapus di tengah)
+          // Bar aksi tetap
           if (canDelete)
             Container(
               width: double.infinity,
               decoration: BoxDecoration(
                 color: _PC.surface,
-                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 12, offset: const Offset(0, -4))],
+                border: const Border(top: BorderSide(color: _PC.border)),
+                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 12, offset: const Offset(0, -4))],
               ),
               child: SafeArea(
                 top: false,
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      SizedBox(
-                        height: 50,
-                        width: 300,
-                        child: FilledButton.icon(
-                          onPressed: () => Navigator.pop(context, 'hapus'),
-                          style: FilledButton.styleFrom(
-                            backgroundColor: _PC.errorBg,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-                          ),
-                          icon: const Icon(Icons.delete_outline, size: 20, color: _PC.errorText),
-                          label: const Text('Hapus Catatan',
-                              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: _PC.errorText)),
-                        ),
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                  child: SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: FilledButton.icon(
+                      onPressed: () => Navigator.pop(context, 'hapus'),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: _PC.errorBg,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
                       ),
-                      const SizedBox(height: 6),
-                      Text('Akses Asatidz & Musyrif Pengasuhan',
-                          style: TextStyle(fontSize: 11.5, color: _PC.inkSecondary.withOpacity(0.85))),
-                    ],
+                      icon: const Icon(Icons.delete_outline, size: 20, color: _PC.errorText),
+                      label: const Text('Hapus Catatan',
+                          style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w800, color: _PC.errorText)),
+                    ),
                   ),
                 ),
               ),
@@ -1314,62 +1880,54 @@ class _PilihSantriSheetState extends State<_PilihSantriSheet> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _grabHandle(),
-                const Text('Pilih Santri',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _PC.ink)),
-                const SizedBox(height: 12),
+                _goldTitle('Pilih Santri', trailing: _loading ? null : '${list.length} santri'),
+                const SizedBox(height: 14),
                 TextField(
                   onChanged: (v) => setState(() => _query = v),
                   style: const TextStyle(fontSize: 14, color: _PC.ink),
                   decoration: InputDecoration(
                     hintText: 'Cari nama / NIS…',
                     hintStyle: const TextStyle(fontSize: 14, color: _PC.inkSecondary),
-                    prefixIcon: const Icon(Icons.search, size: 20, color: _PC.inkSecondary),
+                    prefixIcon: Icon(Icons.search_rounded, size: 20, color: _PC.primary),
                     isDense: true,
                     filled: true,
-                    fillColor: _PC.surface,
+                    fillColor: _PC.surfaceDim,
                     contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: _PC.inputBorder),
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: BorderSide.none,
                     ),
                     enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: _PC.inputBorder),
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: BorderSide.none,
                     ),
                     focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: _PC.primary, width: 2),
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: BorderSide(color: _PC.primary, width: 1.6),
                     ),
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 6),
                 Expanded(
                   child: _loading
                       ? loadingView()
                       : list.isEmpty
                           ? emptyView('Santri tidak ditemukan.')
-                          : ListView.builder(
+                          : ListView.separated(
                               itemCount: list.length,
+                              separatorBuilder: (_, __) => const Divider(height: 1, thickness: 1, color: _PC.border),
                               itemBuilder: (ctx, i) {
                                 final s = list[i];
                                 final nama = (s['nama'] ?? '-').toString();
                                 return ListTile(
-                                  contentPadding: EdgeInsets.zero,
-                                  leading: Container(
-                                    width: 40,
-                                    height: 40,
-                                    alignment: Alignment.center,
-                                    decoration:
-                                        BoxDecoration(color: _PC.avatarBg, borderRadius: BorderRadius.circular(12)),
-                                    child: Text(_initials(nama),
-                                        style: TextStyle(
-                                            fontSize: 13, fontWeight: FontWeight.w700, color: _PC.primary)),
-                                  ),
+                                  contentPadding: const EdgeInsets.symmetric(vertical: 3),
+                                  leading: _gradientAvatar(nama, size: 46, fontSize: 14),
                                   title: Text(nama,
                                       style: const TextStyle(
-                                          fontWeight: FontWeight.w700, fontSize: 14, color: _PC.ink)),
+                                          fontWeight: FontWeight.w800, fontSize: 14, color: _PC.ink)),
                                   subtitle: Text('NIS ${s['nis']} • ${(s['kelas'] as Map?)?['namaKelas'] ?? '-'}',
                                       style: const TextStyle(fontSize: 12, color: _PC.inkSecondary)),
+                                  trailing: const Icon(Icons.chevron_right_rounded, size: 20, color: _PC.gold),
                                   onTap: () => Navigator.of(context).pop(s),
                                 );
                               },
@@ -1467,22 +2025,19 @@ class _FormSheetState extends State<_FormSheet> {
   // ---------------------------------------------------------------------
   // Building blocks
   // ---------------------------------------------------------------------
-  Widget _label(String text, {bool req = false, String? tag, bool err = false, Widget? tagWidget}) {
+  Widget _label(String text, {bool req = false, String? hint}) {
     return Row(
       children: [
         Expanded(
           child: Text.rich(
             TextSpan(
               text: text,
-              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: err ? _PC.errorText : _PC.ink),
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: _PC.ink),
               children: [if (req) const TextSpan(text: ' *', style: TextStyle(color: _PC.red))],
             ),
           ),
         ),
-        if (tagWidget != null)
-          tagWidget
-        else if (tag != null)
-          Text(tag, style: const TextStyle(fontSize: 12, color: _PC.inkSecondary)),
+        if (hint != null) Text(hint, style: const TextStyle(fontSize: 11.5, color: _PC.inkSecondary)),
       ],
     );
   }
@@ -1495,100 +2050,57 @@ class _FormSheetState extends State<_FormSheet> {
         children: [
           const Padding(
             padding: EdgeInsets.only(top: 1),
-            child: Icon(Icons.warning_amber_rounded, size: 18, color: _PC.errorText),
+            child: Icon(Icons.error_outline_rounded, size: 16, color: _PC.red),
           ),
-          const SizedBox(width: 8),
-          Expanded(child: Text(msg, style: const TextStyle(fontSize: 13, color: _PC.errorText, height: 1.4))),
+          const SizedBox(width: 6),
+          Expanded(child: Text(msg, style: const TextStyle(fontSize: 12.5, color: _PC.red, height: 1.4))),
         ],
       ),
     );
   }
 
-  InputDecoration _fillDec(String hint, {bool err = false, Widget? suffix}) {
-    OutlineInputBorder b([Color? c, double w = 2]) => OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: c == null ? BorderSide.none : BorderSide(color: c, width: w),
+  InputDecoration _dec(String hint, {bool err = false}) {
+    OutlineInputBorder b(Color c, [double w = 1]) => OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(color: c, width: w),
         );
     return InputDecoration(
       hintText: hint,
-      hintStyle: TextStyle(
-          fontSize: 14.5,
-          height: 1.4,
-          color: err ? _PC.errorText.withOpacity(0.65) : _PC.inkSecondary.withOpacity(0.8)),
+      hintStyle: const TextStyle(fontSize: 14, height: 1.4, color: _PC.inkSecondary),
       filled: true,
       fillColor: err ? _PC.errorFill : _PC.surface,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-      suffixIcon: suffix,
-      border: b(),
-      enabledBorder: b(),
-      focusedBorder: b(_PC.primary),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+      border: b(err ? _PC.red : _PC.border),
+      enabledBorder: b(err ? _PC.red : _PC.border),
+      focusedBorder: b(err ? _PC.red : _PC.primary, 1.6),
     );
   }
 
-  Widget _santriCard() {
+  Widget _santriField() {
     final s = _santri;
     final err = _tried && s == null;
     final nama = (s?['nama'] ?? '').toString();
-
-    Widget avatar;
-    if (s == null) {
-      avatar = Container(
-        width: 52,
-        height: 52,
-        decoration: BoxDecoration(color: _PC.chipBg, borderRadius: BorderRadius.circular(14)),
-        child: const Icon(Icons.person_search_outlined, size: 26, color: _PC.inkSecondary),
-      );
-    } else {
-      avatar = SizedBox(
-        width: 54,
-        height: 54,
-        child: Stack(
-          clipBehavior: Clip.none,
-          children: [
-            Container(
-              width: 52,
-              height: 52,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(color: _PC.avatarBg, borderRadius: BorderRadius.circular(26)),
-              child: Text(_initials(nama),
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _PC.primary)),
-            ),
-            Positioned(
-              right: 0,
-              bottom: 0,
-              child: Container(
-                width: 20,
-                height: 20,
-                decoration: BoxDecoration(
-                  color: _PC.primary,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: _PC.surfaceDim, width: 2),
-                ),
-                child: const Icon(Icons.check, size: 12, color: Colors.white),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Material(
-          color: _PC.surfaceDim,
+          color: s == null ? _PC.surface : _PC.goldSurface,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-            side: err ? const BorderSide(color: _PC.red, width: 1.5) : BorderSide.none,
+            borderRadius: BorderRadius.circular(18),
+            side: BorderSide(color: err ? _PC.red : (s == null ? _PC.border : _PC.goldBorder), width: err ? 1.5 : 1),
           ),
           child: InkWell(
-            customBorder: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            customBorder: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
             onTap: _pilihSantri,
             child: Padding(
               padding: const EdgeInsets.all(12),
               child: Row(
                 children: [
-                  avatar,
+                  if (s == null)
+                    _iconTile(Icons.person_add_alt_1_outlined, size: 48, gold: true)
+                  else
+                    _gradientAvatar(nama, size: 52, fontSize: 18),
                   const SizedBox(width: 12),
                   Expanded(
                     child: s == null
@@ -1596,10 +2108,10 @@ class _FormSheetState extends State<_FormSheet> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text('Pilih santri',
-                                  style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700, color: _PC.ink)),
+                                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: _PC.ink)),
                               SizedBox(height: 2),
                               Text('Ketuk untuk memilih dari daftar',
-                                  style: TextStyle(fontSize: 12.5, color: _PC.inkSecondary)),
+                                  style: TextStyle(fontSize: 12, color: _PC.inkSecondary)),
                             ],
                           )
                         : Column(
@@ -1608,21 +2120,25 @@ class _FormSheetState extends State<_FormSheet> {
                               Text(nama,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700, color: _PC.ink)),
+                                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: _PC.ink)),
                               const SizedBox(height: 2),
                               Text(_santriInfo(s),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(fontSize: 12.5, color: _PC.inkSecondary)),
+                                  style: const TextStyle(fontSize: 12, color: _PC.inkSecondary)),
                             ],
                           ),
                   ),
                   const SizedBox(width: 8),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
-                    decoration: BoxDecoration(color: _PC.surface, borderRadius: BorderRadius.circular(999)),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: _PC.surface,
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(color: _PC.goldBorder),
+                    ),
                     child: Text(s == null ? 'Pilih' : 'Ubah',
-                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _PC.ink)),
+                        style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: _PC.goldDark)),
                   ),
                 ],
               ),
@@ -1637,27 +2153,34 @@ class _FormSheetState extends State<_FormSheet> {
   Widget _tanggalField() {
     return Material(
       color: _PC.surface,
-      borderRadius: BorderRadius.circular(14),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: const BorderSide(color: _PC.border),
+      ),
       child: InkWell(
-        borderRadius: BorderRadius.circular(14),
+        customBorder: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         onTap: _pilihTanggal,
         child: Container(
           height: 56,
-          padding: const EdgeInsets.symmetric(horizontal: 16),
+          padding: const EdgeInsets.symmetric(horizontal: 14),
           child: Row(
             children: [
-              Icon(Icons.calendar_today_outlined, size: 20, color: _PC.primary),
+              _iconTile(Icons.calendar_today_outlined, size: 34),
               const SizedBox(width: 12),
               Expanded(
                 child: Text(_fmtTanggalPenuh(_tgl),
-                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: _PC.ink)),
+                    style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w600, color: _PC.ink)),
               ),
               if (_isToday)
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-                  decoration: BoxDecoration(color: const Color(0xFFFDEBC8), borderRadius: BorderRadius.circular(999)),
+                  padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: _PC.goldSurface,
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(color: _PC.goldBorder),
+                  ),
                   child: const Text('Hari ini',
-                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF9A6B00))),
+                      style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: _PC.goldDark)),
                 ),
             ],
           ),
@@ -1668,18 +2191,28 @@ class _FormSheetState extends State<_FormSheet> {
 
   Widget _saranChip(String label) {
     final on = _kategori.text.trim().toLowerCase() == label.toLowerCase();
-    return InkWell(
+    return GestureDetector(
       onTap: () => setState(() => _kategori.text = label),
-      borderRadius: BorderRadius.circular(999),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        padding: const EdgeInsets.fromLTRB(10, 7, 14, 7),
         decoration: BoxDecoration(
-          color: on ? _PC.primary : _PC.chipBg,
+          color: on ? _PC.primary : _PC.surface,
           borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: on ? _PC.primary : _PC.border),
         ),
-        child: Text(label,
-            style: TextStyle(
-                fontSize: 13, fontWeight: on ? FontWeight.w700 : FontWeight.w600, color: on ? Colors.white : _PC.ink)),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(_kategoriIcon(label), size: 15, color: on ? _PC.goldLight : _PC.gold),
+            const SizedBox(width: 6),
+            Text(label,
+                style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                    color: on ? Colors.white : _PC.inkSecondary)),
+          ],
+        ),
       ),
     );
   }
@@ -1688,7 +2221,8 @@ class _FormSheetState extends State<_FormSheet> {
     return Container(
       decoration: BoxDecoration(
         color: _PC.surface,
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 12, offset: const Offset(0, -4))],
+        border: const Border(top: BorderSide(color: _PC.border)),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 12, offset: const Offset(0, -4))],
       ),
       child: SafeArea(
         top: false,
@@ -1702,11 +2236,11 @@ class _FormSheetState extends State<_FormSheet> {
                   child: FilledButton(
                     onPressed: () => Navigator.of(context).pop(),
                     style: FilledButton.styleFrom(
-                      backgroundColor: _PC.cancelBg,
+                      backgroundColor: _PC.surfaceDim,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
                     ),
                     child: const Text('Batal',
-                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _PC.ink)),
+                        style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: _PC.inkSecondary)),
                   ),
                 ),
               ),
@@ -1721,9 +2255,9 @@ class _FormSheetState extends State<_FormSheet> {
                       backgroundColor: _PC.primary,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
                     ),
-                    icon: const Icon(Icons.save_outlined, size: 20, color: Colors.white),
+                    icon: const Icon(Icons.save_outlined, size: 20, color: _PC.goldLight),
                     label: const Text('Simpan Catatan',
-                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Colors.white)),
+                        style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w800, color: Colors.white)),
                   ),
                 ),
               ),
@@ -1757,21 +2291,17 @@ class _FormSheetState extends State<_FormSheet> {
                   _grabHandle(),
                   Row(
                     children: [
-                      Container(
-                        width: 46,
-                        height: 46,
-                        decoration: BoxDecoration(color: const Color(0xFFBFEBD8), borderRadius: BorderRadius.circular(14)),
-                        child: Icon(Icons.edit_note_rounded, size: 24, color: _PC.primary),
-                      ),
+                      _iconTile(Icons.edit_note_rounded, size: 46),
                       const SizedBox(width: 12),
                       const Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text('Catatan Pembinaan Baru',
-                                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: _PC.ink)),
+                                style: TextStyle(
+                                    fontSize: 18, fontWeight: FontWeight.w800, letterSpacing: -0.2, color: _PC.ink)),
                             SizedBox(height: 1),
-                            Text('Evaluasi Akhlaq & Adab Harian',
+                            Text('Evaluasi akhlak & adab harian',
                                 style: TextStyle(fontSize: 12.5, color: _PC.inkSecondary)),
                           ],
                         ),
@@ -1786,89 +2316,58 @@ class _FormSheetState extends State<_FormSheet> {
             // Isi form (scroll)
             Flexible(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                      decoration: BoxDecoration(color: _PC.mint, borderRadius: BorderRadius.circular(14)),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.center,
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: _PC.goldSurface,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: _PC.goldBorder),
+                      ),
+                      child: const Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Icon(Icons.spa_outlined, size: 20, color: _PC.primary),
-                          SizedBox(width: 12),
+                          Icon(Icons.spa_outlined, size: 18, color: _PC.goldDark),
+                          SizedBox(width: 10),
                           Expanded(
-                            child: Text('Catatan dipakai untuk memantau perkembangan akhlak santri.',
-                                style: TextStyle(fontSize: 13, color: _PC.ink, height: 1.45)),
+                            child: Text(
+                              'Catatan dipakai untuk memantau perkembangan akhlak santri dan dievaluasi bersama asatidz serta musyrif.',
+                              style: TextStyle(fontSize: 12, color: _PC.goldDark, height: 1.45),
+                            ),
                           ),
                         ],
                       ),
                     ),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 22),
 
-                    // Pilih santri
-                    _label(
-                      'Pilih Santri',
-                      req: true,
-                      tagWidget: _santri == null
-                          ? null
-                          : Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                              decoration:
-                                  BoxDecoration(color: const Color(0xFFBFEBD8), borderRadius: BorderRadius.circular(999)),
-                              child: Text('Terpilih Aktif',
-                                  style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: _PC.primary)),
-                            ),
-                    ),
+                    _label('Pilih Santri', req: true),
                     const SizedBox(height: 8),
-                    _santriCard(),
-                    const SizedBox(height: 20),
+                    _santriField(),
+                    const SizedBox(height: 22),
 
-                    // Tanggal
                     _label('Tanggal Pembinaan', req: true),
                     const SizedBox(height: 8),
                     _tanggalField(),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 22),
 
-                    // Kategori
-                    _label('Kategori', req: true, tag: 'Bisa ketik atau pilih chip', err: kategoriErr),
+                    _label('Kategori', req: true, hint: 'Ketik atau pilih chip'),
                     const SizedBox(height: 8),
                     TextField(
                       controller: _kategori,
                       onChanged: (_) => setState(() {}),
                       textCapitalization: TextCapitalization.words,
-                      style: const TextStyle(fontSize: 15, color: _PC.ink),
-                      decoration: _fillDec(
-                        'Contoh: Kedisiplinan',
-                        err: kategoriErr,
-                        suffix: kategoriErr
-                            ? const Icon(Icons.error_outline_rounded, size: 22, color: _PC.errorText)
-                            : null,
-                      ),
+                      style: const TextStyle(fontSize: 14.5, color: _PC.ink),
+                      decoration: _dec('Contoh: Kedisiplinan', err: kategoriErr),
                     ),
                     if (kategoriErr) _errorNote('Kategori wajib diisi.'),
                     const SizedBox(height: 10),
                     Wrap(spacing: 8, runSpacing: 8, children: [for (final c in _kSaranKategori) _saranChip(c)]),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 22),
 
-                    // Catatan
-                    _label(
-                      'Catatan',
-                      req: true,
-                      err: catatanErr,
-                      tagWidget: catatanErr
-                          ? const Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(Icons.error_outline_rounded, size: 15, color: _PC.errorText),
-                                SizedBox(width: 4),
-                                Text('Wajib Diisi',
-                                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _PC.errorText)),
-                              ],
-                            )
-                          : null,
-                    ),
+                    _label('Catatan', req: true),
                     const SizedBox(height: 8),
                     TextField(
                       controller: _catatan,
@@ -1876,12 +2375,13 @@ class _FormSheetState extends State<_FormSheet> {
                       minLines: 5,
                       maxLines: 8,
                       textCapitalization: TextCapitalization.sentences,
-                      style: const TextStyle(fontSize: 15, color: _PC.ink, height: 1.4),
-                      decoration: _fillDec(
+                      style: const TextStyle(fontSize: 14.5, color: _PC.ink, height: 1.5),
+                      decoration: _dec(
                         'Tuliskan perkembangan, kejadian, atau pembinaan yang diberikan...',
                         err: catatanErr,
                       ),
                     ),
+                    if (catatanErr) _errorNote('Catatan wajib diisi.'),
                   ],
                 ),
               ),
