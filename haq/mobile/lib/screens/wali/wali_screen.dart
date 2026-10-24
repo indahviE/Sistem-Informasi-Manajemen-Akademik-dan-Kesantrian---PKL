@@ -3,6 +3,7 @@ import '../../services/api_client.dart';
 import '../../services/app_scope.dart';
 import '../ui_utils.dart';
 import '../santri/santri_ui.dart' show SC;
+import '../santri/santri_detail_screen.dart';
 import 'rapor_wali_screen.dart';
 
 class _WS {
@@ -181,6 +182,17 @@ class _WaliScreenState extends State<WaliScreen> {
     );
   }
 
+  void _bukaDetail(Map<String, dynamic> a) {
+    final id = '${a['id']}';
+    // Ikut memilih anak ini supaya kartu Rapor & section di bawah sinkron.
+    if (_selectedSantriId != id) _loadDetail(id);
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => SantriDetailScreen(santriId: id, readOnly: true),
+      ),
+    );
+  }
+
   Widget _santriTile(Map<String, dynamic> a) {
     final id = '${a['id']}';
     final selected = _selectedSantriId == id;
@@ -220,6 +232,33 @@ class _WaliScreenState extends State<WaliScreen> {
                     Text('${a['nis'] ?? '-'} • $kelas',
                         style: const TextStyle(fontSize: 11.5, color: _WS.inkSecondary)),
                   ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              InkWell(
+                onTap: () => _bukaDetail(a),
+                borderRadius: BorderRadius.circular(999),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: _WS.surface,
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(color: _WS.border),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Detail',
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w700,
+                          color: _WS.primary,
+                        ),
+                      ),
+                      Icon(Icons.chevron_right_rounded, size: 16, color: _WS.primary),
+                    ],
+                  ),
                 ),
               ),
             ],

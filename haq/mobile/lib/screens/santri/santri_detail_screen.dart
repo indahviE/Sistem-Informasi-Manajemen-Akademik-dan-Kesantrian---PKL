@@ -7,7 +7,12 @@ import 'santri_ui.dart';
 
 class SantriDetailScreen extends StatefulWidget {
   final String santriId;
-  const SantriDetailScreen({super.key, required this.santriId});
+  final bool readOnly;
+  const SantriDetailScreen({
+    super.key,
+    required this.santriId,
+    this.readOnly = false,
+  });
 
   @override
   State<SantriDetailScreen> createState() => _SantriDetailScreenState();
@@ -105,6 +110,7 @@ class _SantriDetailScreenState extends State<SantriDetailScreen> {
                     Expanded(
                       child: Text('Profil santri', style: sty(16, FontWeight.w800, Colors.white)),
                     ),
+                    if (!widget.readOnly)
                     InkWell(
                       onTap: () => _edit(d),
                       borderRadius: BorderRadius.circular(999),
