@@ -1,8 +1,11 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../../services/api_client.dart';
 import '../../services/app_scope.dart';
 import '../ui_utils.dart';
-import '../santri/santri_ui.dart' show SC;
+import '../santri/santri_ui.dart' show SC, SantriAvatar, SPill, statusColors;
+import '../santri/santri_detail_screen.dart';
+import 'rapor_wali_screen.dart';
 
 class _WS {
   _WS._();
@@ -67,6 +70,12 @@ class _WaliScreenState extends State<WaliScreen> {
   bool _nilaiErr = false;
   bool _absensiErr = false;
   bool _tahfidzErr = false;
+
+  /// Anak yang sedang dipilih (fallback ke anak pertama).
+  Map<String, dynamic> get _anakTerpilih => _anak.firstWhere(
+        (a) => '${a['id']}' == _selectedSantriId,
+        orElse: () => _anak.first,
+      );
 
   @override
   void initState() {
@@ -180,48 +189,253 @@ class _WaliScreenState extends State<WaliScreen> {
     );
   }
 
-  Widget _santriTile(Map<String, dynamic> a) {
-    final id = '${a['id']}';
-    final selected = _selectedSantriId == id;
-    final kelas = (a['kelas'] is Map ? a['kelas']['namaKelas'] : null)?.toString() ?? '-';
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: GestureDetector(
-        onTap: () => _loadDetail(id),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          decoration: BoxDecoration(
-            color: selected ? _WS.mint.withOpacity(0.45) : _WS.surfaceDim,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: selected ? _WS.primary : _WS.border, width: selected ? 1.4 : 1),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 22,
-                height: 22,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: selected ? _WS.primary : Colors.transparent,
-                  border: Border.all(color: selected ? _WS.primary : _WS.inkSecondary, width: 1.6),
-                ),
-                child: selected ? const Icon(Icons.check, size: 14, color: Colors.white) : null,
+  void _bukaProfil(Map<String, dynamic> a) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => SantriDetailScreen(santriId: '${a['id']}', readOnly: true),
+      ),
+    );
+  }
+
+  // ----- Selector anak (hanya muncul kalau punya lebih dari satu anak) -----
+  Widget _anakSelector() {
+    return SizedBox(
+      height: 46,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: _anak.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemBuilder: (ctx, i) {
+          final a = _anak[i];
+          final id = '${a['id']}';
+          final selected = _selectedSantriId == id;
+          final nama = '${a['nama'] ?? 'Santri'}'.trim();
+          final inisial = nama.isEmpty ? '?' : nama.characters.first.toUpperCase();
+          final namaDepan = nama.split(' ').first;
+
+          return GestureDetector(
+            onTap: () {
+              if (!selected) _loadDetail(id);
+            },
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              padding: const EdgeInsets.fromLTRB(6, 6, 16, 6),
+              decoration: BoxDecoration(
+                color: selected ? _WS.primary : _WS.surface,
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(color: selected ? _WS.primary : _WS.border),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 32,
+                    height: 32,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: selected ? Colors.white.withOpacity(0.16) : _WS.sage,
+                    ),
+                    child: Text(
+                      inisial,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                        color: selected ? SC.gold : _WS.primary,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    namaDepan,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: selected ? Colors.white : _WS.ink,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  // ----- Kartu profil anak (ketuk untuk membuka profil lengkap) -----
+  Widget _profilAnak() {
+    final a = _anakTerpilih;
+    final nama = '${a['nama'] ?? 'Santri'}';
+    final nis = '${a['nis'] ?? '-'}';
+    final kelas = (a['kelas'] is Map ? a['kelas']['namaKelas'] : null)?.toString();
+    final status = a['status']?.toString();
+
+    return Container(
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [SC.primary, SC.primaryEnd],
+        ),
+        borderRadius: BorderRadius.circular(22),
+        boxShadow: [
+          BoxShadow(
+            color: SC.primary.withOpacity(0.25),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => _bukaProfil(a),
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Positioned(
+                right: -34,
+                top: -40,
+                child: Container(
+                  width: 140,
+                  height: 140,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white.withOpacity(0.08), width: 1.5),
+                  ),
+                ),
+              ),
+              Positioned(
+                left: -28,
+                bottom: -40,
+                child: Container(
+                  width: 100,
+                  height: 100,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: SC.gold.withOpacity(0.08),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
                   children: [
-                    Text('${a['nama'] ?? 'Santri'}',
-                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _WS.ink)),
-                    const SizedBox(height: 2),
-                    Text('${a['nis'] ?? '-'} • $kelas',
-                        style: const TextStyle(fontSize: 11.5, color: _WS.inkSecondary)),
+                    SantriAvatar(
+                      name: nama,
+                      gender: a['jenisKelamin']?.toString(),
+                      size: 60,
+                      onDark: true,
+                      badge: true,
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            nama,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.white,
+                              height: 1.2,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: 6,
+                            children: [
+                              SPill(
+                                'NIS $nis',
+                                icon: Icons.tag_rounded,
+                                bg: Colors.white.withOpacity(0.14),
+                                fg: Colors.white,
+                              ),
+                              if (kelas != null && kelas.trim().isNotEmpty)
+                                SPill(kelas, icon: Icons.class_outlined, bg: SC.mint, fg: SC.primary),
+                              if (status != null && status.isNotEmpty)
+                                SPill(
+                                  status,
+                                  bg: statusColors(status).bg,
+                                  fg: statusColors(status).fg,
+                                ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.white.withOpacity(0.12),
+                        border: Border.all(color: SC.gold.withOpacity(0.6)),
+                      ),
+                      child: const Icon(Icons.arrow_forward_rounded, size: 18, color: SC.gold),
+                    ),
                   ],
                 ),
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ----- Rapor Digital -----
+  Widget _raporCard() {
+    final anak = _anakTerpilih;
+    return Container(
+      decoration: BoxDecoration(
+        color: _WS.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _WS.border),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(16),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => RaporWaliScreen(santri: anak)),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(color: _WS.sage, shape: BoxShape.circle),
+                  child: Icon(Icons.description_outlined, size: 20, color: _WS.primary),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Rapor Digital',
+                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _WS.ink)),
+                      const SizedBox(height: 2),
+                      Text('Lihat rapor ${anak['nama'] ?? 'santri'} yang sudah terbit',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 11.5, color: _WS.inkSecondary)),
+                    ],
+                  ),
+                ),
+                Icon(Icons.chevron_right_rounded, color: _WS.primary),
+              ],
+            ),
           ),
         ),
       ),
@@ -237,19 +451,42 @@ class _WaliScreenState extends State<WaliScreen> {
     final sakit = hitung('sakit');
     final alpa = hitung('alpa');
     final total = _absensi.length;
-    final persen = total > 0 ? (hadir / total * 100).round() : null;
+    final persen = total > 0 ? (hadir / total * 100).round() : 0;
 
-    Widget box(String label, int v, Color bg, Color fg) => Expanded(
-          child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 10),
-            decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(12)),
-            child: Column(
-              children: [
-                Text('$v', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: fg)),
-                const SizedBox(height: 2),
-                Text(label, style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600, color: fg)),
-              ],
-            ),
+    const cHadir = _WS.successText;
+    const cIzin = _WS.pendingText;
+    const cSakit = _WS.gold;
+    const cAlpa = _WS.errorText;
+
+    Widget baris(String label, int v, Color c) => Padding(
+          padding: const EdgeInsets.symmetric(vertical: 5),
+          child: Row(
+            children: [
+              Container(
+                width: 10,
+                height: 10,
+                decoration: BoxDecoration(color: c, shape: BoxShape.circle),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                    color: _WS.inkSecondary,
+                  ),
+                ),
+              ),
+              Text(
+                '$v',
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                  color: _WS.ink,
+                ),
+              ),
+            ],
           ),
         );
 
@@ -261,29 +498,87 @@ class _WaliScreenState extends State<WaliScreen> {
       else ...[
         Row(
           children: [
-            Expanded(
-              child: Text('$total pertemuan tercatat',
-                  style: const TextStyle(fontSize: 12, color: _WS.inkSecondary)),
+            SizedBox(
+              width: 108,
+              height: 108,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  CustomPaint(
+                    size: const Size(108, 108),
+                    painter: _DonutPainter(
+                      values: [
+                        hadir.toDouble(),
+                        izin.toDouble(),
+                        sakit.toDouble(),
+                        alpa.toDouble(),
+                      ],
+                      colors: const [cHadir, cIzin, cSakit, cAlpa],
+                      track: _WS.surfaceDim,
+                      stroke: 12,
+                    ),
+                  ),
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        '$persen%',
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w800,
+                          color: _WS.primary,
+                          height: 1.1,
+                        ),
+                      ),
+                      const Text(
+                        'hadir',
+                        style: TextStyle(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w600,
+                          color: _WS.inkSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(color: _WS.mint, borderRadius: BorderRadius.circular(999)),
-              child: Text('$persen% hadir',
-                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: _WS.primary)),
+            const SizedBox(width: 20),
+            Expanded(
+              child: Column(
+                children: [
+                  baris('Hadir', hadir, cHadir),
+                  baris('Izin', izin, cIzin),
+                  baris('Sakit', sakit, cSakit),
+                  baris('Alpa', alpa, cAlpa),
+                ],
+              ),
             ),
           ],
         ),
         const SizedBox(height: 12),
-        Row(
-          children: [
-            box('Hadir', hadir, _WS.successBg, _WS.successText),
-            const SizedBox(width: 8),
-            box('Izin', izin, _WS.pendingBg, _WS.pendingText),
-            const SizedBox(width: 8),
-            box('Sakit', sakit, _WS.goldSurface, _WS.gold),
-            const SizedBox(width: 8),
-            box('Alpa', alpa, _WS.errorBg, _WS.errorText),
-          ],
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+          decoration: BoxDecoration(
+            color: _WS.surfaceDim,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.event_note_outlined, size: 15, color: _WS.inkSecondary),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Hadir $hadir dari $total pertemuan tercatat',
+                  style: const TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w600,
+                    color: _WS.inkSecondary,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ],
     ]);
@@ -417,10 +712,19 @@ class _WaliScreenState extends State<WaliScreen> {
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
           children: [
-            _title(Icons.family_restroom_outlined, 'Anak Anda',
-                trailing: _anak.length > 1 ? 'Pilih santri' : null),
-            const SizedBox(height: 10),
-            _card([for (final a in _anak) _santriTile(a)]),
+            _title(
+              Icons.family_restroom_outlined,
+              _anak.length > 1 ? 'Anak Saya' : 'Profil Anak',
+              trailing: _anak.length > 1 ? '${_anak.length} santri' : null,
+            ),
+            const SizedBox(height: 12),
+            if (_anak.length > 1) ...[
+              _anakSelector(),
+              const SizedBox(height: 12),
+            ],
+            _profilAnak(),
+            const SizedBox(height: 12),
+            _raporCard(),
             const SizedBox(height: 20),
             if (_detailLoading)
               const Padding(
@@ -455,4 +759,55 @@ class _WaliScreenState extends State<WaliScreen> {
       ),
     );
   }
+}
+
+/// Donat bersegmen untuk komposisi kehadiran (hadir / izin / sakit / alpa).
+class _DonutPainter extends CustomPainter {
+  final List<double> values;
+  final List<Color> colors;
+  final Color track;
+  final double stroke;
+
+  _DonutPainter({
+    required this.values,
+    required this.colors,
+    required this.track,
+    required this.stroke,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rect = (Offset.zero & size).deflate(stroke / 2);
+    final base = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = stroke
+      ..isAntiAlias = true;
+
+    canvas.drawArc(rect, 0, math.pi * 2, false, base..color = track);
+
+    final total = values.fold<double>(0, (a, b) => a + b);
+    if (total <= 0) return;
+
+    final aktif = values.where((v) => v > 0).length;
+    final gap = aktif > 1 ? 0.07 : 0.0;
+    var start = -math.pi / 2;
+
+    for (var i = 0; i < values.length; i++) {
+      if (values[i] <= 0) continue;
+      final sweep = values[i] / total * math.pi * 2;
+      final seg = sweep > gap ? sweep - gap : sweep;
+      canvas.drawArc(
+        rect,
+        start + (sweep - seg) / 2,
+        seg,
+        false,
+        base..color = colors[i],
+      );
+      start += sweep;
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _DonutPainter old) =>
+      old.values != values || old.colors != colors || old.track != track;
 }

@@ -22,10 +22,14 @@ export class SantriController {
     return this.santriService.findAll(tenantId, query, user);
   }
 
-  @Roles(Role.ADMIN, Role.PIMPINAN, Role.USTADZ, Role.MUSYRIF)
+  @Roles(Role.ADMIN, Role.PIMPINAN, Role.USTADZ, Role.MUSYRIF, Role.WALI_SANTRI)
   @Get(':id')
-  findOne(@TenantId() tenantId: string, @Param('id') id: string) {
-    return this.santriService.findOne(tenantId, id);
+  findOne(
+    @TenantId() tenantId: string,
+    @Param('id') id: string,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return this.santriService.findOne(tenantId, id, user);
   }
 
   @Roles(Role.ADMIN)
