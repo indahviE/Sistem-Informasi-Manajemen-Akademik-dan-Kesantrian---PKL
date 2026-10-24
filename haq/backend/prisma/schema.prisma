@@ -426,6 +426,14 @@ model CapaianTahfidz {
   halaman        Int // kolom lama, tetap ada supaya Flutter lama tidak rusak
   halamanMulai   Int?
   halamanSelesai Int?
+  // BARU: setoran per surat & ayat (tidak bergantung jenis mushaf).
+  // Nullable supaya data lama tetap valid. ayatAbs = nomor ayat urut 1..6236.
+  suratMulai     Int?
+  ayatMulai      Int?
+  suratSelesai   Int?
+  ayatSelesai    Int?
+  ayatAbsMulai   Int?
+  ayatAbsSelesai Int?
   jenis          JenisSetoran     @default(ZIYADAH)
   kualitas       KualitasSetoran?
   tanggalSetor   DateTime
@@ -436,9 +444,9 @@ model CapaianTahfidz {
   santri Santri @relation(fields: [santriId], references: [id], onDelete: Cascade)
 
   @@index([tenantId, santriId])
+  @@index([tenantId, santriId, ayatAbsSelesai]) // BARU: untuk hitung progres
   @@map("capaian_tahfidzs")
 }
-
 model Pelanggaran {
   id               String   @id @default(cuid())
   tenantId         String

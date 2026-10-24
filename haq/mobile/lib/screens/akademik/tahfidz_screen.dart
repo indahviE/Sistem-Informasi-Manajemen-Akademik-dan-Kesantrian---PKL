@@ -7,6 +7,7 @@ import '../../services/api_client.dart';
 import '../../services/app_scope.dart';
 import '../ui_utils.dart';
 import '../santri/santri_ui.dart' show SC;
+import 'quran_meta.dart';
 
 // ---------------------------------------------------------------------------
 // Token desain SIMPesantren Ustadz (DESIGN.md referensi Stitch)
@@ -220,34 +221,53 @@ String _tglHijriah(DateTime g) {
   return '${h[0]} ${_bulanHijriah[h[1]]} ${h[2]} H';
 }
 
-// Metadata Al-Qur'an (Mushaf Madinah): awal tiap juz.
-const _awalJuz = <String>[
-  '', "Al-Fatihah : 1", "Al-Baqarah : 142", "Al-Baqarah : 253", "Ali 'Imran : 92", "An-Nisa' : 24",
-  "An-Nisa' : 148", "Al-Ma'idah : 82", "Al-An'am : 111", "Al-A'raf : 88", "Al-Anfal : 41",
-  "At-Taubah : 93", "Hud : 6", "Yusuf : 53", "Al-Hijr : 1", "Al-Isra' : 1", "Al-Kahf : 75",
-  "Al-Anbiya' : 1", "Al-Mu'minun : 1", "Al-Furqan : 21", "An-Naml : 56", "Al-'Ankabut : 46",
-  "Al-Ahzab : 31", "Ya-Sin : 22", "Az-Zumar : 32", "Fussilat : 47", "Al-Ahqaf : 1",
-  "Adz-Dzariyat : 31", "Al-Mujadilah : 1", "Al-Mulk : 1", "An-Naba' : 1",
-];
+/// "Al-Baqarah : 142" — awal tiap juz, untuk teks banner.
+String _awalJuzTeks(int juz) =>
+    '${kNamaSurat[kAwalJuz[juz - 1][0] - 1]} : ${kAwalJuz[juz - 1][1]}';
 
-/// Halaman mushaf Madinah: juz 1 mulai hal. 1, juz n (n>=2) mulai hal. 2 + 20(n-1).
-/// CATATAN: ini perkiraan berbasis standar Mushaf Madinah (604 halaman). Cetakan
-/// mushaf lain (mis. Kemenag) bisa berbeda jumlah halaman per juz-nya, sehingga
-/// nomor halaman di banner ini sifatnya ESTIMASI, bukan angka pasti untuk semua
-/// jenis mushaf.
-int _halMushaf(int juz, int halaman) {
-  final awal = juz <= 1 ? 1 : 2 + 20 * (juz - 1);
-  return (awal + halaman - 1).clamp(1, 604).toInt();
+/// Posisi ayat terjauh sebuah setoran (nomor ayat urut 1..6236).
+/// Data lama (belum punya surat/ayat) diperkirakan dari halaman.
+int _posisi(Map<String, dynamic> r) {
+  final abs = r['ayatAbsSelesai'];
+  if (abs is num) return abs.toInt();
+  final juz = (r['juz'] as num).toInt().clamp(1, 30).toInt();
+  final hal = ((r['halamanSelesai'] ?? r['halaman']) as num).toInt().clamp(1, 20).toInt();
+  final awal = juzMulaiAbs(juz);
+  final akhir = juzAkhirAbs(juz);
+  final p = awal + (hal * (akhir - awal + 1) / 20).ceil() - 1;
+  return p > akhir ? akhir : p;
 }
 
-/// Ringkasan capaian per santri, dihitung di sisi client dari GET /tahfidz.
-int _skor(int juz, int hal) => juz * 100 + hal;
+/// Seberapa jauh santri di dalam juz setoran tersebut, 0.0 – 1.0.
+double _fraksiJuz(Map<String, dynamic> r) {
+  final juz = (r['juz'] as num).toInt().clamp(1, 30).toInt();
+  final awal = juzMulaiAbs(juz);
+  final ukuran = juzAkhirAbs(juz) - awal + 1;
+  return ((_posisi(r) - awal + 1) / ukuran).clamp(0.0, 1.0).toDouble();
+}
 
-/// "3" kalau satu halaman, "3–5" kalau rentang. Data lama (tanpa halamanMulai) tetap aman.
+/// "Al-Baqarah : 142–150" / "Al-Baqarah : 280 – Ali 'Imran : 5". Data lama: "Hal. 3–5".
 String _rentang(Map<String, dynamic> r) {
+  final sm = r['suratMulai'], am = r['ayatMulai'], ss = r['suratSelesai'], asl = r['ayatSelesai'];
+  if (sm is num && am is num && ss is num && asl is num) {
+    final a = kNamaSurat[sm.toInt() - 1];
+    final b = kNamaSurat[ss.toInt() - 1];
+    if (sm == ss) {
+      return am == asl ? '$a : ${am.toInt()}' : '$a : ${am.toInt()}–${asl.toInt()}';
+    }
+    return '$a : ${am.toInt()} – $b : ${asl.toInt()}';
+  }
   final s = (r['halamanSelesai'] ?? r['halaman']) as num;
   final m = (r['halamanMulai'] ?? s) as num;
-  return m == s ? '$s' : '$m–$s';
+  return m == s ? 'Hal. $s' : 'Hal. $m–$s';
+}
+
+/// Posisi terakhir untuk teks progres kartu. Data lama: "Halaman 3 dari 20".
+String _lokasiTeks(Map<String, dynamic> r) {
+  final s = r['suratSelesai'], a = r['ayatSelesai'];
+  if (s is num && a is num) return '${kNamaSurat[s.toInt() - 1]} : ${a.toInt()}';
+  final hal = ((r['halamanSelesai'] ?? r['halaman']) as num).toInt();
+  return 'Halaman $hal dari 20';
 }
 
 String _jenisLabel(dynamic j) => j == 'MURAJAAH' ? "Muroja'ah" : 'Ziyadah';
@@ -341,7 +361,7 @@ class _TahfidzScreenState extends State<TahfidzScreen> {
 
       final tgl = '${r['tanggalSetor']}'.substring(0, 10);
       final juz = (r['juz'] as num).toInt();
-      final hal = (r['halaman'] as num).toInt();
+      final pos = _posisi(r);
       if (tgl == today) e.setorHariIni = true;
 
       // Muroja'ah tidak menggeser progres hafalan maupun khatam
@@ -349,11 +369,12 @@ class _TahfidzScreenState extends State<TahfidzScreen> {
 
       // Progres = titik terjauh, bukan setoran terakhir (muroja'ah juz lama tidak memundurkan progres).
       final mj = e.maju;
-      if (mj == null || _skor(juz, hal) > _skor((mj['juz'] as num).toInt(), (mj['halaman'] as num).toInt())) {
+      if (mj == null || pos > _posisi(mj)) {
         e.maju = r;
       }
 
-      if (hal >= 20) {
+      // Khatam juz = setoran mencapai ayat terakhir juz itu
+      if (pos >= juzAkhirAbs(juz)) {
         e.juzTuntas.add(juz);
         if (tgl.compareTo(batas) >= 0 && khatamUnik.add('$id:$juz')) {
           khatamTerbaru ??= r;
@@ -371,7 +392,7 @@ class _TahfidzScreenState extends State<TahfidzScreen> {
   double _progres(Map<String, dynamic> s) {
     final m = _ringkas['${s['id']}']?.maju;
     if (m == null) return -1;
-    return _skor((m['juz'] as num).toInt(), (m['halaman'] as num).toInt()).toDouble();
+    return _posisi(m).toDouble();
   }
 
   List<Map<String, dynamic>> get _tampil {
@@ -442,7 +463,7 @@ class _TahfidzScreenState extends State<TahfidzScreen> {
                   baris('Tanggal', _relatif('${t['tanggalSetor']}')),
                   if (_jam(t['createdAt']).isNotEmpty) baris('Jam', _jam(t['createdAt'])),
                   baris('Jenis', _jenisLabel(t['jenis'])),
-                  baris('Juz / Halaman', 'Juz ${t['juz']} • Halaman ${_rentang(t)} dari 20'),
+                  baris('Setoran', 'Juz ${t['juz']} • ${_rentang(t)}'),
                   baris('Kualitas', _kualitasLabel(t['kualitas'] as String?).isEmpty ? '-' : _kualitasLabel(t['kualitas'] as String?)),
                   if ('${t['catatanUstadz'] ?? ''}'.trim().isNotEmpty) baris('Catatan', '${t['catatanUstadz']}'),
                 ],
@@ -540,11 +561,10 @@ class _TahfidzScreenState extends State<TahfidzScreen> {
 
   // ---- Hero halaqah ----
   Widget _hero(int total, int sudah) {
-    // Juz yang sudah ditempuh per santri = (juz - 1) + halaman/20, lalu dirata-rata.
+    // Juz yang sudah ditempuh per santri = (juz - 1) + bagian juz yang sudah disetor, lalu dirata-rata.
     final ditempuh = _ringkas.values.where((r) => r.maju != null).map((r) {
       final j = (r.maju!['juz'] as num).toDouble();
-      final f = ((r.maju!['halaman'] as num).toDouble() / 20).clamp(0.0, 1.0).toDouble();
-      return (j - 1) + f;
+      return (j - 1) + _fraksiJuz(r.maju!);
     }).toList();
     final rata = ditempuh.isEmpty ? '-' : (ditempuh.reduce((a, b) => a + b) / ditempuh.length).toStringAsFixed(1);
 
@@ -702,7 +722,7 @@ class _TahfidzScreenState extends State<TahfidzScreen> {
                   TextSpan(
                     style: _t(13, FontWeight.w400, _C.onSurfaceVariant, h: 1.4),
                     children: [
-                      TextSpan(text: 'Disahkan pada $tgl${_jam(r['createdAt']).isEmpty ? '' : ' pukul ${_jam(r['createdAt'])}'} (20 halaman tuntas).'),
+                      TextSpan(text: 'Disahkan pada $tgl${_jam(r['createdAt']).isEmpty ? '' : ' pukul ${_jam(r['createdAt'])}'} (seluruh ayat juz tuntas).'),
                       if (kualitas.isNotEmpty) ...[
                         const TextSpan(text: ' Predikat: '),
                         TextSpan(text: kualitas, style: _t(13, FontWeight.w600, _C.secondary)),
@@ -710,12 +730,6 @@ class _TahfidzScreenState extends State<TahfidzScreen> {
                       ],
                     ],
                   ),
-                ),
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    const SizedBox(width: 8),
-                  ],
                 ),
               ],
             ),
@@ -944,8 +958,8 @@ class _SantriCard extends StatelessWidget {
     final khatam = khatamJuz != null;
 
     final juz = (m?['juz'] as num?)?.toInt();
-    final hal = ((m?['halaman'] as num?)?.toInt() ?? 0).clamp(0, 20).toInt();
-    final persen = (hal / 20 * 100).round();
+    final frak = m == null ? 0.0 : _fraksiJuz(m);
+    final persen = (frak * 100).round();
     final kualitas = _kualitasLabel(t?['kualitas'] as String?);
     final tuntas = (ringkas?.juzTuntas.toList() ?? <int>[])..sort();
     final selesai = !giliran && sudah && khatam;
@@ -1086,7 +1100,7 @@ class _SantriCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(juz != null ? 'Juz $juz • Halaman $hal dari 20' : 'Belum ada setoran',
+              Text(m != null ? 'Juz $juz • ${_lokasiTeks(m)}' : 'Belum ada setoran',
                   style: _lb(11, FontWeight.w500, _C.onSurface)),
               Text(
                 juz == null ? '' : (giliran ? '$persen% Selesai' : '$persen%'),
@@ -1105,7 +1119,7 @@ class _SantriCard extends StatelessWidget {
                       height: 8,
                       margin: EdgeInsets.only(right: i == 9 ? 0 : 4),
                       decoration: BoxDecoration(
-                        color: i < (hal / 2).ceil() ? _C.primaryContainer : _C.container,
+                        color: i < (frak * 10).ceil() ? _C.primaryContainer : _C.container,
                         borderRadius: BorderRadius.circular(2),
                       ),
                     ),
@@ -1116,7 +1130,7 @@ class _SantriCard extends StatelessWidget {
             ClipRRect(
               borderRadius: BorderRadius.circular(999),
               child: LinearProgressIndicator(
-                value: hal / 20,
+                value: frak,
                 minHeight: 8,
                 backgroundColor: _C.container,
                 valueColor: AlwaysStoppedAnimation(sudah ? _C.primaryContainer : _C.outline),
@@ -1180,12 +1194,12 @@ class _SantriCard extends StatelessWidget {
                       style: _lb(11, FontWeight.w400, _C.onSurfaceVariant),
                       children: [
                         TextSpan(
-                          text: t == null
-                              ? ''
-                              : (t['jenis'] == 'MURAJAAH'
-                                  ? "Muroja'ah • Juz ${t['juz']} • Hal. ${_rentang(t)} • "
-                                  : 'Juz ${t['juz']} • Hal. ${_rentang(t)} • '),
-                        ),
+                            text: t == null
+                                ? ''
+                                : (t['jenis'] == 'MURAJAAH'
+                                    ? " • Muroja'ah • Juz ${t['juz']} • ${_rentang(t)}"
+                                    : 'Juz ${t['juz']} • ${_rentang(t)} • '),
+                          ),
                         TextSpan(
                             text: kualitas.isEmpty ? '-' : kualitas,
                             style: _lb(11, FontWeight.w700, _C.onSurface)),
@@ -1214,8 +1228,8 @@ class _SantriCard extends StatelessWidget {
                         if (t != null)
                           TextSpan(
                             text: t['jenis'] == 'MURAJAAH'
-                                ? " • Muroja'ah • Juz ${t['juz']} hal. ${_rentang(t)}"
-                                : ' • Juz ${t['juz']} hal. ${_rentang(t)}',
+                              ? " • Muroja'ah • Juz ${t['juz']} • ${_rentang(t)}"
+                              : ' • Juz ${t['juz']} • ${_rentang(t)}',
                           ),
                       ],
                     ),
@@ -1314,79 +1328,140 @@ class _SetoranSheet extends StatefulWidget {
 class _SetoranSheetState extends State<_SetoranSheet> {
   late int _juz;
   late int _juzAktif;
-  late int _halMulai;
-  late int _halSelesai;
-  late int _halAwalAktif; // saran halaman mulai untuk juz aktif
+  late int _suratMulai;
+  late int _ayatMulai;
+  late int _suratSelesai;
+  late int _ayatSelesai;
+  late PosisiAyat _awalAktif; // saran awal untuk juz aktif
   String _jenis = 'ZIYADAH';
   String? _kualitas;
 
-  // Controller terpisah untuk field ketik manual, supaya kursor & fokus
-  // tidak direset tiap kali widget rebuild (beda dengan bikin controller
-  // baru di dalam build()).
-  late final TextEditingController _halMulaiCtrl;
-  late final TextEditingController _halSelesaiCtrl;
+  late final TextEditingController _ayatMulaiCtrl;
+  late final TextEditingController _ayatSelesaiCtrl;
 
-  String get _rentangTeks => _halMulai == _halSelesai ? '$_halMulai' : '$_halMulai–$_halSelesai';
   final _catatan = TextEditingController();
   bool _saving = false;
   String? _error;
 
+  int get _absMulai => ayatAbs(_suratMulai, _ayatMulai);
+  int get _absSelesai => ayatAbs(_suratSelesai, _ayatSelesai);
+
+  String get _ringkasanSetoran {
+    final a = kNamaSurat[_suratMulai - 1];
+    final b = kNamaSurat[_suratSelesai - 1];
+    if (_suratMulai == _suratSelesai) {
+      return _ayatMulai == _ayatSelesai ? '$a : $_ayatMulai' : '$a : $_ayatMulai–$_ayatSelesai';
+    }
+    return '$a : $_ayatMulai – $b : $_ayatSelesai';
+  }
+
   @override
   void initState() {
     super.initState();
-    // Saran awal: lanjut dari setoran terakhir santri ini.
-    var juz = (widget.terakhir?['juz'] as num?)?.toInt() ?? 1;
-    var hal = (widget.terakhir?['halaman'] as num?)?.toInt() ?? 0;
-    if (hal >= 20 && juz < 30) {
-      juz++;
-      hal = 0;
+    // Saran awal: lanjut dari ayat setelah setoran terakhir santri ini.
+    var juz = 1;
+    var mulai = 1;
+    final last = widget.terakhir;
+    if (last != null) {
+      juz = (last['juz'] as num).toInt().clamp(1, 30).toInt();
+      final pos = _posisi(last);
+      if (pos >= juzAkhirAbs(juz)) {
+        if (juz < 30) {
+          juz++;
+          mulai = juzMulaiAbs(juz);
+        } else {
+          mulai = kTotalAyat;
+        }
+      } else {
+        mulai = pos + 1;
+      }
     }
-    _juz = juz.clamp(1, 30).toInt();
-    _juzAktif = _juz;
-    _halMulai = (hal + 1).clamp(1, 20).toInt();
-    _halSelesai = _halMulai;
-    _halAwalAktif = _halMulai;
-    _halMulaiCtrl = TextEditingController(text: '$_halMulai');
-    _halSelesaiCtrl = TextEditingController(text: '$_halSelesai');
+    final p = dariAbs(mulai);
+    _juz = juz;
+    _juzAktif = juz;
+    _awalAktif = p;
+    _suratMulai = p.surat;
+    _ayatMulai = p.ayat;
+    _suratSelesai = p.surat;
+    _ayatSelesai = p.ayat;
+    _ayatMulaiCtrl = TextEditingController(text: '$_ayatMulai');
+    _ayatSelesaiCtrl = TextEditingController(text: '$_ayatSelesai');
   }
 
   @override
   void dispose() {
     _catatan.dispose();
-    _halMulaiCtrl.dispose();
-    _halSelesaiCtrl.dispose();
+    _ayatMulaiCtrl.dispose();
+    _ayatSelesaiCtrl.dispose();
     super.dispose();
   }
 
-  /// Ganti juz: halaman direset (juz aktif → saran awal, juz lain → 1).
+  void _sinkronKolom() {
+    _ayatMulaiCtrl.text = '$_ayatMulai';
+    _ayatSelesaiCtrl.text = '$_ayatSelesai';
+  }
+
+  /// Pastikan posisi selesai tidak mendahului posisi mulai.
+  void _rapikan({required bool mulaiDiubah}) {
+    if (_absSelesai >= _absMulai) return;
+    if (mulaiDiubah) {
+      _suratSelesai = _suratMulai;
+      _ayatSelesai = _ayatMulai;
+    } else {
+      _suratMulai = _suratSelesai;
+      _ayatMulai = _ayatSelesai;
+    }
+  }
+
+  /// Ganti juz: posisi direset (juz aktif → saran awal, juz lain → awal juz itu).
   /// Juz yang lebih lama dari juz aktif otomatis jadi Muroja'ah.
   void _gantiJuz(int v) {
     setState(() {
       _juz = v;
-      final h = v == _juzAktif ? _halAwalAktif : 1;
-      _halMulai = h;
-      _halSelesai = h;
-      _halMulaiCtrl.text = '$h';
-      _halSelesaiCtrl.text = '$h';
+      final p = v == _juzAktif ? _awalAktif : dariAbs(juzMulaiAbs(v));
+      _suratMulai = p.surat;
+      _ayatMulai = p.ayat;
+      _suratSelesai = p.surat;
+      _ayatSelesai = p.ayat;
+      _sinkronKolom();
       if (v < _juzAktif) _jenis = 'MURAJAAH';
     });
   }
 
-  void _setHalMulai(int v) {
+  void _setSuratMulai(int s) {
     setState(() {
-      _halMulai = v.clamp(1, 20).toInt();
-      if (_halSelesai < _halMulai) _halSelesai = _halMulai;
-      _halMulaiCtrl.text = '$_halMulai';
-      _halSelesaiCtrl.text = '$_halSelesai';
+      _suratMulai = s;
+      _ayatMulai = batasAyatDiJuz(_juz, s)[0];
+      _rapikan(mulaiDiubah: true);
+      _sinkronKolom();
     });
   }
 
-  void _setHalSelesai(int v) {
+  void _setAyatMulai(int a) {
     setState(() {
-      _halSelesai = v.clamp(1, 20).toInt();
-      if (_halMulai > _halSelesai) _halMulai = _halSelesai;
-      _halMulaiCtrl.text = '$_halMulai';
-      _halSelesaiCtrl.text = '$_halSelesai';
+      final b = batasAyatDiJuz(_juz, _suratMulai);
+      _ayatMulai = a.clamp(b[0], b[1]).toInt();
+      _rapikan(mulaiDiubah: true);
+      _sinkronKolom();
+    });
+  }
+
+  void _setSuratSelesai(int s) {
+    setState(() {
+      _suratSelesai = s;
+      final b = batasAyatDiJuz(_juz, s);
+      _ayatSelesai = s == _suratMulai ? _ayatMulai : b[0];
+      _rapikan(mulaiDiubah: false);
+      _sinkronKolom();
+    });
+  }
+
+  void _setAyatSelesai(int a) {
+    setState(() {
+      final b = batasAyatDiJuz(_juz, _suratSelesai);
+      _ayatSelesai = a.clamp(b[0], b[1]).toInt();
+      _rapikan(mulaiDiubah: false);
+      _sinkronKolom();
     });
   }
 
@@ -1394,6 +1469,11 @@ class _SetoranSheetState extends State<_SetoranSheet> {
     if (_jenis == 'ZIYADAH' && _juz < _juzAktif) {
       setState(() => _error =
           "Ziyadah tidak bisa di Juz $_juz karena juz aktif adalah Juz $_juzAktif. Gunakan Muroja'ah untuk mengulang juz lama.");
+      return;
+    }
+    final err = validasiSetoran(_juz, _suratMulai, _ayatMulai, _suratSelesai, _ayatSelesai);
+    if (err != null) {
+      setState(() => _error = err);
       return;
     }
     if (_kualitas == null) {
@@ -1409,8 +1489,10 @@ class _SetoranSheetState extends State<_SetoranSheet> {
       await api.post(ApiUrl.tahfidz, {
         'santriId': widget.santri['id'],
         'juz': _juz,
-        'halamanMulai': _halMulai,
-        'halamanSelesai': _halSelesai,
+        'suratMulai': _suratMulai,
+        'ayatMulai': _ayatMulai,
+        'suratSelesai': _suratSelesai,
+        'ayatSelesai': _ayatSelesai,
         'jenis': _jenis,
         'kualitas': _kualitas,
         'catatanUstadz': _catatan.text.trim().isEmpty ? null : _catatan.text.trim(),
@@ -1554,34 +1636,64 @@ class _SetoranSheetState extends State<_SetoranSheet> {
             ],
             const SizedBox(height: 14),
 
-            // --- Halaman mulai & selesai (bisa diketik manual + tombol +/-) ---
+            // --- Mulai dari (surat + ayat) ---
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _stepper(
-                  label: 'Halaman Mulai',
-                  controller: _halMulaiCtrl,
-                  value: _halMulai,
-                  onMinus: _halMulai > 1 && !_saving ? () => _setHalMulai(_halMulai - 1) : null,
-                  onPlus: _halMulai < 20 && !_saving ? () => _setHalMulai(_halMulai + 1) : null,
-                  onSubmit: (v) => _setHalMulai(v),
+                _suratField(
+                  label: 'Surat Mulai',
+                  value: _suratMulai,
+                  daftar: suratDalamJuz(_juz),
+                  onChanged: _setSuratMulai,
                 ),
                 const SizedBox(width: 12),
                 _stepper(
-                  label: 'Halaman Selesai',
-                  controller: _halSelesaiCtrl,
-                  value: _halSelesai,
-                  onMinus: _halSelesai > 1 && !_saving ? () => _setHalSelesai(_halSelesai - 1) : null,
-                  onPlus: _halSelesai < 20 && !_saving ? () => _setHalSelesai(_halSelesai + 1) : null,
-                  onSubmit: (v) => _setHalSelesai(v),
+                  label: 'Ayat Mulai',
+                  controller: _ayatMulaiCtrl,
+                  value: _ayatMulai,
+                  flex: 2,
+                  onMinus: _ayatMulai > batasAyatDiJuz(_juz, _suratMulai)[0] && !_saving
+                      ? () => _setAyatMulai(_ayatMulai - 1)
+                      : null,
+                  onPlus: _ayatMulai < batasAyatDiJuz(_juz, _suratMulai)[1] && !_saving
+                      ? () => _setAyatMulai(_ayatMulai + 1)
+                      : null,
+                  onSubmit: _setAyatMulai,
                 ),
               ],
             ),
             const SizedBox(height: 14),
 
-            // Banner mushaf (Amiri): halaman & awal juz dari metadata mushaf Madinah.
-            // Nomor halaman di sini estimasi standar Mushaf Madinah — lihat catatan
-            // pada fungsi _halMushaf().
+            // --- Sampai (surat + ayat) ---
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _suratField(
+                  label: 'Surat Selesai',
+                  value: _suratSelesai,
+                  daftar: suratDalamJuz(_juz).where((s) => s >= _suratMulai).toList(),
+                  onChanged: _setSuratSelesai,
+                ),
+                const SizedBox(width: 12),
+                _stepper(
+                  label: 'Ayat Selesai',
+                  controller: _ayatSelesaiCtrl,
+                  value: _ayatSelesai,
+                  flex: 2,
+                  onMinus: _ayatSelesai > batasAyatDiJuz(_juz, _suratSelesai)[0] && !_saving
+                      ? () => _setAyatSelesai(_ayatSelesai - 1)
+                      : null,
+                  onPlus: _ayatSelesai < batasAyatDiJuz(_juz, _suratSelesai)[1] && !_saving
+                      ? () => _setAyatSelesai(_ayatSelesai + 1)
+                      : null,
+                  onSubmit: _setAyatSelesai,
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+
+
+            // Banner juz: nama juz (Arab), rentang setoran terpilih, dan awal juz.
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(12),
@@ -1595,8 +1707,8 @@ class _SetoranSheetState extends State<_SetoranSheet> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text('MUSHAF STANDAR MADINAH', style: _lb(10.5, FontWeight.w600, _C.secondary, ls: 0.8)),
-                      Text('Hal. ${_halMushaf(_juz, _halMulai)} (estimasi)',
+                      Text("AL-QUR'AN • JUZ $_juz", style: _lb(10.5, FontWeight.w600, _C.secondary, ls: 0.8)),
+                      Text('${juzAkhirAbs(_juz) - juzMulaiAbs(_juz) + 1} ayat',
                           style: _lb(11, FontWeight.w400, _C.onSurfaceVariant)),
                     ],
                   ),
@@ -1615,9 +1727,10 @@ class _SetoranSheetState extends State<_SetoranSheet> {
                           height: 1.8,
                         )),
                   ),
-                  Text('Juz $_juz • Halaman $_rentangTeks dari 20', style: _t(13, FontWeight.w600, _C.onSurface)),
+                  Text('Juz $_juz • $_ringkasanSetoran',
+                      textAlign: TextAlign.center, style: _t(13, FontWeight.w600, _C.onSurface)),
                   const SizedBox(height: 2),
-                  Text('Juz $_juz dimulai dari QS. ${_awalJuz[_juz]}',
+                  Text('Juz $_juz dimulai dari QS. ${_awalJuzTeks(_juz)}',
                       style: _lb(10.5, FontWeight.w400, _C.onSurfaceVariant)),
                 ],
               ),
@@ -1685,7 +1798,7 @@ class _SetoranSheetState extends State<_SetoranSheet> {
                     ? const SizedBox(
                         width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                     : const Icon(Icons.verified_outlined, size: 20),
-                label: Text('Simpan & Sahkan Setoran (Halaman $_rentangTeks)',
+                label: Text('Simpan & Sahkan Setoran',
                     style: _t(13.5, FontWeight.w700, Colors.white)),
                 style: FilledButton.styleFrom(
                   backgroundColor: _C.primaryContainer,
@@ -1695,21 +1808,53 @@ class _SetoranSheetState extends State<_SetoranSheet> {
                 ),
               ),
             ),
-            const SizedBox(height: 8),
-            SizedBox(
-              width: double.infinity,
-            ),
           ],
         ),
       ),
     );
   }
 
-  /// Stepper halaman: tombol +/- di kiri-kanan, angka di tengah bisa DIKETIK
-  /// manual (tap lalu ganti angkanya). Hanya angka 0-9 yang diterima (huruf &
-  /// hasil paste non-angka disaring), maksimal 2 digit. Nilai divalidasi &
-  /// di-clamp ke 1..20 saat fokus keluar dari field (onTapOutside) atau saat
-  /// menekan Enter/Done.
+  Widget _suratField({
+    required String label,
+    required int value,
+    required List<int> daftar,
+    required ValueChanged<int> onChanged,
+  }) {
+    return Expanded(
+      flex: 3,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _FieldLabel(label),
+          const SizedBox(height: 6),
+          DropdownButtonFormField<int>(
+            // key supaya dropdown dibangun ulang saat juz/nilai berubah dari kode
+            key: ValueKey('$label-$_juz-$value'),
+            value: value,
+            isExpanded: true,
+            icon: const Icon(Icons.expand_more, size: 18, color: _C.outline),
+            decoration: _inputDeco(),
+            style: _t(13, FontWeight.w600, _C.onSurface),
+            items: [
+              for (final s in daftar)
+                DropdownMenuItem(
+                  value: s,
+                  child: Text('$s. ${kNamaSurat[s - 1]}',
+                      overflow: TextOverflow.ellipsis,
+                      style: _t(13, FontWeight.w600, _C.onSurface)),
+                ),
+            ],
+            onChanged: _saving ? null : (v) { if (v != null) onChanged(v); },
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Stepper ayat: tombol +/- di kiri-kanan, angka di tengah bisa DIKETIK
+  /// manual. Hanya angka 0-9 yang diterima, maksimal 3 digit (ayat sampai 286).
+  /// Nilai divalidasi & di-clamp oleh onSubmit saat fokus keluar (onTapOutside)
+  /// atau saat menekan Enter/Done.
   Widget _stepper({
     required String label,
     required TextEditingController controller,
@@ -1717,8 +1862,10 @@ class _SetoranSheetState extends State<_SetoranSheet> {
     required VoidCallback? onMinus,
     required VoidCallback? onPlus,
     required ValueChanged<int> onSubmit,
+    int flex = 1,
   }) {
     return Expanded(
+      flex: flex,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1744,7 +1891,7 @@ class _SetoranSheetState extends State<_SetoranSheet> {
                     enabled: !_saving,
                     inputFormatters: [
                       FilteringTextInputFormatter.digitsOnly, // hanya 0-9
-                      LengthLimitingTextInputFormatter(2), // maks 2 digit
+                      LengthLimitingTextInputFormatter(3), // maks 3 digit (ayat sampai 286)
                     ],
                     style: _t(18, FontWeight.w700, _C.primary),
                     decoration: const InputDecoration(

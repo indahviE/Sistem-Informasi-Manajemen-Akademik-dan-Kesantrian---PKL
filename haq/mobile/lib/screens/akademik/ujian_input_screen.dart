@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import '../../services/api_client.dart';
 import '../../services/app_scope.dart';
 import '../ui_utils.dart';
-import '../santri/santri_ui.dart' show SC;
+import '../santri/santri_ui.dart' show SC, SantriAvatar, softShadow;
 
 // Halaman Input Nilai (mandiri: tidak bergantung pada file ujian lain).
 //
@@ -26,6 +26,7 @@ class _C {
   static const goldChip = Color(0xFFFDEFD3);
   static const goldBorder = Color(0xFFE7D2A7);
   static const goldText = Color(0xFF775A19);
+  static const sage = Color(0xFFE2ECE9);
   static const ivory = Color(0xFFFAF9F5);
   static const border = Color(0xFFEAE6DC);
   static const ink = Color(0xFF0F172A);
@@ -130,7 +131,7 @@ class UjianInputScreen extends StatefulWidget {
 }
 
 class _UjianInputScreenState extends State<UjianInputScreen> {
-    Map<String, dynamic>? _data;
+  Map<String, dynamic>? _data;
   List<Map<String, dynamic>> _santriAll = [];
   List<Map<String, dynamic>> _remedials = [];
   bool _loading = true;
@@ -258,7 +259,7 @@ class _UjianInputScreenState extends State<UjianInputScreen> {
 
   dynamic _sidOf(Map<String, dynamic> n) => n['santriId'] ?? (n['santri'] as Map?)?['id'];
 
-    Map<String, dynamic>? _nilaiOf(dynamic santriId) {
+  Map<String, dynamic>? _nilaiOf(dynamic santriId) {
     for (final n in _nilais) {
       if (_sidOf(n) == santriId) return n;
     }
@@ -618,7 +619,14 @@ class _UjianInputScreenState extends State<UjianInputScreen> {
         return c != 0 ? c : '${a['nama']}'.toLowerCase().compareTo('${b['nama']}'.toLowerCase());
       });
     final nSudah = all.where(_sudahDinilai).length;
-    final visible = (_showAll || q.isNotEmpty || _filter != 'ALL' || filtered.length <= _initialCount)
+    // Kalau santri berasal dari beberapa kelas, tampilkan per kelas (tanpa potong "tampilkan semua").
+    final kelasSet = filtered.map(_kelasOfSantri).whereType<String>().toSet();
+    final grouped = kelasSet.length > 1 || (_ujian['kelas'] == null && kelasSet.isNotEmpty);
+    final visible = (grouped ||
+            _showAll ||
+            q.isNotEmpty ||
+            _filter != 'ALL' ||
+            filtered.length <= _initialCount)
         ? filtered
         : filtered.take(_initialCount).toList();
 
@@ -675,8 +683,8 @@ class _UjianInputScreenState extends State<UjianInputScreen> {
             _emptyHint('Pastikan kata kunci sesuai nama lengkap atau NIS santri.',
                 title: 'Santri tidak ditemukan?')
           else ...[
-            for (final s in visible) _santriTile(s),
-            if (!_showAll && q.isEmpty && filtered.length > _initialCount)
+            ..._santriWidgets(visible, grouped),
+            if (!grouped && !_showAll && q.isEmpty && filtered.length > _initialCount)
               Center(
                 child: TextButton(
                   onPressed: () => setState(() => _showAll = true),
@@ -720,7 +728,7 @@ class _UjianInputScreenState extends State<UjianInputScreen> {
         ),
       );
 
-        Widget _filterChip(String label, int n, String value) {
+  Widget _filterChip(String label, int n, String value) {
     final sel = _filter == value;
     return GestureDetector(
       onTap: () => setState(() => _filter = value),
@@ -739,11 +747,106 @@ class _UjianInputScreenState extends State<UjianInputScreen> {
     );
   }
 
+  /// Nama kelas santri (null bila tidak ada).
+  String? _kelasOfSantri(Map<String, dynamic> s) {
+    final k = s['kelas'];
+    final v = k is Map ? k['namaKelas'] : null;
+    final t = v?.toString().trim();
+    return (t == null || t.isEmpty) ? null : t;
+  }
+
+  /// Daftar kartu santri; kalau [grouped], dipecah per kelas dengan judul seksi.
+  List<Widget> _santriWidgets(List<Map<String, dynamic>> list, bool grouped) {
+    if (!grouped) return [for (final s in list) _santriTile(s)];
+
+    final groups = <String, List<Map<String, dynamic>>>{};
+    final tanpa = <Map<String, dynamic>>[];
+    for (final s in list) {
+      final k = _kelasOfSantri(s);
+      if (k == null) {
+        tanpa.add(s);
+      } else {
+        groups.putIfAbsent(k, () => []).add(s);
+      }
+    }
+    final names = groups.keys.toList()
+      ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+
+    final out = <Widget>[];
+    var first = true;
+    for (final k in names) {
+      out.add(_sectionHeader(k, groups[k]!.length, first: first));
+      first = false;
+      out.addAll(groups[k]!.map(_santriTile));
+    }
+    if (tanpa.isNotEmpty) {
+      out.add(_sectionHeader('Belum ada kelas', tanpa.length, unassigned: true, first: first));
+      out.addAll(tanpa.map(_santriTile));
+    }
+    return out;
+  }
+
+  Widget _sectionHeader(String title, int count, {bool unassigned = false, bool first = false}) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(2, first ? 6 : 16, 2, 10),
+      child: Row(
+        children: [
+          Container(
+            width: 26,
+            height: 26,
+            decoration: BoxDecoration(
+              color: unassigned ? SC.surfaceDim : SC.sage,
+              borderRadius: BorderRadius.circular(9),
+            ),
+            child: Icon(unassigned ? Icons.help_outline_rounded : Icons.class_rounded,
+                size: 14, color: unassigned ? SC.inkSecondary : SC.primary),
+          ),
+          const SizedBox(width: 9),
+          Flexible(
+            child: Text(title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: _C.ink)),
+          ),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+            decoration: BoxDecoration(
+              color: SC.goldSurface,
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(color: SC.gold.withOpacity(0.4)),
+            ),
+            child: Text('$count',
+                style: TextStyle(
+                    fontSize: 11, fontWeight: FontWeight.w800, color: SC.goldDark)),
+          ),
+          const SizedBox(width: 10),
+          const Expanded(child: Divider(height: 1, thickness: 1, color: _C.border)),
+        ],
+      ),
+    );
+  }
+
+  Widget _meta(IconData icon, String text) => Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 13, color: SC.inkMuted),
+          const SizedBox(width: 3),
+          Flexible(
+            child: Text(text,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                    fontSize: 11.5, fontWeight: FontWeight.w600, color: _C.ink2)),
+          ),
+        ],
+      );
+
   Widget _santriTile(Map<String, dynamic> s) {
     final sel = _selected != null && _selected!['id'] == s['id'];
     final n = _nilaiOf(s['id']);
     final nama = '${s['nama']}';
-    final kelas = '${s['kelas']?['namaKelas'] ?? _kelasNama}';
+    final jk = s['jenisKelamin']?.toString().toUpperCase();
 
     Widget status;
     if (n != null) {
@@ -776,65 +879,67 @@ class _UjianInputScreenState extends State<UjianInputScreen> {
     final terkunciRapi = _terkunci && _sudahDinilai(s);
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(14),
-        onTap: terkunciRapi ? null : () => _select(s),
-        child: Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: sel ? _C.goldSoft : Colors.white,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: sel ? _C.goldBorder : Colors.transparent),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                alignment: Alignment.center,
-                decoration:
-                    BoxDecoration(color: _C.chipGray, borderRadius: BorderRadius.circular(10)),
-                child: Text(_initials(nama),
-                    style: const TextStyle(
-                        fontSize: 13, fontWeight: FontWeight.w800, color: _C.ink)),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
+      padding: const EdgeInsets.only(bottom: 9),
+      child: Container(
+        decoration: BoxDecoration(
+          color: sel ? _C.goldSoft : SC.surface,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: sel ? _C.goldBorder : SC.border),
+          boxShadow: softShadow,
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(18),
+            onTap: terkunciRapi ? null : () => _select(s),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+              child: Row(
+                children: [
+                  SantriAvatar(name: nama, gender: jk, size: 50, badge: true),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Flexible(
-                          child: Text(nama,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                  fontWeight: FontWeight.w700, fontSize: 13.5, color: _C.ink)),
+                        Row(
+                          children: [
+                            Flexible(
+                              child: Text(nama,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                      fontSize: 14.5,
+                                      fontWeight: FontWeight.w800,
+                                      color: _C.ink)),
+                            ),
+                            if (sel) ...[
+                              const SizedBox(width: 4),
+                              Icon(Icons.verified_outlined, size: 15, color: _C.emerald),
+                            ],
+                          ],
                         ),
-                        if (sel) ...[
-                          const SizedBox(width: 4),
-                          Icon(Icons.verified_outlined, size: 15, color: _C.emerald),
-                        ],
+                        const SizedBox(height: 5),
+                        Wrap(
+                          spacing: 10,
+                          runSpacing: 4,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            _meta(Icons.tag_rounded, '${s['nis']}'),
+                            status,
+                          ],
+                        ),
                       ],
                     ),
-                    const SizedBox(height: 2),
-                    Text('NIS: ${s['nis']}${kelas.isEmpty ? '' : ' • $kelas'}',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 11.5, color: _C.ink2)),
-                  ],
-                ),
+                  ),
+                  if (terkunciRapi)
+                    const Padding(
+                      padding: EdgeInsets.only(left: 6),
+                      child: Icon(Icons.lock_outline, size: 16, color: _C.ink2),
+                    ),
+                ],
               ),
-              const SizedBox(width: 6),
-              if (terkunciRapi)
-                const Padding(
-                  padding: EdgeInsets.only(right: 6),
-                  child: Icon(Icons.lock_outline, size: 15, color: _C.ink2),
-                ),
-              status,
-            ],
+            ),
           ),
         ),
       ),

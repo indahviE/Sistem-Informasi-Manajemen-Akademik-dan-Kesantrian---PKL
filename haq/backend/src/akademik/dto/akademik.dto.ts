@@ -180,6 +180,31 @@ export class CreateTahfidzDto {
   @Max(20)
   halamanSelesai?: number;
 
+  // BARU: setoran per surat & ayat. Kalau dikirim, harus lengkap keempatnya.
+  @IsOptional()
+  @IsInt({ message: 'Surat mulai harus angka' })
+  @Min(1)
+  @Max(114)
+  suratMulai?: number;
+
+  @IsOptional()
+  @IsInt({ message: 'Ayat mulai harus angka' })
+  @Min(1)
+  @Max(286)
+  ayatMulai?: number;
+
+  @IsOptional()
+  @IsInt({ message: 'Surat selesai harus angka' })
+  @Min(1)
+  @Max(114)
+  suratSelesai?: number;
+
+  @IsOptional()
+  @IsInt({ message: 'Ayat selesai harus angka' })
+  @Min(1)
+  @Max(286)
+  ayatSelesai?: number;
+
   @IsOptional()
   @IsEnum(JenisSetoran, { message: 'Jenis setoran tidak valid' })
   jenis?: JenisSetoran;

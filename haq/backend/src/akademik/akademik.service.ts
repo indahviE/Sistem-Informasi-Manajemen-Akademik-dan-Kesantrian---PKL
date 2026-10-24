@@ -9,6 +9,7 @@ import {
   QueryAbsensiDto,
 } from './dto/akademik.dto';
 import { RequestUser } from '../common/decorators/current-user.decorator';
+import { juzEndAbs, juzStartAbs, toAbs, validateSetoran } from './quran-meta';
 import { JenisNilai, Role } from '@prisma/client';
 
 @Injectable()
@@ -426,11 +427,57 @@ export class AkademikService {
       }
     }
 
-    // Kompatibel dengan klien lama yang hanya mengirim `halaman`
+    const adaAyat =
+      dto.suratMulai != null || dto.ayatMulai != null ||
+      dto.suratSelesai != null || dto.ayatSelesai != null;
+
+    // ---- Jalur baru: surat & ayat ----
+    if (adaAyat) {
+      const { suratMulai, ayatMulai, suratSelesai, ayatSelesai } = dto;
+      if (suratMulai == null || ayatMulai == null || suratSelesai == null || ayatSelesai == null) {
+        throw new BadRequestException('Surat dan ayat mulai/selesai harus diisi lengkap.');
+      }
+      const err = validateSetoran(dto.juz, suratMulai, ayatMulai, suratSelesai, ayatSelesai);
+      if (err) throw new BadRequestException(err);
+
+      const ayatAbsMulai = toAbs(suratMulai, ayatMulai);
+      const ayatAbsSelesai = toAbs(suratSelesai, ayatSelesai);
+
+      // Estimasi halaman 1..20 di dalam juz. Hanya supaya kolom lama & layar lama
+      // tetap jalan; progres dan khatam yang baru memakai ayatAbs.
+      const awalJuz = juzStartAbs(dto.juz);
+      const ukuranJuz = juzEndAbs(dto.juz) - awalJuz + 1;
+      const keHalaman = (abs: number) =>
+        Math.min(20, Math.max(1, Math.ceil(((abs - awalJuz + 1) * 20) / ukuranJuz)));
+
+      return this.prisma.capaianTahfidz.create({
+        data: {
+          tenantId,
+          santriId: dto.santriId,
+          juz: dto.juz,
+          halaman: keHalaman(ayatAbsSelesai),
+          halamanMulai: keHalaman(ayatAbsMulai),
+          halamanSelesai: keHalaman(ayatAbsSelesai),
+          suratMulai,
+          ayatMulai,
+          suratSelesai,
+          ayatSelesai,
+          ayatAbsMulai,
+          ayatAbsSelesai,
+          jenis: dto.jenis ?? 'ZIYADAH',
+          kualitas: dto.kualitas,
+          catatanUstadz: dto.catatanUstadz,
+          tanggalSetor: this.tanggalHariIniWib(),
+          inputOleh: user.userId,
+        },
+      });
+    }
+
+    // ---- Jalur lama: halaman (klien lama yang belum diperbarui) ----
     const mulai = dto.halamanMulai ?? dto.halamanSelesai ?? dto.halaman;
     const selesai = dto.halamanSelesai ?? dto.halamanMulai ?? dto.halaman;
     if (mulai == null || selesai == null) {
-      throw new BadRequestException('Halaman wajib diisi.');
+      throw new BadRequestException('Halaman atau surat/ayat wajib diisi.');
     }
     if (mulai > selesai) {
       throw new BadRequestException('Halaman mulai tidak boleh lebih besar dari halaman selesai.');

@@ -5,7 +5,7 @@ import 'ujian_input_screen.dart';
 import 'ujian_remedial_screen.dart';
 import '../../services/app_scope.dart';
 import '../ui_utils.dart';
-import '../santri/santri_ui.dart' show SC;
+import '../santri/santri_ui.dart' show SC, softShadow;
 
 // Halaman Detail Ujian (mandiri: tidak bergantung pada file ujian lain).
 //
@@ -16,6 +16,11 @@ import '../santri/santri_ui.dart' show SC;
 //   - di bawah KKM, remedial BELUM_TUNTAS-> Belum Tuntas (final)
 //   - di bawah KKM, remedial belum ada/selesai -> Belum Tuntas (menunggu remedial)
 //   - tanpa nilai (sakit/izin/alpa)      -> Susulan
+//
+// Daftar nilai tampil sebagai kartu. Kalau ujian mencakup beberapa kelas
+// (mis. "Semua kelas"), daftar dikelompokkan per kelas dengan judul seksi.
+// Pengelompokan butuh backend mengirim santri.kelas.namaKelas di setiap nilai;
+// kalau tidak ada, daftar tampil datar seperti biasa.
 //
 // Pimpinan/Mudir: mode baca saja (tanpa input nilai, kunci, atau remedial).
 
@@ -325,9 +330,37 @@ class _UjianDetailScreenState extends State<UjianDetailScreen> {
   /// Ujian "Semua kelas": kunci hanya oleh Admin (backend mengirim bolehKunci=false untuk ustadz).
   bool get _bolehKunci => _ujian['bolehKunci'] != false;
 
+  // Ujian dianggap belum tiba kalau tanggalnya masih setelah hari ini.
+  bool get _belumTiba {
+    final d = DateTime.tryParse('${_ujian['tanggal'] ?? ''}')?.toLocal();
+    if (d == null) return false;
+    final now = DateTime.now();
+    return DateTime(d.year, d.month, d.day)
+        .isAfter(DateTime(now.year, now.month, now.day));
+  }
+
   // Buka halaman Input Nilai, lalu muat ulang data setelah kembali.
   Future<void> _openInput() async {
     if (_readOnly) return;
+
+    if (_belumTiba) {
+      final lanjut = await showDialog<bool>(
+        context: context,
+        builder: (c) => AlertDialog(
+          title: const Text('Ujian belum berlangsung'),
+          content: Text(
+              'Ujian ini dijadwalkan ${_fmtTgl(_ujian['tanggal'])}. Tetap input nilai sekarang?'),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(c, false), child: const Text('Batal')),
+            FilledButton(
+                onPressed: () => Navigator.pop(c, true), child: const Text('Lanjut')),
+          ],
+        ),
+      );
+      if (lanjut != true || !mounted) return;
+    }
+
     await Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => UjianInputScreen(ujian: _ujian)),
     );
@@ -506,6 +539,16 @@ class _UjianDetailScreenState extends State<UjianDetailScreen> {
       ((_data?['nilais'] as List?) ?? []).whereType<Map<String, dynamic>>().toList();
 
   dynamic _sidOf(Map<String, dynamic> m) => m['santriId'] ?? (m['santri'] as Map?)?['id'];
+
+  /// Nama kelas santri pada nilai [n] (null bila backend tidak mengirimnya).
+  String? _kelasOfNilai(Map<String, dynamic> n) {
+    final s = n['santri'];
+    dynamic v;
+    if (s is Map && s['kelas'] is Map) v = (s['kelas'] as Map)['namaKelas'];
+    if (v == null && n['kelas'] is Map) v = (n['kelas'] as Map)['namaKelas'];
+    final t = v?.toString().trim();
+    return (t == null || t.isEmpty) ? null : t;
+  }
 
   /// Data remedial milik santri pada nilai [n] (null bila belum ada).
   Map<String, dynamic>? _remedialOf(Map<String, dynamic> n) {
@@ -727,8 +770,87 @@ class _UjianDetailScreenState extends State<UjianDetailScreen> {
                     style: TextStyle(fontSize: 12.5, color: _C.ink2))),
           )
         else
-          for (final n in list) _nilaiTile(n, isTop: identical(n, top)),
+          ..._daftarNilai(list, top),
       ],
+    );
+  }
+
+  /// Susun daftar kartu. Kalau ujian mencakup beberapa kelas, kelompokkan per
+  /// kelas (urut nama kelas, di dalamnya tetap urut nilai tertinggi).
+  List<Widget> _daftarNilai(List<Map<String, dynamic>> list, Map<String, dynamic>? top) {
+    final kelasSet = list.map(_kelasOfNilai).whereType<String>().toSet();
+    final semuaKelas = _ujian['kelas'] == null;
+    final grouped = kelasSet.length > 1 || (semuaKelas && kelasSet.isNotEmpty);
+
+    if (!grouped) {
+      return [for (final n in list) _nilaiTile(n, isTop: identical(n, top))];
+    }
+
+    final groups = <String, List<Map<String, dynamic>>>{};
+    final tanpa = <Map<String, dynamic>>[];
+    for (final n in list) {
+      final k = _kelasOfNilai(n);
+      if (k == null) {
+        tanpa.add(n);
+      } else {
+        groups.putIfAbsent(k, () => []).add(n);
+      }
+    }
+    final names = groups.keys.toList()
+      ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+
+    final out = <Widget>[];
+    var first = true;
+    for (final k in names) {
+      out.add(_sectionHeader(k, groups[k]!.length, first: first));
+      first = false;
+      out.addAll(groups[k]!.map((n) => _nilaiTile(n, isTop: identical(n, top))));
+    }
+    if (tanpa.isNotEmpty) {
+      out.add(_sectionHeader('Belum ada kelas', tanpa.length, unassigned: true, first: first));
+      out.addAll(tanpa.map((n) => _nilaiTile(n, isTop: identical(n, top))));
+    }
+    return out;
+  }
+
+  Widget _sectionHeader(String title, int count, {bool unassigned = false, bool first = false}) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(2, first ? 2 : 14, 2, 10),
+      child: Row(
+        children: [
+          Container(
+            width: 26,
+            height: 26,
+            decoration: BoxDecoration(
+              color: unassigned ? SC.surfaceDim : SC.sage,
+              borderRadius: BorderRadius.circular(9),
+            ),
+            child: Icon(unassigned ? Icons.help_outline_rounded : Icons.class_rounded,
+                size: 14, color: unassigned ? SC.inkSecondary : SC.primary),
+          ),
+          const SizedBox(width: 9),
+          Flexible(
+            child: Text(title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: _C.ink)),
+          ),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+            decoration: BoxDecoration(
+              color: _C.goldSoft,
+              borderRadius: BorderRadius.circular(99),
+              border: Border.all(color: _C.gold.withOpacity(0.4)),
+            ),
+            child: Text('$count',
+                style: const TextStyle(
+                    fontSize: 11, fontWeight: FontWeight.w800, color: _C.goldText)),
+          ),
+          const SizedBox(width: 10),
+          const Expanded(child: Divider(height: 1, thickness: 1, color: _C.border)),
+        ],
+      ),
     );
   }
 
@@ -929,7 +1051,73 @@ class _UjianDetailScreenState extends State<UjianDetailScreen> {
     );
   }
 
-  // ── Kartu nilai santri ──
+  // ── Kartu santri (gaya sama dengan kartu kelas / daftar santri) ──
+
+  /// Cangkang kartu: sama dengan kartu santri di daftar santri (putih, border, bayangan lembut).
+  /// Parameter [accent] tidak lagi dipakai untuk garis, hanya dipertahankan agar pemanggil tidak berubah.
+  Widget _kartu({required Color accent, required Widget child, VoidCallback? onTap}) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 9),
+      child: Container(
+        decoration: BoxDecoration(
+          color: SC.surface,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: SC.border),
+          boxShadow: softShadow,
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(18),
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+              child: child,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _meta(IconData icon, String text) => Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 13, color: SC.inkMuted),
+          const SizedBox(width: 3),
+          Flexible(
+            child: Text(text,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                    fontSize: 11.5, fontWeight: FontWeight.w600, color: _C.ink2)),
+          ),
+        ],
+      );
+
+  Widget _chip(IconData icon, String label, {Color? bg, Color? fg, Color? bd}) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        decoration: BoxDecoration(
+          color: bg ?? _C.fieldFill,
+          borderRadius: BorderRadius.circular(99),
+          border: Border.all(color: bd ?? _C.border),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 11, color: fg ?? _C.ink2),
+            const SizedBox(width: 4),
+            Flexible(
+              child: Text(label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                      fontSize: 10, fontWeight: FontWeight.w700, color: fg ?? _C.ink2)),
+            ),
+          ],
+        ),
+      );
+
   Widget _nilaiTile(Map<String, dynamic> n, {required bool isTop}) {
     final santri = n['santri'] as Map<String, dynamic>;
     final nv = _nilaiNum(n);
@@ -958,6 +1146,9 @@ class _UjianDetailScreenState extends State<UjianDetailScreen> {
       fg = _C.ink;
     }
 
+    // Garis aksen kiri: merah (belum tuntas), emas (tertinggi), hijau tema (tuntas)
+    final accent = !ok ? _C.badFg : (isTop ? _C.gold : _C.emerald);
+
     // Pill status
     final Widget pill;
     switch (akhir) {
@@ -971,91 +1162,90 @@ class _UjianDetailScreenState extends State<UjianDetailScreen> {
         pill = _pill('Belum Tuntas', _C.badBg, _C.badFg, bd: _C.badBd, fs: 10);
     }
 
-    // Keterangan di bawah nama
-    final subColor = ok ? _C.ink2 : _C.badFg;
-    final spans = <InlineSpan>[TextSpan(text: 'NIS: ${santri['nis']}')];
+    // Info remedial sebagai chip tambahan
+    String? info;
     if (akhir == _Akhir.tuntasRemedial || akhir == _Akhir.belumFinal) {
-      final akhirTxt = _fmtNum(nilaiAkhir);
-      spans.add(TextSpan(
-          text: akhirTxt.isEmpty
-              ? ' • Setelah remedial'
-              : ' • Nilai akhir $akhirTxt (remedial)'));
+      final t = _fmtNum(nilaiAkhir);
+      info = t.isEmpty ? 'Setelah remedial' : 'Nilai akhir $t (remedial)';
     } else if (akhir == _Akhir.belumMenunggu) {
-      spans.add(const TextSpan(text: ' • Menunggu remedial'));
-    } else if (cat.isNotEmpty) {
-      spans.add(const TextSpan(text: ' • '));
-      if (isTop) {
-        final first = RegExp(r'^[^\s,]+').firstMatch(cat)?.group(0) ?? '';
-        spans.add(TextSpan(
-            text: first,
-            style: const TextStyle(color: _C.goldText, fontWeight: FontWeight.w700)));
-        spans.add(TextSpan(text: cat.substring(first.length)));
-      } else {
-        spans.add(TextSpan(text: cat));
-      }
+      info = 'Menunggu remedial';
     }
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(10),
-      decoration: _cardDeco(),
-      child: Row(
+    return _kartu(
+      accent: accent,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Stack(
-            clipBehavior: Clip.none,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 40,
-                height: 40,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(10)),
-                child: Text(v.toStringAsFixed(0),
-                    style: TextStyle(color: fg, fontWeight: FontWeight.w800, fontSize: 16)),
-              ),
-              if (isTop)
-                Positioned(
-                  top: -5,
-                  right: -5,
-                  child: Container(
-                    width: 16,
-                    height: 16,
-                    decoration: BoxDecoration(
-                      color: _C.goldText,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 1.5),
-                    ),
-                    child: const Icon(Icons.star_rounded, size: 9, color: _heroGoldLight),
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Container(
+                    width: 42,
+                    height: 42,
+                    alignment: Alignment.center,
+                    decoration:
+                        BoxDecoration(color: bg, borderRadius: BorderRadius.circular(12)),
+                    child: Text(v.toStringAsFixed(0),
+                        style: TextStyle(color: fg, fontWeight: FontWeight.w800, fontSize: 17)),
                   ),
-                ),
-            ],
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(santri['nama'] as String,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                              fontWeight: FontWeight.w700, fontSize: 13.5, color: _C.ink)),
+                  if (isTop)
+                    Positioned(
+                      top: -5,
+                      right: -5,
+                      child: Container(
+                        width: 16,
+                        height: 16,
+                        decoration: BoxDecoration(
+                          color: _C.goldText,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white, width: 1.5),
+                        ),
+                        child: const Icon(Icons.star_rounded, size: 9, color: _heroGoldLight),
+                      ),
                     ),
-                    const SizedBox(width: 6),
-                    pill,
+                ],
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(santri['nama'] as String,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                            fontSize: 14.5, fontWeight: FontWeight.w800, color: _C.ink)),
+                    const SizedBox(height: 5),
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 4,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        _meta(Icons.tag_rounded, '${santri['nis']}'),
+                        if (info != null)
+                          _chip(Icons.replay, info,
+                              bg: ok ? _C.okBg : _C.badBg,
+                              fg: ok ? _C.okFg : _C.badFg,
+                              bd: ok ? _C.okBd : _C.badBd),
+                      ],
+                    ),
                   ],
                 ),
-                const SizedBox(height: 3),
-                Text.rich(
-                  TextSpan(style: TextStyle(fontSize: 11.5, color: subColor), children: spans),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
+          const SizedBox(height: 10),
+          Align(alignment: Alignment.centerLeft, child: pill),
+          if (cat.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(cat,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 11.5, height: 1.35, color: _C.ink2)),
+          ],
         ],
       ),
     );
@@ -1069,53 +1259,54 @@ class _UjianDetailScreenState extends State<UjianDetailScreen> {
       _ => 'Belum ada nilai',
     };
     // Ketuk untuk mengisi nilai susulan di halaman Input Nilai (tidak untuk Mudir).
-    return InkWell(
-      borderRadius: BorderRadius.circular(16),
+    return _kartu(
+      accent: _C.warnFg,
       onTap: _readOnly ? null : _openInput,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.all(10),
-        decoration: _cardDeco(),
-        child: Row(
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration:
-                  BoxDecoration(color: _C.chipGray, borderRadius: BorderRadius.circular(10)),
-              child: const Icon(Icons.event_busy_outlined, size: 18, color: _C.ink2),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(santri['nama'] as String,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                                fontWeight: FontWeight.w700, fontSize: 13.5, color: _C.ink)),
-                      ),
-                      const SizedBox(width: 6),
-                      _pill('Susulan • $label', _C.warnBg, _C.warnFg, bd: _C.warnBd, fs: 10),
-                    ],
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                      _readOnly
-                          ? 'NIS: ${santri['nis']} • Menunggu ujian susulan'
-                          : 'NIS: ${santri['nis']} • Ketuk untuk isi nilai susulan',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 11.5, color: _C.ink2)),
-                ],
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration:
+                    BoxDecoration(color: _C.warnBg, borderRadius: BorderRadius.circular(12)),
+                child: const Icon(Icons.event_busy_outlined, size: 20, color: _C.warnFg),
               ),
-            ),
-          ],
-        ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(santri['nama'] as String,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                            fontSize: 14.5, fontWeight: FontWeight.w800, color: _C.ink)),
+                    const SizedBox(height: 5),
+                    _meta(Icons.tag_rounded, '${santri['nis']}'),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              _pill('Susulan • $label', _C.warnBg, _C.warnFg, bd: _C.warnBd, fs: 10),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                    _readOnly ? 'Menunggu ujian susulan' : 'Ketuk untuk isi nilai susulan',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 11, color: _C.ink2)),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

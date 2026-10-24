@@ -4923,11 +4923,12 @@ Widget _pimAntrean({
               caption: _ujianList.isEmpty
                   ? 'Belum ada ujian tercatat'
                   : (nilaiBelum == 0
-                        ? 'Semua ujian sudah dinilai'
+                        ? (ujian.isNotEmpty
+                              ? 'Tidak ada ujian menunggu nilai'
+                              : 'Semua ujian sudah dinilai')
                         : (nilaiBelum == 1
                               ? '${nilaiBelumList.first['nama'] ?? 'Ujian'}'
-                              : 'Menunggu input nilai')),
-              captionColor: nilaiBelum > 0
+                              : 'Menunggu input nilai')),              captionColor: nilaiBelum > 0
                   ? _WC.errorText
                   : (_ujianList.isEmpty
                         ? _WC.inkSecondary
