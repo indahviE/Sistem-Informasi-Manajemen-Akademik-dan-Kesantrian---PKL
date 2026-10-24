@@ -3,6 +3,7 @@ import '../../services/api_client.dart';
 import '../../services/app_scope.dart';
 import '../ui_utils.dart';
 import '../santri/santri_ui.dart' show SC;
+import 'rapor_wali_screen.dart';
 
 class _WS {
   _WS._();
@@ -228,6 +229,60 @@ class _WaliScreenState extends State<WaliScreen> {
     );
   }
 
+  // ----- Rapor Digital -----
+  Widget _raporCard() {
+    final anak = _anak.firstWhere(
+      (a) => '${a['id']}' == _selectedSantriId,
+      orElse: () => _anak.first,
+    );
+    return Container(
+      decoration: BoxDecoration(
+        color: _WS.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _WS.border),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(16),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => RaporWaliScreen(santri: anak)),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(color: _WS.sage, shape: BoxShape.circle),
+                  child: Icon(Icons.description_outlined, size: 20, color: _WS.primary),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Rapor Digital',
+                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _WS.ink)),
+                      const SizedBox(height: 2),
+                      Text('Lihat rapor ${anak['nama'] ?? 'santri'} yang sudah terbit',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 11.5, color: _WS.inkSecondary)),
+                    ],
+                  ),
+                ),
+                Icon(Icons.chevron_right_rounded, color: _WS.primary),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   // ----- Kehadiran -----
   Widget _kehadiranSection() {
     int hitung(String s) =>
@@ -421,6 +476,8 @@ class _WaliScreenState extends State<WaliScreen> {
                 trailing: _anak.length > 1 ? 'Pilih santri' : null),
             const SizedBox(height: 10),
             _card([for (final a in _anak) _santriTile(a)]),
+            const SizedBox(height: 12),
+            _raporCard(),
             const SizedBox(height: 20),
             if (_detailLoading)
               const Padding(
