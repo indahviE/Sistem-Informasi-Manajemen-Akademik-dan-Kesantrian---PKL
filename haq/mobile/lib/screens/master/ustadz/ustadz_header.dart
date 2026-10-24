@@ -24,7 +24,7 @@ class UstadzHeader extends StatelessWidget implements PreferredSizeWidget {
     required this.onNotifikasi,
     required this.onPengaturan,
     required this.onLogout,
-    this.roleLabel = 'USTADZ',
+    this.roleLabel,
     this.hasUnread = false,
   });
 
@@ -42,8 +42,17 @@ class UstadzHeader extends StatelessWidget implements PreferredSizeWidget {
   final VoidCallback onPengaturan;
   final VoidCallback onLogout;
 
-  /// Label pill di sebelah nama produk.
-  final String roleLabel;
+  /// Label pill di sebelah nama produk. Kalau null, ditentukan dari awalan nama
+  /// (Ustadzah / Ustadz), selain itu "GURU".
+  final String? roleLabel;
+
+  String get _roleLabel {
+    if (roleLabel != null) return roleLabel!;
+    final n = nama.trim().toLowerCase();
+    if (n.startsWith('ustadzah') || n.startsWith('ustazah')) return 'USTADZAH';
+    if (n.startsWith('ustadz') || n.startsWith('ustaz')) return 'USTADZ';
+    return 'GURU';
+  }
 
   /// Titik merah di lonceng.
   final bool hasUnread;
@@ -112,7 +121,7 @@ class UstadzHeader extends StatelessWidget implements PreferredSizeWidget {
                 borderRadius: BorderRadius.circular(9999),
               ),
               child: Text(
-                roleLabel,
+                _roleLabel,
                 style: const TextStyle(
                   fontFamily: 'Nunito',
                   fontSize: 9,
