@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import '../../services/api_client.dart';
 import '../../services/app_scope.dart';
@@ -46,6 +48,8 @@ DateTime? _tgl(Map<String, dynamic> p) {
   return DateTime.tryParse(s.substring(0, 10));
 }
 
+String _fmtTgl(DateTime t) => '${_hariNama[t.weekday - 1]}, ${t.day} ${_bulanNama[t.month - 1]} ${t.year}';
+
 IconData _iconJenis(String jenis) {
   final j = jenis.toLowerCase();
   if (j.contains('tilawah') || j.contains('qur')) return Icons.menu_book_rounded;
@@ -78,6 +82,54 @@ _StatusMeta _meta(String s) {
   }
 }
 
+/// Warna & predikat berdasarkan persentase kehadiran.
+Color _warnaPersen(double p) {
+  if (p >= 85) return PColors.successText;
+  if (p >= 70) return PColors.pendingText;
+  return PColors.errorText;
+}
+
+String _predikat(double p) {
+  if (p >= 90) return 'Sangat Baik';
+  if (p >= 75) return 'Baik';
+  if (p >= 60) return 'Cukup';
+  return 'Perlu Pembinaan';
+}
+
+// ---------------------------------------------------------------------------
+// Painter cincin progres
+// ---------------------------------------------------------------------------
+class _RingPainter extends CustomPainter {
+  _RingPainter({required this.value, required this.track, required this.color, this.stroke = 9});
+  final double value; // 0..1
+  final Color track;
+  final Color color;
+  final double stroke;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = (math.min(size.width, size.height) - stroke) / 2;
+    final base = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = stroke
+      ..color = track;
+    canvas.drawCircle(center, radius, base);
+    if (value <= 0) return;
+    final arc = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = stroke
+      ..strokeCap = StrokeCap.round
+      ..color = color;
+    canvas.drawArc(Rect.fromCircle(center: center, radius: radius), -math.pi / 2,
+        2 * math.pi * value.clamp(0.0, 1.0), false, arc);
+  }
+
+  @override
+  bool shouldRepaint(covariant _RingPainter old) =>
+      old.value != value || old.color != color || old.track != track || old.stroke != stroke;
+}
+
 class PembinaanIbadahScreen extends StatefulWidget {
   const PembinaanIbadahScreen({super.key});
 
@@ -96,6 +148,7 @@ class _PembinaanIbadahScreenState extends State<PembinaanIbadahScreen> {
   String _timeFilter = 'Bulan Ini'; // Hari Ini | Minggu Ini | Bulan Ini | Semua
   String _statusFilter = 'SEMUA'; // SEMUA | HADIR | IZIN | ALPA
   String? _selectedSantriId; // khusus wali dengan lebih dari satu anak
+  bool _showAllJenis = false;
 
   bool get _isWali => AppScope.of(context).user?.isWali == true;
 
@@ -164,27 +217,54 @@ class _PembinaanIbadahScreenState extends State<PembinaanIbadahScreen> {
     } catch (_) {}
   }
 
+  void _toast(String msg, {bool error = false}) {
+    // Lebar toast dibatasi ±400px supaya tidak melebar di layar web,
+    // dan diangkat di atas bar "Catat Ibadah".
+    final lebar = MediaQuery.of(context).size.width;
+    final sisi = math.max(16.0, (lebar - 400) / 2);
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 2),
+          backgroundColor: error ? PColors.errorText : PTheme.primary,
+          margin: EdgeInsets.fromLTRB(sisi, 0, sisi, _readOnly ? 12 : 84),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          content: Row(
+            children: [
+              Icon(error ? Icons.error_outline_rounded : Icons.check_circle_rounded, color: Colors.white, size: 18),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(msg,
+                    style: const TextStyle(
+                        fontFamily: 'Nunito', fontWeight: FontWeight.w700, fontSize: 13, color: Colors.white)),
+              ),
+            ],
+          ),
+        ),
+      );
+  }
+
   Future<void> _add() async {
     if (_readOnly) return;
     if (_santris.isEmpty) await _loadSantris();
     if (!mounted) return;
-    final result = await showDialog<Map<String, dynamic>>(
+    final result = await showModalBottomSheet<Map<String, dynamic>>(
       context: context,
-      barrierDismissible: false,
-      builder: (_) => _CatatIbadahDialog(santris: _santris),
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _CatatIbadahSheet(santris: _santris),
     );
     if (result == null || !mounted) return;
     try {
       final api = AppScope.of(context).api;
       await api.post(ApiUrl.pembinaanIbadah, result);
       _load(showSpinner: false);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(backgroundColor: PTheme.primary, content: const Text('Rekap ibadah tersimpan.')),
-      );
+      _toast('Rekap ibadah tersimpan.');
     } on ApiException catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+      _toast(e.message, error: true);
     }
   }
 
@@ -220,10 +300,17 @@ class _PembinaanIbadahScreenState extends State<PembinaanIbadahScreen> {
     }
   }
 
-  /// Data dalam lingkup anak terpilih + rentang waktu (dasar ringkasan & hitungan chip).
-  List<Map<String, dynamic>> get _scope {
+  /// Data setelah filter anak (khusus wali), tanpa filter waktu. Dasar grafik tren.
+  List<Map<String, dynamic>> get _byAnak {
     return _items.where((p) {
       if (_isWali && _selectedSantriId != null && p['santriId']?.toString() != _selectedSantriId) return false;
+      return true;
+    }).toList();
+  }
+
+  /// Data dalam lingkup anak terpilih + rentang waktu (dasar ringkasan & hitungan chip).
+  List<Map<String, dynamic>> get _scope {
+    return _byAnak.where((p) {
       final t = _tgl(p);
       if (t == null) return _timeFilter == 'Semua';
       return _inTime(t);
@@ -255,88 +342,228 @@ class _PembinaanIbadahScreenState extends State<PembinaanIbadahScreen> {
     final scope = _scope;
     final filtered = _filtered;
 
+    final kosong = _items.isEmpty;
+
     final children = <Widget>[
       if (isWali) ..._waliBlock(),
-      _ringkasan(scope),
-      const SizedBox(height: 16),
-      _buildSearch(),
-      const SizedBox(height: 10),
-      _timeChips(),
-      const SizedBox(height: 8),
-      _statusChips(scope),
-      const SizedBox(height: 14),
+      _hero(scope),
+      const SizedBox(height: 12),
+      if (kosong)
+        _kosongState(readOnly)
+      else ...[
+        _trenMingguan(),
+        if (scope.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          _rekapJenis(scope),
+        ],
+        const SizedBox(height: 20),
+        _sectionTitle('Riwayat Catatan', trailing: '${filtered.length} catatan'),
+        const SizedBox(height: 10),
+        _buildSearch(),
+        const SizedBox(height: 10),
+        _timeSegment(),
+        const SizedBox(height: 10),
+        _statusChips(scope),
+        const SizedBox(height: 16),
+      ],
     ];
 
-    if (filtered.isEmpty) {
+    if (kosong) {
+      // sudah ditangani _kosongState
+    } else if (filtered.isEmpty) {
       children.add(Padding(
         padding: const EdgeInsets.symmetric(vertical: 24),
         child: emptyView(_items.isEmpty ? 'Belum ada rekap pembinaan ibadah.' : 'Tidak ada catatan yang cocok.'),
       ));
     } else {
-      String? lastKey;
+      // Kelompokkan per tanggal (data sudah terurut menurun).
+      final groups = <String, List<Map<String, dynamic>>>{};
       for (final p in filtered) {
         final t = _tgl(p);
         final key = t == null ? '-' : '${t.year}-${t.month}-${t.day}';
-        if (key != lastKey) {
-          children.add(_dateHeader(t));
-          lastKey = key;
+        groups.putIfAbsent(key, () => []).add(p);
+      }
+      for (final g in groups.values) {
+        children.add(_dateHeader(_tgl(g.first), g));
+        for (final p in g) {
+          children.add(_ibadahCard(p));
         }
-        children.add(_ibadahCard(p));
+        children.add(const SizedBox(height: 6));
       }
     }
 
     return Scaffold(
       backgroundColor: PTheme.background,
       body: SafeArea(
+        bottom: false,
         child: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 480),
-            child: Stack(
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Expanded(
-                      child: _loading
-                          ? loadingView()
-                          : _error != null
-                              ? errorView(_error!, _load)
-                              : RefreshIndicator(
-                                  color: PTheme.primary,
-                                  onRefresh: () => _load(showSpinner: false),
-                                  child: ListView(
-                                    physics: const AlwaysScrollableScrollPhysics(),
-                                    padding: EdgeInsets.fromLTRB(16, 12, 16, readOnly ? 24 : 100),
-                                    children: children,
-                                  ),
-                                ),
-                    ),
-                  ],
-                ),
-                if (!readOnly)
-                  Positioned(
-                    right: 16,
-                    bottom: 16,
-                    child: FloatingActionButton.extended(
-                      onPressed: _add,
-                      backgroundColor: PTheme.primary,
-                      icon: const Icon(Icons.add_circle_outline, color: Colors.white),
-                      label: const Text('Catat Ibadah',
-                          style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w700, color: Colors.white)),
-                    ),
-                  ),
-              ],
-            ),
+            child: _loading
+                ? loadingView()
+                : _error != null
+                    ? errorView(_error!, _load)
+                    : RefreshIndicator(
+                        color: PTheme.primary,
+                        onRefresh: () => _load(showSpinner: false),
+                        child: ListView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                          children: children,
+                        ),
+                      ),
           ),
         ),
       ),
+      // Bar aksi bawah (bukan FAB) supaya toast tidak menumpuk.
+      bottomNavigationBar: readOnly
+          ? null
+          : Container(
+              decoration: BoxDecoration(
+                color: PTheme.surface,
+                border: Border(top: BorderSide(color: PColors.border)),
+              ),
+              child: SafeArea(
+                top: false,
+                child: Center(
+                  heightFactor: 1,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 480),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+                      child: SizedBox(
+                        height: 50,
+                        width: double.infinity,
+                        child: FilledButton.icon(
+                          onPressed: _add,
+                          style: FilledButton.styleFrom(
+                            backgroundColor: PTheme.primary,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+                          ),
+                          icon: const Icon(Icons.add_rounded, size: 20),
+                          label: const Text('Catat Ibadah',
+                              style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w800, fontSize: 14.5)),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
     );
   }
 
   // ---------------------------------------------------------------------
-  // Header & blok khusus wali
+  // Komponen umum
   // ---------------------------------------------------------------------
+  Widget _sectionTitle(String text, {String? trailing}) {
+    return Row(
+      children: [
+        Container(
+          width: 4,
+          height: 16,
+          decoration: BoxDecoration(color: PColors.gold, borderRadius: BorderRadius.circular(4)),
+        ),
+        const SizedBox(width: 8),
+        Expanded(child: Text(text, style: PText.bodyMd.copyWith(color: PTheme.ink, fontWeight: FontWeight.w800))),
+        if (trailing != null) Text(trailing, style: PText.bodySm),
+      ],
+    );
+  }
 
+  /// Tampilan saat belum ada satu pun catatan ibadah.
+  Widget _kosongState(bool readOnly) {
+    Widget fitur(IconData icon, String label) => Expanded(
+          child: Column(
+            children: [
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(color: PTheme.sage, borderRadius: BorderRadius.circular(15)),
+                child: Icon(icon, size: 22, color: PTheme.primary),
+              ),
+              const SizedBox(height: 8),
+              Text(label,
+                  textAlign: TextAlign.center,
+                  style: PText.bodySm.copyWith(
+                      fontSize: 11, fontWeight: FontWeight.w700, color: PTheme.ink, height: 1.3)),
+            ],
+          ),
+        );
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20, 28, 20, 22),
+      decoration: _cardDeco(),
+      child: Column(
+        children: [
+          SizedBox(
+            width: 124,
+            height: 124,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                Container(
+                  width: 124,
+                  height: 124,
+                  decoration: BoxDecoration(shape: BoxShape.circle, color: PTheme.sage.withOpacity(0.55)),
+                ),
+                Container(
+                  width: 90,
+                  height: 90,
+                  decoration: BoxDecoration(shape: BoxShape.circle, color: PTheme.sage),
+                ),
+                Icon(Icons.mosque_rounded, size: 46, color: PTheme.primary),
+                const Positioned(top: 10, right: 16, child: Icon(Icons.star_rounded, size: 18, color: PColors.gold)),
+                Positioned(
+                    bottom: 18,
+                    left: 14,
+                    child: Icon(Icons.star_rounded, size: 12, color: PColors.gold.withOpacity(0.7))),
+              ],
+            ),
+          ),
+          const SizedBox(height: 18),
+          Text('Belum Ada Catatan Ibadah',
+              textAlign: TextAlign.center,
+              style: PText.headlineSm.copyWith(color: PTheme.ink)),
+          const SizedBox(height: 6),
+          Text(
+            readOnly
+                ? 'Rekap kehadiran ibadah akan muncul di sini setelah musyrif mulai mencatat.'
+                : 'Mulai catat kehadiran ibadah santri lewat tombol "Catat Ibadah" di bawah.',
+            textAlign: TextAlign.center,
+            style: PText.bodySm.copyWith(height: 1.5),
+          ),
+          const SizedBox(height: 22),
+          Divider(color: PColors.border, height: 1),
+          const SizedBox(height: 18),
+          Text('YANG AKAN TAMPIL DI SINI',
+              style: PText.bodySm.copyWith(
+                  fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 0.8, color: PTheme.inkSecondary)),
+          const SizedBox(height: 14),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              fitur(Icons.donut_large_rounded, 'Persentase\nkehadiran'),
+              fitur(Icons.bar_chart_rounded, 'Tren\n7 hari'),
+              fitur(Icons.checklist_rounded, 'Rekap per\njenis ibadah'),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  BoxDecoration _cardDeco() => BoxDecoration(
+        color: PTheme.surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: PColors.border),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 8, offset: const Offset(0, 2))],
+      );
+
+  // ---------------------------------------------------------------------
+  // Blok khusus wali
+  // ---------------------------------------------------------------------
   List<Widget> _waliBlock() {
     final anak = _anak;
     return [
@@ -350,14 +577,14 @@ class _PembinaanIbadahScreenState extends State<PembinaanIbadahScreen> {
               borderRadius: BorderRadius.circular(9999),
               border: Border.all(color: PColors.infoBorder),
             ),
-            child: Row(
+            child: const Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.visibility_outlined, size: 12, color: PColors.infoText),
-                const SizedBox(width: 4),
-                Text('Mode Pantau (Read-Only)',
+                Icon(Icons.visibility_outlined, size: 12, color: PColors.infoText),
+                SizedBox(width: 4),
+                Text('Mode Pantau',
                     style: TextStyle(
-                        fontFamily: 'Nunito', fontSize: 10, fontWeight: FontWeight.w700, color: PColors.infoText)),
+                        fontFamily: 'Nunito', fontSize: 10, fontWeight: FontWeight.w800, color: PColors.infoText)),
               ],
             ),
           ),
@@ -366,22 +593,15 @@ class _PembinaanIbadahScreenState extends State<PembinaanIbadahScreen> {
       const SizedBox(height: 10),
       if (anak.length > 1) ...[
         SizedBox(
-          height: 34,
+          height: 40,
           child: ListView(
             scrollDirection: Axis.horizontal,
             children: [
-              _chip(
-                label: 'Semua Anak',
-                selected: _selectedSantriId == null,
-                onTap: () => setState(() => _selectedSantriId = null),
-              ),
+              _anakChip('Semua Anak', null, _selectedSantriId == null, () => setState(() => _selectedSantriId = null)),
               const SizedBox(width: 8),
               for (final e in anak.entries) ...[
-                _chip(
-                  label: e.value.split(' ').first,
-                  selected: _selectedSantriId == e.key,
-                  onTap: () => setState(() => _selectedSantriId = e.key),
-                ),
+                _anakChip(e.value.split(' ').first, e.value, _selectedSantriId == e.key,
+                    () => setState(() => _selectedSantriId = e.key)),
                 const SizedBox(width: 8),
               ],
             ],
@@ -393,7 +613,7 @@ class _PembinaanIbadahScreenState extends State<PembinaanIbadahScreen> {
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: PColors.infoBg,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(14),
           border: Border.all(color: PColors.infoBorder),
         ),
         child: Row(
@@ -410,20 +630,344 @@ class _PembinaanIbadahScreenState extends State<PembinaanIbadahScreen> {
           ],
         ),
       ),
-      const SizedBox(height: 16),
+      const SizedBox(height: 14),
     ];
   }
 
+  Widget _anakChip(String label, String? fullName, bool selected, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(999),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.fromLTRB(6, 5, 14, 5),
+        decoration: BoxDecoration(
+          color: selected ? PTheme.primary : Colors.white,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: selected ? PTheme.primary : PColors.border),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 28,
+              height: 28,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: selected ? Colors.white.withOpacity(0.2) : PTheme.sage,
+                shape: BoxShape.circle,
+              ),
+              child: fullName == null
+                  ? Icon(Icons.groups_rounded, size: 15, color: selected ? Colors.white : PTheme.primary)
+                  : Text(_initialsOf(fullName),
+                      style: TextStyle(
+                          fontFamily: 'Nunito',
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w800,
+                          color: selected ? Colors.white : PTheme.primary)),
+            ),
+            const SizedBox(width: 8),
+            Text(label,
+                style: TextStyle(
+                    fontFamily: 'Nunito',
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w800,
+                    color: selected ? Colors.white : PTheme.ink)),
+          ],
+        ),
+      ),
+    );
+  }
+
   // ---------------------------------------------------------------------
-  // Ringkasan & rekap per jenis ibadah
+  // Hero ringkasan (cincin progres + statistik)
   // ---------------------------------------------------------------------
-  Widget _ringkasan(List<Map<String, dynamic>> data) {
+  Widget _hero(List<Map<String, dynamic>> data) {
     final total = data.length;
     final hadir = _countStatus(data, 'HADIR');
     final izin = _countStatus(data, 'IZIN');
     final alpa = _countStatus(data, 'ALPA');
-    final persen = total == 0 ? null : hadir * 100 / total;
+    final double? persen = total == 0 ? null : hadir * 100 / total;
 
+    Widget stat(IconData icon, String label, int n, Color accent) => Expanded(
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 10),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: Colors.white.withOpacity(0.10)),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 28,
+                  height: 28,
+                  decoration: BoxDecoration(color: Colors.white.withOpacity(0.16), shape: BoxShape.circle),
+                  child: Icon(icon, size: 15, color: accent),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('$n',
+                          style: const TextStyle(
+                              fontFamily: 'Nunito',
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.white,
+                              height: 1.1)),
+                      Text(label,
+                          style: const TextStyle(
+                              fontFamily: 'Nunito', fontSize: 10.5, fontWeight: FontWeight.w600, color: Colors.white70)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(24),
+      child: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [PTheme.primary, PTheme.primaryEnd],
+          ),
+          boxShadow: [BoxShadow(color: PTheme.primary.withOpacity(0.2), blurRadius: 16, offset: const Offset(0, 6))],
+        ),
+        child: Stack(
+          children: [
+            // Ornamen dekoratif
+            Positioned(
+              right: -40,
+              top: -40,
+              child: Container(
+                width: 140,
+                height: 140,
+                decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.white.withOpacity(0.06)),
+              ),
+            ),
+            Positioned(
+              right: 30,
+              bottom: -50,
+              child: Container(
+                width: 100,
+                height: 100,
+                decoration: BoxDecoration(shape: BoxShape.circle, color: PColors.gold.withOpacity(0.10)),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(18),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.mosque_rounded, size: 16, color: PColors.gold),
+                      const SizedBox(width: 6),
+                      const Expanded(
+                        child: Text('KEHADIRAN IBADAH',
+                            style: TextStyle(
+                                fontFamily: 'Nunito',
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 0.8,
+                                color: Colors.white70)),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.14), borderRadius: BorderRadius.circular(999)),
+                        child: Text(_timeFilter,
+                            style: const TextStyle(
+                                fontFamily: 'Nunito', fontSize: 10.5, fontWeight: FontWeight.w800, color: Colors.white)),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      SizedBox(
+                        width: 96,
+                        height: 96,
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            CustomPaint(
+                              size: const Size(96, 96),
+                              painter: _RingPainter(
+                                value: persen == null ? 0 : persen / 100,
+                                track: Colors.white.withOpacity(0.18),
+                                color: PColors.gold,
+                              ),
+                            ),
+                            persen == null
+                                ? const Icon(Icons.hourglass_empty_rounded, color: Colors.white70, size: 26)
+                                : Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text('${persen.round()}%',
+                                          style: const TextStyle(
+                                              fontFamily: 'Nunito',
+                                              fontSize: 24,
+                                              fontWeight: FontWeight.w800,
+                                              color: Colors.white,
+                                              height: 1)),
+                                      const SizedBox(height: 2),
+                                      const Text('hadir',
+                                          style: TextStyle(
+                                              fontFamily: 'Nunito',
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.w600,
+                                              color: Colors.white70)),
+                                    ],
+                                  ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: persen == null
+                            ? const Text('Belum ada catatan ibadah pada rentang ini.',
+                                style: TextStyle(
+                                    fontFamily: 'Nunito',
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.white,
+                                    height: 1.4))
+                            : Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: PColors.gold.withOpacity(0.22),
+                                      borderRadius: BorderRadius.circular(999),
+                                      border: Border.all(color: PColors.gold.withOpacity(0.5)),
+                                    ),
+                                    child: Text(_predikat(persen),
+                                        style: const TextStyle(
+                                            fontFamily: 'Nunito',
+                                            fontSize: 11.5,
+                                            fontWeight: FontWeight.w800,
+                                            color: PColors.gold)),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text('$hadir hadir dari $total catatan',
+                                      style: const TextStyle(
+                                          fontFamily: 'Nunito',
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w800,
+                                          color: Colors.white)),
+                                  const SizedBox(height: 2),
+                                  Text('${izin + alpa} catatan tidak hadir',
+                                      style: const TextStyle(
+                                          fontFamily: 'Nunito', fontSize: 11.5, color: Colors.white70)),
+                                ],
+                              ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      stat(Icons.check_circle_rounded, 'Hadir', hadir, const Color(0xFF9BE7B4)),
+                      const SizedBox(width: 8),
+                      stat(Icons.schedule_rounded, 'Izin', izin, PColors.gold),
+                      const SizedBox(width: 8),
+                      stat(Icons.cancel_rounded, 'Alpa', alpa, const Color(0xFFFFA8A8)),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------------------
+  // Tren 7 hari terakhir
+  // ---------------------------------------------------------------------
+  Widget _trenMingguan() {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final data = _byAnak;
+
+    final days = <DateTime>[for (int i = 6; i >= 0; i--) today.subtract(Duration(days: i))];
+    final pcts = <double?>[];
+    for (final d in days) {
+      int h = 0, t = 0;
+      for (final p in data) {
+        if (_tgl(p) == d) {
+          t++;
+          if ((p['status'] ?? 'HADIR').toString() == 'HADIR') h++;
+        }
+      }
+      pcts.add(t == 0 ? null : h * 100 / t);
+    }
+
+    const maxH = 64.0;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
+      decoration: _cardDeco(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _sectionTitle('Tren 7 Hari Terakhir'),
+          const SizedBox(height: 14),
+          SizedBox(
+            height: maxH + 52,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                for (int i = 0; i < days.length; i++)
+                  Expanded(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        Text(pcts[i] == null ? '' : '${pcts[i]!.round()}',
+                            style: PText.bodySm.copyWith(fontSize: 10, fontWeight: FontWeight.w800, color: PTheme.ink)),
+                        const SizedBox(height: 3),
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 350),
+                          curve: Curves.easeOutCubic,
+                          width: 22,
+                          height: pcts[i] == null ? 4 : math.max(6.0, maxH * pcts[i]! / 100),
+                          decoration: BoxDecoration(
+                            color: pcts[i] == null ? PColors.border : _warnaPersen(pcts[i]!),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          _hariNama[days[i].weekday - 1].substring(0, 3),
+                          style: PText.bodySm.copyWith(
+                            fontSize: 10.5,
+                            fontWeight: days[i] == today ? FontWeight.w800 : FontWeight.w600,
+                            color: days[i] == today ? PTheme.primary : PTheme.inkSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------------------
+  // Rekap per jenis ibadah
+  // ---------------------------------------------------------------------
+  Widget _rekapJenis(List<Map<String, dynamic>> data) {
     final perJenis = <String, List<int>>{}; // jenis -> [hadir, total]
     for (final p in data) {
       final j = (p['jenisIbadah'] ?? '-').toString();
@@ -432,171 +976,90 @@ class _PembinaanIbadahScreenState extends State<PembinaanIbadahScreen> {
       if ((p['status'] ?? 'HADIR').toString() == 'HADIR') e[0]++;
     }
     final rows = perJenis.entries.toList()..sort((a, b) => b.value[1].compareTo(a.value[1]));
+    final tampil = _showAllJenis ? rows : rows.take(4).toList();
 
-    Widget pill(String label, int n) => Expanded(
-          child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 9),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.12),
-              borderRadius: BorderRadius.circular(12),
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: _cardDeco(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _sectionTitle('Rekap per Jenis Ibadah', trailing: '${rows.length} jenis'),
+          const SizedBox(height: 14),
+          for (int i = 0; i < tampil.length; i++) ...[
+            _jenisRow(tampil[i].key, tampil[i].value[0], tampil[i].value[1]),
+            if (i != tampil.length - 1) const SizedBox(height: 14),
+          ],
+          if (rows.length > 4) ...[
+            const SizedBox(height: 10),
+            InkWell(
+              onTap: () => setState(() => _showAllJenis = !_showAllJenis),
+              borderRadius: BorderRadius.circular(10),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(_showAllJenis ? 'Tampilkan lebih sedikit' : 'Lihat semua (${rows.length})',
+                        style: PText.bodySm.copyWith(color: PTheme.primary, fontWeight: FontWeight.w800)),
+                    const SizedBox(width: 2),
+                    Icon(_showAllJenis ? Icons.expand_less_rounded : Icons.expand_more_rounded,
+                        size: 18, color: PTheme.primary),
+                  ],
+                ),
+              ),
             ),
-            child: Column(
-              children: [
-                Text('$n',
-                    style: const TextStyle(
-                        fontFamily: 'Nunito', fontSize: 17, fontWeight: FontWeight.w800, color: Colors.white)),
-                const SizedBox(height: 1),
-                Text(label,
-                    style: const TextStyle(
-                        fontFamily: 'Nunito', fontSize: 10.5, fontWeight: FontWeight.w600, color: Colors.white70)),
-              ],
-            ),
-          ),
-        );
+          ],
+        ],
+      ),
+    );
+  }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _jenisRow(String jenis, int hadir, int total) {
+    final pct = total == 0 ? 0.0 : hadir * 100 / total;
+    final warna = _warnaPersen(pct);
+    return Row(
       children: [
         Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [PTheme.primary, PTheme.primaryEnd],
-            ),
-            borderRadius: BorderRadius.circular(18),
-            boxShadow: [BoxShadow(color: PTheme.primary.withOpacity(0.18), blurRadius: 12, offset: const Offset(0, 4))],
-          ),
+          width: 38,
+          height: 38,
+          decoration: BoxDecoration(color: PTheme.sage, borderRadius: BorderRadius.circular(12)),
+          child: Icon(_iconJenis(jenis), size: 19, color: PTheme.primary),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 children: [
-                  const Expanded(
-                    child: Text('KEHADIRAN IBADAH',
-                        style: TextStyle(
-                            fontFamily: 'Nunito',
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 0.6,
-                            color: Colors.white70)),
+                  Expanded(
+                    child: Text(jenis,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: PText.bodySm.copyWith(color: PTheme.ink, fontWeight: FontWeight.w700)),
                   ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration:
-                        BoxDecoration(color: Colors.white.withOpacity(0.12), borderRadius: BorderRadius.circular(999)),
-                    child: Text(_timeFilter,
-                        style: const TextStyle(
-                            fontFamily: 'Nunito', fontSize: 10.5, fontWeight: FontWeight.w700, color: Colors.white)),
-                  ),
+                  const SizedBox(width: 8),
+                  Text('$hadir/$total',
+                      style: PText.bodySm.copyWith(color: PTheme.inkSecondary, fontWeight: FontWeight.w700)),
+                  const SizedBox(width: 8),
+                  Text('${pct.round()}%',
+                      style: TextStyle(fontFamily: 'Nunito', fontSize: 12, fontWeight: FontWeight.w800, color: warna)),
                 ],
               ),
               const SizedBox(height: 6),
-              if (persen == null)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.hourglass_empty_rounded, size: 18, color: Colors.white70),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Belum ada catatan ibadah pada rentang ini',
-                          style: const TextStyle(
-                              fontFamily: 'Nunito', fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white),
-                        ),
-                      ),
-                    ],
-                  ),
-                )
-              else
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text('${persen.round()}%',
-                        style: const TextStyle(
-                            fontFamily: 'Nunito', fontSize: 34, fontWeight: FontWeight.w800, color: Colors.white, height: 1)),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.only(bottom: 4),
-                        child: Text(
-                          '$hadir hadir dari $total catatan',
-                          style: const TextStyle(fontFamily: 'Nunito', fontSize: 12, color: Colors.white70),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              const SizedBox(height: 10),
               ClipRRect(
                 borderRadius: BorderRadius.circular(999),
                 child: LinearProgressIndicator(
-                  value: persen == null ? 0 : persen / 100,
+                  value: pct / 100,
                   minHeight: 6,
-                  backgroundColor: Colors.white.withOpacity(0.2),
-                  valueColor: const AlwaysStoppedAnimation<Color>(PColors.gold),
+                  backgroundColor: PTheme.sage,
+                  valueColor: AlwaysStoppedAnimation<Color>(warna),
                 ),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  pill('Hadir', hadir),
-                  const SizedBox(width: 8),
-                  pill('Izin', izin),
-                  const SizedBox(width: 8),
-                  pill('Alpa', alpa),
-                ],
               ),
             ],
           ),
         ),
-        if (rows.isNotEmpty) ...[
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: PTheme.surface,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: PColors.border),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Rekap per Jenis Ibadah',
-                    style: PText.bodyMd.copyWith(color: PTheme.ink, fontWeight: FontWeight.w800)),
-                const SizedBox(height: 10),
-                for (final r in rows.take(5)) ...[
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(r.key,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: PText.bodySm.copyWith(color: PTheme.ink, fontWeight: FontWeight.w600)),
-                      ),
-                      const SizedBox(width: 8),
-                      Text('${r.value[0]}/${r.value[1]}',
-                          style: PText.bodySm.copyWith(color: PTheme.inkSecondary, fontWeight: FontWeight.w700)),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(999),
-                    child: LinearProgressIndicator(
-                      value: r.value[1] == 0 ? 0 : r.value[0] / r.value[1],
-                      minHeight: 5,
-                      backgroundColor: PTheme.sage,
-                      valueColor: AlwaysStoppedAnimation<Color>(PTheme.primary),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                ],
-              ],
-            ),
-          ),
-        ],
       ],
     );
   }
@@ -606,11 +1069,11 @@ class _PembinaanIbadahScreenState extends State<PembinaanIbadahScreen> {
   // ---------------------------------------------------------------------
   Widget _buildSearch() {
     return Container(
-      height: 44,
+      height: 46,
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 4, offset: const Offset(0, 1))],
+        border: Border.all(color: PColors.border),
       ),
       child: TextField(
         controller: _searchCtrl,
@@ -618,34 +1081,56 @@ class _PembinaanIbadahScreenState extends State<PembinaanIbadahScreen> {
         decoration: InputDecoration(
           border: InputBorder.none,
           isDense: true,
-          contentPadding: const EdgeInsets.symmetric(vertical: 12),
+          contentPadding: const EdgeInsets.symmetric(vertical: 13),
           hintText: _isWali ? 'Cari jenis ibadah...' : 'Cari nama santri, NIS, atau jenis ibadah...',
           hintStyle: PText.bodySm,
-          prefixIcon: Icon(Icons.search, size: 20, color: PTheme.inkSecondary),
+          prefixIcon: Icon(Icons.search_rounded, size: 20, color: PTheme.inkSecondary),
           suffixIcon: _query.isEmpty
               ? null
-              : IconButton(icon: const Icon(Icons.close, size: 16), onPressed: () => _searchCtrl.clear()),
+              : IconButton(icon: const Icon(Icons.close_rounded, size: 18), onPressed: () => _searchCtrl.clear()),
         ),
       ),
     );
   }
 
-  Widget _timeChips() {
+  Widget _timeSegment() {
     const waktu = ['Hari Ini', 'Minggu Ini', 'Bulan Ini', 'Semua'];
-    return Row(
-      children: [
-        for (int i = 0; i < waktu.length; i++) ...[
-          if (i > 0) const SizedBox(width: 8),
-          Expanded(
-            child: _chip(
-              label: waktu[i],
-              selected: _timeFilter == waktu[i],
-              onTap: () => setState(() => _timeFilter = waktu[i]),
-              expand: true,
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: PColors.border),
+      ),
+      child: Row(
+        children: [
+          for (final w in waktu)
+            Expanded(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => setState(() => _timeFilter = w),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  padding: const EdgeInsets.symmetric(vertical: 9),
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: _timeFilter == w ? PTheme.primary : Colors.transparent,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    w,
+                    style: TextStyle(
+                      fontFamily: 'Nunito',
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      color: _timeFilter == w ? Colors.white : PTheme.inkSecondary,
+                    ),
+                  ),
+                ),
+              ),
             ),
-          ),
         ],
-      ],
+      ),
     );
   }
 
@@ -660,73 +1145,46 @@ class _PembinaanIbadahScreenState extends State<PembinaanIbadahScreen> {
       children: [
         for (int i = 0; i < opsi.length; i++) ...[
           if (i > 0) const SizedBox(width: 8),
-          Expanded(
-            child: _chip(
-              label: opsi[i][1],
-              count: opsi[i][0] == 'SEMUA' ? scope.length : _countStatus(scope, opsi[i][0]),
-              selected: _statusFilter == opsi[i][0],
-              onTap: () => setState(() => _statusFilter = opsi[i][0]),
-              expand: true,
-            ),
-          ),
+          Expanded(child: _statusChip(opsi[i][0], opsi[i][1], scope)),
         ],
       ],
     );
   }
 
-  Widget _chip({
-    required String label,
-    int? count,
-    required bool selected,
-    required VoidCallback onTap,
-    bool expand = false,
-  }) {
+  Widget _statusChip(String kode, String label, List<Map<String, dynamic>> scope) {
+    final selected = _statusFilter == kode;
+    final count = kode == 'SEMUA' ? scope.length : _countStatus(scope, kode);
+    final warna = kode == 'SEMUA' ? PTheme.primary : _meta(kode).fg;
+    final bg = kode == 'SEMUA' ? PTheme.primary : _meta(kode).bg;
+
     return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(999),
-      child: Container(
-        alignment: expand ? Alignment.center : null,
-        padding: EdgeInsets.symmetric(horizontal: expand ? 6 : 14, vertical: 8),
+      onTap: () => setState(() => _statusFilter = kode),
+      borderRadius: BorderRadius.circular(14),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 4),
         decoration: BoxDecoration(
-          color: selected ? PTheme.primary : Colors.white,
-          borderRadius: BorderRadius.circular(999),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 3)],
+          color: selected ? bg : Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: selected ? warna : PColors.border, width: selected ? 1.3 : 1),
         ),
-        child: Row(
+        child: Column(
           mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Flexible(
-              child: Text(
-                label,
-                overflow: TextOverflow.ellipsis,
+            Text('$count',
                 style: TextStyle(
-                  fontFamily: 'Nunito',
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w700,
-                  color: selected ? Colors.white : PTheme.inkSecondary,
-                ),
-              ),
-            ),
-            if (count != null) ...[
-              const SizedBox(width: 6),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                decoration: BoxDecoration(
-                  color: selected ? Colors.white.withOpacity(0.25) : PTheme.background,
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Text(
-                  '$count',
-                  style: TextStyle(
                     fontFamily: 'Nunito',
-                    fontSize: 10.5,
+                    fontSize: 15,
                     fontWeight: FontWeight.w800,
-                    color: selected ? Colors.white : PTheme.ink,
-                  ),
-                ),
-              ),
-            ],
+                    color: selected ? (kode == 'SEMUA' ? Colors.white : warna) : PTheme.ink,
+                    height: 1.1)),
+            const SizedBox(height: 1),
+            Text(label,
+                style: TextStyle(
+                    fontFamily: 'Nunito',
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: selected ? (kode == 'SEMUA' ? Colors.white70 : warna) : PTheme.inkSecondary)),
           ],
         ),
       ),
@@ -736,17 +1194,65 @@ class _PembinaanIbadahScreenState extends State<PembinaanIbadahScreen> {
   // ---------------------------------------------------------------------
   // Daftar catatan
   // ---------------------------------------------------------------------
-  Widget _dateHeader(DateTime? t) {
-    String label = 'Tanpa tanggal';
-    if (t != null) {
-      final now = DateTime.now();
-      final today = DateTime(now.year, now.month, now.day);
-      final base = '${_hariNama[t.weekday - 1]}, ${t.day} ${_bulanNama[t.month - 1]} ${t.year}';
-      label = t == today ? 'Hari Ini • $base' : base;
-    }
+  Widget _dateHeader(DateTime? t, List<Map<String, dynamic>> group) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final isToday = t != null && t == today;
+    final hadir = _countStatus(group, 'HADIR');
+
     return Padding(
-      padding: const EdgeInsets.fromLTRB(2, 6, 2, 8),
-      child: Text(label, style: PText.labelMd.copyWith(color: PTheme.inkSecondary, fontWeight: FontWeight.w800)),
+      padding: const EdgeInsets.fromLTRB(2, 4, 2, 10),
+      child: Row(
+        children: [
+          Container(
+            width: 42,
+            padding: const EdgeInsets.symmetric(vertical: 5),
+            decoration: BoxDecoration(
+              color: isToday ? PTheme.primary : PTheme.sage,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              children: [
+                Text(t == null ? '-' : '${t.day}',
+                    style: TextStyle(
+                        fontFamily: 'Nunito',
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        height: 1.1,
+                        color: isToday ? Colors.white : PTheme.primary)),
+                Text(t == null ? '' : _bulanNama[t.month - 1],
+                    style: TextStyle(
+                        fontFamily: 'Nunito',
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.w700,
+                        color: isToday ? Colors.white70 : PTheme.inkSecondary)),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(t == null ? 'Tanpa tanggal' : (isToday ? 'Hari Ini' : _hariNama[t.weekday - 1]),
+                    style: PText.bodyMd.copyWith(color: PTheme.ink, fontWeight: FontWeight.w800)),
+                if (t != null) Text('${t.day} ${_bulanNama[t.month - 1]} ${t.year}', style: PText.bodySm),
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: PColors.successBg,
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(color: PColors.successBorder),
+            ),
+            child: Text('$hadir/${group.length} hadir',
+                style: const TextStyle(
+                    fontFamily: 'Nunito', fontSize: 10.5, fontWeight: FontWeight.w800, color: PColors.successText)),
+          ),
+        ],
+      ),
     );
   }
 
@@ -759,83 +1265,234 @@ class _PembinaanIbadahScreenState extends State<PembinaanIbadahScreen> {
     final catatan = p['catatan']?.toString().trim();
     final tampilNama = (!_isWali || _anak.length > 1) && nama != null && nama.isNotEmpty;
 
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Material(
+        color: Colors.transparent,
+        child: Ink(
+          decoration: BoxDecoration(
+            color: PTheme.surface,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: PColors.border),
+            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 6, offset: const Offset(0, 2))],
+          ),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(16),
+            onTap: () => _showDetail(p),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: IntrinsicHeight(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Container(width: 5, color: m.fg),
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.all(14),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              width: 42,
+                              height: 42,
+                              decoration: BoxDecoration(color: PTheme.sage, borderRadius: BorderRadius.circular(13)),
+                              child: Icon(_iconJenis(jenis), size: 21, color: PTheme.primary),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(jenis,
+                                      style: PText.bodyMd.copyWith(color: PTheme.ink, fontWeight: FontWeight.w800)),
+                                  if (tampilNama) ...[
+                                    const SizedBox(height: 3),
+                                    Row(
+                                      children: [
+                                        Icon(Icons.person_rounded, size: 12, color: PTheme.inkSecondary),
+                                        const SizedBox(width: 4),
+                                        Expanded(
+                                          child: Text(nis != null && nis.isNotEmpty ? '$nama • NIS $nis' : nama,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: PText.bodySm.copyWith(fontSize: 11.5)),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                  if (catatan != null && catatan.isNotEmpty) ...[
+                                    const SizedBox(height: 8),
+                                    Container(
+                                      width: double.infinity,
+                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                                      decoration: BoxDecoration(
+                                          color: PTheme.background, borderRadius: BorderRadius.circular(10)),
+                                      child: Row(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Icon(Icons.notes_rounded, size: 13, color: PTheme.inkSecondary),
+                                          const SizedBox(width: 6),
+                                          Expanded(
+                                            child: Text(catatan,
+                                                maxLines: 2,
+                                                overflow: TextOverflow.ellipsis,
+                                                style:
+                                                    PText.bodySm.copyWith(color: PTheme.ink, fontSize: 11.5, height: 1.4)),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            _statusPill(m),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _statusPill(_StatusMeta m) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
       decoration: BoxDecoration(
-        color: PTheme.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: PColors.border),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 6, offset: const Offset(0, 2))],
+        color: m.bg,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: m.border),
       ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(color: PTheme.sage, borderRadius: BorderRadius.circular(12)),
-            child: Icon(_iconJenis(jenis), size: 20, color: PTheme.primary),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(jenis, style: PText.bodyMd.copyWith(color: PTheme.ink, fontWeight: FontWeight.w800)),
-                if (tampilNama) ...[
-                  const SizedBox(height: 2),
-                  Text(nis != null && nis.isNotEmpty ? '$nama • NIS $nis' : nama,
-                      maxLines: 1, overflow: TextOverflow.ellipsis, style: PText.bodySm.copyWith(fontSize: 11.5)),
-                ],
-                if (catatan != null && catatan.isNotEmpty) ...[
-                  const SizedBox(height: 6),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-                    decoration: BoxDecoration(color: PTheme.background, borderRadius: BorderRadius.circular(10)),
-                    child: Text(catatan, style: PText.bodySm.copyWith(color: PTheme.ink, fontSize: 11.5, height: 1.4)),
-                  ),
-                ],
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-            decoration: BoxDecoration(
-              color: m.bg,
-              borderRadius: BorderRadius.circular(999),
-              border: Border.all(color: m.border),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(m.icon, size: 12, color: m.fg),
-                const SizedBox(width: 4),
-                Text(m.label,
-                    style: TextStyle(fontFamily: 'Nunito', fontSize: 10.5, fontWeight: FontWeight.w800, color: m.fg)),
-              ],
-            ),
-          ),
+          Icon(m.icon, size: 12, color: m.fg),
+          const SizedBox(width: 4),
+          Text(m.label,
+              style: TextStyle(fontFamily: 'Nunito', fontSize: 10.5, fontWeight: FontWeight.w800, color: m.fg)),
         ],
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------------------
+  // Detail catatan (bottom sheet)
+  // ---------------------------------------------------------------------
+  void _showDetail(Map<String, dynamic> p) {
+    final m = _meta((p['status'] ?? 'HADIR').toString());
+    final s = _santriOf(p);
+    final nama = s['nama']?.toString() ?? '-';
+    final nis = s['nis']?.toString() ?? '-';
+    final k = s['kelas'];
+    final kelas = k is Map ? (k['namaKelas'] ?? k['nama'])?.toString() : k?.toString();
+    final jenis = (p['jenisIbadah'] ?? '-').toString();
+    final t = _tgl(p);
+    final catatan = p['catatan']?.toString().trim();
+
+    Widget row(IconData icon, String label, String value) => Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(color: PTheme.background, borderRadius: BorderRadius.circular(10)),
+                child: Icon(icon, size: 17, color: PTheme.primary),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(label, style: PText.bodySm.copyWith(fontSize: 11)),
+                    const SizedBox(height: 1),
+                    Text(value, style: PText.bodyMd.copyWith(color: PTheme.ink, fontWeight: FontWeight.w700)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: PTheme.surface,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(26))),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 10, 20, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 42,
+                  height: 4,
+                  decoration: BoxDecoration(color: PColors.border, borderRadius: BorderRadius.circular(4)),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(color: PTheme.sage, borderRadius: BorderRadius.circular(15)),
+                    child: Icon(_iconJenis(jenis), size: 24, color: PTheme.primary),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(child: Text(jenis, style: PText.headlineSm)),
+                  _statusPill(m),
+                ],
+              ),
+              const SizedBox(height: 10),
+              const Divider(height: 20),
+              row(Icons.person_rounded, 'Santri', nama),
+              row(Icons.badge_outlined, 'NIS', kelas != null && kelas.isNotEmpty ? '$nis • Kelas $kelas' : nis),
+              row(Icons.event_rounded, 'Tanggal', t == null ? '-' : _fmtTgl(t)),
+              row(Icons.notes_rounded, 'Catatan', (catatan == null || catatan.isEmpty) ? 'Tidak ada catatan.' : catatan),
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                height: 46,
+                child: OutlinedButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  style: OutlinedButton.styleFrom(
+                    side: BorderSide(color: PColors.border),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+                  ),
+                  child: Text('Tutup', style: PText.bodyMd.copyWith(color: PTheme.ink, fontWeight: FontWeight.w800)),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
 }
 
 // ===========================================================================
-// Dialog "Catat Pembinaan Ibadah"
+// Bottom sheet "Catat Pembinaan Ibadah"
 // ===========================================================================
-class _CatatIbadahDialog extends StatefulWidget {
-  const _CatatIbadahDialog({required this.santris});
+class _CatatIbadahSheet extends StatefulWidget {
+  const _CatatIbadahSheet({required this.santris});
   final List<Map<String, dynamic>> santris;
 
   @override
-  State<_CatatIbadahDialog> createState() => _CatatIbadahDialogState();
+  State<_CatatIbadahSheet> createState() => _CatatIbadahSheetState();
 }
 
-class _CatatIbadahDialogState extends State<_CatatIbadahDialog> {
+class _CatatIbadahSheetState extends State<_CatatIbadahSheet> {
   Map<String, dynamic>? _santri;
   final _jenisCtrl = TextEditingController();
   final _catatanCtrl = TextEditingController();
@@ -877,7 +1534,7 @@ class _CatatIbadahDialogState extends State<_CatatIbadahDialog> {
       context: context,
       isScrollControlled: true,
       backgroundColor: PTheme.surface,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setSheet) {
           final list = widget.santris.where((s) {
@@ -892,10 +1549,16 @@ class _CatatIbadahDialogState extends State<_CatatIbadahDialog> {
                 height: MediaQuery.of(ctx).size.height * 0.7,
                 child: Column(
                   children: [
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 10),
+                    Container(
+                      width: 42,
+                      height: 4,
+                      decoration: BoxDecoration(color: PColors.border, borderRadius: BorderRadius.circular(4)),
+                    ),
+                    const SizedBox(height: 14),
                     Text('Pilih Santri', style: PText.headlineSm),
                     Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
                       child: TextField(
                         onChanged: (v) => setSheet(() => q = v.trim().toLowerCase()),
                         style: PText.bodyMd.copyWith(color: PTheme.ink),
@@ -904,45 +1567,50 @@ class _CatatIbadahDialogState extends State<_CatatIbadahDialog> {
                           fillColor: PTheme.background,
                           hintText: 'Cari nama atau NIS...',
                           hintStyle: PText.bodySm,
-                          prefixIcon: const Icon(Icons.search, size: 18),
+                          prefixIcon: const Icon(Icons.search_rounded, size: 18),
                           isDense: true,
-                          contentPadding: const EdgeInsets.symmetric(vertical: 12),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                          contentPadding: const EdgeInsets.symmetric(vertical: 13),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
                         ),
                       ),
                     ),
                     Expanded(
-                      child: ListView.builder(
-                        itemCount: list.length,
-                        itemBuilder: (_, i) {
-                          final s = list[i];
-                          final label = _kelasLabel(s);
-                          return ListTile(
-                            leading: Container(
-                              width: 36,
-                              height: 36,
-                              decoration: BoxDecoration(color: PTheme.primary, shape: BoxShape.circle),
-                              alignment: Alignment.center,
-                              child: Text(_initialsOf(s['nama']?.toString() ?? '-'),
-                                  style: const TextStyle(
-                                      fontFamily: 'Nunito', fontSize: 12, fontWeight: FontWeight.w800, color: Colors.white)),
+                      child: list.isEmpty
+                          ? Center(child: Text('Santri tidak ditemukan.', style: PText.bodySm))
+                          : ListView.builder(
+                              itemCount: list.length,
+                              itemBuilder: (_, i) {
+                                final s = list[i];
+                                final label = _kelasLabel(s);
+                                final dipilih = _santri?['id'] == s['id'];
+                                return ListTile(
+                                  leading: Container(
+                                    width: 40,
+                                    height: 40,
+                                    decoration: BoxDecoration(color: PTheme.primary, shape: BoxShape.circle),
+                                    alignment: Alignment.center,
+                                    child: Text(_initialsOf(s['nama']?.toString() ?? '-'),
+                                        style: const TextStyle(
+                                            fontFamily: 'Nunito',
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w800,
+                                            color: Colors.white)),
+                                  ),
+                                  title: Text(s['nama']?.toString() ?? '-',
+                                      style: PText.bodyMd.copyWith(fontWeight: FontWeight.w700)),
+                                  subtitle: Text('NIS: ${s['nis'] ?? '-'}${label.isEmpty ? '' : ' • $label'}',
+                                      style: PText.bodySm),
+                                  trailing: dipilih ? Icon(Icons.check_circle_rounded, color: PTheme.primary) : null,
+                                  onTap: () {
+                                    setState(() {
+                                      _santri = s;
+                                      _errSantri = null;
+                                    });
+                                    Navigator.pop(ctx);
+                                  },
+                                );
+                              },
                             ),
-                            title: Text(s['nama']?.toString() ?? '-', style: PText.bodyMd),
-                            subtitle: Text('NIS: ${s['nis'] ?? '-'}${label.isEmpty ? '' : ' • $label'}',
-                                style: PText.bodySm),
-                            trailing: _santri?['id'] == s['id']
-                                ? Icon(Icons.check_circle_rounded, color: PTheme.primary)
-                                : null,
-                            onTap: () {
-                              setState(() {
-                                _santri = s;
-                                _errSantri = null;
-                              });
-                              Navigator.pop(ctx);
-                            },
-                          );
-                        },
-                      ),
                     ),
                   ],
                 ),
@@ -962,7 +1630,7 @@ class _CatatIbadahDialogState extends State<_CatatIbadahDialog> {
       firstDate: now.subtract(const Duration(days: 30)),
       lastDate: now,
     );
-    if (d != null) setState(() => _tanggal = d);
+    if (d != null) setState(() => _tanggal = DateTime(d.year, d.month, d.day));
   }
 
   void _submit() {
@@ -983,9 +1651,10 @@ class _CatatIbadahDialogState extends State<_CatatIbadahDialog> {
     });
   }
 
-  Widget _requiredLabel(String text) {
-    return Text.rich(TextSpan(text: text, style: PText.labelMd.copyWith(color: PTheme.ink), children: const [
-      TextSpan(text: ' *', style: TextStyle(color: Colors.red, fontWeight: FontWeight.w800)),
+  Widget _requiredLabel(String text, {bool required = true, String? hint}) {
+    return Text.rich(TextSpan(text: text, style: PText.labelMd.copyWith(color: PTheme.ink), children: [
+      if (required) const TextSpan(text: ' *', style: TextStyle(color: Colors.red, fontWeight: FontWeight.w800)),
+      if (hint != null) TextSpan(text: ' $hint', style: PText.bodySm),
     ]));
   }
 
@@ -995,29 +1664,52 @@ class _CatatIbadahDialogState extends State<_CatatIbadahDialog> {
     return Expanded(
       child: InkWell(
         onTap: () => setState(() => _status = value),
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 11),
+        borderRadius: BorderRadius.circular(16),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(vertical: 12),
           decoration: BoxDecoration(
             color: selected ? m.bg : PTheme.background,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: selected ? m.fg : Colors.transparent, width: 1.4),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: selected ? m.fg : Colors.transparent, width: 1.5),
           ),
-          alignment: Alignment.center,
-          child: Row(
+          child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(m.icon, size: 15, color: selected ? m.fg : PTheme.inkSecondary),
-              const SizedBox(width: 5),
+              Icon(m.icon, size: 22, color: selected ? m.fg : PTheme.inkSecondary),
+              const SizedBox(height: 4),
               Text(m.label,
                   style: TextStyle(
                       fontFamily: 'Nunito',
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w800,
                       color: selected ? m.fg : PTheme.inkSecondary)),
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _tanggalChip(String label, DateTime value) {
+    final today = DateTime.now();
+    final target = DateTime(value.year, value.month, value.day);
+    final selected = DateTime(_tanggal.year, _tanggal.month, _tanggal.day) == target;
+    return InkWell(
+      onTap: () => setState(() => _tanggal = target),
+      borderRadius: BorderRadius.circular(999),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected ? PTheme.primary : PTheme.background,
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Text(label,
+            style: TextStyle(
+                fontFamily: 'Nunito',
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                color: selected ? Colors.white : PTheme.inkSecondary)),
       ),
     );
   }
@@ -1028,234 +1720,305 @@ class _CatatIbadahDialogState extends State<_CatatIbadahDialog> {
     final nis = _santri?['nis']?.toString() ?? '-';
     final kelasLabel = _santri == null ? '' : _kelasLabel(_santri!);
     final jenisSekarang = _jenisCtrl.text.trim();
+    final now = DateTime.now();
+    final hariIni = DateTime(now.year, now.month, now.day);
+    final kemarin = hariIni.subtract(const Duration(days: 1));
+    final tglTerpilih = DateTime(_tanggal.year, _tanggal.month, _tanggal.day);
+    final customDate = tglTerpilih != hariIni && tglTerpilih != kemarin;
 
-    return Dialog(
-      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-      backgroundColor: Colors.transparent,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 420, maxHeight: 680),
-        child: Container(
-          decoration: BoxDecoration(color: PTheme.surface, borderRadius: BorderRadius.circular(24)),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 20, 12, 0),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(color: PTheme.primary.withOpacity(0.10), shape: BoxShape.circle),
-                      child: Icon(Icons.mosque_rounded, color: PTheme.primary, size: 22),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('Catat Pembinaan Ibadah', style: PText.headlineSm),
-                          const SizedBox(height: 1),
-                          Text('Rekap Kehadiran Ibadah', style: PText.bodySm),
-                        ],
-                      ),
-                    ),
-                    IconButton(
-                      onPressed: () => Navigator.pop(context),
-                      icon: const Icon(Icons.close, size: 20),
-                      tooltip: 'Tutup',
-                    ),
-                  ],
+    return Container(
+      constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.92),
+      decoration: BoxDecoration(
+        color: PTheme.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(height: 10),
+          Container(
+            width: 42,
+            height: 4,
+            decoration: BoxDecoration(color: PColors.border, borderRadius: BorderRadius.circular(4)),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 14, 12, 0),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 46,
+                  height: 46,
+                  decoration: BoxDecoration(color: PTheme.primary.withOpacity(0.10), borderRadius: BorderRadius.circular(15)),
+                  child: Icon(Icons.mosque_rounded, color: PTheme.primary, size: 24),
                 ),
-              ),
-              Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                const SizedBox(width: 12),
+                Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _requiredLabel('Pilih Santri'),
-                      const SizedBox(height: 6),
-                      InkWell(
-                        onTap: _pilihSantri,
-                        borderRadius: BorderRadius.circular(14),
-                        child: Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: PTheme.background,
-                            borderRadius: BorderRadius.circular(14),
-                            border: _errSantri != null ? Border.all(color: Colors.red, width: 1.4) : null,
-                          ),
-                          child: Row(
-                            children: [
-                              Container(
-                                width: 38,
-                                height: 38,
-                                decoration: BoxDecoration(color: PTheme.primary, shape: BoxShape.circle),
-                                alignment: Alignment.center,
-                                child: Text(_initialsOf(nama),
-                                    style: const TextStyle(
-                                        fontFamily: 'Nunito', fontSize: 13, fontWeight: FontWeight.w800, color: Colors.white)),
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(nama,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: PText.bodyMd.copyWith(color: PTheme.ink, fontWeight: FontWeight.w700)),
-                                    const SizedBox(height: 2),
-                                    Text('NIS: $nis${kelasLabel.isEmpty ? '' : ' • $kelasLabel'}',
-                                        maxLines: 1, overflow: TextOverflow.ellipsis, style: PText.bodySm),
-                                  ],
-                                ),
-                              ),
-                              if (widget.santris.length > 1)
-                                Icon(Icons.unfold_more, size: 18, color: PTheme.inkSecondary),
-                            ],
-                          ),
-                        ),
+                      Text('Catat Pembinaan Ibadah', style: PText.headlineSm),
+                      const SizedBox(height: 1),
+                      Text('Rekap kehadiran ibadah santri', style: PText.bodySm),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.close_rounded, size: 22),
+                  tooltip: 'Tutup',
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 4),
+          Flexible(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // --- Santri
+                  _requiredLabel('Santri'),
+                  const SizedBox(height: 8),
+                  InkWell(
+                    onTap: _pilihSantri,
+                    borderRadius: BorderRadius.circular(16),
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: PTheme.background,
+                        borderRadius: BorderRadius.circular(16),
+                        border: _errSantri != null ? Border.all(color: Colors.red, width: 1.4) : null,
                       ),
-                      if (_errSantri != null) ...[
-                        const SizedBox(height: 4),
-                        Text(_errSantri!, style: const TextStyle(color: Colors.red, fontSize: 12)),
-                      ],
-                      const SizedBox(height: 16),
-                      _requiredLabel('Jenis Ibadah'),
-                      const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 6,
-                        runSpacing: 6,
+                      child: Row(
                         children: [
-                          for (final j in _jenisIbadahPreset)
-                            InkWell(
-                              onTap: () => setState(() {
-                                _jenisCtrl.text = j;
-                                _errJenis = null;
-                              }),
+                          Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(color: PTheme.primary, shape: BoxShape.circle),
+                            alignment: Alignment.center,
+                            child: Text(_initialsOf(nama),
+                                style: const TextStyle(
+                                    fontFamily: 'Nunito', fontSize: 13, fontWeight: FontWeight.w800, color: Colors.white)),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(nama,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: PText.bodyMd.copyWith(color: PTheme.ink, fontWeight: FontWeight.w800)),
+                                const SizedBox(height: 2),
+                                Text('NIS: $nis${kelasLabel.isEmpty ? '' : ' • $kelasLabel'}',
+                                    maxLines: 1, overflow: TextOverflow.ellipsis, style: PText.bodySm),
+                              ],
+                            ),
+                          ),
+                          if (widget.santris.length > 1)
+                            Icon(Icons.unfold_more_rounded, size: 20, color: PTheme.inkSecondary),
+                        ],
+                      ),
+                    ),
+                  ),
+                  if (_errSantri != null) ...[
+                    const SizedBox(height: 4),
+                    Text(_errSantri!, style: const TextStyle(color: Colors.red, fontSize: 12)),
+                  ],
+
+                  // --- Jenis ibadah
+                  const SizedBox(height: 20),
+                  _requiredLabel('Jenis Ibadah'),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final j in _jenisIbadahPreset)
+                        InkWell(
+                          onTap: () => setState(() {
+                            _jenisCtrl.text = j;
+                            _errJenis = null;
+                          }),
+                          borderRadius: BorderRadius.circular(999),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 160),
+                            padding: const EdgeInsets.fromLTRB(8, 7, 12, 7),
+                            decoration: BoxDecoration(
+                              color: jenisSekarang == j ? PTheme.primary : PTheme.background,
                               borderRadius: BorderRadius.circular(999),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                decoration: BoxDecoration(
-                                  color: jenisSekarang == j ? PTheme.primary : PTheme.background,
-                                  borderRadius: BorderRadius.circular(999),
-                                ),
-                                child: Text(j,
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(_iconJenis(j),
+                                    size: 14, color: jenisSekarang == j ? Colors.white : PTheme.primary),
+                                const SizedBox(width: 6),
+                                Text(j,
                                     style: TextStyle(
                                       fontFamily: 'Nunito',
                                       fontSize: 11.5,
                                       fontWeight: FontWeight.w700,
                                       color: jenisSekarang == j ? Colors.white : PTheme.inkSecondary,
                                     )),
-                              ),
+                              ],
                             ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      TextField(
-                        controller: _jenisCtrl,
-                        maxLength: 100,
-                        onChanged: (_) {
-                          if (_errJenis != null) setState(() => _errJenis = null);
-                        },
-                        style: PText.bodyMd.copyWith(color: PTheme.ink),
-                        decoration: InputDecoration(
-                          counterText: '',
-                          filled: true,
-                          fillColor: PTheme.background,
-                          hintText: 'Pilih di atas, atau tulis jenis ibadah lain',
-                          hintStyle: PText.bodySm,
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: _errJenis != null ? const BorderSide(color: Colors.red, width: 1.4) : BorderSide.none,
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: _errJenis != null ? const BorderSide(color: Colors.red, width: 1.4) : BorderSide.none,
                           ),
                         ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: _jenisCtrl,
+                    maxLength: 100,
+                    onChanged: (_) {
+                      if (_errJenis != null) setState(() => _errJenis = null);
+                    },
+                    style: PText.bodyMd.copyWith(color: PTheme.ink),
+                    decoration: InputDecoration(
+                      counterText: '',
+                      filled: true,
+                      fillColor: PTheme.background,
+                      prefixIcon: Icon(Icons.edit_note_rounded, size: 20, color: PTheme.inkSecondary),
+                      hintText: 'Pilih di atas, atau tulis jenis ibadah lain',
+                      hintStyle: PText.bodySm,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: _errJenis != null ? const BorderSide(color: Colors.red, width: 1.4) : BorderSide.none,
                       ),
-                      if (_errJenis != null) ...[
-                        const SizedBox(height: 4),
-                        Text(_errJenis!, style: const TextStyle(color: Colors.red, fontSize: 12)),
-                      ],
-                      const SizedBox(height: 16),
-                      _requiredLabel('Status Kehadiran'),
-                      const SizedBox(height: 6),
-                      Row(
-                        children: [
-                          _statusToggle('HADIR'),
-                          const SizedBox(width: 8),
-                          _statusToggle('IZIN'),
-                          const SizedBox(width: 8),
-                          _statusToggle('ALPA'),
-                        ],
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: _errJenis != null ? const BorderSide(color: Colors.red, width: 1.4) : BorderSide.none,
                       ),
-                      const SizedBox(height: 16),
-                      _requiredLabel('Tanggal'),
-                      const SizedBox(height: 6),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: BorderSide(color: _errJenis != null ? Colors.red : PTheme.primary, width: 1.4),
+                      ),
+                    ),
+                  ),
+                  if (_errJenis != null) ...[
+                    const SizedBox(height: 4),
+                    Text(_errJenis!, style: const TextStyle(color: Colors.red, fontSize: 12)),
+                  ],
+
+                  // --- Status
+                  const SizedBox(height: 20),
+                  _requiredLabel('Status Kehadiran'),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      _statusToggle('HADIR'),
+                      const SizedBox(width: 8),
+                      _statusToggle('IZIN'),
+                      const SizedBox(width: 8),
+                      _statusToggle('ALPA'),
+                    ],
+                  ),
+
+                  // --- Tanggal
+                  const SizedBox(height: 20),
+                  _requiredLabel('Tanggal'),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      _tanggalChip('Hari Ini', hariIni),
+                      _tanggalChip('Kemarin', kemarin),
                       InkWell(
                         onTap: _pilihTanggal,
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(999),
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 13),
-                          decoration: BoxDecoration(color: PTheme.background, borderRadius: BorderRadius.circular(12)),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: customDate ? PTheme.primary : PTheme.background,
+                            borderRadius: BorderRadius.circular(999),
+                          ),
                           child: Row(
+                            mainAxisSize: MainAxisSize.min,
                             children: [
-                              Expanded(
-                                child: Text(
-                                  '${_hariNama[_tanggal.weekday - 1]}, ${_tanggal.day} ${_bulanNama[_tanggal.month - 1]} ${_tanggal.year}',
-                                  style: PText.bodySm.copyWith(color: PTheme.ink, fontWeight: FontWeight.w600),
-                                ),
-                              ),
-                              Icon(Icons.calendar_today_outlined, size: 16, color: PTheme.inkSecondary),
+                              Icon(Icons.calendar_today_rounded,
+                                  size: 13, color: customDate ? Colors.white : PTheme.inkSecondary),
+                              const SizedBox(width: 6),
+                              Text(customDate ? _fmtTgl(_tanggal) : 'Pilih tanggal',
+                                  style: TextStyle(
+                                      fontFamily: 'Nunito',
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w800,
+                                      color: customDate ? Colors.white : PTheme.inkSecondary)),
                             ],
                           ),
                         ),
                       ),
-                      const SizedBox(height: 16),
-                      Row(
-                        children: [
-                          Text.rich(TextSpan(
-                              text: 'Catatan ',
-                              style: PText.labelMd.copyWith(color: PTheme.ink),
-                              children: [TextSpan(text: '(Opsional)', style: PText.bodySm)])),
-                          const Spacer(),
-                          Text('${_catatanCtrl.text.length}/200', style: PText.bodySm),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                      TextField(
-                        controller: _catatanCtrl,
-                        maxLength: 200,
-                        maxLines: 3,
-                        style: PText.bodyMd.copyWith(color: PTheme.ink),
-                        decoration: InputDecoration(
-                          counterText: '',
-                          filled: true,
-                          fillColor: PTheme.background,
-                          hintText: 'Contoh: terlambat 10 menit, sakit perut...',
-                          hintStyle: PText.bodySm,
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
                     ],
                   ),
-                ),
+
+                  // --- Catatan
+                  const SizedBox(height: 20),
+                  Row(
+                    children: [
+                      _requiredLabel('Catatan', required: false, hint: '(Opsional)'),
+                      const Spacer(),
+                      Text('${_catatanCtrl.text.length}/200', style: PText.bodySm),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _catatanCtrl,
+                    maxLength: 200,
+                    maxLines: 3,
+                    style: PText.bodyMd.copyWith(color: PTheme.ink),
+                    decoration: InputDecoration(
+                      counterText: '',
+                      filled: true,
+                      fillColor: PTheme.background,
+                      hintText: 'Contoh: terlambat 10 menit, sakit perut...',
+                      hintStyle: PText.bodySm,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: BorderSide(color: PTheme.primary, width: 1.4),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
               ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-                child: Column(
-                  children: [
-                    SizedBox(
-                      width: double.infinity,
-                      height: 48,
+            ),
+          ),
+          // --- Aksi
+          Container(
+            padding: const EdgeInsets.fromLTRB(20, 10, 20, 14),
+            decoration: BoxDecoration(border: Border(top: BorderSide(color: PColors.border))),
+            child: SafeArea(
+              top: false,
+              child: Row(
+                children: [
+                  Expanded(
+                    flex: 2,
+                    child: SizedBox(
+                      height: 50,
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.pop(context),
+                        style: OutlinedButton.styleFrom(
+                          side: BorderSide(color: PColors.border),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+                        ),
+                        child: Text('Batal', style: PText.bodyMd.copyWith(color: PTheme.ink, fontWeight: FontWeight.w800)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    flex: 3,
+                    child: SizedBox(
+                      height: 50,
                       child: FilledButton.icon(
                         onPressed: _submit,
                         style: FilledButton.styleFrom(
@@ -1263,22 +2026,17 @@ class _CatatIbadahDialogState extends State<_CatatIbadahDialog> {
                           foregroundColor: Colors.white,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
                         ),
-                        icon: const Icon(Icons.save_outlined, size: 17),
+                        icon: const Icon(Icons.save_outlined, size: 18),
                         label: const Text('Simpan Rekap',
-                            style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w700)),
+                            style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w800)),
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: Text('Batal', style: PText.bodyMd.copyWith(color: PTheme.ink, fontWeight: FontWeight.w700)),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
