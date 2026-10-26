@@ -167,6 +167,23 @@ export class AkademikService {
     return { count: itemMap.size, message: 'Absensi massal disimpan.' };
   }
 
+  // ===== Detail kelas (daftar santri) =====
+  async findKelasDetail(tenantId: string, id: string) {
+    const kelas = await this.prisma.kelas.findFirst({
+      where: { id, tenantId },
+      include: {
+        waliKelas: { select: { id: true, nama: true } },
+        santris: {
+          select: { id: true, nis: true, nama: true, jenisKelamin: true, status: true },
+          orderBy: { nama: 'asc' },
+        },
+        _count: { select: { santris: true } },
+      },
+    });
+    if (!kelas) throw new NotFoundException('Kelas tidak ditemukan.');
+    return kelas;
+  }
+
   // ===== Nilai =====
   async findAllNilai(
     tenantId: string,

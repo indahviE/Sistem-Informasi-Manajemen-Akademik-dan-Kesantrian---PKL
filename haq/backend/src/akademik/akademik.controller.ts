@@ -1,4 +1,4 @@
-import { Body, Controller, ForbiddenException, Get, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, ForbiddenException, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { AkademikService } from './akademik.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -13,14 +13,14 @@ import {
   QueryAbsensiDto,
 } from './dto/akademik.dto';
 import { JenisNilai, Role } from '@prisma/client';
-import { WaliService } from '../wali/wali.service'; 
+import { WaliService } from '../wali/wali.service';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller()
 export class AkademikController {
   constructor(
     private akademikService: AkademikService,
-    private waliService: WaliService,   
+    private waliService: WaliService,
   ) {}
 
   // ===== Absensi =====
@@ -51,6 +51,13 @@ export class AkademikController {
   @Post('absensi/bulk')
   bulkAbsensi(@TenantId() tenantId: string, @Body() dto: BulkAbsensiDto, @CurrentUser() user: RequestUser) {
     return this.akademikService.bulkAbsensi(tenantId, dto, user);
+  }
+
+  // ===== Detail kelas (daftar santri) =====
+  @Roles(Role.ADMIN, Role.PIMPINAN, Role.USTADZ, Role.MUSYRIF)
+  @Get('kelas/:id')
+  findKelasDetail(@TenantId() tenantId: string, @Param('id') id: string) {
+    return this.akademikService.findKelasDetail(tenantId, id);
   }
 
   // ===== Nilai =====
