@@ -46,7 +46,7 @@ export class AuthService {
     }
 
     if (user.status !== UserStatus.AKTIF) {
-      throw new UnauthorizedException('Akun tidak aktif.');
+      throw new ForbiddenException('Akun Anda dinonaktifkan. Hubungi admin pondok.');
     }
 
     if (user.role !== Role.SUPER_ADMIN && user.tenant?.status !== TenantStatus.AKTIF) {
