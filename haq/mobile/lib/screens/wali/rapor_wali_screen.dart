@@ -1,8 +1,12 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
+import 'package:printing/printing.dart';
 import '../../services/api_client.dart';
 import '../../services/app_scope.dart';
 import '../ui_utils.dart';
 import '../santri/santri_ui.dart' show SC;
+import 'rapor_pdf.dart';
 
 // ============================================================================
 // Token warna lokal
@@ -87,6 +91,8 @@ class _RaporWaliScreenState extends State<RaporWaliScreen> {
   int _index = 0;
   bool _loading = true;
   String? _error;
+  KopPondok? _kop;
+  bool _membuatPdf = false;
 
   @override
   void initState() {
@@ -135,6 +141,102 @@ class _RaporWaliScreenState extends State<RaporWaliScreen> {
         });
       }
     }
+  }
+
+  // ---------------------------------------------------------------- PDF
+
+  /// Data kop (nama, alamat, logo pondok) diambil sekali, lalu disimpan.
+  Future<KopPondok> _ambilKop() async {
+    if (_kop != null) return _kop!;
+    final api = AppScope.of(context).api;
+    try {
+      final res = await api.get('${ApiUrl.rapor}/kop');
+      var m = Map<String, dynamic>.from(res as Map);
+      if (m['data'] is Map) m = Map<String, dynamic>.from(m['data'] as Map);
+      _kop = await KopPondok.dariJson(m);
+      return _kop!;
+    } catch (_) {
+      return KopPondok.cadangan; // tidak disimpan, supaya dicoba lagi next time
+    }
+  }
+
+  Future<void> _jalankanPdf(
+    Future<void> Function(Uint8List bytes, String namaFile) aksi,
+  ) async {
+    if (_membuatPdf || _rapors.isEmpty) return;
+    final rapor = _rapors[_index];
+    setState(() => _membuatPdf = true);
+    try {
+      final kop = await _ambilKop();
+      final bytes = await buatRaporPdf(
+        santri: widget.santri,
+        rapor: rapor,
+        kop: kop,
+        warnaUtama: _DC.primary,
+      );
+      await aksi(bytes, namaFileRapor(widget.santri, rapor));
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Gagal membuat PDF. Coba lagi.')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _membuatPdf = false);
+    }
+  }
+
+  Future<void> _unduhPdf() =>
+      _jalankanPdf((bytes, nama) => Printing.sharePdf(bytes: bytes, filename: nama));
+
+  Future<void> _cetakPdf() => _jalankanPdf(
+        (bytes, nama) => Printing.layoutPdf(name: nama, onLayout: (_) async => bytes),
+      );
+
+  Widget _aksiPdf() {
+    final sibuk = _membuatPdf;
+    final bentuk = RoundedRectangleBorder(borderRadius: BorderRadius.circular(12));
+    return Row(
+      children: [
+        Expanded(
+          child: SizedBox(
+            height: 46,
+            child: FilledButton.icon(
+              onPressed: sibuk ? null : _unduhPdf,
+              style: FilledButton.styleFrom(
+                backgroundColor: _DC.primary,
+                foregroundColor: Colors.white,
+                shape: bentuk,
+                textStyle: _t(13.5, FontWeight.w800, Colors.white),
+              ),
+              icon: sibuk
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    )
+                  : const Icon(Icons.picture_as_pdf_rounded, size: 18),
+              label: Text(sibuk ? 'Menyiapkan PDF...' : 'Unduh PDF'),
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        SizedBox(
+          height: 46,
+          child: OutlinedButton.icon(
+            onPressed: sibuk ? null : _cetakPdf,
+            style: OutlinedButton.styleFrom(
+              foregroundColor: _DC.primary,
+              side: BorderSide(color: _DC.line),
+              shape: bentuk,
+              textStyle: _t(13.5, FontWeight.w800, _DC.primary),
+            ),
+            icon: const Icon(Icons.print_outlined, size: 18),
+            label: const Text('Cetak'),
+          ),
+        ),
+      ],
+    );
   }
 
   @override
@@ -229,6 +331,8 @@ class _RaporWaliScreenState extends State<RaporWaliScreen> {
             _periodePicker(),
             const SizedBox(height: 14),
           ],
+          _aksiPdf(),
+          const SizedBox(height: 14),
           RaporDokumen(
             key: ValueKey(rapor['id']),
             santri: widget.santri,
