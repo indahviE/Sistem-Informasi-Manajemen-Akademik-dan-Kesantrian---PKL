@@ -52,6 +52,8 @@ const _bulanPanjangPelanggaran = [
 ];
 
 const Color _kBorder = Color(0xFFE9E8E2);
+const Color _kRed = Color(0xFFBE123C);
+const Color _kAmber = Color(0xFF92650C);
 
 String _initialsOf(String nama) {
   final parts = nama.trim().split(RegExp(r'\s+')).where((e) => e.isNotEmpty).toList();
@@ -73,8 +75,8 @@ Color _poinBg(int poin) {
 }
 
 Color _poinFg(int poin) {
-  if (poin >= 4) return const Color(0xFFBE123C);
-  if (poin >= 2) return const Color(0xFF92650C);
+  if (poin >= 4) return _kRed;
+  if (poin >= 2) return _kAmber;
   return PTheme.primary;
 }
 
@@ -82,6 +84,12 @@ String _kategoriPoin(int poin) {
   if (poin >= 4) return 'Berat';
   if (poin >= 2) return 'Sedang';
   return 'Ringan';
+}
+
+IconData _poinIcon(int poin) {
+  if (poin >= 4) return Icons.report_rounded;
+  if (poin >= 2) return Icons.warning_amber_rounded;
+  return Icons.info_outline_rounded;
 }
 
 /// Ambil SEMUA santri (bukan hanya halaman pertama). Loop per halaman sampai
@@ -214,6 +222,13 @@ class _PelanggaranScreenState extends State<PelanggaranScreen> {
     final kelasRaw = santri?['kelas'];
     if (kelasRaw is Map) return (kelasRaw['namaKelas'] ?? kelasRaw['nama'] ?? '-').toString();
     return kelasRaw?.toString() ?? '-';
+  }
+
+  String _asramaLabel(Map<String, dynamic>? santri) {
+    final raw = santri?['asrama'];
+    if (raw is Map) return (raw['nama'] ?? '-').toString();
+    final s = raw?.toString() ?? '';
+    return s.isEmpty ? '-' : s;
   }
 
   List<String> get _rooms {
@@ -374,7 +389,7 @@ class _PelanggaranScreenState extends State<PelanggaranScreen> {
                                   child: filtered.isEmpty
                                       ? ListView(
                                           physics: const AlwaysScrollableScrollPhysics(),
-                                          padding: const EdgeInsets.fromLTRB(16, 24, 16, 24),
+                                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
                                           children: [
                                             _buildFilterBar(),
                                             emptyView(_all.isEmpty
@@ -384,7 +399,7 @@ class _PelanggaranScreenState extends State<PelanggaranScreen> {
                                         )
                                       : ListView(
                                           physics: const AlwaysScrollableScrollPhysics(),
-                                          padding: EdgeInsets.fromLTRB(16, 4, 16, (isWali || _isPimpinan) ? 24 : 100),
+                                          padding: EdgeInsets.fromLTRB(16, 8, 16, (isWali || _isPimpinan) ? 24 : 100),
                                           children: _buildListChildren(filtered, isWali),
                                         ),
                                 ),
@@ -398,10 +413,10 @@ class _PelanggaranScreenState extends State<PelanggaranScreen> {
                     child: FloatingActionButton.extended(
                       onPressed: _openInput,
                       tooltip: 'Catat Pelanggaran',
-                      elevation: 3,
+                      elevation: 4,
                       backgroundColor: PTheme.primary,
                       foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
                       icon: const Icon(Icons.add_rounded),
                       label: const Text('Catat Pelanggaran',
                           style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w800)),
@@ -432,21 +447,20 @@ class _PelanggaranScreenState extends State<PelanggaranScreen> {
   }
 
   // ---------------------------------------------------------------------
+  // Header
+  // ---------------------------------------------------------------------
   Widget _buildHeader() {
     return Container(
-      padding: const EdgeInsets.fromLTRB(12, 4, 16, 4),
-      decoration: BoxDecoration(
-        color: PTheme.background,
-        border: Border(bottom: BorderSide(color: _kBorder.withOpacity(0.0))),
-      ),
+      padding: const EdgeInsets.fromLTRB(12, 8, 16, 8),
+      color: PTheme.background,
       child: Row(
         children: [
           if (widget.onBack != null)
             Container(
-              margin: const EdgeInsets.only(right: 10),
+              margin: const EdgeInsets.only(right: 12),
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(14),
                 border: Border.all(color: _kBorder),
               ),
               child: IconButton(
@@ -454,11 +468,11 @@ class _PelanggaranScreenState extends State<PelanggaranScreen> {
                 tooltip: 'Kembali',
                 icon: Icon(Icons.arrow_back_rounded, color: PTheme.primary, size: 20),
                 padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+                constraints: const BoxConstraints(minWidth: 42, minHeight: 42),
               ),
             )
           else
-            const SizedBox(width: 4),
+            const SizedBox(width: 6),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -466,9 +480,9 @@ class _PelanggaranScreenState extends State<PelanggaranScreen> {
                 const Text('Riwayat Pelanggaran',
                     style: TextStyle(
                         fontFamily: 'Nunito',
-                        fontSize: 17,
+                        fontSize: 18,
                         fontWeight: FontWeight.w800,
-                        letterSpacing: -0.2,
+                        letterSpacing: -0.3,
                         color: Color(0xFF1B1C1A))),
                 const SizedBox(height: 2),
                 Text(_isWali ? 'Riwayat pelanggaran anak Anda' : widget.subtitle,
@@ -476,36 +490,48 @@ class _PelanggaranScreenState extends State<PelanggaranScreen> {
               ],
             ),
           ),
+          const SizedBox(width: 8),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
             decoration: BoxDecoration(
               color: PTheme.primary.withOpacity(0.10),
               borderRadius: BorderRadius.circular(999),
             ),
-            child: Text('${_all.length} Catatan',
-                style: TextStyle(
-                    fontFamily: 'Nunito', fontSize: 11, fontWeight: FontWeight.w800, color: PTheme.primary)),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.folder_open_rounded, size: 13, color: PTheme.primary),
+                const SizedBox(width: 5),
+                Text('${_all.length}',
+                    style: TextStyle(
+                        fontFamily: 'Nunito', fontSize: 12, fontWeight: FontWeight.w800, color: PTheme.primary)),
+              ],
+            ),
           ),
         ],
       ),
     );
   }
 
+  // ---------------------------------------------------------------------
+  // Filter
+  // ---------------------------------------------------------------------
   Widget _buildFilterBar() {
-    final isWali = _isWali;
     const waktu = ['Semua', 'Minggu Ini', 'Bulan Ini'];
+    final rooms = _rooms;
 
-    return Container(
-      padding: const EdgeInsets.fromLTRB(0, 4, 0, 6),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            height: 46,
+            height: 48,
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(16),
               border: Border.all(color: _kBorder),
+              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.025), blurRadius: 8, offset: const Offset(0, 2))],
             ),
             child: TextField(
               controller: _searchCtrl,
@@ -513,7 +539,7 @@ class _PelanggaranScreenState extends State<PelanggaranScreen> {
               decoration: InputDecoration(
                 border: InputBorder.none,
                 isDense: true,
-                contentPadding: const EdgeInsets.symmetric(vertical: 13),
+                contentPadding: const EdgeInsets.symmetric(vertical: 14),
                 hintText: 'Cari nama santri, NIS, atau pelanggaran...',
                 hintStyle: PText.bodySm,
                 prefixIcon: const Icon(Icons.search_rounded, size: 20, color: PTheme.inkSecondary),
@@ -526,101 +552,115 @@ class _PelanggaranScreenState extends State<PelanggaranScreen> {
             ),
           ),
           const SizedBox(height: 10),
-          if (isWali)
-            Row(
+          // Segmented control periode
+          Container(
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: _kBorder),
+            ),
+            child: Row(
               children: [
-                for (int i = 0; i < waktu.length; i++) ...[
-                  if (i > 0) const SizedBox(width: 8),
+                for (final f in waktu)
                   Expanded(
-                    child: _chip(
-                      label: waktu[i],
-                      count: waktu[i] == 'Semua' ? _all.length : _countTime(waktu[i]),
-                      selected: _timeFilter == waktu[i],
-                      onTap: () => setState(() => _timeFilter = waktu[i]),
-                      expand: true,
-                    ),
-                  ),
-                ],
-              ],
-            )
-          else
-            SizedBox(
-              height: 36,
-              child: ListView(
-                scrollDirection: Axis.horizontal,
-                children: [
-                  for (final f in waktu) ...[
-                    _chip(
+                    child: _segmentItem(
                       label: f,
                       count: f == 'Semua' ? _all.length : _countTime(f),
                       selected: _timeFilter == f,
                       onTap: () => setState(() => _timeFilter = f),
                     ),
-                    const SizedBox(width: 8),
-                  ],
-                  Container(
-                    width: 1,
-                    height: 22,
-                    color: PTheme.inkSecondary.withOpacity(0.25),
-                    margin: const EdgeInsets.only(left: 2, right: 10, top: 7, bottom: 7),
                   ),
-                  for (final r in _rooms) ...[
-                    _chip(label: r, selected: _roomFilter == r, onTap: () => setState(() => _roomFilter = r)),
-                    const SizedBox(width: 8),
-                  ],
-                ],
+              ],
+            ),
+          ),
+          if (!_isWali && rooms.length > 1) ...[
+            const SizedBox(height: 10),
+            SizedBox(
+              height: 34,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: rooms.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 8),
+                itemBuilder: (_, i) {
+                  final r = rooms[i];
+                  return _chip(
+                    label: r,
+                    icon: i == 0 ? Icons.apps_rounded : Icons.meeting_room_outlined,
+                    selected: _roomFilter == r,
+                    onTap: () => setState(() => _roomFilter = r),
+                  );
+                },
               ),
             ),
+          ],
         ],
+      ),
+    );
+  }
+
+  Widget _segmentItem({
+    required String label,
+    required int count,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 4),
+        decoration: BoxDecoration(
+          color: selected ? PTheme.primary : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontFamily: 'Nunito',
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w800,
+                  color: selected ? Colors.white : PTheme.inkSecondary,
+                ),
+              ),
+            ),
+            const SizedBox(width: 5),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+              decoration: BoxDecoration(
+                color: selected ? Colors.white.withOpacity(0.22) : PTheme.background,
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Text(
+                '$count',
+                style: TextStyle(
+                  fontFamily: 'Nunito',
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w800,
+                  color: selected ? Colors.white : PTheme.ink,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
   Widget _chip({
     required String label,
-    int? count,
+    IconData? icon,
     required bool selected,
     required VoidCallback onTap,
-    bool expand = false,
   }) {
-    final isi = Row(
-      mainAxisSize: MainAxisSize.min,
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Flexible(
-          child: Text(
-            label,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontFamily: 'Nunito',
-              fontSize: 12.5,
-              fontWeight: FontWeight.w700,
-              color: selected ? Colors.white : PTheme.inkSecondary,
-            ),
-          ),
-        ),
-        if (count != null) ...[
-          const SizedBox(width: 6),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-            decoration: BoxDecoration(
-              color: selected ? Colors.white.withOpacity(0.22) : PTheme.background,
-              borderRadius: BorderRadius.circular(999),
-            ),
-            child: Text(
-              '$count',
-              style: TextStyle(
-                fontFamily: 'Nunito',
-                fontSize: 10.5,
-                fontWeight: FontWeight.w800,
-                color: selected ? Colors.white : PTheme.ink,
-              ),
-            ),
-          ),
-        ],
-      ],
-    );
-
     return Material(
       color: selected ? PTheme.primary : Colors.white,
       borderRadius: BorderRadius.circular(999),
@@ -628,13 +668,29 @@ class _PelanggaranScreenState extends State<PelanggaranScreen> {
         onTap: onTap,
         borderRadius: BorderRadius.circular(999),
         child: Container(
-          alignment: expand ? Alignment.center : null,
-          padding: EdgeInsets.symmetric(horizontal: expand ? 8 : 14, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(999),
             border: Border.all(color: selected ? PTheme.primary : _kBorder),
           ),
-          child: isi,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (icon != null) ...[
+                Icon(icon, size: 14, color: selected ? Colors.white : PTheme.inkSecondary),
+                const SizedBox(width: 5),
+              ],
+              Text(
+                label,
+                style: TextStyle(
+                  fontFamily: 'Nunito',
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w700,
+                  color: selected ? Colors.white : PTheme.inkSecondary,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -645,18 +701,31 @@ class _PelanggaranScreenState extends State<PelanggaranScreen> {
   // ---------------------------------------------------------------------
   Widget _buildRingkasan(List<Map<String, dynamic>> data) {
     var totalPoin = 0;
+    var ringan = 0;
+    var sedang = 0;
     var berat = 0;
     for (final p in data) {
       final poin = (p['poin'] as num?)?.toInt() ?? 0;
       totalPoin += poin;
-      if (poin >= 4) berat++;
+      if (poin >= 4) {
+        berat++;
+      } else if (poin >= 2) {
+        sedang++;
+      } else {
+        ringan++;
+      }
     }
 
     Widget stat(String value, String label, IconData icon) => Expanded(
           child: Column(
             children: [
-              Icon(icon, size: 16, color: Colors.white.withOpacity(0.75)),
-              const SizedBox(height: 6),
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(color: Colors.white.withOpacity(0.14), shape: BoxShape.circle),
+                child: Icon(icon, size: 16, color: Colors.white),
+              ),
+              const SizedBox(height: 8),
               Text(value,
                   style: const TextStyle(
                       fontFamily: 'Nunito', fontSize: 22, fontWeight: FontWeight.w800, color: Colors.white)),
@@ -671,27 +740,76 @@ class _PelanggaranScreenState extends State<PelanggaranScreen> {
           ),
         );
 
-    Widget divider() => Container(width: 1, height: 44, color: Colors.white.withOpacity(0.2));
+    Widget divider() => Container(width: 1, height: 50, color: Colors.white.withOpacity(0.18));
+
+    Widget legend(Color c, String label, int n) => Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(width: 8, height: 8, decoration: BoxDecoration(color: c, shape: BoxShape.circle)),
+            const SizedBox(width: 5),
+            Text('$label $n',
+                style: TextStyle(
+                    fontFamily: 'Nunito',
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white.withOpacity(0.85))),
+          ],
+        );
+
+    const cRingan = Color(0xFF86EFAC);
+    const cSedang = Color(0xFFFCD34D);
+    const cBerat = Color(0xFFFDA4AF);
+    final total = ringan + sedang + berat;
 
     return Container(
-      margin: const EdgeInsets.only(top: 4, bottom: 6),
-      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
+      margin: const EdgeInsets.only(top: 6, bottom: 4),
+      padding: const EdgeInsets.fromLTRB(12, 18, 12, 14),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [PTheme.primary, PTheme.primary.withOpacity(0.82)],
+          colors: [PTheme.primary, PTheme.primary.withOpacity(0.80)],
         ),
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: [BoxShadow(color: PTheme.primary.withOpacity(0.18), blurRadius: 14, offset: const Offset(0, 6))],
+        borderRadius: BorderRadius.circular(22),
+        boxShadow: [BoxShadow(color: PTheme.primary.withOpacity(0.22), blurRadius: 18, offset: const Offset(0, 8))],
       ),
-      child: Row(
+      child: Column(
         children: [
-          stat('${data.length}', 'Catatan', Icons.description_outlined),
-          divider(),
-          stat('$totalPoin', 'Total Poin', Icons.stars_rounded),
-          divider(),
-          stat('$berat', 'Kategori Berat', Icons.warning_amber_rounded),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              stat('${data.length}', 'Catatan', Icons.description_outlined),
+              divider(),
+              stat('$totalPoin', 'Total Poin', Icons.stars_rounded),
+              divider(),
+              stat('$berat', 'Kategori Berat', Icons.warning_amber_rounded),
+            ],
+          ),
+          if (total > 0) ...[
+            const SizedBox(height: 16),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(999),
+              child: SizedBox(
+                height: 7,
+                child: Row(
+                  children: [
+                    if (ringan > 0) Expanded(flex: ringan, child: Container(color: cRingan)),
+                    if (sedang > 0) Expanded(flex: sedang, child: Container(color: cSedang)),
+                    if (berat > 0) Expanded(flex: berat, child: Container(color: cBerat)),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                legend(cRingan, 'Ringan', ringan),
+                legend(cSedang, 'Sedang', sedang),
+                legend(cBerat, 'Berat', berat),
+              ],
+            ),
+          ],
         ],
       ),
     );
@@ -699,9 +817,11 @@ class _PelanggaranScreenState extends State<PelanggaranScreen> {
 
   Widget _groupHeader(String label) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(4, 14, 4, 8),
+      padding: const EdgeInsets.fromLTRB(4, 18, 4, 10),
       child: Row(
         children: [
+          Icon(Icons.calendar_month_rounded, size: 14, color: PTheme.inkSecondary),
+          const SizedBox(width: 6),
           Text(label.toUpperCase(),
               style: TextStyle(
                   fontFamily: 'Nunito',
@@ -722,36 +842,43 @@ class _PelanggaranScreenState extends State<PelanggaranScreen> {
   Widget _waliPanduan() {
     Widget baris(String judul, String ket, int contohPoin) => Padding(
           padding: const EdgeInsets.only(top: 10),
-          child: Row(
-            children: [
-              Container(
-                width: 34,
-                height: 34,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(color: _poinBg(contohPoin), shape: BoxShape.circle),
-                child: Icon(Icons.stars_rounded, size: 16, color: _poinFg(contohPoin)),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(judul,
-                        style: PText.bodyMd.copyWith(color: PTheme.ink, fontWeight: FontWeight.w700, fontSize: 13)),
-                    Text(ket, style: PText.bodySm.copyWith(fontSize: 11.5)),
-                  ],
+          child: Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: _poinBg(contohPoin).withOpacity(0.55),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 34,
+                  height: 34,
+                  alignment: Alignment.center,
+                  decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                  child: Icon(_poinIcon(contohPoin), size: 17, color: _poinFg(contohPoin)),
                 ),
-              ),
-            ],
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(judul,
+                          style: PText.bodyMd.copyWith(color: PTheme.ink, fontWeight: FontWeight.w800, fontSize: 13)),
+                      Text(ket, style: PText.bodySm.copyWith(fontSize: 11.5)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         );
 
     return Container(
-      margin: const EdgeInsets.only(top: 10),
+      margin: const EdgeInsets.only(top: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(color: _kBorder),
       ),
       child: Column(
@@ -759,12 +886,18 @@ class _PelanggaranScreenState extends State<PelanggaranScreen> {
         children: [
           Row(
             children: [
-              Icon(Icons.info_outline_rounded, size: 17, color: PTheme.primary),
-              const SizedBox(width: 6),
+              Container(
+                width: 30,
+                height: 30,
+                decoration: BoxDecoration(
+                    color: PTheme.primary.withOpacity(0.10), borderRadius: BorderRadius.circular(10)),
+                child: Icon(Icons.info_outline_rounded, size: 17, color: PTheme.primary),
+              ),
+              const SizedBox(width: 10),
               Text('Cara membaca poin', style: PText.bodyMd.copyWith(color: PTheme.ink, fontWeight: FontWeight.w800)),
             ],
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 8),
           Text('Poin pelanggaran bersifat akumulatif. Semakin besar poin, semakin berat kategorinya.',
               style: PText.bodySm.copyWith(fontSize: 11.5, height: 1.4)),
           baris('Ringan', '1 poin', 1),
@@ -774,9 +907,18 @@ class _PelanggaranScreenState extends State<PelanggaranScreen> {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(color: PTheme.background, borderRadius: BorderRadius.circular(12)),
-            child: Text(
-              'Ada pertanyaan tentang catatan ini? Silakan hubungi musyrif atau pihak pondok.',
-              style: PText.bodySm.copyWith(fontSize: 11.5, height: 1.4),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(Icons.support_agent_rounded, size: 16, color: PTheme.inkSecondary),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Ada pertanyaan tentang catatan ini? Silakan hubungi musyrif atau pihak pondok.',
+                    style: PText.bodySm.copyWith(fontSize: 11.5, height: 1.4),
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -785,6 +927,29 @@ class _PelanggaranScreenState extends State<PelanggaranScreen> {
   }
 
   // ---------------------------------------------------------------------
+  // Kartu pelanggaran
+  // ---------------------------------------------------------------------
+  Widget _statusChip(bool selesai) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+      decoration: BoxDecoration(
+          color: selesai ? const Color(0xFFDDF0E3) : PTheme.background,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: selesai ? Colors.transparent : _kBorder)),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(selesai ? Icons.check_circle_rounded : Icons.edit_note_rounded,
+            size: 12, color: selesai ? PTheme.primary : PTheme.inkSecondary),
+        const SizedBox(width: 4),
+        Text(selesai ? 'Selesai' : 'Tercatat',
+            style: TextStyle(
+                fontFamily: 'Nunito',
+                fontSize: 10.5,
+                fontWeight: FontWeight.w800,
+                color: selesai ? PTheme.primary : PTheme.inkSecondary)),
+      ]),
+    );
+  }
+
   Widget _pelanggaranCard(Map<String, dynamic> p) {
     final isWali = _isWali;
     final santri = _santriOf(p);
@@ -798,141 +963,162 @@ class _PelanggaranScreenState extends State<PelanggaranScreen> {
     final selesai = status != 'DICATAT';
     final tindakLanjut = p['tindakLanjut']?.toString().trim();
     final tanggal = DateTime.tryParse(p['tanggal']?.toString() ?? '')?.toLocal();
+    final accent = _poinFg(poin);
+    final adaTindakLanjut = tindakLanjut != null && tindakLanjut.isNotEmpty && tindakLanjut != 'Tidak ada';
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      clipBehavior: Clip.antiAlias,
+      margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(color: _kBorder),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 8, offset: const Offset(0, 2))],
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.035), blurRadius: 12, offset: const Offset(0, 4))],
       ),
-      child: IntrinsicHeight(
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Container(width: 5, color: _poinFg(poin)),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.all(14),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(20),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () => _showDetail(p),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // --- Identitas santri
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 14, 14, 0),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 42,
+                      height: 42,
+                      decoration: BoxDecoration(color: PTheme.primary.withOpacity(0.10), shape: BoxShape.circle),
+                      alignment: Alignment.center,
+                      child: Text(_initialsOf(nama),
+                          style: TextStyle(
+                              fontFamily: 'Nunito',
+                              fontSize: 14,
+                              fontWeight: FontWeight.w800,
+                              color: PTheme.primary)),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(nama,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: PText.bodyMd
+                                  .copyWith(color: PTheme.ink, fontWeight: FontWeight.w800, fontSize: 14.5)),
+                          const SizedBox(height: 1),
+                          Text('NIS $nis • Kelas $kelas',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: PText.bodySm.copyWith(fontSize: 11)),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    _statusChip(selesai),
+                  ],
+                ),
+              ),
+              // --- Detail pelanggaran
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 12, 14, 0),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: _poinBg(poin).withOpacity(0.5),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: accent.withOpacity(0.16)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Container(
+                            width: 36,
+                            height: 36,
+                            decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                            child: Icon(_poinIcon(poin), size: 19, color: accent),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(jenis,
+                                    style: PText.bodyMd
+                                        .copyWith(color: PTheme.ink, fontWeight: FontWeight.w800, fontSize: 13.5)),
+                                const SizedBox(height: 2),
+                                Text('Kategori ${_kategoriPoin(poin)}',
+                                    style: TextStyle(
+                                        fontFamily: 'Nunito',
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w700,
+                                        color: accent)),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                            decoration: BoxDecoration(color: accent, borderRadius: BorderRadius.circular(999)),
+                            child: Text(
+                              isWali ? '$poin Poin' : '+$poin Poin',
+                              style: const TextStyle(
+                                  fontFamily: 'Nunito',
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w800,
+                                  color: Colors.white),
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (keterangan != null && keterangan.isNotEmpty) ...[
+                        const SizedBox(height: 10),
+                        Text(keterangan,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: PText.bodySm.copyWith(fontSize: 12, height: 1.45, color: PTheme.ink)),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+              // --- Footer
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
-                        Container(
-                          width: 40,
-                          height: 40,
-                          decoration:
-                              BoxDecoration(color: PTheme.primary.withOpacity(0.10), shape: BoxShape.circle),
-                          alignment: Alignment.center,
-                          child: Text(_initialsOf(nama),
-                              style: TextStyle(
-                                  fontFamily: 'Nunito',
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w800,
-                                  color: PTheme.primary)),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(nama,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: PText.bodyMd
-                                      .copyWith(color: PTheme.ink, fontWeight: FontWeight.w800, fontSize: 14.5)),
-                              const SizedBox(height: 1),
-                              Text('NIS $nis • Kelas $kelas',
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: PText.bodySm.copyWith(fontSize: 11)),
-                            ],
+                        if (tanggal != null) ...[
+                          const Icon(Icons.schedule_rounded, size: 14, color: PTheme.inkSecondary),
+                          const SizedBox(width: 5),
+                          Expanded(
+                            child: Text(_fmtTanggalLengkap(tanggal),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: PText.bodySm.copyWith(fontSize: 11.5)),
                           ),
-                        ),
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-                          decoration: BoxDecoration(
-                              color: selesai ? const Color(0xFFDDF0E3) : PTheme.background,
-                              borderRadius: BorderRadius.circular(999)),
-                          child: Row(mainAxisSize: MainAxisSize.min, children: [
-                            Icon(selesai ? Icons.check_circle_rounded : Icons.edit_note_rounded,
-                                size: 12, color: selesai ? PTheme.primary : PTheme.inkSecondary),
-                            const SizedBox(width: 4),
-                            Text(selesai ? 'Selesai' : 'Tercatat',
-                                style: TextStyle(
-                                    fontFamily: 'Nunito',
-                                    fontSize: 10.5,
-                                    fontWeight: FontWeight.w800,
-                                    color: selesai ? PTheme.primary : PTheme.inkSecondary)),
-                          ]),
-                        ),
+                        ] else
+                          const Spacer(),
+                        Text('Detail',
+                            style: TextStyle(
+                                fontFamily: 'Nunito',
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w800,
+                                color: PTheme.primary)),
+                        Icon(Icons.chevron_right_rounded, size: 16, color: PTheme.primary),
                       ],
                     ),
-                    const SizedBox(height: 12),
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(color: PTheme.background, borderRadius: BorderRadius.circular(12)),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Expanded(
-                                child: Text(jenis,
-                                    style: PText.bodyMd.copyWith(
-                                        color: PTheme.ink, fontWeight: FontWeight.w800, fontSize: 13.5)),
-                              ),
-                              const SizedBox(width: 8),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-                                decoration:
-                                    BoxDecoration(color: _poinBg(poin), borderRadius: BorderRadius.circular(999)),
-                                child: Text(
-                                  isWali ? '$poin Poin' : '+$poin Poin',
-                                  style: TextStyle(
-                                      fontFamily: 'Nunito',
-                                      fontSize: 11.5,
-                                      fontWeight: FontWeight.w800,
-                                      color: _poinFg(poin)),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 4),
-                          Text('Kategori ${_kategoriPoin(poin)}',
-                              style: TextStyle(
-                                  fontFamily: 'Nunito',
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w700,
-                                  color: _poinFg(poin))),
-                          if (keterangan != null && keterangan.isNotEmpty) ...[
-                            const SizedBox(height: 6),
-                            Text(keterangan,
-                                maxLines: 3,
-                                overflow: TextOverflow.ellipsis,
-                                style: PText.bodySm.copyWith(fontSize: 12, height: 1.4)),
-                          ],
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    if (tanggal != null)
-                      Row(children: [
-                        const Icon(Icons.schedule_rounded, size: 14, color: PTheme.inkSecondary),
-                        const SizedBox(width: 5),
-                        Expanded(
-                          child: Text(_fmtTanggalLengkap(tanggal),
-                              maxLines: 1, overflow: TextOverflow.ellipsis, style: PText.bodySm.copyWith(fontSize: 11.5)),
-                        ),
-                      ]),
-                    if (tindakLanjut != null && tindakLanjut.isNotEmpty && tindakLanjut != 'Tidak ada') ...[
+                    if (adaTindakLanjut) ...[
                       const SizedBox(height: 8),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
@@ -958,8 +1144,179 @@ class _PelanggaranScreenState extends State<PelanggaranScreen> {
                   ],
                 ),
               ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------------------
+  // Bottom sheet detail (hanya tampilan, data dari item yang sama)
+  // ---------------------------------------------------------------------
+  void _showDetail(Map<String, dynamic> p) {
+    final santri = _santriOf(p);
+    final nama = (santri?['nama'] ?? 'Santri').toString();
+    final nis = (santri?['nis'] ?? '-').toString();
+    final kelas = _kelasLabel(santri);
+    final asrama = _asramaLabel(santri);
+    final jenis = (p['jenisPelanggaran'] ?? '-').toString();
+    final keterangan = p['keterangan']?.toString().trim();
+    final poin = (p['poin'] as num?)?.toInt() ?? 0;
+    final status = (p['status'] ?? 'DICATAT').toString();
+    final selesai = status != 'DICATAT';
+    final tindakLanjut = p['tindakLanjut']?.toString().trim();
+    final tanggal = DateTime.tryParse(p['tanggal']?.toString() ?? '')?.toLocal();
+    final accent = _poinFg(poin);
+
+    Widget row(IconData icon, String label, String value) => Padding(
+          padding: const EdgeInsets.symmetric(vertical: 9),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(color: PTheme.background, borderRadius: BorderRadius.circular(10)),
+                child: Icon(icon, size: 16, color: PTheme.inkSecondary),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(label, style: PText.bodySm.copyWith(fontSize: 11)),
+                    const SizedBox(height: 2),
+                    Text(value,
+                        style: PText.bodyMd
+                            .copyWith(color: PTheme.ink, fontWeight: FontWeight.w700, fontSize: 13.5, height: 1.4)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: PTheme.surface,
+      constraints: const BoxConstraints(maxWidth: 480),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(28))),
+      builder: (ctx) => SafeArea(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: MediaQuery.of(ctx).size.height * 0.85),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(20, 10, 20, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                        color: PTheme.inkSecondary.withOpacity(0.25), borderRadius: BorderRadius.circular(999)),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(color: PTheme.primary, shape: BoxShape.circle),
+                      alignment: Alignment.center,
+                      child: Text(_initialsOf(nama),
+                          style: const TextStyle(
+                              fontFamily: 'Nunito', fontSize: 16, fontWeight: FontWeight.w800, color: Colors.white)),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(nama, style: PText.headlineSm),
+                          const SizedBox(height: 2),
+                          Text('NIS $nis', style: PText.bodySm),
+                        ],
+                      ),
+                    ),
+                    _statusChip(selesai),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: _poinBg(poin).withOpacity(0.55),
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: accent.withOpacity(0.18)),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                        child: Icon(_poinIcon(poin), size: 22, color: accent),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(jenis,
+                                style: PText.bodyMd
+                                    .copyWith(color: PTheme.ink, fontWeight: FontWeight.w800, fontSize: 14.5)),
+                            const SizedBox(height: 2),
+                            Text('Kategori ${_kategoriPoin(poin)}',
+                                style: TextStyle(
+                                    fontFamily: 'Nunito',
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    color: accent)),
+                          ],
+                        ),
+                      ),
+                      Column(
+                        children: [
+                          Text('$poin',
+                              style: TextStyle(
+                                  fontFamily: 'Nunito', fontSize: 24, fontWeight: FontWeight.w800, color: accent)),
+                          Text('poin',
+                              style: TextStyle(
+                                  fontFamily: 'Nunito', fontSize: 11, fontWeight: FontWeight.w700, color: accent)),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 10),
+                row(Icons.school_outlined, 'Kelas & Kamar', 'Kelas $kelas • Kamar $asrama'),
+                if (tanggal != null) row(Icons.schedule_rounded, 'Waktu Kejadian', _fmtTanggalLengkap(tanggal)),
+                if (keterangan != null && keterangan.isNotEmpty) row(Icons.notes_rounded, 'Keterangan', keterangan),
+                row(Icons.fact_check_outlined, 'Tindak Lanjut',
+                    (tindakLanjut == null || tindakLanjut.isEmpty) ? 'Tidak ada' : tindakLanjut),
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: FilledButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: PTheme.primary,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+                    ),
+                    child: const Text('Tutup', style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w800)),
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
@@ -1026,7 +1383,7 @@ class _InputPelanggaranDialogState extends State<_InputPelanggaranDialog> {
       isScrollControlled: true,
       backgroundColor: PTheme.surface,
       constraints: const BoxConstraints(maxWidth: 480),
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(28))),
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setSheet) {
           final query = q.trim().toLowerCase();
@@ -1055,7 +1412,7 @@ class _InputPelanggaranDialogState extends State<_InputPelanggaranDialog> {
                             color: PTheme.inkSecondary.withOpacity(0.25), borderRadius: BorderRadius.circular(999)),
                       ),
                     ),
-                    const SizedBox(height: 14),
+                    const SizedBox(height: 16),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 20),
                       child: Row(
@@ -1075,7 +1432,7 @@ class _InputPelanggaranDialogState extends State<_InputPelanggaranDialog> {
                         ],
                       ),
                     ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 12),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 20),
                       child: TextField(
@@ -1088,13 +1445,13 @@ class _InputPelanggaranDialogState extends State<_InputPelanggaranDialog> {
                           hintText: 'Cari nama / NIS...',
                           hintStyle: PText.bodySm,
                           prefixIcon: const Icon(Icons.search_rounded, size: 20, color: PTheme.inkSecondary),
-                          contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                          contentPadding: const EdgeInsets.symmetric(vertical: 13),
                           border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                              borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
                         ),
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 6),
                     Expanded(
                       child: list.isEmpty
                           ? Center(child: Text('Santri tidak ditemukan.', style: PText.bodySm))
@@ -1106,12 +1463,12 @@ class _InputPelanggaranDialogState extends State<_InputPelanggaranDialog> {
                                 final jml = _countPelanggaranFor(s['id'].toString());
                                 final dipilih = _santri != null && _santri!['id'] == s['id'];
                                 return ListTile(
-                                  contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+                                  contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
                                   selected: dipilih,
                                   selectedTileColor: PTheme.primary.withOpacity(0.06),
                                   leading: Container(
-                                    width: 38,
-                                    height: 38,
+                                    width: 40,
+                                    height: 40,
                                     decoration: BoxDecoration(color: PTheme.primary, shape: BoxShape.circle),
                                     alignment: Alignment.center,
                                     child: Text(_initialsOf(s['nama']?.toString() ?? '-'),
@@ -1136,7 +1493,7 @@ class _InputPelanggaranDialogState extends State<_InputPelanggaranDialog> {
                                       style: TextStyle(
                                         fontFamily: 'Nunito',
                                         fontSize: 10.5,
-                                        color: jml == 0 ? PTheme.primary : const Color(0xFF92650C),
+                                        color: jml == 0 ? PTheme.primary : _kAmber,
                                         fontWeight: FontWeight.w800,
                                       ),
                                     ),
@@ -1188,11 +1545,12 @@ class _InputPelanggaranDialogState extends State<_InputPelanggaranDialog> {
     final label = j['label'] as String;
     final p = j['poin'] as int;
     final selected = _jenisTerpilih != null && _jenisTerpilih!['label'] == label;
+    final accent = _poinFg(p);
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: InkWell(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(14),
         onTap: () => setState(() {
           _jenisTerpilih = j;
           _errorJenis = null;
@@ -1201,14 +1559,18 @@ class _InputPelanggaranDialogState extends State<_InputPelanggaranDialog> {
           duration: const Duration(milliseconds: 160),
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
           decoration: BoxDecoration(
-            color: selected ? PTheme.primary.withOpacity(0.07) : Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: selected ? PTheme.primary : _kBorder, width: selected ? 1.5 : 1),
+            color: selected ? accent.withOpacity(0.07) : Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: selected ? accent : _kBorder, width: selected ? 1.5 : 1),
           ),
           child: Row(
             children: [
-              Icon(selected ? Icons.radio_button_checked_rounded : Icons.radio_button_off_rounded,
-                  size: 20, color: selected ? PTheme.primary : PTheme.inkSecondary),
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(color: _poinBg(p), shape: BoxShape.circle),
+                child: Icon(_poinIcon(p), size: 18, color: accent),
+              ),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(label,
@@ -1220,9 +1582,11 @@ class _InputPelanggaranDialogState extends State<_InputPelanggaranDialog> {
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(color: _poinBg(p), borderRadius: BorderRadius.circular(999)),
                 child: Text('$p poin',
-                    style: TextStyle(
-                        fontFamily: 'Nunito', fontSize: 11, fontWeight: FontWeight.w800, color: _poinFg(p))),
+                    style: TextStyle(fontFamily: 'Nunito', fontSize: 11, fontWeight: FontWeight.w800, color: accent)),
               ),
+              const SizedBox(width: 8),
+              Icon(selected ? Icons.check_circle_rounded : Icons.radio_button_off_rounded,
+                  size: 20, color: selected ? accent : PTheme.inkSecondary.withOpacity(0.6)),
             ],
           ),
         ),
@@ -1242,12 +1606,21 @@ class _InputPelanggaranDialogState extends State<_InputPelanggaranDialog> {
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 420, maxHeight: 700),
         child: Container(
-          decoration: BoxDecoration(color: PTheme.surface, borderRadius: BorderRadius.circular(24)),
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(color: PTheme.surface, borderRadius: BorderRadius.circular(28)),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 18, 10, 12),
+              // --- Header berwarna
+              Container(
+                padding: const EdgeInsets.fromLTRB(20, 18, 8, 18),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [PTheme.primary, PTheme.primary.withOpacity(0.82)],
+                  ),
+                ),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
@@ -1255,44 +1628,53 @@ class _InputPelanggaranDialogState extends State<_InputPelanggaranDialog> {
                       width: 44,
                       height: 44,
                       decoration: BoxDecoration(
-                          color: PTheme.primary.withOpacity(0.10), borderRadius: BorderRadius.circular(14)),
-                      child: Icon(Icons.gavel_rounded, color: PTheme.primary, size: 21),
+                          color: Colors.white.withOpacity(0.16), borderRadius: BorderRadius.circular(14)),
+                      child: const Icon(Icons.gavel_rounded, color: Colors.white, size: 21),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('Input Pelanggaran', style: PText.headlineSm),
+                          const Text('Input Pelanggaran',
+                              style: TextStyle(
+                                  fontFamily: 'Nunito',
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.w800,
+                                  color: Colors.white)),
                           const SizedBox(height: 1),
-                          Text('Form Pencatatan Resmi', style: PText.bodySm),
+                          Text('Form Pencatatan Resmi',
+                              style: TextStyle(
+                                  fontFamily: 'Nunito',
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.white.withOpacity(0.8))),
                         ],
                       ),
                     ),
                     IconButton(
                         onPressed: () => Navigator.pop(context),
-                        icon: const Icon(Icons.close_rounded, size: 21),
+                        icon: const Icon(Icons.close_rounded, size: 21, color: Colors.white),
                         tooltip: 'Tutup'),
                   ],
                 ),
               ),
-              Container(height: 1, color: _kBorder),
               Expanded(
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                  padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _requiredLabel('Pilih Santri'),
-                      const SizedBox(height: 8),
+                      _sectionTitle(1, 'Pilih Santri', required: true),
+                      const SizedBox(height: 10),
                       InkWell(
                         onTap: _pilihSantri,
-                        borderRadius: BorderRadius.circular(14),
+                        borderRadius: BorderRadius.circular(16),
                         child: Container(
-                          padding: const EdgeInsets.all(10),
+                          padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
                             color: Colors.white,
-                            borderRadius: BorderRadius.circular(14),
+                            borderRadius: BorderRadius.circular(16),
                             border: Border.all(
                                 color: _errorSantri != null ? Colors.red : _kBorder,
                                 width: _errorSantri != null ? 1.4 : 1),
@@ -1300,8 +1682,8 @@ class _InputPelanggaranDialogState extends State<_InputPelanggaranDialog> {
                           child: Row(
                             children: [
                               Container(
-                                width: 40,
-                                height: 40,
+                                width: 42,
+                                height: 42,
                                 decoration: BoxDecoration(color: PTheme.primary, shape: BoxShape.circle),
                                 alignment: Alignment.center,
                                 child: Text(_initialsOf(nama),
@@ -1311,7 +1693,7 @@ class _InputPelanggaranDialogState extends State<_InputPelanggaranDialog> {
                                         fontWeight: FontWeight.w800,
                                         color: Colors.white)),
                               ),
-                              const SizedBox(width: 10),
+                              const SizedBox(width: 12),
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1336,23 +1718,29 @@ class _InputPelanggaranDialogState extends State<_InputPelanggaranDialog> {
                         const SizedBox(height: 4),
                         Text(_errorSantri!, style: const TextStyle(color: Colors.red, fontSize: 12)),
                       ],
-                      const SizedBox(height: 18),
-                      _requiredLabel('Jenis Pelanggaran'),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 22),
+                      _sectionTitle(2, 'Jenis Pelanggaran', required: true),
+                      const SizedBox(height: 10),
                       for (final j in _jenisPelanggaranPresets) _jenisTile(j),
                       if (_errorJenis != null) ...[
                         const SizedBox(height: 2),
                         Text(_errorJenis!, style: const TextStyle(color: Colors.red, fontSize: 12)),
                       ],
-                      const SizedBox(height: 14),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                      const SizedBox(height: 10),
+                      AnimatedContainer(
+                        duration: const Duration(milliseconds: 180),
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                         decoration: BoxDecoration(
-                            color: PTheme.primary.withOpacity(0.07), borderRadius: BorderRadius.circular(12)),
+                          color: _jenisTerpilih == null
+                              ? PTheme.primary.withOpacity(0.07)
+                              : _poinBg(poin).withOpacity(0.7),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
                         child: Row(
                           children: [
-                            Icon(Icons.stars_rounded, size: 19, color: PTheme.primary),
-                            const SizedBox(width: 8),
+                            Icon(Icons.stars_rounded,
+                                size: 20, color: _jenisTerpilih == null ? PTheme.primary : _poinFg(poin)),
+                            const SizedBox(width: 10),
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1362,40 +1750,28 @@ class _InputPelanggaranDialogState extends State<_InputPelanggaranDialog> {
                                           fontFamily: 'Nunito',
                                           fontSize: 14,
                                           fontWeight: FontWeight.w800,
-                                          color: PTheme.primary)),
+                                          color: _jenisTerpilih == null ? PTheme.primary : _poinFg(poin))),
                                   Text('Otomatis terisi berdasarkan jenis', style: PText.bodySm.copyWith(fontSize: 11)),
                                 ],
                               ),
                             ),
                             if (_jenisTerpilih != null)
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-                                decoration:
-                                    BoxDecoration(color: _poinBg(poin), borderRadius: BorderRadius.circular(999)),
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                decoration: BoxDecoration(color: _poinFg(poin), borderRadius: BorderRadius.circular(999)),
                                 child: Text(_kategoriPoin(poin),
-                                    style: TextStyle(
+                                    style: const TextStyle(
                                         fontFamily: 'Nunito',
                                         fontSize: 11,
                                         fontWeight: FontWeight.w800,
-                                        color: _poinFg(poin))),
+                                        color: Colors.white)),
                               ),
                           ],
                         ),
                       ),
-                      const SizedBox(height: 18),
-                      Row(
-                        children: [
-                          Text.rich(TextSpan(
-                              text: 'Keterangan ',
-                              style: PText.labelMd.copyWith(color: PTheme.ink),
-                              children: [
-                                TextSpan(text: '(Opsional)', style: PText.bodySm),
-                              ])),
-                          const Spacer(),
-                          Text('${_keteranganCtrl.text.length}/500', style: PText.bodySm),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 22),
+                      _sectionTitle(3, 'Keterangan', trailing: '${_keteranganCtrl.text.length}/500'),
+                      const SizedBox(height: 10),
                       TextField(
                         controller: _keteranganCtrl,
                         maxLength: 500,
@@ -1407,33 +1783,30 @@ class _InputPelanggaranDialogState extends State<_InputPelanggaranDialog> {
                           fillColor: Colors.white,
                           hintText: 'Jelaskan detail pelanggaran...',
                           hintStyle: PText.bodySm,
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
                           enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: _kBorder)),
+                              borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: _kBorder)),
                           focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
+                              borderRadius: BorderRadius.circular(14),
                               borderSide: BorderSide(color: PTheme.primary, width: 1.5)),
                         ),
                       ),
-                      const SizedBox(height: 18),
-                      Text.rich(TextSpan(
-                          text: 'Tindak Lanjut ',
-                          style: PText.labelMd.copyWith(color: PTheme.ink),
-                          children: [
-                            TextSpan(text: '(Opsional)', style: PText.bodySm),
-                          ])),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 22),
+                      _sectionTitle(4, 'Tindak Lanjut'),
+                      const SizedBox(height: 10),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        padding: const EdgeInsets.symmetric(horizontal: 14),
                         decoration: BoxDecoration(
                           color: Colors.white,
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(14),
                           border: Border.all(color: _kBorder),
                         ),
                         child: DropdownButtonHideUnderline(
                           child: DropdownButton<String>(
                             value: _tindakLanjut,
                             isExpanded: true,
+                            borderRadius: BorderRadius.circular(14),
+                            dropdownColor: Colors.white,
                             icon: const Icon(Icons.keyboard_arrow_down_rounded),
                             style: PText.bodyMd.copyWith(color: PTheme.ink),
                             items: [for (final t in _tindakLanjutOptions) DropdownMenuItem(value: t, child: Text(t))],
@@ -1441,20 +1814,20 @@ class _InputPelanggaranDialogState extends State<_InputPelanggaranDialog> {
                           ),
                         ),
                       ),
-                      const SizedBox(height: 18),
+                      const SizedBox(height: 20),
                     ],
                   ),
                 ),
               ),
               Container(height: 1, color: _kBorder),
               Padding(
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 14),
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
                 child: Row(
                   children: [
                     Expanded(
                       flex: 2,
                       child: SizedBox(
-                        height: 48,
+                        height: 50,
                         child: OutlinedButton(
                           onPressed: () => Navigator.pop(context),
                           style: OutlinedButton.styleFrom(
@@ -1470,7 +1843,7 @@ class _InputPelanggaranDialogState extends State<_InputPelanggaranDialog> {
                     Expanded(
                       flex: 3,
                       child: SizedBox(
-                        height: 48,
+                        height: 50,
                         child: FilledButton.icon(
                           onPressed: _submitting ? null : _submit,
                           style: FilledButton.styleFrom(
@@ -1478,7 +1851,7 @@ class _InputPelanggaranDialogState extends State<_InputPelanggaranDialog> {
                             foregroundColor: Colors.white,
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
                           ),
-                          icon: const Icon(Icons.save_outlined, size: 17),
+                          icon: const Icon(Icons.save_outlined, size: 18),
                           label: const Text('Simpan',
                               style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w800)),
                         ),
@@ -1494,9 +1867,29 @@ class _InputPelanggaranDialogState extends State<_InputPelanggaranDialog> {
     );
   }
 
-  Widget _requiredLabel(String text) {
-    return Text.rich(TextSpan(text: text, style: PText.labelMd.copyWith(color: PTheme.ink), children: const [
-      TextSpan(text: ' *', style: TextStyle(color: Colors.red, fontWeight: FontWeight.w800)),
-    ]));
+  Widget _sectionTitle(int no, String text, {bool required = false, String? trailing}) {
+    return Row(
+      children: [
+        Container(
+          width: 22,
+          height: 22,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(color: PTheme.primary.withOpacity(0.12), shape: BoxShape.circle),
+          child: Text('$no',
+              style: TextStyle(
+                  fontFamily: 'Nunito', fontSize: 11.5, fontWeight: FontWeight.w800, color: PTheme.primary)),
+        ),
+        const SizedBox(width: 8),
+        Text.rich(TextSpan(text: text, style: PText.labelMd.copyWith(color: PTheme.ink), children: [
+          if (required) const TextSpan(text: ' *', style: TextStyle(color: Colors.red, fontWeight: FontWeight.w800)),
+          if (!required && trailing == null && no >= 3) TextSpan(text: '  (Opsional)', style: PText.bodySm),
+          if (!required && trailing != null) TextSpan(text: '  (Opsional)', style: PText.bodySm),
+        ])),
+        if (trailing != null) ...[
+          const Spacer(),
+          Text(trailing, style: PText.bodySm),
+        ],
+      ],
+    );
   }
 }
