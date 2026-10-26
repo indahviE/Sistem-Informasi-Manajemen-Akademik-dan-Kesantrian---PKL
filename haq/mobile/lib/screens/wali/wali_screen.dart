@@ -117,9 +117,12 @@ class _WaliScreenState extends State<WaliScreen> {
     });
     final api = AppScope.of(context).api;
 
-    Future<List<Map<String, dynamic>>?> ambil(String url) async {
+    Future<List<Map<String, dynamic>>?> ambil(
+      String url, {
+      Map<String, String>? tambahan,
+    }) async {
       try {
-        return _asList(await api.get(url, query: {'santriId': id}));
+        return _asList(await api.get(url, query: {'santriId': id, ...?tambahan}));
       } catch (e) {
         debugPrint('GAGAL muat $url: $e');
         return null;
@@ -127,7 +130,7 @@ class _WaliScreenState extends State<WaliScreen> {
     }
 
     final hasil = await Future.wait([
-      ambil(ApiUrl.nilai),
+      ambil(ApiUrl.nilai, tambahan: {'tahunAjaranId': 'semua'}),
       ambil(ApiUrl.absensi),
       ambil(ApiUrl.tahfidz),
     ]);

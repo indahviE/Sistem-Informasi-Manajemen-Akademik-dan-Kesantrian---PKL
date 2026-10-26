@@ -206,7 +206,8 @@ export class AkademikService {
     let taFilter = {};
     if (tahunAjaranId !== 'semua') {
       const taId = tahunAjaranId ?? (await this.tahunAjaranAktifId(tenantId));
-      if (taId) taFilter = { tahunAjaranId: taId };
+      // Nilai lama (sebelum kolom tahunAjaranId ada) bernilai null; tetap ikut tampil.
+      if (taId) taFilter = { OR: [{ tahunAjaranId: taId }, { tahunAjaranId: null }] };
     }
 
     return this.prisma.nilai.findMany({
