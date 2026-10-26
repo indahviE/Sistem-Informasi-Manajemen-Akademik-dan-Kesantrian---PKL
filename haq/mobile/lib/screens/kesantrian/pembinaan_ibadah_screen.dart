@@ -255,7 +255,7 @@ class _PembinaanIbadahScreenState extends State<PembinaanIbadahScreen> {
       isScrollControlled: true,
       useSafeArea: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => _CatatIbadahSheet(santris: _santris),
+      builder: (_) => _CatatIbadahSheet(santris: _santris, existing: _items),
     );
     if (result == null || !mounted) return;
     try {
@@ -1485,8 +1485,9 @@ class _PembinaanIbadahScreenState extends State<PembinaanIbadahScreen> {
 // Bottom sheet "Catat Pembinaan Ibadah"
 // ===========================================================================
 class _CatatIbadahSheet extends StatefulWidget {
-  const _CatatIbadahSheet({required this.santris});
+  const _CatatIbadahSheet({required this.santris, this.existing = const []});
   final List<Map<String, dynamic>> santris;
+  final List<Map<String, dynamic>> existing; // catatan yang sudah ada (untuk cek duplikat)
 
   @override
   State<_CatatIbadahSheet> createState() => _CatatIbadahSheetState();
@@ -1516,6 +1517,26 @@ class _CatatIbadahSheetState extends State<_CatatIbadahSheet> {
     super.dispose();
   }
 
+  String _tglKey(DateTime t) =>
+      '${t.year.toString().padLeft(4, '0')}-${t.month.toString().padLeft(2, '0')}-${t.day.toString().padLeft(2, '0')}';
+
+  /// santriId -> status, untuk jenis ibadah + tanggal yang sedang dipilih.
+  Map<String, String> get _sudahDicatat {
+    final jenis = _jenisCtrl.text.trim().toLowerCase();
+    if (jenis.isEmpty) return {};
+    final tgl = _tglKey(_tanggal);
+    final m = <String, String>{};
+    for (final p in widget.existing) {
+      final pj = (p['jenisIbadah'] ?? '').toString().trim().toLowerCase();
+      final pt = (p['tanggal'] ?? '').toString();
+      if (pj == jenis && pt.length >= 10 && pt.substring(0, 10) == tgl) {
+        final id = p['santriId']?.toString();
+        if (id != null) m[id] = (p['status'] ?? 'HADIR').toString();
+      }
+    }
+    return m;
+  }
+
   String _kelasLabel(Map<String, dynamic> s) {
     final k = s['kelas'];
     final kelas = k is Map ? (k['namaKelas'] ?? k['nama'])?.toString() : k?.toString();
@@ -1542,6 +1563,7 @@ class _CatatIbadahSheetState extends State<_CatatIbadahSheet> {
             final nis = (s['nis'] ?? '').toString().toLowerCase();
             return q.isEmpty || n.contains(q) || nis.contains(q);
           }).toList();
+          final sudah = _sudahDicatat;
           return SafeArea(
             child: Padding(
               padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
@@ -1574,6 +1596,23 @@ class _CatatIbadahSheetState extends State<_CatatIbadahSheet> {
                         ),
                       ),
                     ),
+                    if (_jenisCtrl.text.trim().isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(18, 4, 18, 8),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(Icons.info_outline_rounded, size: 15, color: PTheme.inkSecondary),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                'Pilih jenis ibadah & tanggal dulu agar santri yang sudah tercatat otomatis abu-abu.',
+                                style: PText.bodySm.copyWith(fontSize: 11.5, height: 1.4),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     Expanded(
                       child: list.isEmpty
                           ? Center(child: Text('Santri tidak ditemukan.', style: PText.bodySm))
@@ -1583,31 +1622,52 @@ class _CatatIbadahSheetState extends State<_CatatIbadahSheet> {
                                 final s = list[i];
                                 final label = _kelasLabel(s);
                                 final dipilih = _santri?['id'] == s['id'];
-                                return ListTile(
-                                  leading: Container(
-                                    width: 40,
-                                    height: 40,
-                                    decoration: BoxDecoration(color: PTheme.primary, shape: BoxShape.circle),
-                                    alignment: Alignment.center,
-                                    child: Text(_initialsOf(s['nama']?.toString() ?? '-'),
-                                        style: const TextStyle(
-                                            fontFamily: 'Nunito',
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w800,
-                                            color: Colors.white)),
+                                final statusLama = sudah[s['id']?.toString()];
+                                final terkunci = statusLama != null;
+                                final mLama = terkunci ? _meta(statusLama) : null;
+                                return Opacity(
+                                  opacity: terkunci ? 0.55 : 1,
+                                  child: ListTile(
+                                    enabled: !terkunci,
+                                    leading: Container(
+                                      width: 40,
+                                      height: 40,
+                                      decoration: BoxDecoration(
+                                        color: terkunci ? PColors.border : PTheme.primary,
+                                        shape: BoxShape.circle,
+                                      ),
+                                      alignment: Alignment.center,
+                                      child: terkunci
+                                          ? Icon(Icons.check_rounded, size: 20, color: PTheme.inkSecondary)
+                                          : Text(_initialsOf(s['nama']?.toString() ?? '-'),
+                                              style: const TextStyle(
+                                                  fontFamily: 'Nunito',
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.w800,
+                                                  color: Colors.white)),
+                                    ),
+                                    title: Text(s['nama']?.toString() ?? '-',
+                                        style: PText.bodyMd.copyWith(
+                                            fontWeight: FontWeight.w700,
+                                            color: terkunci ? PTheme.inkSecondary : null)),
+                                    subtitle: Text(
+                                        terkunci
+                                            ? 'Sudah dicatat • ${mLama!.label}'
+                                            : 'NIS: ${s['nis'] ?? '-'}${label.isEmpty ? '' : ' • $label'}',
+                                        style: PText.bodySm),
+                                    trailing: terkunci
+                                        ? Icon(Icons.lock_outline_rounded, size: 18, color: PTheme.inkSecondary)
+                                        : (dipilih ? Icon(Icons.check_circle_rounded, color: PTheme.primary) : null),
+                                    onTap: terkunci
+                                        ? null
+                                        : () {
+                                            setState(() {
+                                              _santri = s;
+                                              _errSantri = null;
+                                            });
+                                            Navigator.pop(ctx);
+                                          },
                                   ),
-                                  title: Text(s['nama']?.toString() ?? '-',
-                                      style: PText.bodyMd.copyWith(fontWeight: FontWeight.w700)),
-                                  subtitle: Text('NIS: ${s['nis'] ?? '-'}${label.isEmpty ? '' : ' • $label'}',
-                                      style: PText.bodySm),
-                                  trailing: dipilih ? Icon(Icons.check_circle_rounded, color: PTheme.primary) : null,
-                                  onTap: () {
-                                    setState(() {
-                                      _santri = s;
-                                      _errSantri = null;
-                                    });
-                                    Navigator.pop(ctx);
-                                  },
                                 );
                               },
                             ),
@@ -1635,7 +1695,11 @@ class _CatatIbadahSheetState extends State<_CatatIbadahSheet> {
 
   void _submit() {
     setState(() {
-      _errSantri = _santri == null ? 'Silakan pilih santri terlebih dahulu.' : null;
+      _errSantri = _santri == null
+          ? 'Silakan pilih santri terlebih dahulu.'
+          : (_sudahDicatat.containsKey(_santri!['id']?.toString())
+              ? 'Santri ini sudah dicatat untuk ibadah & tanggal tersebut.'
+              : null);
       _errJenis = _jenisCtrl.text.trim().isEmpty ? 'Jenis ibadah wajib diisi.' : null;
     });
     if (_errSantri != null || _errJenis != null) return;
@@ -1827,6 +1891,27 @@ class _CatatIbadahSheetState extends State<_CatatIbadahSheet> {
                   if (_errSantri != null) ...[
                     const SizedBox(height: 4),
                     Text(_errSantri!, style: const TextStyle(color: Colors.red, fontSize: 12)),
+                  ],
+                  if (_errSantri == null && _santri != null && _sudahDicatat.containsKey(_santri!['id']?.toString())) ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: PColors.pendingBg,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: PColors.pendingBorder),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.warning_amber_rounded, size: 16, color: PColors.pendingText),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text('Santri ini sudah dicatat untuk ibadah & tanggal tersebut.',
+                                style: PText.bodySm.copyWith(color: PColors.pendingText, fontSize: 11.5)),
+                          ),
+                        ],
+                      ),
+                    ),
                   ],
 
                   // --- Jenis ibadah
