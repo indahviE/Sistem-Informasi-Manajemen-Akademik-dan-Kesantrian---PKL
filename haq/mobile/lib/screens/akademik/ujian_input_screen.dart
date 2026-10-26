@@ -399,11 +399,22 @@ class _UjianInputScreenState extends State<UjianInputScreen> {
     try {
       // Tidak ada pemblokiran di sini: kalau ujian terkunci dan backend
       // menolak, ApiException berisi alasannya dan ditampilkan di bawah.
+      // Santri yang tadinya Sakit/Izin/Alpa lalu ikut susulan: alasan lamanya
+      // dicatat di catatan, karena status akan tertimpa jadi Hadir.
+      var catatan = _catCtrl.text.trim();
+      final sebelum = '${_nilaiOf(s['id'])?['status'] ?? 'HADIR'}'.toUpperCase();
+      if (hadir &&
+          const ['SAKIT', 'IZIN', 'ALPA'].contains(sebelum) &&
+          !catatan.contains('Ikut susulan')) {
+        final tanda = 'Ikut susulan (sebelumnya: ${_labelKehadiran(sebelum)})';
+        catatan = catatan.isEmpty ? tanda : '$catatan\n$tanda';
+      }
+
       await AppScope.of(context).api.post('${ApiUrl.ujian}/$_id/nilai', {
         'santriId': s['id'],
         'status': _kehadiran,
         if (hadir) 'nilai': v,
-        'catatan': _catCtrl.text.trim(),
+        'catatan': catatan,
       });
       await _load(silent: true);
       if (!mounted) return;

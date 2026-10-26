@@ -257,17 +257,29 @@ String _rentang(Map<String, dynamic> r) {
     }
     return '$a : ${am.toInt()} – $b : ${asl.toInt()}';
   }
-  final s = (r['halamanSelesai'] ?? r['halaman']) as num;
-  final m = (r['halamanMulai'] ?? s) as num;
-  return m == s ? 'Hal. $s' : 'Hal. $m–$s';
+  // Data lama (hanya halaman): perkiraan dari posisi ayat
+  final juz = (r['juz'] as num).toInt().clamp(1, 30).toInt();
+  final awal = juzMulaiAbs(juz);
+  final ukuran = juzAkhirAbs(juz) - awal + 1;
+  final hs = ((r['halamanSelesai'] ?? r['halaman']) as num).toInt().clamp(1, 20).toInt();
+  final hm = ((r['halamanMulai'] ?? hs) as num).toInt().clamp(1, hs).toInt();
+  final pm = dariAbs(awal + ((hm - 1) * ukuran / 20).floor());
+  final ps = dariAbs(_posisi(r));
+  final a = kNamaSurat[pm.surat - 1];
+  final b = kNamaSurat[ps.surat - 1];
+  if (pm.surat == ps.surat) {
+    return pm.ayat == ps.ayat ? '≈ $a : ${pm.ayat}' : '≈ $a : ${pm.ayat}–${ps.ayat}';
+  }
+  return '≈ $a : ${pm.ayat} – $b : ${ps.ayat}';
 }
 
 /// Posisi terakhir untuk teks progres kartu. Data lama: "Halaman 3 dari 20".
 String _lokasiTeks(Map<String, dynamic> r) {
   final s = r['suratSelesai'], a = r['ayatSelesai'];
   if (s is num && a is num) return '${kNamaSurat[s.toInt() - 1]} : ${a.toInt()}';
-  final hal = ((r['halamanSelesai'] ?? r['halaman']) as num).toInt();
-  return 'Halaman $hal dari 20';
+  // Data lama (hanya halaman): perkiraan dari posisi ayat
+  final p = dariAbs(_posisi(r));
+  return '≈ ${kNamaSurat[p.surat - 1]} : ${p.ayat}';
 }
 
 String _jenisLabel(dynamic j) => j == 'MURAJAAH' ? "Muroja'ah" : 'Ziyadah';
@@ -436,47 +448,47 @@ class _TahfidzScreenState extends State<TahfidzScreen> {
     }
   }
 
-  void _detail(Map<String, dynamic> santri) {
-    final t = _ringkas['${santri['id']}']?.terakhir;
-    Widget baris(String k, String v) => Padding(
-          padding: const EdgeInsets.only(bottom: 8),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SizedBox(width: 92, child: Text(k, style: _lb(11.5, FontWeight.w500, _C.onSurfaceVariant))),
-              Expanded(child: Text(v, style: _t(13, FontWeight.w600, _C.onSurface))),
-            ],
-          ),
-        );
-    showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: _C.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text('${santri['nama'] ?? '-'}', style: _t(17, FontWeight.w700, _C.onSurface)),
-        content: t == null
-            ? Text('Belum ada setoran.', style: _t(13, FontWeight.w400, _C.onSurfaceVariant))
-            : Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  baris('Tanggal', _relatif('${t['tanggalSetor']}')),
-                  if (_jam(t['createdAt']).isNotEmpty) baris('Jam', _jam(t['createdAt'])),
-                  baris('Jenis', _jenisLabel(t['jenis'])),
-                  baris('Setoran', 'Juz ${t['juz']} • ${_rentang(t)}'),
-                  baris('Kualitas', _kualitasLabel(t['kualitas'] as String?).isEmpty ? '-' : _kualitasLabel(t['kualitas'] as String?)),
-                  if ('${t['catatanUstadz'] ?? ''}'.trim().isNotEmpty) baris('Catatan', '${t['catatanUstadz']}'),
-                ],
-              ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: Text('Tutup', style: _t(13, FontWeight.w600, _C.primary)),
-          ),
-        ],
-      ),
-    );
-  }
+// =============================================================================
+// RIWAYAT SETORAN TAHFIDZ  —  tempel ke lib/.../tahfidz_screen.dart
+//
+// LANGKAH:
+//  1. Di _TahfidzScreenState, HAPUS method _detail() yang lama, ganti dengan
+//     versi di bawah (bagian 1).
+//  2. Tempel bagian 2 (helper + widget) di bagian paling bawah file yang sama.
+//     Harus satu file karena memakai _C, _t, _lb, _posisi, dst. yang private.
+//
+// Tidak butuh endpoint baru: riwayat diambil dari _capaian yang sudah dimuat.
+// =============================================================================
+
+// ---------------------------------------------------------------------------
+// 1. GANTI _detail() di dalam _TahfidzScreenState
+// ---------------------------------------------------------------------------
+
+void _detail(Map<String, dynamic> santri) {
+  final id = '${santri['id']}';
+  final riwayat = _capaian.where((r) {
+    final sid = (r['santriId'] ?? (r['santri'] as Map?)?['id'])?.toString();
+    return sid == id;
+  }).toList()
+    ..sort((a, b) => '${b['tanggalSetor']}${b['createdAt']}'
+        .compareTo('${a['tanggalSetor']}${a['createdAt']}'));
+
+  showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    useSafeArea: true,
+    backgroundColor: Colors.transparent,
+    barrierColor: _C.scrim,
+    constraints: const BoxConstraints(maxWidth: 448),
+    builder: (_) => _RiwayatSheet(
+      santri: santri,
+      riwayat: riwayat,
+      ringkas: _ringkas[id],
+      bisaInput: !_readOnly,
+      onInput: () => _bukaSheet(santri),
+    ),
+  );
+}
 
   @override
   Widget build(BuildContext context) {
@@ -1009,6 +1021,22 @@ class _SantriCard extends StatelessWidget {
 
     final showDivider = giliran || selesai;
 
+    final detailBtn = InkWell(
+  onTap: onDetail,
+  borderRadius: BorderRadius.circular(8),
+  child: Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text('Riwayat', style: _lb(11, FontWeight.w700, _C.onSurface)),
+        const SizedBox(width: 2),
+        const Icon(Icons.arrow_forward, size: 14, color: _C.onSurface),
+      ],
+    ),
+  ),
+);
+
     final body = Padding(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -1167,109 +1195,105 @@ class _SantriCard extends StatelessWidget {
             Container(height: 1, color: _C.divider),
             const SizedBox(height: 10),
           ],
-          if (giliran)
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                onPressed: onInput,
-                icon: const Icon(Icons.post_add, size: 18),
-                label: Text('+ Input Setoran Santri', style: _t(13.5, FontWeight.w700, Colors.white)),
-                style: FilledButton.styleFrom(
-                  backgroundColor: _C.primaryContainer,
-                  foregroundColor: Colors.white,
-                  elevation: 1,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: const StadiumBorder(),
-                ),
+if (giliran)
+  Column(
+    children: [
+      SizedBox(
+        width: double.infinity,
+        child: FilledButton.icon(
+          onPressed: onInput,
+          icon: const Icon(Icons.post_add, size: 18),
+          label: Text('+ Input Setoran Santri', style: _t(13.5, FontWeight.w700, Colors.white)),
+          style: FilledButton.styleFrom(
+            backgroundColor: _C.primaryContainer,
+            foregroundColor: Colors.white,
+            elevation: 1,
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            shape: const StadiumBorder(),
+          ),
+        ),
+      ),
+      if (t != null) ...[
+        const SizedBox(height: 4),
+        Align(alignment: Alignment.centerRight, child: detailBtn),
+      ],
+    ],
+  )
+else if (selesai)
+  Row(
+    children: [
+      const Icon(Icons.verified_user_outlined, size: 15, color: _C.secondary),
+      const SizedBox(width: 6),
+      Expanded(
+        child: Text.rich(
+          TextSpan(
+            style: _lb(11, FontWeight.w400, _C.onSurfaceVariant),
+            children: [
+              TextSpan(
+                text: t == null
+                    ? ''
+                    : (t['jenis'] == 'MURAJAAH'
+                        ? " • Muroja'ah • Juz ${t['juz']} • ${_rentang(t)}"
+                        : 'Juz ${t['juz']} • ${_rentang(t)} • '),
               ),
-            )
-          else if (selesai)
-            Row(
-              children: [
-                const Icon(Icons.verified_user_outlined, size: 15, color: _C.secondary),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text.rich(
-                    TextSpan(
-                      style: _lb(11, FontWeight.w400, _C.onSurfaceVariant),
-                      children: [
-                        TextSpan(
-                            text: t == null
-                                ? ''
-                                : (t['jenis'] == 'MURAJAAH'
-                                    ? " • Muroja'ah • Juz ${t['juz']} • ${_rentang(t)}"
-                                    : 'Juz ${t['juz']} • ${_rentang(t)} • '),
-                          ),
-                        TextSpan(
-                            text: kualitas.isEmpty ? '-' : kualitas,
-                            style: _lb(11, FontWeight.w700, _C.onSurface)),
-                        if (jam.isNotEmpty) TextSpan(text: ' ($jam)'),
-                      ],
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
+              TextSpan(
+                  text: kualitas.isEmpty ? '-' : kualitas,
+                  style: _lb(11, FontWeight.w700, _C.onSurface)),
+              if (jam.isNotEmpty) TextSpan(text: ' ($jam)'),
+            ],
+          ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+      ),
+      const SizedBox(width: 8),
+      detailBtn,
+    ],
+  )
+else if (sudah)
+  Row(
+    children: [
+      Expanded(
+        child: Text.rich(
+          TextSpan(
+            style: _lb(11, FontWeight.w400, _C.onSurfaceVariant),
+            children: [
+              const TextSpan(text: 'Nilai: '),
+              TextSpan(
+                  text: kualitas.isEmpty ? '-' : kualitas,
+                  style: _lb(11, FontWeight.w700, _C.primary)),
+              if (t != null)
+                TextSpan(
+                  text: t['jenis'] == 'MURAJAAH'
+                      ? " • Muroja'ah • Juz ${t['juz']} • ${_rentang(t)}"
+                      : ' • Juz ${t['juz']} • ${_rentang(t)}',
                 ),
-                const SizedBox(width: 8),
-              ],
-            )
-          else if (sudah)
-            Row(
-              children: [
-                Expanded(
-                  child: Text.rich(
-                    TextSpan(
-                      style: _lb(11, FontWeight.w400, _C.onSurfaceVariant),
-                      children: [
-                        const TextSpan(text: 'Nilai: '),
-                        TextSpan(
-                            text: kualitas.isEmpty ? '-' : kualitas,
-                            style: _lb(11, FontWeight.w700, _C.primary)),
-                        if (t != null)
-                          TextSpan(
-                            text: t['jenis'] == 'MURAJAAH'
-                              ? " • Muroja'ah • Juz ${t['juz']} • ${_rentang(t)}"
-                              : ' • Juz ${t['juz']} • ${_rentang(t)}',
-                          ),
-                      ],
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                InkWell(
-                  onTap: onDetail,
-                  borderRadius: BorderRadius.circular(6),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text('Detail', style: _lb(11, FontWeight.w700, _C.onSurface)),
-                        const SizedBox(width: 2),
-                        const Icon(Icons.arrow_forward, size: 14, color: _C.onSurface),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            )
-          else
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    t == null ? 'Belum pernah setor' : 'Terakhir setor: ${_relatif('${t['tanggalSetor']}')}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: _lb(11, FontWeight.w500, _C.error),
-                  ),
-                ),
-                const SizedBox(width: 8),
-              ],
-            ),
-        ],
+            ],
+          ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+      ),
+      const SizedBox(width: 8),
+      detailBtn,
+    ],
+  )
+else
+  Row(
+    children: [
+      Expanded(
+        child: Text(
+          t == null ? 'Belum pernah setor' : 'Terakhir setor: ${_relatif('${t['tanggalSetor']}')}',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: _lb(11, FontWeight.w500, _C.error),
+        ),
+      ),
+      const SizedBox(width: 8),
+      if (t != null) detailBtn,
+    ],
+  ),
+          ],
       ),
     );
 
@@ -2026,6 +2050,600 @@ class _KualitasTile extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+// ---------------------------------------------------------------------------
+// 2. TEMPEL DI BAWAH FILE
+// ---------------------------------------------------------------------------
+const _bulanPanjang = [
+  '', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+  'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember',
+];
+
+/// [bg, fg] untuk pil kualitas.
+List<Color> _warnaKualitas(String? kode) {
+  switch (kode) {
+    case 'MUMTAZ':
+      return [_C.secondaryContainer.withOpacity(0.45), _C.secondary];
+    case 'JAYYID_JIDDAN':
+      return [_C.tertiaryFixed, _C.primary];
+    case 'JAYYID':
+      return [_C.container, _C.onSurfaceVariant];
+    case 'MAQBUL':
+      return [_C.errorContainer, _C.onErrorContainer];
+    default:
+      return [_C.container, _C.onSurfaceVariant];
+  }
+}
+
+class _Item {
+  final Map<String, dynamic> r;
+  final bool khatam;
+  const _Item(this.r, this.khatam);
+}
+
+class _RiwayatSheet extends StatefulWidget {
+  final Map<String, dynamic> santri;
+
+  /// Sudah diurutkan dari terbaru ke terlama.
+  final List<Map<String, dynamic>> riwayat;
+  final _Ringkas? ringkas;
+  final bool bisaInput;
+  final VoidCallback onInput;
+  const _RiwayatSheet({
+    required this.santri,
+    required this.riwayat,
+    required this.ringkas,
+    required this.bisaInput,
+    required this.onInput,
+  });
+
+  @override
+  State<_RiwayatSheet> createState() => _RiwayatSheetState();
+}
+
+class _RiwayatSheetState extends State<_RiwayatSheet> {
+  String _filter = 'semua'; // semua | ziyadah | murajaah
+  late final List<_Item> _items;
+
+  @override
+  void initState() {
+    super.initState();
+    // Tandai setoran ziyadah PERTAMA (paling awal) yang mencapai ayat terakhir juz.
+    final n = widget.riwayat.length;
+    final khatam = List<bool>.filled(n, false);
+    final sudah = <int>{};
+    for (var i = n - 1; i >= 0; i--) {
+      final r = widget.riwayat[i];
+      if (r['jenis'] == 'MURAJAAH') continue;
+      final juz = (r['juz'] as num).toInt();
+      if (_posisi(r) >= juzAkhirAbs(juz) && sudah.add(juz)) khatam[i] = true;
+    }
+    _items = [for (var i = 0; i < n; i++) _Item(widget.riwayat[i], khatam[i])];
+  }
+
+  bool _ziyadah(_Item e) => e.r['jenis'] != 'MURAJAAH';
+
+  List<_Item> get _tampil => _items.where((e) {
+        if (_filter == 'ziyadah') return _ziyadah(e);
+        if (_filter == 'murajaah') return !_ziyadah(e);
+        return true;
+      }).toList();
+
+  String _rataKualitas() {
+    const skor = {'MUMTAZ': 4, 'JAYYID_JIDDAN': 3, 'JAYYID': 2, 'MAQBUL': 1};
+    final v = <int>[
+      for (final e in _items)
+        if (skor[e.r['kualitas']] != null) skor[e.r['kualitas']]!,
+    ];
+    if (v.isEmpty) return '-';
+    final avg = v.reduce((a, b) => a + b) / v.length;
+    final kode = avg >= 3.5
+        ? 'MUMTAZ'
+        : avg >= 2.5
+            ? 'JAYYID_JIDDAN'
+            : avg >= 1.5
+                ? 'JAYYID'
+                : 'MAQBUL';
+    return _kualitasLabel(kode);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final tampil = _tampil;
+    final grup = <String, List<_Item>>{};
+    for (final e in tampil) {
+      grup.putIfAbsent('${e.r['tanggalSetor']}'.substring(0, 7), () => []).add(e);
+    }
+    final nama = '${widget.santri['nama'] ?? '-'}';
+    final nis = '${widget.santri['nis'] ?? '-'}';
+
+    return Container(
+      constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.92),
+      decoration: BoxDecoration(
+        color: _C.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        border: Border(top: BorderSide(color: _C.cardBorder)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // --- Handle + header (tetap di atas) ---
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+            child: Column(
+              children: [
+                Container(
+                  width: 48,
+                  height: 6,
+                  decoration: BoxDecoration(
+                    color: _C.tertiaryFixedDim.withOpacity(0.6),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Riwayat Setoran', style: _t(18, FontWeight.w700, _C.onSurface, ls: -0.2)),
+                          const SizedBox(height: 2),
+                          Text.rich(
+                            TextSpan(children: [
+                              TextSpan(text: nama, style: _lb(11.5, FontWeight.w600, _C.primary)),
+                              TextSpan(
+                                  text: '  • NIS $nis',
+                                  style: _lb(11.5, FontWeight.w500, _C.onSurfaceVariant)),
+                            ]),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                    InkWell(
+                      onTap: () => Navigator.of(context).pop(),
+                      customBorder: const CircleBorder(),
+                      child: Container(
+                        width: 32,
+                        height: 32,
+                        decoration: const BoxDecoration(color: _C.container, shape: BoxShape.circle),
+                        child: const Icon(Icons.close, size: 18, color: _C.onSurfaceVariant),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+
+          // --- Isi yang bisa di-scroll ---
+          Flexible(
+            child: ListView(
+              shrinkWrap: true,
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+              children: [
+                _ringkasan(),
+                const SizedBox(height: 16),
+                _petaJuz(),
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    Text('Timeline', style: _t(17, FontWeight.w700, _C.onSurface)),
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(color: _C.container, borderRadius: BorderRadius.circular(999)),
+                      child: Text('${tampil.length}', style: _lb(11, FontWeight.w600, _C.onSurfaceVariant)),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    _chip('Semua (${_items.length})', 'semua'),
+                    _chip('Ziyadah (${_items.where(_ziyadah).length})', 'ziyadah'),
+                    _chip("Muroja'ah (${_items.where((e) => !_ziyadah(e)).length})", 'murajaah'),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                if (tampil.isEmpty)
+                  emptyView('Belum ada setoran pada filter ini.')
+                else
+                  for (final k in grup.keys) ...[
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            '${_bulanPanjang[int.parse(k.substring(5, 7))]} ${k.substring(0, 4)}'.toUpperCase(),
+                            style: _lb(11, FontWeight.w700, _C.primary, ls: 0.6),
+                          ),
+                          Text('${grup[k]!.length} setoran', style: _lb(11, FontWeight.w500, _C.onSurfaceVariant)),
+                        ],
+                      ),
+                    ),
+                    for (var i = 0; i < grup[k]!.length; i++)
+                      _TimelineItem(item: grup[k]![i], isLast: i == grup[k]!.length - 1),
+                    const SizedBox(height: 6),
+                  ],
+              ],
+            ),
+          ),
+
+          // --- Aksi (tidak untuk Pimpinan/Mudir) ---
+          if (widget.bisaInput)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 16),
+              child: SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    widget.onInput();
+                  },
+                  icon: const Icon(Icons.add, size: 18),
+                  label: Text('Input Setoran Baru', style: _t(13.5, FontWeight.w700, Colors.white)),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: _C.primaryContainer,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: const StadiumBorder(),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  // ---- Kartu ringkasan hijau ----
+  Widget _ringkasan() {
+    final m = widget.ringkas?.maju;
+    final tuntas = widget.ringkas?.juzTuntas.length ?? 0;
+    final frak = m == null ? 0.0 : _fraksiJuz(m);
+    final persen = (frak * 100).round();
+
+    Widget metrik(String label, String value, {String suffix = '', Color? warna, double ukuran = 18}) {
+      return Expanded(
+        child: Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.07),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: _lb(10.5, FontWeight.w600, _C.onPrimaryContainer)),
+              const SizedBox(height: 4),
+              Text.rich(
+                TextSpan(children: [
+                  TextSpan(text: value, style: _t(ukuran, FontWeight.w700, warna ?? Colors.white, h: 1.2)),
+                  if (suffix.isNotEmpty)
+                    TextSpan(text: suffix, style: _lb(12, FontWeight.w500, warna ?? Colors.white)),
+                ]),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(color: _C.primaryContainer, borderRadius: BorderRadius.circular(16)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('PROGRES TERJAUH', style: _lb(11, FontWeight.w600, _C.onPrimaryContainer, ls: 0.4)),
+              if (m != null) Text('$persen% Juz ${m['juz']}', style: _lb(11, FontWeight.w700, _C.secondaryFixed)),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            m == null ? 'Belum ada setoran' : 'Juz ${m['juz']} • ${_lokasiTeks(m)}',
+            style: _t(20, FontWeight.w700, Colors.white, ls: -0.3),
+          ),
+          const SizedBox(height: 12),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(999),
+            child: LinearProgressIndicator(
+              value: frak,
+              minHeight: 8,
+              backgroundColor: Colors.white.withOpacity(0.15),
+              valueColor: const AlwaysStoppedAnimation(_C.secondaryFixed),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.only(top: 12),
+            decoration: BoxDecoration(border: Border(top: BorderSide(color: Colors.white.withOpacity(0.12)))),
+            child: Row(
+              children: [
+                metrik('Juz Tuntas', '$tuntas', suffix: '/30', warna: _C.secondaryFixed),
+                const SizedBox(width: 8),
+                metrik('Total Setoran', '${_items.length}'),
+                const SizedBox(width: 8),
+                metrik('Rata-rata', _rataKualitas(), ukuran: 13),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ---- Peta 30 juz ----
+  Widget _petaJuz() {
+    final tuntas = widget.ringkas?.juzTuntas ?? <int>{};
+    final m = widget.ringkas?.maju;
+    int? aktif;
+    if (m != null) {
+      final j = (m['juz'] as num).toInt();
+      aktif = tuntas.contains(j) ? (j < 30 ? j + 1 : null) : j;
+    }
+
+    Widget legenda(Color c, String t) => Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(width: 8, height: 8, decoration: BoxDecoration(color: c, borderRadius: BorderRadius.circular(2))),
+            const SizedBox(width: 4),
+            Text(t, style: _lb(10.5, FontWeight.w500, _C.onSurfaceVariant)),
+          ],
+        );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text('Peta Hafalan 30 Juz', style: _t(14, FontWeight.w700, _C.onSurface)),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                legenda(_C.secondaryContainer, 'Tuntas'),
+                const SizedBox(width: 10),
+                legenda(_C.primaryContainer, 'Berjalan'),
+              ],
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        GridView.count(
+          crossAxisCount: 10,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          mainAxisSpacing: 5,
+          crossAxisSpacing: 5,
+          children: [
+            for (int j = 1; j <= 30; j++)
+              Container(
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: tuntas.contains(j)
+                      ? _C.secondaryContainer
+                      : (j == aktif ? _C.primaryContainer : _C.container),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  '$j',
+                  style: _lb(
+                    11,
+                    FontWeight.w700,
+                    tuntas.contains(j)
+                        ? _C.onSecondaryFixed
+                        : (j == aktif ? Colors.white : _C.onSurfaceVariant),
+                    ls: 0,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _chip(String label, String value) {
+    final selected = _filter == value;
+    return InkWell(
+      onTap: () => setState(() => _filter = value),
+      borderRadius: BorderRadius.circular(999),
+      child: Container(
+        constraints: const BoxConstraints(minHeight: 36),
+        alignment: Alignment.center,
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+        decoration: BoxDecoration(
+          color: selected ? _C.primaryContainer : _C.surface,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: selected ? _C.primaryContainer : _C.outlineVariant),
+        ),
+        child: Text(
+          label,
+          style: _lb(12, FontWeight.w600, selected ? Colors.white : _C.onSurfaceVariant),
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Satu baris timeline: rel + titik di kiri, kartu setoran di kanan
+// ---------------------------------------------------------------------------
+
+class _TimelineItem extends StatelessWidget {
+  final _Item item;
+  final bool isLast;
+  const _TimelineItem({required this.item, required this.isLast});
+
+  @override
+  Widget build(BuildContext context) {
+    final r = item.r;
+    final ziyadah = r['jenis'] != 'MURAJAAH';
+    final kualitas = _kualitasLabel(r['kualitas'] as String?);
+    final q = _warnaKualitas(r['kualitas'] as String?);
+    final catatan = '${r['catatanUstadz'] ?? ''}'.trim();
+    final jam = _jam(r['createdAt']);
+
+    Widget dot;
+    if (item.khatam) {
+      dot = Container(
+        width: 20,
+        height: 20,
+        decoration: BoxDecoration(
+          color: _C.secondaryContainer,
+          shape: BoxShape.circle,
+          border: Border.all(color: _C.secondary, width: 2),
+        ),
+        child: const Icon(Icons.star_rounded, size: 12, color: _C.secondary),
+      );
+    } else if (ziyadah) {
+      dot = Container(
+        width: 14,
+        height: 14,
+        decoration: BoxDecoration(color: _C.primaryContainer, shape: BoxShape.circle),
+      );
+    } else {
+      dot = Container(
+        width: 14,
+        height: 14,
+        decoration: BoxDecoration(
+          color: _C.surface,
+          shape: BoxShape.circle,
+          border: Border.all(color: _C.primaryContainer, width: 2),
+        ),
+      );
+    }
+
+    final card = Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: _C.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: _C.cardBorder),
+        boxShadow: [BoxShadow(color: _C.onSurface.withOpacity(0.04), blurRadius: 4, offset: const Offset(0, 1))],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  '${_relatif('${r['tanggalSetor']}')}${jam.isEmpty ? '' : ' • $jam'}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: _lb(11.5, FontWeight.w600, _C.onSurfaceVariant),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: ziyadah ? _C.primaryContainer : _C.surface,
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(color: _C.primaryContainer),
+                ),
+                child: Text(
+                  _jenisLabel(r['jenis']),
+                  style: _lb(10.5, FontWeight.w700, ziyadah ? Colors.white : _C.primaryContainer),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text('Juz ${r['juz']} • ${_rentang(r)}', style: _t(14, FontWeight.w700, _C.onSurface, h: 1.3)),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              if (kualitas.isNotEmpty)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                  decoration: BoxDecoration(color: q[0], borderRadius: BorderRadius.circular(999)),
+                  child: Text(kualitas, style: _lb(11, FontWeight.w700, q[1])),
+                ),
+              if (item.khatam)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: _C.secondaryContainer.withOpacity(0.45),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text('Khatam Juz ${r['juz']}', style: _lb(11, FontWeight.w700, _C.secondary)),
+                ),
+            ],
+          ),
+          if (catatan.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: _C.container.withOpacity(0.5),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Catatan Ustadz', style: _lb(10.5, FontWeight.w600, _C.onSurfaceVariant)),
+                  const SizedBox(height: 2),
+                  Text(catatan, style: _t(12.5, FontWeight.w400, _C.onSurface, h: 1.45)),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SizedBox(
+            width: 26,
+            child: Column(
+              children: [
+                const SizedBox(height: 14),
+                dot,
+                if (!isLast)
+                  Expanded(
+                    child: Container(
+                      width: 2,
+                      margin: const EdgeInsets.symmetric(vertical: 4),
+                      color: _C.surfaceVariant,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: card,
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -167,6 +167,23 @@ export class AkademikService {
     return { count: itemMap.size, message: 'Absensi massal disimpan.' };
   }
 
+  // ===== Detail kelas (daftar santri) =====
+  async findKelasDetail(tenantId: string, id: string) {
+    const kelas = await this.prisma.kelas.findFirst({
+      where: { id, tenantId },
+      include: {
+        waliKelas: { select: { id: true, nama: true } },
+        santris: {
+          select: { id: true, nis: true, nama: true, jenisKelamin: true, status: true },
+          orderBy: { nama: 'asc' },
+        },
+        _count: { select: { santris: true } },
+      },
+    });
+    if (!kelas) throw new NotFoundException('Kelas tidak ditemukan.');
+    return kelas;
+  }
+
   // ===== Nilai =====
   async findAllNilai(
     tenantId: string,
@@ -189,7 +206,8 @@ export class AkademikService {
     let taFilter = {};
     if (tahunAjaranId !== 'semua') {
       const taId = tahunAjaranId ?? (await this.tahunAjaranAktifId(tenantId));
-      if (taId) taFilter = { tahunAjaranId: taId };
+      // Nilai lama (sebelum kolom tahunAjaranId ada) bernilai null; tetap ikut tampil.
+      if (taId) taFilter = { OR: [{ tahunAjaranId: taId }, { tahunAjaranId: null }] };
     }
 
     return this.prisma.nilai.findMany({
