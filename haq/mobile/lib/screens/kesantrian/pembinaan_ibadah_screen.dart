@@ -149,6 +149,8 @@ class _PembinaanIbadahScreenState extends State<PembinaanIbadahScreen> {
   String _statusFilter = 'SEMUA'; // SEMUA | HADIR | IZIN | ALPA
   String? _selectedSantriId; // khusus wali dengan lebih dari satu anak
   bool _showAllJenis = false;
+  bool _showAllRiwayat = false;
+  static const int _batasRiwayat = 6;
 
   bool get _isWali => AppScope.of(context).user?.isWali == true;
 
@@ -383,12 +385,42 @@ class _PembinaanIbadahScreenState extends State<PembinaanIbadahScreen> {
         final key = t == null ? '-' : '${t.year}-${t.month}-${t.day}';
         groups.putIfAbsent(key, () => []).add(p);
       }
+
+      final batas = _showAllRiwayat ? filtered.length : _batasRiwayat;
+      var tampil = 0;
       for (final g in groups.values) {
+        if (tampil >= batas) break;
         children.add(_dateHeader(_tgl(g.first), g));
         for (final p in g) {
+          if (tampil >= batas) break;
           children.add(_ibadahCard(p));
+          tampil++;
         }
         children.add(const SizedBox(height: 6));
+      }
+
+      if (filtered.length > _batasRiwayat) {
+        children.add(Padding(
+          padding: const EdgeInsets.only(top: 4, bottom: 8),
+          child: OutlinedButton.icon(
+            onPressed: () => setState(() => _showAllRiwayat = !_showAllRiwayat),
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size.fromHeight(46),
+              side: BorderSide(color: PColors.border),
+              backgroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+            ),
+            icon: Icon(_showAllRiwayat ? Icons.expand_less_rounded : Icons.expand_more_rounded,
+                size: 20, color: PTheme.primary),
+            label: Text(
+              _showAllRiwayat
+                  ? 'Tampilkan lebih sedikit'
+                  : 'Lihat semua (${filtered.length - tampil} lagi)',
+              style: TextStyle(
+                  fontFamily: 'Nunito', fontSize: 13, fontWeight: FontWeight.w800, color: PTheme.primary),
+            ),
+          ),
+        ));
       }
     }
 
@@ -408,47 +440,36 @@ class _PembinaanIbadahScreenState extends State<PembinaanIbadahScreen> {
                         onRefresh: () => _load(showSpinner: false),
                         child: ListView(
                           physics: const AlwaysScrollableScrollPhysics(),
-                          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                          padding: EdgeInsets.fromLTRB(16, 12, 16, readOnly ? 24 : 96),
                           children: children,
                         ),
                       ),
           ),
         ),
       ),
-      // Bar aksi bawah (bukan FAB) supaya toast tidak menumpuk.
-      bottomNavigationBar: readOnly
+      // Tombol melayang ringkas di tengah bawah (tanpa bar), toast diangkat di atasnya.
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+      floatingActionButton: readOnly
           ? null
           : Container(
               decoration: BoxDecoration(
-                color: PTheme.surface,
-                border: Border(top: BorderSide(color: PColors.border)),
+                borderRadius: BorderRadius.circular(999),
+                boxShadow: [
+                  BoxShadow(color: PTheme.primary.withOpacity(0.35), blurRadius: 18, offset: const Offset(0, 8)),
+                ],
               ),
-              child: SafeArea(
-                top: false,
-                child: Center(
-                  heightFactor: 1,
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 480),
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
-                      child: SizedBox(
-                        height: 50,
-                        width: double.infinity,
-                        child: FilledButton.icon(
-                          onPressed: _add,
-                          style: FilledButton.styleFrom(
-                            backgroundColor: PTheme.primary,
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-                          ),
-                          icon: const Icon(Icons.add_rounded, size: 20),
-                          label: const Text('Catat Ibadah',
-                              style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w800, fontSize: 14.5)),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
+              child: FloatingActionButton.extended(
+                onPressed: _add,
+                elevation: 0,
+                focusElevation: 0,
+                hoverElevation: 0,
+                highlightElevation: 0,
+                backgroundColor: PTheme.primary,
+                foregroundColor: Colors.white,
+                shape: const StadiumBorder(),
+                icon: const Icon(Icons.add_rounded, size: 22),
+                label: const Text('Catat Ibadah',
+                    style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w800, fontSize: 14)),
               ),
             ),
     );
@@ -801,8 +822,8 @@ class _PembinaanIbadahScreenState extends State<PembinaanIbadahScreen> {
                               size: const Size(96, 96),
                               painter: _RingPainter(
                                 value: persen == null ? 0 : persen / 100,
-                                track: Colors.white.withOpacity(0.18),
-                                color: PColors.gold,
+                                track: Colors.white.withOpacity(0.22),
+                                color: Colors.white,
                               ),
                             ),
                             persen == null
@@ -845,16 +866,15 @@ class _PembinaanIbadahScreenState extends State<PembinaanIbadahScreen> {
                                   Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                                     decoration: BoxDecoration(
-                                      color: PColors.gold.withOpacity(0.22),
+                                      color: Colors.white,
                                       borderRadius: BorderRadius.circular(999),
-                                      border: Border.all(color: PColors.gold.withOpacity(0.5)),
                                     ),
                                     child: Text(_predikat(persen),
-                                        style: const TextStyle(
+                                        style: TextStyle(
                                             fontFamily: 'Nunito',
                                             fontSize: 11.5,
                                             fontWeight: FontWeight.w800,
-                                            color: PColors.gold)),
+                                            color: PTheme.primary)),
                                   ),
                                   const SizedBox(height: 8),
                                   Text('$hadir hadir dari $total catatan',
@@ -877,7 +897,7 @@ class _PembinaanIbadahScreenState extends State<PembinaanIbadahScreen> {
                     children: [
                       stat(Icons.check_circle_rounded, 'Hadir', hadir, const Color(0xFF9BE7B4)),
                       const SizedBox(width: 8),
-                      stat(Icons.schedule_rounded, 'Izin', izin, PColors.gold),
+                      stat(Icons.schedule_rounded, 'Izin', izin, const Color(0xFFFFE9A8)),
                       const SizedBox(width: 8),
                       stat(Icons.cancel_rounded, 'Alpa', alpa, const Color(0xFFFFA8A8)),
                     ],
@@ -1108,7 +1128,10 @@ class _PembinaanIbadahScreenState extends State<PembinaanIbadahScreen> {
             Expanded(
               child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
-                onTap: () => setState(() => _timeFilter = w),
+                onTap: () => setState(() {
+                  _timeFilter = w;
+                  _showAllRiwayat = false;
+                }),
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 200),
                   padding: const EdgeInsets.symmetric(vertical: 9),
@@ -1158,7 +1181,10 @@ class _PembinaanIbadahScreenState extends State<PembinaanIbadahScreen> {
     final bg = kode == 'SEMUA' ? PTheme.primary : _meta(kode).bg;
 
     return InkWell(
-      onTap: () => setState(() => _statusFilter = kode),
+      onTap: () => setState(() {
+        _statusFilter = kode;
+        _showAllRiwayat = false;
+      }),
       borderRadius: BorderRadius.circular(14),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
