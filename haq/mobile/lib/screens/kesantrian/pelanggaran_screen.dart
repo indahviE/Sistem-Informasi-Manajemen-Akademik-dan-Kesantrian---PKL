@@ -147,6 +147,17 @@ class _PelanggaranScreenState extends State<PelanggaranScreen> {
   bool get _isWali => AppScope.of(context).user?.isWali == true;
   bool get _isPimpinan => AppScope.of(context).user?.isPimpinan == true;
 
+  /// Tombol kembali: hanya untuk non-wali (wali sudah punya tab bawah).
+  bool get _showBack => !_isWali && (widget.onBack != null || Navigator.of(context).canPop());
+
+  void _handleBack() {
+    if (widget.onBack != null) {
+      widget.onBack!();
+    } else {
+      Navigator.of(context).maybePop();
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -455,7 +466,7 @@ class _PelanggaranScreenState extends State<PelanggaranScreen> {
       color: PTheme.background,
       child: Row(
         children: [
-          if (widget.onBack != null)
+          if (_showBack)
             Container(
               margin: const EdgeInsets.only(right: 12),
               decoration: BoxDecoration(
@@ -464,7 +475,7 @@ class _PelanggaranScreenState extends State<PelanggaranScreen> {
                 border: Border.all(color: _kBorder),
               ),
               child: IconButton(
-                onPressed: widget.onBack,
+                onPressed: _handleBack,
                 tooltip: 'Kembali',
                 icon: Icon(Icons.arrow_back_rounded, color: PTheme.primary, size: 20),
                 padding: EdgeInsets.zero,

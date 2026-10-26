@@ -231,7 +231,8 @@ class _ShellScreenState extends State<ShellScreen> {
     }
 
     if (user.isAdmin || user.isMusyrif) {
-      m.add(_MenuItem('Pelanggaran', Icons.gavel, (_) => const PelanggaranScreen()));
+      m.add(_MenuItem('Pelanggaran', Icons.gavel,
+          (_) => PelanggaranScreen(onBack: () => _goToMenu('Dashboard'))));
       m.add(_MenuItem('Perizinan', Icons.exit_to_app, (_) => const PerizinanScreen()));
       m.add(_MenuItem('Kesehatan', Icons.medical_services, (_) => const KesehatanScreen()));
       m.add(_MenuItem('Rekam Medis', Icons.health_and_safety, (_) => const RekamMedisScreen()));
@@ -239,7 +240,13 @@ class _ShellScreenState extends State<ShellScreen> {
     }
 
     if (user.isPimpinan) {
-      m.add(_MenuItem('Pelanggaran', Icons.gavel, (_) => const PelanggaranScreen(subtitle: 'Pimpinan • Riwayat Pelanggaran')));
+      m.add(_MenuItem(
+          'Pelanggaran',
+          Icons.gavel,
+          (_) => PelanggaranScreen(
+                subtitle: 'Pimpinan • Riwayat Pelanggaran',
+                onBack: () => _goToMenu('Dashboard'),
+              )));
       m.add(_MenuItem('Perizinan', Icons.exit_to_app, (_) => const PerizinanScreen()));
       m.add(_MenuItem('Kesehatan', Icons.medical_services, (_) => const KesehatanScreen()));
       m.add(_MenuItem('Rekam Medis', Icons.health_and_safety, (_) => const RekamMedisScreen()));
