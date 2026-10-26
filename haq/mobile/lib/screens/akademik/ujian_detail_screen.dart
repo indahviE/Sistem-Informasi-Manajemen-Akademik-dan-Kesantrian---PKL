@@ -267,6 +267,14 @@ class _UjianDetailScreenState extends State<UjianDetailScreen> {
   String _query = '';
   bool _busyKunci = false;
 
+  /// Nama kelas yang sedang dibuka (kartu kelas bisa dibuka/tutup).
+  final Set<String> _terbuka = {};
+  bool _kelasAwalDiatur = false;
+
+  /// santriId -> nama kelas, diambil dari daftar santri (sama seperti halaman Input Nilai).
+  Map<dynamic, String> _kelasBySantri = {};
+  static const _tanpaKelas = 'Belum ada kelas';
+
   /// Pimpinan/Mudir hanya memantau: tidak bisa input nilai, kunci, atau remedial.
   bool get _readOnly => AppScope.of(context).user?.isPimpinan == true;
 
@@ -297,11 +305,32 @@ class _UjianDetailScreenState extends State<UjianDetailScreen> {
         // Endpoint belum ada / gagal: anggap kosong.
       }
 
+      // Peta santri -> kelas (sekali saja). Dipakai kalau nilai dari backend
+      // tidak membawa santri.kelas.namaKelas.
+      var peta = _kelasBySantri;
+      if (peta.isEmpty) {
+        try {
+          final sr = await api.get(ApiUrl.santri);
+          final raw = sr is Map ? (sr['data'] ?? sr['santris'] ?? sr['items']) : sr;
+          final m = <dynamic, String>{};
+          for (final s in ((raw as List?) ?? []).whereType<Map>()) {
+            final k = s['kelas'];
+            final nama = k is Map ? '${k['namaKelas'] ?? ''}'.trim() : '';
+            if (nama.isNotEmpty) m[s['id']] = nama;
+          }
+          peta = m;
+        } on ApiException {
+          // Gagal: daftar tetap tampil datar.
+        }
+      }
+
       if (!mounted) return;
       setState(() {
         _data = res as Map<String, dynamic>;
         _remedials = rem;
+        _kelasBySantri = peta;
         _loading = false;
+        _aturKelasAwal();
       });
     } on ApiException catch (e) {
       if (mounted) {
@@ -547,7 +576,8 @@ class _UjianDetailScreenState extends State<UjianDetailScreen> {
     if (s is Map && s['kelas'] is Map) v = (s['kelas'] as Map)['namaKelas'];
     if (v == null && n['kelas'] is Map) v = (n['kelas'] as Map)['namaKelas'];
     final t = v?.toString().trim();
-    return (t == null || t.isEmpty) ? null : t;
+    if (t != null && t.isNotEmpty) return t;
+    return _kelasBySantri[_sidOf(n)];
   }
 
   /// Data remedial milik santri pada nilai [n] (null bila belum ada).
@@ -569,6 +599,19 @@ class _UjianDetailScreenState extends State<UjianDetailScreen> {
     if (st == 'TUNTAS') return _Akhir.tuntasRemedial;
     if (st == 'BELUM_TUNTAS') return _Akhir.belumFinal;
     return _Akhir.belumMenunggu;
+  }
+
+    /// Kunci grup kelas untuk nilai [n].
+  String _kelasKey(Map<String, dynamic> n) => _kelasOfNilai(n) ?? _tanpaKelas;
+
+  /// Buka otomatis kelas yang masih punya santri belum tuntas atau susulan.
+  /// Hanya dijalankan sekali, supaya pilihan buka/tutup tidak berubah saat muat ulang.
+  void _aturKelasAwal() {
+    if (_kelasAwalDiatur) return;
+    _kelasAwalDiatur = true;
+    for (final n in _nilais) {
+      if (!_isTuntas(_akhirOf(n))) _terbuka.add(_kelasKey(n));
+    }
   }
 
   bool _isTuntas(_Akhir a) => a == _Akhir.tuntasLangsung || a == _Akhir.tuntasRemedial;
@@ -787,30 +830,126 @@ class _UjianDetailScreenState extends State<UjianDetailScreen> {
     }
 
     final groups = <String, List<Map<String, dynamic>>>{};
-    final tanpa = <Map<String, dynamic>>[];
     for (final n in list) {
-      final k = _kelasOfNilai(n);
-      if (k == null) {
-        tanpa.add(n);
-      } else {
-        groups.putIfAbsent(k, () => []).add(n);
-      }
+      groups.putIfAbsent(_kelasKey(n), () => []).add(n);
     }
     final names = groups.keys.toList()
-      ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+      ..sort((a, b) {
+        if (a == _tanpaKelas) return 1;
+        if (b == _tanpaKelas) return -1;
+        return a.toLowerCase().compareTo(b.toLowerCase());
+      });
 
-    final out = <Widget>[];
-    var first = true;
-    for (final k in names) {
-      out.add(_sectionHeader(k, groups[k]!.length, first: first));
-      first = false;
-      out.addAll(groups[k]!.map((n) => _nilaiTile(n, isTop: identical(n, top))));
-    }
-    if (tanpa.isNotEmpty) {
-      out.add(_sectionHeader('Belum ada kelas', tanpa.length, unassigned: true, first: first));
-      out.addAll(tanpa.map((n) => _nilaiTile(n, isTop: identical(n, top))));
-    }
-    return out;
+    // Saat mencari atau memfilter, semua kelas yang punya hasil dibuka paksa.
+    final menyaring = _query.trim().isNotEmpty || _tab != 'ALL';
+    return [
+      for (final k in names) _kelasCard(k, groups[k]!, top, paksaBuka: menyaring),
+    ];
+  }
+
+  Widget _kelasCard(String nama, List<Map<String, dynamic>> items,
+      Map<String, dynamic>? top, {required bool paksaBuka}) {
+    // Angka di judul dihitung dari semua santri di kelas ini, bukan hasil filter.
+    final semua = _nilais.where((n) => _kelasKey(n) == nama).toList();
+    final tuntas = semua.where((n) => _isTuntas(_akhirOf(n))).length;
+    final susulan = semua.where((n) => _nilaiNum(n) == null).length;
+    final belum = semua.length - tuntas - susulan;
+    final buka = paksaBuka || _terbuka.contains(nama);
+    final tanpaKelas = nama == _tanpaKelas;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+        color: SC.surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: SC.border),
+        boxShadow: softShadow,
+      ),
+      child: Column(
+        children: [
+          InkWell(
+            borderRadius: BorderRadius.circular(18),
+            onTap: paksaBuka
+                ? null
+                : () => setState(() {
+                      if (!_terbuka.remove(nama)) _terbuka.add(nama);
+                    }),
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                children: [
+                  Container(
+                    width: 38,
+                    height: 38,
+                    decoration: BoxDecoration(
+                      color: tanpaKelas ? SC.surfaceDim : SC.sage,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(
+                      tanpaKelas ? Icons.help_outline_rounded : Icons.class_rounded,
+                      size: 20,
+                      color: tanpaKelas ? SC.inkSecondary : SC.primary,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Flexible(
+                              child: Text(nama,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w800,
+                                      color: _C.ink)),
+                            ),
+                            const SizedBox(width: 8),
+                            _pill('${semua.length} santri', _C.goldSoft, _C.goldText,
+                                bd: _C.goldBorder, fs: 10.5),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 4,
+                          children: [
+                            if (tuntas > 0)
+                              _pill('$tuntas tuntas', _C.okBg, _C.okFg, bd: _C.okBd, fs: 10),
+                            if (belum > 0)
+                              _pill('$belum belum tuntas', _C.badBg, _C.badFg,
+                                  bd: _C.badBd, fs: 10),
+                            if (susulan > 0)
+                              _pill('$susulan susulan', _C.warnBg, _C.warnFg,
+                                  bd: _C.warnBd, fs: 10),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(buka ? Icons.expand_less : Icons.expand_more,
+                      size: 24, color: _C.ink2),
+                ],
+              ),
+            ),
+          ),
+          if (buka) ...[
+            const Divider(height: 1, thickness: 1, color: _C.border),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(10, 10, 10, 1),
+              child: Column(
+                children: [
+                  for (final n in items) _nilaiTile(n, isTop: identical(n, top)),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
   }
 
   Widget _sectionHeader(String title, int count, {bool unassigned = false, bool first = false}) {
