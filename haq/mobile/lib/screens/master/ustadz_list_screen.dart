@@ -149,7 +149,7 @@ class _UstadzListScreenState extends State<UstadzListScreen> {
 
   List<Map<String, dynamic>> _items = [];
   bool _loading = true;
-  bool _busy = false; // true selama simpan/hapus/buat akun berjalan
+  bool _busy = false; // true selama simpan/hapus/buat akun/toggle berjalan
   String? _error;
 
   String _filter = 'SEMUA'; // SEMUA | GURU | MUSYRIF
@@ -381,6 +381,39 @@ class _UstadzListScreenState extends State<UstadzListScreen> {
         'ustadzId': u['id'],
       });
     }, 'Akun dibuat', sub: '${u['nama']} sekarang bisa login');
+  }
+
+  /// Aktif/nonaktifkan akun login. Pola sama dengan halaman Manajemen Pengguna:
+  /// PATCH /users/:id/toggle tanpa body, status baru dibaca dari respons.
+  Future<void> _toggleAkun(Map<String, dynamic> u) async {
+    if (_busy) return;
+    final akun = _akun(u);
+    final userId = u['userId'] ?? akun?['id'];
+    if (akun == null || userId == null) {
+      _toast('Akun tidak ditemukan.', error: true);
+      return;
+    }
+
+    final nama = (u['nama'] ?? '-').toString();
+    final lama = (akun['status'] ?? '').toString();
+    setState(() => _busy = true);
+    try {
+      final res = await AppScope.of(context).api.patch('${ApiUrl.users}/$userId/toggle');
+      if (!mounted) return;
+      final baru = (res is Map ? res['status'] : null)?.toString() ??
+          (lama == 'AKTIF' ? 'NONAKTIF' : 'AKTIF');
+      setState(() {
+        akun['status'] = baru;
+        u['akun'] = akun; // _akun() mengembalikan salinan, jadi simpan balik
+      });
+      _toast(baru == 'AKTIF' ? 'Akun diaktifkan' : 'Akun dinonaktifkan', subtitle: nama);
+    } on ApiException catch (e) {
+      _toast(e.message, error: true);
+    } catch (_) {
+      _toast('Gagal mengubah status akun.', error: true);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
   // ---------------------------------------------------------------------
@@ -1114,6 +1147,8 @@ class _UstadzListScreenState extends State<UstadzListScreen> {
           Text(text, style: sty(13, FontWeight.w600, color ?? SC.ink)),
         ]);
 
+    final akunAktif = akun != null && (akun['status'] ?? '').toString() == 'AKTIF';
+
     return PopupMenuButton<String>(
       tooltip: 'Opsi',
       enabled: !_busy,
@@ -1125,6 +1160,7 @@ class _UstadzListScreenState extends State<UstadzListScreen> {
         if (v == 'edit') _edit(u);
         if (v == 'mengajar') _penugasan(u);
         if (v == 'akun') _buatAkun(u);
+        if (v == 'status') _toggleAkun(u);
         if (v == 'hapus') _hapus(u);
       },
       itemBuilder: (_) => [
@@ -1133,19 +1169,26 @@ class _UstadzListScreenState extends State<UstadzListScreen> {
           PopupMenuItem(value: 'mengajar', child: item(Icons.menu_book_outlined, 'Penugasan mengajar')),
         if (akun == null)
           PopupMenuItem(value: 'akun', child: item(Icons.lock_person_outlined, 'Buat akun login')),
+        if (akun != null)
+          PopupMenuItem(
+            value: 'status',
+            child: akunAktif
+                ? item(Icons.block_rounded, 'Nonaktifkan akun', color: SC.errorText)
+                : item(Icons.verified_user_outlined, 'Aktifkan akun'),
+          ),
         PopupMenuItem(
             value: 'hapus', child: item(Icons.delete_outline, 'Hapus', color: SC.errorText)),
       ],
     );
   }
 
-  /// Strip bawah kartu: status akun login + aksi cepat.
+  /// Strip bawah kartu: status akun login + switch aktif/nonaktif + aksi cepat.
   Widget _footerAkun(Map<String, dynamic> u, Map<String, dynamic>? akun, bool aktif, bool musyrif) {
     final adaAkun = akun != null;
     final bisaMengajar = !musyrif && !_readOnly;
 
     return Container(
-      padding: const EdgeInsets.fromLTRB(14, 10, 10, 10),
+      padding: const EdgeInsets.fromLTRB(14, 6, 10, 6),
       decoration: BoxDecoration(
         color: adaAkun ? SC.surfaceDim : SC.goldSurface,
         border: Border(top: BorderSide(color: adaAkun ? SC.border : SC.gold.withOpacity(0.35))),
@@ -1160,6 +1203,7 @@ class _UstadzListScreenState extends State<UstadzListScreen> {
             child: adaAkun
                 ? Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Text('${akun['email']}',
                           maxLines: 1,
@@ -1175,6 +1219,18 @@ class _UstadzListScreenState extends State<UstadzListScreen> {
                     overflow: TextOverflow.ellipsis,
                     style: sty(11.5, FontWeight.w700, SC.goldDark)),
           ),
+          // Switch aktif/nonaktif akun login (pola sama dengan halaman Pengguna).
+          if (adaAkun && !_readOnly)
+            Transform.scale(
+              scale: 0.8,
+              child: Switch(
+                value: aktif,
+                onChanged: _busy ? null : (_) => _toggleAkun(u),
+                activeColor: Colors.white,
+                activeTrackColor: SC.primary,
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+            ),
           if (!adaAkun && !_readOnly) ...[
             const SizedBox(width: 8),
             FilledButton(
