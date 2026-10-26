@@ -5,7 +5,7 @@ import '../ui_utils.dart';
 import '../santri/santri_ui.dart' show SC;
 
 // ============================================================================
-// Token warna lokal (disamakan dengan rapor_screen.dart)
+// Token warna lokal
 // ============================================================================
 
 class _DC {
@@ -61,14 +61,10 @@ String _inisial(String nama) {
   return t.isEmpty ? '?' : t.characters.first.toUpperCase();
 }
 
-Widget _ring(double size, {double opacity = 0.08}) => Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        border: Border.all(color: Colors.white.withOpacity(opacity), width: 1.5),
-      ),
-    );
+Color _warnaNilai(double? nilai, double kkm) {
+  if (nilai == null) return _DC.inkSecondary;
+  return nilai >= kkm ? _DC.greenFg : _DC.redFg;
+}
 
 // ============================================================================
 // Layar rapor untuk Wali Santri (read-only)
@@ -184,7 +180,7 @@ class _RaporWaliScreenState extends State<RaporWaliScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Rapor Digital', style: _t(19, FontWeight.w800, _DC.ink, height: 1.15)),
+                Text('Rapor', style: _t(19, FontWeight.w800, _DC.ink, height: 1.15)),
                 const SizedBox(height: 2),
                 Text(
                   '${widget.santri['nama'] ?? '-'}',
@@ -206,7 +202,7 @@ class _RaporWaliScreenState extends State<RaporWaliScreen> {
               children: [
                 Icon(Icons.lock_outline_rounded, size: 12, color: _DC.primary),
                 const SizedBox(width: 5),
-                Text('Hanya Lihat', style: _t(10.5, FontWeight.w800, _DC.primary)),
+                Text('Hanya lihat', style: _t(10.5, FontWeight.w800, _DC.primary)),
               ],
             ),
           ),
@@ -245,7 +241,7 @@ class _RaporWaliScreenState extends State<RaporWaliScreen> {
 
   Widget _periodePicker() {
     return SizedBox(
-      height: 44,
+      height: 40,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: _rapors.length,
@@ -257,34 +253,15 @@ class _RaporWaliScreenState extends State<RaporWaliScreen> {
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 160),
               padding: const EdgeInsets.symmetric(horizontal: 14),
+              alignment: Alignment.center,
               decoration: BoxDecoration(
                 color: selected ? _DC.primary : _DC.paper,
-                borderRadius: BorderRadius.circular(999),
+                borderRadius: BorderRadius.circular(10),
                 border: Border.all(color: selected ? _DC.primary : _DC.line),
-                boxShadow: selected
-                    ? [
-                        BoxShadow(
-                          color: _DC.primary.withOpacity(0.22),
-                          blurRadius: 10,
-                          offset: const Offset(0, 4),
-                        ),
-                      ]
-                    : null,
               ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.event_note_outlined,
-                    size: 15,
-                    color: selected ? _DC.goldLight : _DC.inkSecondary,
-                  ),
-                  const SizedBox(width: 7),
-                  Text(
-                    '${_rapors[i]['periode']}',
-                    style: _t(12, FontWeight.w800, selected ? Colors.white : _DC.inkSecondary),
-                  ),
-                ],
+              child: Text(
+                '${_rapors[i]['periode']}',
+                style: _t(12, FontWeight.w800, selected ? Colors.white : _DC.inkSecondary),
               ),
             ),
           );
@@ -300,48 +277,19 @@ class _RaporWaliScreenState extends State<RaporWaliScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            SizedBox(
-              width: 128,
-              height: 128,
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  Container(
-                    width: 128,
-                    height: 128,
-                    decoration: BoxDecoration(
-                      color: _DC.sage.withOpacity(0.6),
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                  Container(
-                    width: 90,
-                    height: 90,
-                    decoration: BoxDecoration(
-                      color: _DC.paper,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: _DC.gold.withOpacity(0.5), width: 1.5),
-                      boxShadow: const [
-                        BoxShadow(
-                          color: Color(0x140F3A2E),
-                          blurRadius: 16,
-                          offset: Offset(0, 6),
-                        ),
-                      ],
-                    ),
-                    child: Icon(Icons.hourglass_top_rounded, size: 38, color: _DC.primary),
-                  ),
-                  const Positioned(
-                    top: 10,
-                    right: 18,
-                    child: Icon(Icons.star_rounded, size: 18, color: _DC.gold),
-                  ),
-                ],
+            Container(
+              width: 88,
+              height: 88,
+              decoration: BoxDecoration(
+                color: _DC.paper,
+                shape: BoxShape.circle,
+                border: Border.all(color: _DC.gold.withOpacity(0.5), width: 1.5),
               ),
+              child: Icon(Icons.hourglass_top_rounded, size: 36, color: _DC.primary),
             ),
-            const SizedBox(height: 22),
+            const SizedBox(height: 20),
             Text(
-              'Rapor Belum Terbit',
+              'Rapor belum terbit',
               textAlign: TextAlign.center,
               style: _t(19, FontWeight.w800, _DC.primary),
             ),
@@ -360,13 +308,18 @@ class _RaporWaliScreenState extends State<RaporWaliScreen> {
 }
 
 // ============================================================================
-// Dokumen rapor (tampilan seperti lembar rapor resmi)
+// Dokumen rapor (lembar rapor: kop, identitas, tabel nilai, kehadiran)
 // ============================================================================
 
 class RaporDokumen extends StatelessWidget {
   final Map<String, dynamic> santri;
   final Map<String, dynamic> rapor;
   const RaporDokumen({super.key, required this.santri, required this.rapor});
+
+  static const double _wNo = 26;
+  static const double _wNilai = 48;
+  static const double _wAkhir = 54;
+  static const double _wKet = 26;
 
   List<Map<String, dynamic>> _daftar(dynamic v) => ((v as List?) ?? const [])
       .whereType<Map>()
@@ -379,22 +332,20 @@ class RaporDokumen extends StatelessWidget {
     final mapelList = _daftar(ringkasan['mapel']);
     final ujianList = _daftar(ringkasan['ujian']);
     final kehadiran = (ringkasan['kehadiran'] as Map<String, dynamic>?) ?? {};
-
-    var bagian = 0;
-    String huruf() => String.fromCharCode('A'.codeUnitAt(0) + bagian++);
+    final rata = _num(rapor['rataRata']);
 
     return Container(
       width: double.infinity,
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         color: _DC.paper,
-        borderRadius: BorderRadius.circular(26),
-        border: Border.all(color: _DC.primary.withOpacity(0.25)),
-        boxShadow: [
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: _DC.line),
+        boxShadow: const [
           BoxShadow(
-            color: _DC.primary.withOpacity(0.12),
-            blurRadius: 24,
-            offset: const Offset(0, 10),
+            color: Color(0x0F0F172A),
+            blurRadius: 18,
+            offset: Offset(0, 6),
           ),
         ],
       ),
@@ -402,9 +353,8 @@ class RaporDokumen extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _kop(),
-          // Garis ganda emas khas kop surat
           Container(
-            height: 4,
+            height: 3,
             decoration: const BoxDecoration(
               gradient: LinearGradient(
                 colors: [_DC.goldDark, _DC.goldLight, _DC.gold, _DC.goldDark],
@@ -418,27 +368,28 @@ class RaporDokumen extends StatelessWidget {
               children: [
                 _identitas(),
                 const SizedBox(height: 14),
-                _ringkasanTiles(mapelList, ujianList, kehadiran),
+                _ringkasanStrip(mapelList, ujianList, kehadiran, rata),
                 if (mapelList.isNotEmpty) ...[
-                  const SizedBox(height: 24),
-                  _judulBagian('${huruf()}. Nilai Mata Pelajaran',
-                      trailing: '${mapelList.length} mapel'),
-                  const SizedBox(height: 12),
-                  for (var i = 0; i < mapelList.length; i++) _itemMapel(i + 1, mapelList[i]),
+                  const SizedBox(height: 26),
+                  _judulBagian('Nilai mata pelajaran', trailing: '${mapelList.length} mapel'),
+                  const SizedBox(height: 10),
+                  _tabelMapel(mapelList, rata),
                 ],
                 if (ujianList.isNotEmpty) ...[
-                  const SizedBox(height: 16),
-                  _judulBagian('${huruf()}. Nilai Ujian', trailing: '${ujianList.length} ujian'),
-                  const SizedBox(height: 12),
-                  for (var i = 0; i < ujianList.length; i++) _itemUjian(i + 1, ujianList[i]),
+                  const SizedBox(height: 24),
+                  _judulBagian('Nilai ujian', trailing: '${ujianList.length} ujian'),
+                  const SizedBox(height: 10),
+                  _tabelUjian(ujianList),
                 ],
                 if (kehadiran['total'] != null) ...[
-                  const SizedBox(height: 16),
-                  _judulBagian('${huruf()}. Kehadiran'),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 24),
+                  _judulBagian('Kehadiran'),
+                  const SizedBox(height: 10),
                   _kehadiran(kehadiran),
                 ],
-                const SizedBox(height: 22),
+                const SizedBox(height: 14),
+                _legenda(),
+                const SizedBox(height: 20),
                 _penutup(),
               ],
             ),
@@ -453,7 +404,7 @@ class RaporDokumen extends StatelessWidget {
   Widget _kop() {
     return Container(
       width: double.infinity,
-      clipBehavior: Clip.antiAlias,
+      padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
@@ -461,67 +412,57 @@ class RaporDokumen extends StatelessWidget {
           colors: [_DC.primary, _DC.primarySoft],
         ),
       ),
-      child: Stack(
-        clipBehavior: Clip.none,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Positioned(right: -40, top: -50, child: _ring(170)),
-          Positioned(left: -30, bottom: -60, child: _ring(140, opacity: 0.06)),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 22, 20, 22),
-            child: Column(
-              children: [
-                Container(
-                  width: 62,
-                  height: 62,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Colors.white.withOpacity(0.10),
-                    border: Border.all(color: _DC.goldLight.withOpacity(0.8), width: 1.6),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(5),
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(color: _DC.gold.withOpacity(0.55)),
-                      ),
-                      child: const Icon(Icons.menu_book_rounded, size: 26, color: _DC.goldLight),
+          Row(
+            children: [
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withOpacity(0.10),
+                  border: Border.all(color: _DC.goldLight.withOpacity(0.8), width: 1.4),
+                ),
+                child: const Icon(Icons.menu_book_rounded, size: 22, color: _DC.goldLight),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Laporan hasil belajar santri',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: _t(11.5, FontWeight.w700, _DC.goldLight),
                     ),
-                  ),
+                    const SizedBox(height: 2),
+                    Text('Rapor Digital',
+                        style: _t(23, FontWeight.w800, Colors.white, height: 1.15)),
+                  ],
                 ),
-                const SizedBox(height: 12),
-                Text(
-                  'RAPOR DIGITAL',
-                  textAlign: TextAlign.center,
-                  style: _t(19, FontWeight.w800, Colors.white, height: 1.1, spacing: 2.0),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Laporan Hasil Belajar Santri',
-                  textAlign: TextAlign.center,
-                  style: _t(12, FontWeight.w600, Colors.white70),
-                ),
-                const SizedBox(height: 14),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-                  decoration: BoxDecoration(
-                    color: _DC.gold.withOpacity(0.18),
-                    borderRadius: BorderRadius.circular(999),
-                    border: Border.all(color: _DC.gold.withOpacity(0.55)),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.event_available_outlined, size: 14, color: _DC.goldLight),
-                      const SizedBox(width: 7),
-                      Flexible(
-                        child: Text(
-                          'Periode ${rapor['periode'] ?? '-'}',
-                          overflow: TextOverflow.ellipsis,
-                          style: _t(12, FontWeight.w800, _DC.goldLight),
-                        ),
-                      ),
-                    ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.event_available_outlined, size: 14, color: _DC.goldLight),
+                const SizedBox(width: 7),
+                Flexible(
+                  child: Text(
+                    'Periode ${rapor['periode'] ?? '-'}',
+                    overflow: TextOverflow.ellipsis,
+                    style: _t(12.5, FontWeight.w800, Colors.white),
                   ),
                 ),
               ],
@@ -539,35 +480,19 @@ class RaporDokumen extends StatelessWidget {
     final k = santri['kelas'];
     final kelas = k is Map ? '${k['namaKelas'] ?? '-'}' : '-';
 
-    Widget kotak(IconData icon, String label, String value) => Expanded(
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
-            decoration: BoxDecoration(
-              color: _DC.paper,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: _DC.line),
-            ),
-            child: Row(
-              children: [
-                Icon(icon, size: 15, color: _DC.primary),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(label, style: _t(9.5, FontWeight.w700, _DC.inkMuted, spacing: 0.4)),
-                      const SizedBox(height: 1),
-                      Text(
-                        value,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: _t(12.5, FontWeight.w800, _DC.ink),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
+    Widget field(String label, String value) => Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: _t(11, FontWeight.w700, _DC.inkMuted)),
+              const SizedBox(height: 2),
+              Text(
+                value,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: _t(14, FontWeight.w800, _DC.ink, height: 1.2),
+              ),
+            ],
           ),
         );
 
@@ -575,7 +500,7 @@ class RaporDokumen extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: _DC.surfaceDim,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: _DC.line),
       ),
       child: Column(
@@ -583,8 +508,8 @@ class RaporDokumen extends StatelessWidget {
           Row(
             children: [
               Container(
-                width: 54,
-                height: 54,
+                width: 46,
+                height: 46,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
@@ -593,34 +518,24 @@ class RaporDokumen extends StatelessWidget {
                     end: Alignment.bottomRight,
                     colors: [_DC.primary, _DC.primarySoft],
                   ),
-                  border: Border.all(color: _DC.gold.withOpacity(0.65), width: 1.5),
+                  border: Border.all(color: _DC.gold.withOpacity(0.65), width: 1.4),
                 ),
-                child: Text(_inisial(nama), style: _t(22, FontWeight.w800, _DC.goldLight)),
+                child: Text(_inisial(nama), style: _t(19, FontWeight.w800, _DC.goldLight)),
               ),
-              const SizedBox(width: 13),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('NAMA SANTRI', style: _t(9.5, FontWeight.w800, _DC.inkMuted, spacing: 0.6)),
-                    const SizedBox(height: 2),
-                    Text(
-                      nama,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: _t(16, FontWeight.w800, _DC.ink, height: 1.2),
-                    ),
-                  ],
-                ),
-              ),
+              const SizedBox(width: 12),
+              field('Nama santri', nama),
             ],
           ),
-          const SizedBox(height: 12),
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 12),
+            child: Divider(height: 1, thickness: 1, color: _DC.line),
+          ),
           Row(
             children: [
-              kotak(Icons.tag_rounded, 'NIS', '${santri['nis'] ?? '-'}'),
-              const SizedBox(width: 8),
-              kotak(Icons.class_outlined, 'KELAS', kelas),
+              field('NIS', '${santri['nis'] ?? '-'}'),
+              Container(width: 1, height: 30, color: _DC.line),
+              const SizedBox(width: 14),
+              field('Kelas', kelas),
             ],
           ),
         ],
@@ -630,13 +545,13 @@ class RaporDokumen extends StatelessWidget {
 
   // ---------------------------------------------------------------- ringkasan
 
-  Widget _ringkasanTiles(
+  /// Satu strip dengan 3 angka utama (tanpa kartu terpisah-pisah).
+  Widget _ringkasanStrip(
     List<Map<String, dynamic>> mapel,
     List<Map<String, dynamic>> ujian,
     Map<String, dynamic> k,
+    double? rata,
   ) {
-    final rata = _num(rapor['rataRata']);
-
     // "Tuntas" dihitung dari mapel; kalau tidak ada mapel, pakai ujian.
     final sumber = mapel.isNotEmpty ? mapel : ujian;
     var tuntas = 0;
@@ -650,77 +565,64 @@ class RaporDokumen extends StatelessWidget {
     final hadir = _num(k['hadir']) ?? 0;
     final persen = total > 0 ? '${(hadir / total * 100).round()}%' : '–';
 
-    Widget tile(IconData icon, String label, String value,
-        {bool utama = false, String? sub}) {
-      final fg = utama ? Colors.white : _DC.primary;
+    Widget seg(int flex, IconData icon, String label, String value,
+        {bool utama = false}) {
       return Expanded(
-        flex: utama ? 5 : 4,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-          decoration: BoxDecoration(
-            gradient: utama
-                ? LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [_DC.primary, _DC.primarySoft],
-                  )
-                : null,
-            color: utama ? null : _DC.paper,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: utama ? _DC.primary : _DC.line),
-          ),
+        flex: flex,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 children: [
-                  Icon(icon, size: 14, color: utama ? _DC.goldLight : _DC.gold),
+                  Icon(icon, size: 14, color: _DC.gold),
                   const SizedBox(width: 5),
                   Expanded(
                     child: Text(
                       label,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: _t(10.5, FontWeight.w700, utama ? Colors.white70 : _DC.inkSecondary),
+                      style: _t(11, FontWeight.w700, _DC.inkSecondary),
                     ),
                   ),
                 ],
               ),
               const SizedBox(height: 8),
-              Text(value, style: _t(utama ? 28 : 22, FontWeight.w800, fg, height: 1)),
-              if (sub != null) ...[
-                const SizedBox(height: 4),
-                Text(
-                  sub,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: _t(10, FontWeight.w600, utama ? Colors.white60 : _DC.inkMuted),
-                ),
-              ],
+              Text(
+                value,
+                style: _t(utama ? 28 : 22, FontWeight.w800, _DC.primary, height: 1),
+              ),
             ],
           ),
         ),
       );
     }
 
-    return IntrinsicHeight(
+    Widget garis() => Container(width: 1, height: 56, color: _DC.line);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: _DC.paper,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: _DC.line),
+      ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          tile(Icons.workspace_premium_outlined, 'Rata-rata',
+          seg(5, Icons.workspace_premium_outlined, 'Rata-rata',
               rata != null ? rata.toStringAsFixed(1) : '–',
-              utama: true, sub: 'Nilai keseluruhan'),
-          const SizedBox(width: 8),
-          tile(Icons.task_alt_rounded, 'Tuntas',
+              utama: true),
+          garis(),
+          seg(4, Icons.task_alt_rounded, 'Tuntas',
               sumber.isEmpty ? '–' : '$tuntas/${sumber.length}'),
-          const SizedBox(width: 8),
-          tile(Icons.how_to_reg_outlined, 'Hadir', persen),
+          garis(),
+          seg(4, Icons.how_to_reg_outlined, 'Hadir', persen),
         ],
       ),
     );
   }
 
-  // ---------------------------------------------------------------- bagian
+  // ---------------------------------------------------------------- judul bagian
 
   Widget _judulBagian(String text, {String? trailing}) {
     return Row(
@@ -734,233 +636,231 @@ class RaporDokumen extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 9),
-        Expanded(child: Text(text, style: _t(14, FontWeight.w800, _DC.ink))),
+        Expanded(child: Text(text, style: _t(15, FontWeight.w800, _DC.ink))),
         if (trailing != null)
-          Text(trailing, style: _t(11, FontWeight.w600, _DC.inkSecondary)),
+          Text(trailing, style: _t(11.5, FontWeight.w600, _DC.inkSecondary)),
       ],
     );
   }
 
-  Widget _pillKet(double? nilai, double kkm) {
-    if (nilai == null) {
-      return _pill('-', _DC.surfaceDim, _DC.inkSecondary, null);
-    }
-    final tuntas = nilai >= kkm;
-    return tuntas
-        ? _pill('Tuntas', _DC.greenBg, _DC.greenFg, Icons.check_circle_rounded)
-        : _pill('Belum tuntas', _DC.redBg, _DC.redFg, Icons.error_outline_rounded);
-  }
+  // ---------------------------------------------------------------- tabel
 
-  Widget _pill(String text, Color bg, Color fg, IconData? icon) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(999)),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (icon != null) ...[
-            Icon(icon, size: 12, color: fg),
-            const SizedBox(width: 4),
-          ],
-          Text(text, style: _t(10.5, FontWeight.w800, fg)),
-        ],
-      ),
-    );
-  }
-
-  Widget _komponen(String label, String value, {Color? color, bool tebal = false}) {
-    return Expanded(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label, style: _t(10, FontWeight.w700, _DC.inkMuted)),
-          const SizedBox(height: 3),
-          Text(
-            value,
-            style: _t(tebal ? 16 : 14, FontWeight.w800, color ?? _DC.ink, height: 1),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Bar nilai dengan penanda KKM.
-  Widget _barNilai(double? nilai, double kkm) {
-    final frac = ((nilai ?? 0) / 100).clamp(0.0, 1.0).toDouble();
-    final kkmFrac = (kkm / 100).clamp(0.0, 1.0).toDouble();
-    final lulus = nilai != null && nilai >= kkm;
-
-    return SizedBox(
-      height: 14,
-      child: LayoutBuilder(
-        builder: (ctx, c) {
-          final w = c.maxWidth;
-          return Stack(
-            clipBehavior: Clip.none,
-            children: [
-              Positioned(
-                left: 0,
-                right: 0,
-                top: 4,
-                child: Container(
-                  height: 6,
-                  decoration: BoxDecoration(
-                    color: _DC.surfaceDim,
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                ),
-              ),
-              Positioned(
-                left: 0,
-                top: 4,
-                child: Container(
-                  width: w * frac,
-                  height: 6,
-                  decoration: BoxDecoration(
-                    color: lulus ? _DC.primary : const Color(0xFFDC2626),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                ),
-              ),
-              Positioned(
-                left: w * kkmFrac - 1,
-                top: 0,
-                child: Container(
-                  width: 2,
-                  height: 14,
-                  decoration: BoxDecoration(
-                    color: _DC.goldDark,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-            ],
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _itemKartu({
-    required int no,
-    required String nama,
-    String? sub,
-    required double? akhir,
-    required double kkm,
-    required List<Widget> komponen,
+  Widget _tabelBox({
+    required List<Widget> header,
+    required List<Widget> rows,
+    Widget? footer,
   }) {
-    final warna = akhir == null
-        ? _DC.inkSecondary
-        : (akhir >= kkm ? _DC.greenFg : _DC.redFg);
-
     return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         color: _DC.paper,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: _DC.line),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          Container(
+            color: _DC.surfaceDim,
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+            child: Row(children: header),
+          ),
+          ...rows,
+          if (footer != null) footer,
+        ],
+      ),
+    );
+  }
+
+  Widget _kolom(String t, {double? w, TextAlign align = TextAlign.center}) {
+    final txt = Text(
+      t,
+      textAlign: align,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: _t(10.5, FontWeight.w800, _DC.inkSecondary),
+    );
+    return w == null ? Expanded(child: txt) : SizedBox(width: w, child: txt);
+  }
+
+  Widget _ketIcon(double? nilai, double kkm) {
+    if (nilai == null) {
+      return Text('-', textAlign: TextAlign.center, style: _t(12, FontWeight.w700, _DC.inkMuted));
+    }
+    return nilai >= kkm
+        ? const Icon(Icons.check_circle_rounded, size: 18, color: _DC.greenFg)
+        : const Icon(Icons.error_rounded, size: 18, color: _DC.redFg);
+  }
+
+  BoxDecoration _barisDeco(int no) => BoxDecoration(
+        color: no.isEven ? _DC.background : _DC.paper,
+        border: const Border(top: BorderSide(color: _DC.line)),
+      );
+
+  Widget _tabelMapel(List<Map<String, dynamic>> list, double? rata) {
+    final rows = <Widget>[];
+    for (var i = 0; i < list.length; i++) {
+      final m = list[i];
+      final no = i + 1;
+      final akhir = _num(m['rataRata']);
+      final kkm = _num(m['kkm']) ?? _DC.kkm;
+      rows.add(
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 11),
+          decoration: _barisDeco(no),
+          child: Row(
             children: [
-              Container(
-                width: 26,
-                height: 26,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(color: _DC.sage, shape: BoxShape.circle),
-                child: Text('$no', style: _t(11.5, FontWeight.w800, _DC.primary)),
+              SizedBox(
+                width: _wNo,
+                child: Text('$no',
+                    textAlign: TextAlign.center,
+                    style: _t(12, FontWeight.w700, _DC.inkMuted)),
               ),
-              const SizedBox(width: 10),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Padding(
-                      padding: const EdgeInsets.only(top: 3),
-                      child: Text(
-                        nama,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: _t(13.5, FontWeight.w800, _DC.ink, height: 1.25),
-                      ),
+                    Text(
+                      '${m['mapel'] ?? '-'}',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: _t(13, FontWeight.w800, _DC.ink, height: 1.2),
+                    ),
+                    const SizedBox(height: 2),
+                    Text('KKM ${_kkmStr(kkm)}',
+                        style: _t(10.5, FontWeight.w600, _DC.inkMuted)),
+                  ],
+                ),
+              ),
+              SizedBox(
+                width: _wNilai,
+                child: Text(_n(_num(m['harian'])),
+                    textAlign: TextAlign.center,
+                    style: _t(12.5, FontWeight.w700, _DC.inkSecondary)),
+              ),
+              SizedBox(
+                width: _wNilai,
+                child: Text(_n(_num(m['ujian'])),
+                    textAlign: TextAlign.center,
+                    style: _t(12.5, FontWeight.w700, _DC.inkSecondary)),
+              ),
+              SizedBox(
+                width: _wAkhir,
+                child: Text(_n(akhir),
+                    textAlign: TextAlign.center,
+                    style: _t(14, FontWeight.w800, _warnaNilai(akhir, kkm))),
+              ),
+              SizedBox(width: _wKet, child: Center(child: _ketIcon(akhir, kkm))),
+            ],
+          ),
+        ),
+      );
+    }
+
+    Widget? footer;
+    if (rata != null) {
+      footer = Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+        decoration: BoxDecoration(
+          color: _DC.goldSurface,
+          border: Border(top: BorderSide(color: _DC.gold.withOpacity(0.4))),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text('Rata-rata keseluruhan',
+                  style: _t(12.5, FontWeight.w800, _DC.goldDark)),
+            ),
+            Text(rata.toStringAsFixed(1), style: _t(16, FontWeight.w800, _DC.primary)),
+          ],
+        ),
+      );
+    }
+
+    return _tabelBox(
+      header: [
+        _kolom('No', w: _wNo),
+        _kolom('Mata pelajaran', align: TextAlign.left),
+        _kolom('Harian', w: _wNilai),
+        _kolom('Ujian', w: _wNilai),
+        _kolom('Akhir', w: _wAkhir),
+        _kolom('', w: _wKet),
+      ],
+      rows: rows,
+      footer: footer,
+    );
+  }
+
+  Widget _tabelUjian(List<Map<String, dynamic>> list) {
+    final rows = <Widget>[];
+    for (var i = 0; i < list.length; i++) {
+      final m = list[i];
+      final no = i + 1;
+      final nilai = _num(m['rataRata']);
+      final kkm = _num(m['kkm']) ?? _DC.kkm;
+      final remedial = m['remedial'] == true;
+      final nilaiAwal = _num(m['nilaiAwal']);
+      final sub = remedial
+          ? (nilaiAwal != null ? 'Remedial • nilai awal ${_n(nilaiAwal)}' : 'Remedial')
+          : null;
+
+      rows.add(
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 11),
+          decoration: _barisDeco(no),
+          child: Row(
+            children: [
+              SizedBox(
+                width: _wNo,
+                child: Text('$no',
+                    textAlign: TextAlign.center,
+                    style: _t(12, FontWeight.w700, _DC.inkMuted)),
+              ),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${m['ujian'] ?? '-'}',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: _t(13, FontWeight.w800, _DC.ink, height: 1.2),
                     ),
                     if (sub != null) ...[
                       const SizedBox(height: 2),
-                      Text(sub, style: _t(10.5, FontWeight.w500, _DC.inkSecondary)),
+                      Text(sub, style: _t(10.5, FontWeight.w700, _DC.goldDark)),
                     ],
                   ],
                 ),
               ),
-              const SizedBox(width: 8),
-              _pillKet(akhir, kkm),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(children: [...komponen]),
-          const SizedBox(height: 10),
-          _barNilai(akhir, kkm),
-          const SizedBox(height: 3),
-          Row(
-            children: [
-              Text('KKM ${_kkmStr(kkm)}', style: _t(10, FontWeight.w700, _DC.goldDark)),
-              const Spacer(),
-              Text(
-                akhir == null ? '' : '${akhir.toStringAsFixed(1)} / 100',
-                style: _t(10, FontWeight.w700, warna),
+              SizedBox(
+                width: _wAkhir,
+                child: Text(_n(nilai),
+                    textAlign: TextAlign.center,
+                    style: _t(14, FontWeight.w800, _warnaNilai(nilai, kkm))),
               ),
+              SizedBox(
+                width: _wNilai,
+                child: Text(_kkmStr(kkm),
+                    textAlign: TextAlign.center,
+                    style: _t(12.5, FontWeight.w700, _DC.inkSecondary)),
+              ),
+              SizedBox(width: _wKet, child: Center(child: _ketIcon(nilai, kkm))),
             ],
           ),
-        ],
-      ),
-    );
-  }
+        ),
+      );
+    }
 
-  Widget _itemMapel(int no, Map<String, dynamic> m) {
-    final akhir = _num(m['rataRata']);
-    final kkm = _num(m['kkm']) ?? _DC.kkm;
-    final warna = akhir == null
-        ? _DC.inkSecondary
-        : (akhir >= kkm ? _DC.greenFg : _DC.redFg);
-
-    return _itemKartu(
-      no: no,
-      nama: '${m['mapel'] ?? '-'}',
-      akhir: akhir,
-      kkm: kkm,
-      komponen: [
-        _komponen('Harian', _n(m['harian'] as num?)),
-        _komponen('Ujian', _n(m['ujian'] as num?)),
-        _komponen('Nilai Akhir', _n(akhir), color: warna, tebal: true),
+    return _tabelBox(
+      header: [
+        _kolom('No', w: _wNo),
+        _kolom('Ujian', align: TextAlign.left),
+        _kolom('Nilai', w: _wAkhir),
+        _kolom('KKM', w: _wNilai),
+        _kolom('', w: _wKet),
       ],
-    );
-  }
-
-  Widget _itemUjian(int no, Map<String, dynamic> m) {
-    final nilai = _num(m['rataRata']);
-    final kkm = _num(m['kkm']) ?? _DC.kkm;
-    final remedial = m['remedial'] == true;
-    final warna = nilai == null
-        ? _DC.inkSecondary
-        : (nilai >= kkm ? _DC.greenFg : _DC.redFg);
-
-    return _itemKartu(
-      no: no,
-      nama: '${m['ujian'] ?? '-'}',
-      sub: remedial
-          ? (m['nilaiAwal'] != null
-              ? 'Remedial • nilai awal ${_n(m['nilaiAwal'] as num?)}'
-              : 'Remedial')
-          : null,
-      akhir: nilai,
-      kkm: kkm,
-      komponen: [
-        _komponen('Nilai', _n(nilai), color: warna, tebal: true),
-        _komponen('KKM', _kkmStr(kkm)),
-      ],
+      rows: rows,
     );
   }
 
@@ -982,35 +882,34 @@ class RaporDokumen extends StatelessWidget {
       (alpa, _DC.redFg),
     ];
 
-    Widget kotak(String label, int v, Color c) => Expanded(
-          child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 11),
-            decoration: BoxDecoration(
-              color: _DC.surfaceDim,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: _DC.line),
-            ),
-            child: Column(
-              children: [
-                Container(
-                  width: 8,
-                  height: 8,
-                  decoration: BoxDecoration(color: c, shape: BoxShape.circle),
-                ),
-                const SizedBox(height: 7),
-                Text('$v', style: _t(18, FontWeight.w800, _DC.ink, height: 1)),
-                const SizedBox(height: 4),
-                Text(label, style: _t(10.5, FontWeight.w700, _DC.inkSecondary)),
-              ],
-            ),
+    Widget item(String label, int v, Color c) => Expanded(
+          child: Column(
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(color: c, shape: BoxShape.circle),
+                  ),
+                  const SizedBox(width: 5),
+                  Text(label, style: _t(11, FontWeight.w700, _DC.inkSecondary)),
+                ],
+              ),
+              const SizedBox(height: 5),
+              Text('$v', style: _t(20, FontWeight.w800, _DC.ink, height: 1)),
+            ],
           ),
         );
+
+    Widget sekat() => Container(width: 1, height: 36, color: _DC.line);
 
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: _DC.paper,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: _DC.line),
       ),
       child: Column(
@@ -1024,20 +923,19 @@ class RaporDokumen extends StatelessWidget {
               Expanded(
                 child: Padding(
                   padding: const EdgeInsets.only(bottom: 3),
-                  child: Text(
-                    'tingkat kehadiran',
-                    style: _t(12, FontWeight.w600, _DC.inkSecondary),
-                  ),
+                  child: Text('tingkat kehadiran',
+                      style: _t(12, FontWeight.w600, _DC.inkSecondary)),
                 ),
               ),
-              Text('$hadir dari $total pertemuan', style: _t(11, FontWeight.w700, _DC.inkSecondary)),
+              Text('$hadir dari $total pertemuan',
+                  style: _t(11, FontWeight.w700, _DC.inkSecondary)),
             ],
           ),
           const SizedBox(height: 12),
           ClipRRect(
             borderRadius: BorderRadius.circular(999),
             child: SizedBox(
-              height: 11,
+              height: 10,
               child: total == 0
                   ? Container(color: _DC.line)
                   : Row(
@@ -1058,13 +956,13 @@ class RaporDokumen extends StatelessWidget {
           const SizedBox(height: 14),
           Row(
             children: [
-              kotak('Hadir', hadir, _DC.greenFg),
-              const SizedBox(width: 8),
-              kotak('Sakit', sakit, _DC.gold),
-              const SizedBox(width: 8),
-              kotak('Izin', izin, _DC.amberFg),
-              const SizedBox(width: 8),
-              kotak('Alpa', alpa, _DC.redFg),
+              item('Hadir', hadir, _DC.greenFg),
+              sekat(),
+              item('Sakit', sakit, _DC.gold),
+              sekat(),
+              item('Izin', izin, _DC.amberFg),
+              sekat(),
+              item('Alpa', alpa, _DC.redFg),
             ],
           ),
         ],
@@ -1072,7 +970,27 @@ class RaporDokumen extends StatelessWidget {
     );
   }
 
-  // ---------------------------------------------------------------- penutup
+  // ---------------------------------------------------------------- legenda & penutup
+
+  Widget _legenda() {
+    Widget butir(IconData icon, Color c, String text) => Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 14, color: c),
+            const SizedBox(width: 5),
+            Text(text, style: _t(11, FontWeight.w600, _DC.inkSecondary)),
+          ],
+        );
+
+    return Wrap(
+      spacing: 14,
+      runSpacing: 6,
+      children: [
+        butir(Icons.check_circle_rounded, _DC.greenFg, 'Tuntas (nilai ≥ KKM)'),
+        butir(Icons.error_rounded, _DC.redFg, 'Belum tuntas (nilai < KKM)'),
+      ],
+    );
+  }
 
   Widget _penutup() {
     return Container(
@@ -1080,30 +998,31 @@ class RaporDokumen extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: _DC.goldSurface,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: _DC.gold.withOpacity(0.4)),
       ),
       child: Row(
         children: [
           Container(
-            width: 44,
-            height: 44,
+            width: 40,
+            height: 40,
             decoration: BoxDecoration(
               color: Colors.white,
               shape: BoxShape.circle,
-              border: Border.all(color: _DC.gold.withOpacity(0.6), width: 1.4),
+              border: Border.all(color: _DC.gold.withOpacity(0.6), width: 1.3),
             ),
-            child: Icon(Icons.verified_rounded, size: 24, color: _DC.primary),
+            child: Icon(Icons.verified_rounded, size: 22, color: _DC.primary),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Rapor Telah Diterbitkan', style: _t(13, FontWeight.w800, _DC.goldDark)),
+                Text('Rapor telah diterbitkan',
+                    style: _t(13, FontWeight.w800, _DC.goldDark)),
                 const SizedBox(height: 2),
                 Text(
-                  'Rapor ini diterbitkan secara digital melalui sistem.',
+                  'Diterbitkan secara digital melalui sistem.',
                   style: _t(11, FontWeight.w500, _DC.goldDark.withOpacity(0.85), height: 1.35),
                 ),
               ],
