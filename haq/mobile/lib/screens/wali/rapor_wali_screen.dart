@@ -1,9 +1,9 @@
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
-import 'package:printing/printing.dart';
 import '../../services/api_client.dart';
 import '../../services/app_scope.dart';
+import '../../services/pdf_saver.dart';
 import '../ui_utils.dart';
 import '../santri/santri_ui.dart' show SC;
 import 'rapor_pdf.dart';
@@ -186,56 +186,34 @@ class _RaporWaliScreenState extends State<RaporWaliScreen> {
     }
   }
 
-  Future<void> _unduhPdf() =>
-      _jalankanPdf((bytes, nama) => Printing.sharePdf(bytes: bytes, filename: nama));
-
-  Future<void> _cetakPdf() => _jalankanPdf(
-        (bytes, nama) => Printing.layoutPdf(name: nama, onLayout: (_) async => bytes),
-      );
+  // Sama seperti ekspor PDF di Audit Log: web = diunduh lewat browser,
+  // Android/iOS = dibuka lewat share sheet.
+  Future<void> _unduhPdf() => _jalankanPdf((bytes, nama) async {
+        await savePdf(nama, bytes);
+      });
 
   Widget _aksiPdf() {
     final sibuk = _membuatPdf;
-    final bentuk = RoundedRectangleBorder(borderRadius: BorderRadius.circular(12));
-    return Row(
-      children: [
-        Expanded(
-          child: SizedBox(
-            height: 46,
-            child: FilledButton.icon(
-              onPressed: sibuk ? null : _unduhPdf,
-              style: FilledButton.styleFrom(
-                backgroundColor: _DC.primary,
-                foregroundColor: Colors.white,
-                shape: bentuk,
-                textStyle: _t(13.5, FontWeight.w800, Colors.white),
-              ),
-              icon: sibuk
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                    )
-                  : const Icon(Icons.picture_as_pdf_rounded, size: 18),
-              label: Text(sibuk ? 'Menyiapkan PDF...' : 'Unduh PDF'),
-            ),
-          ),
+    return SizedBox(
+      width: double.infinity,
+      height: 46,
+      child: FilledButton.icon(
+        onPressed: sibuk ? null : _unduhPdf,
+        style: FilledButton.styleFrom(
+          backgroundColor: _DC.primary,
+          foregroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          textStyle: _t(13.5, FontWeight.w800, Colors.white),
         ),
-        const SizedBox(width: 10),
-        SizedBox(
-          height: 46,
-          child: OutlinedButton.icon(
-            onPressed: sibuk ? null : _cetakPdf,
-            style: OutlinedButton.styleFrom(
-              foregroundColor: _DC.primary,
-              side: BorderSide(color: _DC.line),
-              shape: bentuk,
-              textStyle: _t(13.5, FontWeight.w800, _DC.primary),
-            ),
-            icon: const Icon(Icons.print_outlined, size: 18),
-            label: const Text('Cetak'),
-          ),
-        ),
-      ],
+        icon: sibuk
+            ? const SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+              )
+            : const Icon(Icons.picture_as_pdf_rounded, size: 18),
+        label: Text(sibuk ? 'Menyiapkan PDF...' : 'Unduh PDF'),
+      ),
     );
   }
 
