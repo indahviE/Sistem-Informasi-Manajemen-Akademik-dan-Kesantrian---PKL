@@ -193,6 +193,19 @@ String _tglRingkas(DateTime d) => '${d.day} ${_bulan[d.month - 1]}';
 bool _adaJam(DateTime d) => d.hour != 0 || d.minute != 0;
 String _jam(DateTime d) =>
     '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')} WIB';
+/// Jadwal belum tiba. Tanpa jam, dihitung per hari.
+bool _belumTiba(DateTime j) {
+  final now = DateTime.now();
+  if (_adaJam(j)) return now.isBefore(j);
+  return DateTime(now.year, now.month, now.day).isBefore(DateTime(j.year, j.month, j.day));
+}
+
+/// Jadwal sudah lewat. Tanpa jam, lewat bila harinya sudah lalu.
+bool _sudahLewat(DateTime j) {
+  final now = DateTime.now();
+  if (_adaJam(j)) return now.isAfter(j);
+  return DateTime(now.year, now.month, now.day).isAfter(DateTime(j.year, j.month, j.day));
+}
 
 // Status sesi remedial
 class _St {
@@ -247,6 +260,7 @@ class _Rem {
   final DateTime? jadwal;
   final DateTime? tenggat;
   final bool belumNilai; // nilai ujian utama belum diinput
+  final String? kelas; // nama kelas santri (null bila tidak diketahui)
 
   const _Rem({
     required this.santriId,
@@ -263,6 +277,7 @@ class _Rem {
     required this.jadwal,
     required this.tenggat,
     this.belumNilai = false,
+    this.kelas,
   });
 }
 
@@ -292,6 +307,16 @@ class _UjianRemedialScreenState extends State<UjianRemedialScreen> {
   String _status = 'BELUM_TES';
   DateTime? _jadwal;
   bool _saving = false;
+
+  // Tampilan per kelas + jadwal massal
+  final Set<String> _terbuka = {};
+  bool _kelasAwalDiatur = false;
+  final Set<dynamic> _tidakDipilih = {}; // santri yang centangnya dilepas (bawaan: semua tercentang)
+    bool _formOpen = false;
+  StateSetter? _dialogSet; // untuk menyegarkan isi pop up saat state berubah
+  String? _formErr; // pesan kesalahan yang tampil di dalam form
+  Map<dynamic, String> _kelasBySantri = {}; // santriId -> nama kelas
+  static const _tanpaKelas = 'Belum ada kelas';
 
   final _formKey = GlobalKey();
 
@@ -337,38 +362,32 @@ class _UjianRemedialScreenState extends State<UjianRemedialScreen> {
         // Endpoint remedial belum ada: pakai santri dengan nilai di bawah KKM saja.
       }
 
+      // Peta santri -> kelas (sekali saja), sama seperti halaman Input Nilai.
+      var peta = _kelasBySantri;
+      if (peta.isEmpty) {
+        try {
+          final sr = await api.get(ApiUrl.santri);
+          final raw = sr is Map ? (sr['data'] ?? sr['santris'] ?? sr['items']) : sr;
+          final m = <dynamic, String>{};
+          for (final s in ((raw as List?) ?? []).whereType<Map>()) {
+            final k = s['kelas'];
+            final nama = k is Map ? '${k['namaKelas'] ?? ''}'.trim() : '';
+            if (nama.isNotEmpty) m[s['id']] = nama;
+          }
+          peta = m;
+        } on ApiException {
+          // Gagal: kelas jatuh ke nama kelas ujian.
+        }
+      }
+
       if (!mounted) return;
       setState(() {
         _data = res as Map<String, dynamic>;
         _remedials = rem;
+        _kelasBySantri = peta;
         _loading = false;
+        _aturKelasAwal();
       });
-
-      // Pilih santri pertama yang masih aktif bila belum ada yang terpilih,
-      // atau segarkan form dari data terbaru bila sudah ada yang terpilih.
-      // Mode baca saja: form tidak dipakai, jadi tidak perlu diisi.
-      final rows = _rows;
-      _Rem? target;
-      if (_selId != null) {
-        for (final r in rows) {
-          if (r.santriId == _selId && _bisaDiisi(r)) target = r;
-        }
-      }
-      if (target == null) {
-        for (final r in _sorted(rows)) {
-        if (_bisaDiisi(r)) {
-            target = r;
-            break;
-          }
-        }
-      }
-      if (mounted && !_readOnly) {
-        if (target != null) {
-          setState(() => _fillForm(target!));
-        } else {
-          setState(() => _selId = null); // semua sudah final: tidak ada form
-        }
-      }
 
     } on ApiException catch (e) {
       if (!mounted || silent) return;
@@ -394,6 +413,30 @@ double get _kkm =>
 
   String get _kelasNama => '${_ujian['kelas']?['namaKelas'] ?? ''}';
   String get _mapelNama => '${_ujian['mapel']?['namaMapel'] ?? ''}';
+    /// Nama kelas santri: dari data santri, lalu peta kelas, lalu kelas ujian.
+  String? _kelasSantri(dynamic id, Map<String, dynamic> s) {
+    final k = s['kelas'];
+    final v = k is Map ? '${k['namaKelas'] ?? ''}'.trim() : '';
+    if (v.isNotEmpty) return v;
+    return _kelasBySantri[id] ?? (_kelasNama.isEmpty ? null : _kelasNama);
+  }
+
+  /// Buka otomatis kelas yang masih punya remedial belum final (sekali saja).
+  void _aturKelasAwal() {
+    if (_kelasAwalDiatur) return;
+    _kelasAwalDiatur = true;
+    for (final r in _rows) {
+      if (!_isFinal(r.status)) _terbuka.add(r.kelas ?? _tanpaKelas);
+    }
+  }
+
+  bool _dipilihR(_Rem r) => !_tidakDipilih.contains(r.santriId);
+
+  void _pilihSemua(List<_Rem> daftar, bool pilih) => setState(() {
+        for (final r in daftar) {
+          pilih ? _tidakDipilih.remove(r.santriId) : _tidakDipilih.add(r.santriId);
+        }
+      });
 
   /// Gabungan: santri dengan nilai < KKM (dasar) ditimpa data remedial dari backend.
   List<_Rem> get _rows {
@@ -422,6 +465,7 @@ for (final n in _nilais) {
     jadwal: null,
     tenggat: null,
     belumNilai: kosong,
+    kelas: _kelasSantri(id, s),
   );
 }
 
@@ -444,6 +488,7 @@ for (final n in _nilais) {
         jadwal: _dt(r['jadwal']),
         tenggat: _dt(r['tenggat']),
         belumNilai: false, // sudah punya data remedial = sudah dinilai
+        kelas: base?.kelas ?? _kelasSantri(id, s),
       );
     }
 
@@ -499,16 +544,44 @@ for (final n in _nilais) {
     _jadwal = r.jadwal;
   }
 
-    void _select(_Rem r) {
+    /// Segarkan halaman sekaligus isi pop up (kalau sedang terbuka).
+  void _rebuild() {
+    if (mounted) setState(() {});
+    _dialogSet?.call(() {});
+  }
+
+  Future<void> _bukaForm() async {
+    if (_formOpen) return;
+    _formOpen = true;
+    _formErr = null;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setD) {
+          _dialogSet = setD;
+          final r = _selected;
+          return Dialog(
+            backgroundColor: Colors.transparent,
+            insetPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 24),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: _maxW),
+              child: r == null
+                  ? const SizedBox.shrink()
+                  : SingleChildScrollView(child: _formCard(r)),
+            ),
+          );
+        },
+      ),
+    );
+    _formOpen = false;
+    _dialogSet = null;
+    if (mounted) setState(() => _selId = null);
+  }
+
+  void _select(_Rem r) {
     if (_readOnly || !_bisaDiisi(r)) return; // final / belum ada nilai: tidak bisa diisi
     setState(() => _fillForm(r));
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final c = _formKey.currentContext;
-      if (c != null) {
-        Scrollable.ensureVisible(c,
-            duration: const Duration(milliseconds: 300), curve: Curves.easeOut, alignment: 0.02);
-      }
-    });
+    _bukaForm();
   }
 
   double? get _nilaiVal {
@@ -546,16 +619,66 @@ for (final n in _nilais) {
           : const TimeOfDay(hour: 15, minute: 30),
     );
     if (!mounted) return;
-    setState(() {
-      _jadwal = DateTime(d.year, d.month, d.day, t?.hour ?? 0, t?.minute ?? 0);
-      if (_status == 'BELUM_TES') _status = 'PROSES';
-    });
-    _toast(
-      context,
-      'Jadwal diatur',
-      subtitle: 'Tekan "Simpan Hasil" untuk menyimpan',
-      icon: Icons.event_available_outlined,
+    _jadwal = DateTime(d.year, d.month, d.day, t?.hour ?? 0, t?.minute ?? 0);
+    if (_status == 'BELUM_TES') _status = 'PROSES';
+    _rebuild();
+  }
+
+    /// Atur satu jadwal untuk beberapa santri sekaligus (satu kelas).
+  Future<void> _aturJadwalMassal(String kelas, List<_Rem> target) async {
+    if (_readOnly || _saving || target.isEmpty) return;
+
+    final hasil = await showModalBottomSheet<Map<String, dynamic>>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => _JadwalMassalSheet(
+        kelas: kelas,
+        nama: target.map((r) => r.nama).toList(),
+        perluKet: target.any((r) => r.keterangan.isEmpty),
+      ),
     );
+    if (hasil == null || !mounted) return;
+
+    final jadwal = hasil['jadwal'] as DateTime;
+    final ket = hasil['ket'] as String;
+    final gagal = <String>[];
+
+    _saving = true;
+    _rebuild();
+    try {
+      final api = AppScope.of(context).api;
+      await Future.wait(target.map((r) async {
+        try {
+          await api.post('${ApiUrl.ujian}/$_id/remedial', {
+            'santriId': r.santriId,
+            // Kosong = pakai keterangan yang sudah ada milik santri itu.
+            'keterangan': ket.isEmpty ? r.keterangan : ket,
+            'status': 'PROSES',
+            'catatan': r.catatan,
+            'jadwal': jadwal.toIso8601String(),
+          });
+        } catch (_) {
+          gagal.add(r.nama);
+        }
+      }));
+      await _load(silent: true);
+      if (!mounted) return;
+
+      final ok = target.length - gagal.length;
+      if (gagal.isEmpty) {
+        _toast(context, 'Jadwal tersimpan',
+            subtitle: '$ok santri • ${_tglPendek(jadwal)}',
+            icon: Icons.event_available_outlined);
+      } else {
+        _toast(context, '$ok dari ${target.length} santri tersimpan',
+            subtitle: 'Gagal: ${gagal.join(', ')}', error: true);
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
     /// Dialog "sudah benar?" sebelum menyimpan. Kalau nilai perbaikan terisi,
@@ -657,19 +780,37 @@ for (final n in _nilais) {
     if (_readOnly) return;
     final r = _selected;
     if (r == null) return;
+    _formErr = null;
 
     final ket = _ketCtrl.text.trim();
     if (ket.isEmpty) {
-      _toast(context, 'Keterangan materi wajib diisi',
-          subtitle: 'Isi keterangan materi remedial dulu', error: true);
+      _formErr = 'Keterangan materi wajib diisi.';
+      _rebuild();
       return;
     }
     final raw = _nilaiCtrl.text.trim();
     final v = _nilaiVal;
     if (raw.isNotEmpty && v == null) {
-      _toast(context, 'Nilai perbaikan tidak valid',
-          subtitle: 'Isi dengan angka antara 0 – 100', error: true);
+      _formErr = 'Nilai perbaikan harus angka antara 0 – 100.';
+      _rebuild();
       return;
+    }
+
+    // Jadwal sesi belum tiba: tanya dulu sebelum menyimpan hasil.
+    if (v != null && _jadwal != null && _belumTiba(_jadwal!)) {
+      final lanjut = await showDialog<bool>(
+        context: context,
+        builder: (c) => AlertDialog(
+          title: const Text('Sesi belum berlangsung'),
+          content: Text(
+              'Sesi dijadwalkan ${_tglLengkap(_jadwal!)}${_adaJam(_jadwal!) ? ' • ${_jam(_jadwal!)}' : ''}. Tetap simpan hasil sekarang?'),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Batal')),
+            FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('Lanjut')),
+          ],
+        ),
+      );
+      if (lanjut != true || !mounted) return;
     }
 
     if (!await _konfirmasiSimpan(r, v)) return;
@@ -691,6 +832,7 @@ for (final n in _nilais) {
       });
       await _load(silent: true);
       if (!mounted) return;
+      if (_formOpen) Navigator.of(context).pop(); // tutup pop up
 
       var hasilTxt = '';
       if (res is Map) {
@@ -708,11 +850,14 @@ for (final n in _nilais) {
         subtitle: hasilTxt.isEmpty ? r.nama : '${r.nama} • $hasilTxt',
       );
     } on ApiException catch (e) {
-      if (mounted) _toast(context, e.message, error: true);
+      _formErr = e.message;
     } catch (_) {
-      if (mounted) _toast(context, 'Gagal menyimpan hasil remedial.', error: true);
+      _formErr = 'Gagal menyimpan hasil remedial.';
     } finally {
-      if (mounted) setState(() => _saving = false);
+      if (mounted) {
+        _saving = false;
+        _rebuild();
+      }
     }
   }
 
@@ -803,7 +948,6 @@ for (final n in _nilais) {
       return true;
     }).toList();
     final list = _sorted(filtered);
-    final sel = _selected;
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(12, 14, 12, 20),
@@ -835,8 +979,6 @@ for (final n in _nilais) {
             ),
           )
         else ...[
-        if (sel != null && !_readOnly && _bisaDiisi(sel)) _formCard(sel),
-          const SizedBox(height: 18),
           _listHeader(rows.length),
           const SizedBox(height: 10),
           if (list.isEmpty)
@@ -847,7 +989,7 @@ for (final n in _nilais) {
                       style: TextStyle(fontSize: 12.5, color: _C.ink2))),
             )
           else
-            for (final r in list) _riwayatTile(r),
+            ..._daftarKelas(list),
         ],
       ],
     );
@@ -1179,7 +1321,7 @@ for (final n in _nilais) {
                                   child: TextField(
                                     controller: _nilaiCtrl,
                                     // Status tidak lagi diatur dari sini; cukup segarkan pratinjau.
-                                    onChanged: (_) => setState(() {}),
+                                    onChanged: (_) => _rebuild(),
                                     keyboardType: const TextInputType.numberWithOptions(
                                         decimal: true),
                                     inputFormatters: [
@@ -1222,7 +1364,10 @@ for (final n in _nilais) {
                           // Nilai perbaikan terisi: status ditentukan sistem (Tuntas / Belum Tuntas).
                           if (v == null)
                             PopupMenuButton<String>(
-                              onSelected: (s) => setState(() => _status = s),
+                              onSelected: (s) {
+                                _status = s;
+                                _rebuild();
+                              },
                               itemBuilder: (_) => [
                                 for (final s in ['BELUM_TES', 'PROSES'])
                                   PopupMenuItem(value: s, child: Text(_stOf(s).label)),
@@ -1281,6 +1426,12 @@ for (final n in _nilais) {
                 _textArea(_catCtrl, 'Tulis catatan perkembangan santri…', lines: 2),
 
                 if (_jadwal != null) ...[
+                                  if (_formErr != null) ...[
+                  const SizedBox(height: 12),
+                  Text(_formErr!,
+                      style: const TextStyle(
+                          fontSize: 12, fontWeight: FontWeight.w600, color: _C.badFg)),
+                ],
                   const SizedBox(height: 12),
                   Row(
                     children: [
@@ -1301,7 +1452,7 @@ for (final n in _nilais) {
                 Row(
                   children: [
                     Expanded(
-                      child: _btn('Jadwalkan Ulang',
+                      child: _btn(r.jadwal != null ? 'Jadwalkan Ulang' : 'Atur Jadwal',
                           icon: Icons.calendar_month_outlined,
                           onTap: _saving ? null : _pickJadwal),
                     ),
@@ -1440,6 +1591,175 @@ for (final n in _nilais) {
     );
   }
 
+    List<Widget> _daftarKelas(List<_Rem> list) {
+    final groups = <String, List<_Rem>>{};
+    for (final r in list) {
+      groups.putIfAbsent(r.kelas ?? _tanpaKelas, () => []).add(r);
+    }
+    final names = groups.keys.toList()
+      ..sort((a, b) {
+        if (a == _tanpaKelas) return 1;
+        if (b == _tanpaKelas) return -1;
+        return a.toLowerCase().compareTo(b.toLowerCase());
+      });
+    return [for (final k in names) _kelasCard(k, groups[k]!)];
+  }
+
+  Widget _kelasCard(String nama, List<_Rem> items) {
+    // Angka di judul dihitung dari semua santri kelas ini, bukan hasil filter.
+    final semua = _rows.where((r) => (r.kelas ?? _tanpaKelas) == nama).toList();
+    final menunggu = semua.where((r) => !_isFinal(r.status)).toList();
+    final belumJadwal = menunggu.where((r) => r.jadwal == null).length;
+    final lewat =
+        menunggu.where((r) => r.jadwal != null && _sudahLewat(r.jadwal!)).length;
+    final terjadwal = menunggu.length - belumJadwal - lewat;
+    final selesai = semua.length - menunggu.length;
+
+    final buka = _tab != 'ALL' || _terbuka.contains(nama);
+    final bisa = items.where(_bisaDiisi).toList();
+    final dipilih = bisa.where(_dipilihR).toList();
+    final bisaAtur = !_readOnly && bisa.isNotEmpty;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: _cardDeco(radius: 18),
+      child: Column(
+        children: [
+          InkWell(
+            borderRadius: BorderRadius.circular(18),
+            onTap: _tab != 'ALL'
+                ? null
+                : () => setState(() {
+                      if (!_terbuka.remove(nama)) _terbuka.add(nama);
+                    }),
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                children: [
+                  Container(
+                    width: 38,
+                    height: 38,
+                    decoration: BoxDecoration(
+                        color: _C.chipGray, borderRadius: BorderRadius.circular(12)),
+                    child: Icon(Icons.class_rounded, size: 20, color: _C.emerald),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Flexible(
+                              child: Text(nama,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w800,
+                                      color: _C.ink)),
+                            ),
+                            const SizedBox(width: 8),
+                            _pill('${semua.length} remedial', _C.badBg, _C.badFg,
+                                bd: _C.badBd, fs: 10.5),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 4,
+                          children: [
+                            if (belumJadwal > 0)
+                              _pill('$belumJadwal belum dijadwalkan', _C.goldChip,
+                                  _C.goldText, bd: _C.goldBorder, fs: 10),
+                            if (terjadwal > 0)
+                              _pill('$terjadwal terjadwal', _C.chipGray, _C.ink2, fs: 10),
+                            if (lewat > 0)
+                              _pill('$lewat lewat jadwal', _C.badBg, _C.badFg,
+                                  bd: _C.badBd, fs: 10),
+                            if (selesai > 0)
+                              _pill('$selesai selesai', _C.okBg, _C.okFg,
+                                  bd: _C.okBd, fs: 10),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(buka ? Icons.expand_less : Icons.expand_more,
+                      size: 24, color: _C.ink2),
+                ],
+              ),
+            ),
+          ),
+          if (buka) ...[
+            const Divider(height: 1, thickness: 1, color: _C.border),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
+              child: Column(
+                children: [
+                  if (bisaAtur)
+                    Row(
+                      children: [
+                        Checkbox(
+                          value: dipilih.length == bisa.length,
+                          activeColor: _C.emerald,
+                          visualDensity: VisualDensity.compact,
+                          onChanged: (v) => _pilihSemua(bisa, v == true),
+                        ),
+                        Text('Pilih semua (${bisa.length})',
+                            style: const TextStyle(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w600,
+                                color: _C.ink2)),
+                      ],
+                    ),
+                  for (final r in items)
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (!_readOnly)
+                          SizedBox(
+                            width: 40,
+                            child: _bisaDiisi(r)
+                                ? Padding(
+                                    padding: const EdgeInsets.only(top: 12),
+                                    child: Checkbox(
+                                      value: _dipilihR(r),
+                                      activeColor: _C.emerald,
+                                      visualDensity: VisualDensity.compact,
+                                      onChanged: (v) => setState(() {
+                                        if (v == true) {
+                                          _tidakDipilih.remove(r.santriId);
+                                        } else {
+                                          _tidakDipilih.add(r.santriId);
+                                        }
+                                      }),
+                                    ),
+                                  )
+                                : null,
+                          ),
+                        Expanded(child: _riwayatTile(r)),
+                      ],
+                    ),
+                  if (bisaAtur) ...[
+                    const SizedBox(height: 2),
+                    _btn('Atur jadwal (${dipilih.length} santri)',
+                        primary: true,
+                        icon: Icons.calendar_month_outlined,
+                        loading: _saving,
+                        onTap: (dipilih.isEmpty || _saving)
+                            ? null
+                            : () => _aturJadwalMassal(nama, dipilih)),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   Widget _riwayatTile(_Rem r) {
     final st = _stOf(r.status);
     final isSel = !_readOnly && _bisaDiisi(r) && r.santriId == _selId;
@@ -1485,10 +1805,15 @@ for (final n in _nilais) {
                     child: Text(
                       j == null
                           ? 'Belum dijadwalkan'
-                          : '${_tglPendek(j)}${r.ruang.isEmpty ? '' : ' • ${r.ruang}'}',
+                          : '${_sudahLewat(j) ? 'Lewat jadwal • ' : ''}${_tglPendek(j)}${r.ruang.isEmpty ? '' : ' • ${r.ruang}'}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 12, color: _C.ink2),
+                      style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: (j != null && _sudahLewat(j))
+                              ? FontWeight.w700
+                              : FontWeight.w400,
+                          color: (j != null && _sudahLewat(j)) ? _C.badFg : _C.ink2),
                     ),
                   ),
                 ],
@@ -1547,16 +1872,11 @@ for (final n in _nilais) {
                 ],
               ),
             ),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                      r.tenggat == null ? '' : 'Tenggat: ${_tglRingkas(r.tenggat!)}',
-                      style: const TextStyle(fontSize: 11.5, color: _C.ink2)),
-                ),
-              ],
-            ),
+            if (r.tenggat != null) ...[
+              const SizedBox(height: 10),
+              Text('Tenggat: ${_tglRingkas(r.tenggat!)}',
+                  style: const TextStyle(fontSize: 11.5, color: _C.ink2)),
+            ],
           ],
         );
     }
@@ -1831,6 +2151,184 @@ for (final n in _nilais) {
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _JadwalMassalSheet extends StatefulWidget {
+  final String kelas;
+  final List<String> nama;
+  final bool perluKet; // ada santri yang belum punya keterangan materi
+  const _JadwalMassalSheet({
+    required this.kelas,
+    required this.nama,
+    required this.perluKet,
+  });
+
+  @override
+  State<_JadwalMassalSheet> createState() => _JadwalMassalSheetState();
+}
+
+class _JadwalMassalSheetState extends State<_JadwalMassalSheet> {
+  final _ket = TextEditingController();
+  DateTime? _tgl;
+  TimeOfDay _waktu = const TimeOfDay(hour: 15, minute: 30);
+  String? _err;
+
+  @override
+  void dispose() {
+    _ket.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pilihTanggal() async {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final d = await showDatePicker(
+      context: context,
+      initialDate: _tgl ?? today,
+      firstDate: today,
+      lastDate: today.add(const Duration(days: 365)),
+    );
+    if (d != null) setState(() => _tgl = d);
+  }
+
+  Future<void> _pilihJam() async {
+    final t = await showTimePicker(context: context, initialTime: _waktu);
+    if (t != null) setState(() => _waktu = t);
+  }
+
+  void _ok() {
+    if (_tgl == null) {
+      setState(() => _err = 'Pilih tanggal dulu.');
+      return;
+    }
+    final ket = _ket.text.trim();
+    if (ket.isEmpty && widget.perluKet) {
+      setState(() => _err = 'Isi keterangan materi dulu.');
+      return;
+    }
+    Navigator.pop(context, {
+      'jadwal': DateTime(_tgl!.year, _tgl!.month, _tgl!.day, _waktu.hour, _waktu.minute),
+      'ket': ket,
+    });
+  }
+
+  Widget _kotak(IconData icon, String text, VoidCallback onTap) => Expanded(
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 13),
+            decoration: BoxDecoration(
+                color: _C.fieldFill, borderRadius: BorderRadius.circular(12)),
+            child: Row(
+              children: [
+                Icon(icon, size: 17, color: _C.ink2),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(text,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                          fontSize: 13, fontWeight: FontWeight.w600, color: _C.ink)),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    final n = widget.nama.length;
+    final ringkas = widget.nama.take(3).join(', ') + (n > 3 ? ' +${n - 3} lainnya' : '');
+    final jamTxt =
+        '${_waktu.hour.toString().padLeft(2, '0')}.${_waktu.minute.toString().padLeft(2, '0')} WIB';
+
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+          16, 16, 16, 16 + MediaQuery.of(context).viewInsets.bottom),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Atur jadwal remedial',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _C.ink)),
+            const SizedBox(height: 4),
+            Text('${widget.kelas} • $n santri',
+                style: const TextStyle(fontSize: 12.5, color: _C.ink2)),
+            const SizedBox(height: 2),
+            Text(ringkas, style: const TextStyle(fontSize: 12, color: _C.ink2)),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                _kotak(Icons.event_outlined,
+                    _tgl == null ? 'Pilih tanggal' : _tglLengkap(_tgl!), _pilihTanggal),
+                const SizedBox(width: 10),
+                _kotak(Icons.schedule, jamTxt, _pilihJam),
+              ],
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _ket,
+              minLines: 2,
+              maxLines: 4,
+              style: const TextStyle(fontSize: 13, color: _C.ink),
+              decoration: InputDecoration(
+                hintText: widget.perluKet
+                    ? 'Keterangan materi remedial'
+                    : 'Keterangan materi (kosongkan untuk memakai yang sudah ada)',
+                hintStyle: const TextStyle(fontSize: 13, color: _C.ink2),
+                filled: true,
+                fillColor: _C.fieldFill,
+                contentPadding: const EdgeInsets.all(14),
+                border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+              ),
+            ),
+            if (_err != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(_err!,
+                    style: const TextStyle(fontSize: 12, color: _C.badFg)),
+              ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: FilledButton(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: _C.chipGray,
+                      foregroundColor: _C.ink,
+                      minimumSize: const Size.fromHeight(46),
+                      shape: const StadiumBorder(),
+                    ),
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Batal',
+                        style: TextStyle(fontWeight: FontWeight.w700)),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: FilledButton(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: _C.emerald,
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size.fromHeight(46),
+                      shape: const StadiumBorder(),
+                    ),
+                    onPressed: _ok,
+                    child: const Text('Simpan jadwal',
+                        style: TextStyle(fontWeight: FontWeight.w700)),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     );
