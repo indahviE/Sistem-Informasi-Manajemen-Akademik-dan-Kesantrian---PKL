@@ -246,20 +246,29 @@ class _PerizinanScreenState extends State<PerizinanScreen> {
     return ids.length > 1;
   }
 
-  /// Izin yang sedang berjalan: sudah DISETUJUI tapi belum tercatat kembali.
-  Map<String, dynamic>? get _perizinanBerjalan {
-    for (final p in _itemsUntukAnak) {
-      if (p['statusApproval'] == 'DISETUJUI' && p['tanggalKembali'] == null) return p;
-    }
-    return null;
+  /// Semua izin yang sedang berjalan: sudah DISETUJUI tapi belum tercatat kembali.
+  /// Diurutkan dari yang paling dulu jatuh tempo (paling mendesak di atas).
+  List<Map<String, dynamic>> get _perizinanBerjalan {
+    final list = _itemsUntukAnak
+        .where((p) => p['statusApproval'] == 'DISETUJUI' && p['tanggalKembali'] == null)
+        .toList();
+    list.sort((a, b) {
+      final ta = _dt(a['rencanaKembali'] ?? a['tanggalKembaliRencana']);
+      final tb = _dt(b['rencanaKembali'] ?? b['tanggalKembaliRencana']);
+      if (ta == null && tb == null) return 0;
+      if (ta == null) return 1;
+      if (tb == null) return -1;
+      return ta.compareTo(tb);
+    });
+    return list;
   }
 
   List<Map<String, dynamic>> get _riwayatSemua {
     // Hanya Wali yang punya kartu "izin aktif" terpisah di atas.
     // Role lain melihat izin yang sedang berjalan di daftar.
     if (AppScope.of(context).user?.isWali != true) return _itemsUntukAnak;
-    final berjalan = _perizinanBerjalan;
-    return _itemsUntukAnak.where((p) => p != berjalan).toList();
+    final berjalan = _perizinanBerjalan.toSet();
+    return _itemsUntukAnak.where((p) => !berjalan.contains(p)).toList();
   }
 
   int get _countPulang => _riwayatSemua.where((p) => p['jenis'] == 'PULANG').length;
@@ -274,18 +283,6 @@ class _PerizinanScreenState extends State<PerizinanScreen> {
       default:
         return _riwayatSemua;
     }
-  }
-
-  String _hitungSisaWaktu(Map<String, dynamic> p) {
-    final iso = (p['tenggatKembali'] ?? p['rencanaKembali'] ?? p['tanggalKembaliRencana'])?.toString();
-    if (iso == null || iso.isEmpty) return '—';
-    DateTime target;
-    try {
-      target = DateTime.parse(iso).toLocal();
-    } catch (_) {
-      return '—';
-    }
-    return _fmtSisaWaktu(target);
   }
 
   void _pilihAnak() {
@@ -500,6 +497,36 @@ class _PerizinanScreenState extends State<PerizinanScreen> {
     );
   }
 
+  Widget _buildBerjalanHeader(int jumlah) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        children: [
+          Container(
+            width: 4,
+            height: 18,
+            decoration: BoxDecoration(color: PColors.gold, borderRadius: BorderRadius.circular(999)),
+          ),
+          const SizedBox(width: 9),
+          Expanded(child: Text('Sedang Berjalan', style: PText.headlineSm)),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+            decoration: BoxDecoration(color: PTheme.primary, borderRadius: BorderRadius.circular(999)),
+            child: Text(
+              '$jumlah',
+              style: const TextStyle(
+                fontFamily: 'Nunito',
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+                color: Colors.white,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildRiwayatHeader() {
     return Row(
       children: [
@@ -542,7 +569,10 @@ class _PerizinanScreenState extends State<PerizinanScreen> {
     final bisaKelola = user?.role == 'ADMIN' || user?.role == 'MUSYRIF';
     final riwayat = _riwayatTerfilter;
     final adaData = _items.isNotEmpty;
-    final berjalan = isWali ? _perizinanBerjalan : null;
+    final berjalanList = isWali ? _perizinanBerjalan : const <Map<String, dynamic>>[];
+    // Wali: satu-satunya izin yang ada sedang tampil di kartu aktif,
+    // jadi riwayat memang belum punya isi. Jangan tampilkan filter kosong.
+    final belumAdaRiwayat = isWali && berjalanList.isNotEmpty && _riwayatSemua.isEmpty;
 
     return Scaffold(
       backgroundColor: PColors.background,
@@ -565,9 +595,14 @@ class _PerizinanScreenState extends State<PerizinanScreen> {
                                 children: [
                                   _buildHero(isWali),
                                   const SizedBox(height: 16),
-                                  if (isWali && berjalan != null) ...[
-                                    _ActivePerizinanCard(p: berjalan, sisaWaktuText: _hitungSisaWaktu(berjalan)),
-                                    const SizedBox(height: 16),
+                                  if (isWali && berjalanList.isNotEmpty) ...[
+                                    _buildBerjalanHeader(berjalanList.length),
+                                    for (final b in berjalanList)
+                                      _ActivePerizinanCard(
+                                        p: b,
+                                        showNama: _adaLebihDariSatuAnak && _selectedSantriId == null,
+                                      ),
+                                    const SizedBox(height: 10),
                                   ],
                                   if (!adaData)
                                     _EmptyState(
@@ -578,34 +613,43 @@ class _PerizinanScreenState extends State<PerizinanScreen> {
                                   else ...[
                                     _buildRiwayatHeader(),
                                     const SizedBox(height: 12),
-                                    _buildFilter(),
-                                    const SizedBox(height: 14),
-                                    if (riwayat.isEmpty)
-                                      _FilterEmpty(
-                                        label: _filter == 'PULANG'
-                                            ? 'izin pulang'
-                                            : (_filter == 'KELUAR' ? 'izin keluar' : 'riwayat izin'),
-                                      )
-                                    else
-                                      for (final p in riwayat)
-                                        _RiwayatTile(
-                                          p: p,
-                                          showActions: bisaKelola,
-                                          showNama: !isWali,
-                                          onApprove: p['statusApproval'] == 'DIAJUKAN'
-                                              ? () => _action(p, 'DISETUJUI')
-                                              : null,
-                                          onReject: p['statusApproval'] == 'DIAJUKAN'
-                                              ? () => _action(p, 'DITOLAK')
-                                              : null,
-                                          onReturn: p['statusApproval'] == 'DISETUJUI'
-                                              ? () => _action(p, 'KEMBALI')
-                                              : null,
-                                        ),
+                                    if (belumAdaRiwayat)
+                                      const _NoHistoryYet()
+                                    else ...[
+                                      _buildFilter(),
+                                      const SizedBox(height: 14),
+                                      if (riwayat.isEmpty)
+                                        _FilterEmpty(
+                                          label: _filter == 'PULANG'
+                                              ? 'izin pulang'
+                                              : (_filter == 'KELUAR' ? 'izin keluar' : 'riwayat izin'),
+                                        )
+                                      else
+                                        for (final p in riwayat)
+                                          _RiwayatTile(
+                                            p: p,
+                                            showActions: bisaKelola,
+                                            showNama: !isWali,
+                                            onApprove: p['statusApproval'] == 'DIAJUKAN'
+                                                ? () => _action(p, 'DISETUJUI')
+                                                : null,
+                                            onReject: p['statusApproval'] == 'DIAJUKAN'
+                                                ? () => _action(p, 'DITOLAK')
+                                                : null,
+                                            onReturn: p['statusApproval'] == 'DISETUJUI'
+                                                ? () => _action(p, 'KEMBALI')
+                                                : null,
+                                          ),
+                                    ],
                                   ],
                                   if (isWali) ...[
                                     const SizedBox(height: 6),
-                                    const _DisciplineGuideCard(),
+                                    _DisciplineGuideCard(
+                                      batas: berjalanList.length == 1
+                                          ? _dt(berjalanList.first['rencanaKembali'] ??
+                                              berjalanList.first['tanggalKembaliRencana'])
+                                          : null,
+                                    ),
                                     const SizedBox(height: 16),
                                     const _ClosingCard(),
                                   ],
@@ -639,7 +683,7 @@ class _PerizinanScreenState extends State<PerizinanScreen> {
 }
 
 // ===========================================================================
-// Format & helper murni (tanggal, sisa waktu, tahun ajaran)
+// Format & helper murni (tanggal, durasi, tahun ajaran)
 // ===========================================================================
 
 const _bulanPendek = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Ags', 'Sep', 'Okt', 'Nov', 'Des'];
@@ -674,13 +718,17 @@ String _fmtJamSaja(String? iso) {
   }
 }
 
-String _fmtSisaWaktu(DateTime target) {
-  final diff = target.difference(DateTime.now());
-  if (diff.isNegative) {
-    final d = diff.abs();
-    return 'Lewat ${d.inHours} Jam ${d.inMinutes % 60} Menit';
-  }
-  return 'Sisa ${diff.inHours} Jam ${diff.inMinutes % 60} Menit';
+/// Durasi singkat (maksimal dua satuan): "1 hr 4 j", "16 j 10 m", "25 m".
+String _fmtDurasi(Duration d) {
+  if (d.inDays > 0) return '${d.inDays} hr ${d.inHours % 24} j';
+  if (d.inHours > 0) return '${d.inHours} j ${d.inMinutes % 60} m';
+  return '${d.inMinutes} m';
+}
+
+/// Tanggal + jam ringkas: "26 Okt, 11:07".
+String _fmtRingkas(DateTime? d) {
+  if (d == null) return '-';
+  return '${d.day} ${_bulanPendek[d.month - 1]}, ${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
 }
 
 String _tahunAjaranFallback([DateTime? now]) {
@@ -1255,6 +1303,50 @@ class _EmptyState extends StatelessWidget {
   }
 }
 
+/// Wali punya izin aktif, tapi belum ada izin lain yang selesai.
+/// Menggantikan filter + daftar kosong supaya halaman tidak terasa "rusak".
+class _NoHistoryYet extends StatelessWidget {
+  const _NoHistoryYet();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: PColors.surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: PColors.border),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: const BoxDecoration(color: PColors.goldSurface, shape: BoxShape.circle),
+            child: const Icon(Icons.history_rounded, size: 22, color: PColors.gold),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Belum ada izin yang selesai', style: PText.labelLg),
+                const SizedBox(height: 3),
+                Text(
+                  'Izin yang saat ini berjalan ada di kartu di atas. Setelah ananda tercatat kembali, izin tersebut otomatis pindah ke riwayat ini.',
+                  style: PText.bodySm.copyWith(height: 1.45),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// Kosong hanya karena filter (data ada, tapi tidak ada yang cocok).
 class _FilterEmpty extends StatelessWidget {
   const _FilterEmpty({required this.label});
@@ -1293,40 +1385,42 @@ class _FilterEmpty extends StatelessWidget {
 }
 
 // ===========================================================================
-// KARTU IZIN AKTIF (Wali) — dengan timeline progres
+// KARTU IZIN AKTIF (Wali) — ringkas by default, tap untuk membuka detail.
+// Aman untuk banyak izin sekaligus (satu kartu ± 95px saat tertutup).
+// Otomatis berubah merah saat terlambat.
 // ===========================================================================
 
-class _ActivePerizinanCard extends StatelessWidget {
-  const _ActivePerizinanCard({required this.p, required this.sisaWaktuText});
+class _ActivePerizinanCard extends StatefulWidget {
+  const _ActivePerizinanCard({required this.p, this.showNama = false});
 
   final Map<String, dynamic> p;
-  final String sisaWaktuText;
+  final bool showNama;
 
-  Widget _dateCol(String label, String value, {bool right = false}) {
-    return Expanded(
-      child: Column(
-        crossAxisAlignment: right ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+  @override
+  State<_ActivePerizinanCard> createState() => _ActivePerizinanCardState();
+}
+
+class _ActivePerizinanCardState extends State<_ActivePerizinanCard> {
+  bool _open = false;
+
+  Widget _chip(IconData icon, String text) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: PColors.background,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Text(
-            label,
-            style: TextStyle(
-              fontFamily: 'Nunito',
-              fontSize: 10,
-              fontWeight: FontWeight.w600,
-              color: Colors.white.withOpacity(0.6),
-            ),
-          ),
-          const SizedBox(height: 3),
-          Text(
-            value,
-            textAlign: right ? TextAlign.right : TextAlign.left,
-            maxLines: 3,
-            style: const TextStyle(
-              fontFamily: 'Nunito',
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              height: 1.3,
-              color: Colors.white,
+          Icon(icon, size: 14, color: PTheme.primary),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              text,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: PText.bodySm.copyWith(color: PColors.ink, fontWeight: FontWeight.w700, fontSize: 11.5),
             ),
           ),
         ],
@@ -1334,23 +1428,22 @@ class _ActivePerizinanCard extends StatelessWidget {
     );
   }
 
-  Widget _infoRow(IconData icon, String text) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _dateCol(String label, String value, {bool right = false}) {
+    return Expanded(
+      child: Column(
+        crossAxisAlignment: right ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 14, color: Colors.white70),
-          const SizedBox(width: 7),
-          Expanded(
-            child: Text(
-              text,
-              style: const TextStyle(
-                fontFamily: 'Nunito',
-                fontSize: 11.5,
-                height: 1.4,
-                color: Colors.white70,
-              ),
+          Text(label, style: PText.bodySm.copyWith(fontSize: 10.5, color: PColors.inkSecondary)),
+          const SizedBox(height: 3),
+          Text(
+            value,
+            textAlign: right ? TextAlign.right : TextAlign.left,
+            maxLines: 3,
+            style: PText.bodySm.copyWith(
+              color: PColors.ink,
+              fontWeight: FontWeight.w800,
+              fontSize: 12,
+              height: 1.3,
             ),
           ),
         ],
@@ -1360,228 +1453,233 @@ class _ActivePerizinanCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final p = widget.p;
     final resolved = _resolveStatus(p);
-    final late = resolved.label.startsWith('Terlambat') || p['statusApproval'] == 'TELAT';
-    final jenis = p['jenis'] == 'PULANG' ? 'Izin Pulang' : 'Izin Keluar';
+    final telat = resolved.label.startsWith('Terlambat') || p['statusApproval'] == 'TELAT';
+    final isPulang = p['jenis'] == 'PULANG';
+    final jenis = isPulang ? 'Izin Pulang' : 'Izin Keluar';
     final kategori = (p['kategori'] as String?)?.trim();
     final judul = (kategori != null && kategori.isNotEmpty) ? '$jenis • $kategori' : jenis;
+    final alasan = p['alasan']?.toString() ?? '-';
     final penjemput = p['penjemput']?.toString();
     final disahkan = (p['disahkanOleh'] ?? p['disetujuiOlehNama'])?.toString();
     final adabOverride = (p['adabSantri'] as String?)?.trim();
     final adab = (adabOverride != null && adabOverride.isNotEmpty)
         ? adabOverride
         : 'Wajib melapor ke pos piket keamanan gerbang utama dan konfirmasi kehadiran ke musyrif saat tiba di asrama.';
+    final santriMap = p['santri'];
+    final namaSantri = santriMap is Map ? santriMap['nama']?.toString() : null;
+    final sub = (widget.showNama && namaSantri != null && namaSantri.isNotEmpty) ? '$namaSantri • $alasan' : alasan;
 
     final keluar = _dt(p['tanggalKeluar']);
     final rencana = _dt(p['rencanaKembali'] ?? p['tanggalKembaliRencana']);
+    final target = _dt(p['tenggatKembali'] ?? p['rencanaKembali'] ?? p['tanggalKembaliRencana']);
+
     double? progress;
     if (keluar != null && rencana != null && rencana.isAfter(keluar)) {
       final total = rencana.difference(keluar).inMinutes;
       final lewat = DateTime.now().difference(keluar).inMinutes;
       if (total > 0) progress = (lewat / total).clamp(0.0, 1.0).toDouble();
     }
+    if (telat && progress != null) progress = 1.0;
 
-    return Container(
-      clipBehavior: Clip.antiAlias,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [PTheme.primary, PTheme.primaryEnd],
-        ),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: PColors.gold.withOpacity(0.35)),
-        boxShadow: [
-          BoxShadow(color: PTheme.primary.withOpacity(0.24), blurRadius: 18, offset: const Offset(0, 8)),
-        ],
-      ),
-      child: Stack(
-        clipBehavior: Clip.none,
+    String chipText = '—';
+    if (target != null) {
+      final diff = target.difference(DateTime.now());
+      chipText = diff.isNegative ? 'Telat ${_fmtDurasi(diff.abs())}' : 'Sisa ${_fmtDurasi(diff)}';
+    }
+
+    final accent = telat ? PColors.errorText : PTheme.primary;
+    final bg = telat ? const Color(0xFFFFF6F5) : PColors.surface;
+
+    final content = Padding(
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Positioned(
-            right: -26,
-            bottom: -40,
-            child: Container(
-              width: 130,
-              height: 130,
-              decoration: BoxDecoration(color: PColors.gold.withOpacity(0.10), shape: BoxShape.circle),
-            ),
+          Row(
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: telat ? PColors.errorBg : PColors.goldSurface,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  isPulang ? Icons.home_rounded : Icons.directions_walk_rounded,
+                  size: 18,
+                  color: telat ? PColors.errorText : PColors.gold,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      judul,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: PText.labelLg.copyWith(fontSize: 14),
+                    ),
+                    const SizedBox(height: 1),
+                    Text(
+                      sub,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: PText.bodySm.copyWith(color: PColors.ink),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                decoration: BoxDecoration(
+                  color: telat ? PColors.errorBg : PColors.goldSurface,
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(color: telat ? PColors.errorBorder : PColors.gold.withOpacity(0.4)),
+                ),
+                child: Text(
+                  chipText,
+                  style: TextStyle(
+                    fontFamily: 'Nunito',
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w800,
+                    color: telat ? PColors.errorText : PTheme.primary,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 2),
+              Icon(
+                _open ? Icons.expand_less_rounded : Icons.expand_more_rounded,
+                size: 20,
+                color: PColors.inkSecondary,
+              ),
+            ],
           ),
-          Padding(
-            padding: const EdgeInsets.all(18),
-            child: Column(
+          const SizedBox(height: 10),
+          if (progress != null)
+            ClipRRect(
+              borderRadius: BorderRadius.circular(999),
+              child: LinearProgressIndicator(
+                value: progress,
+                minHeight: 5,
+                backgroundColor: PColors.border,
+                valueColor: AlwaysStoppedAnimation<Color>(accent),
+              ),
+            )
+          else
+            Container(height: 2, color: PColors.border),
+          const SizedBox(height: 6),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Keluar ${_fmtRingkas(keluar)}', style: PText.bodySm.copyWith(fontSize: 10.5)),
+              Text('Kembali ${_fmtRingkas(rencana)}', style: PText.bodySm.copyWith(fontSize: 10.5)),
+            ],
+          ),
+          if (_open) ...[
+            const SizedBox(height: 12),
+            const Divider(height: 1, color: PColors.border),
+            const SizedBox(height: 12),
+            Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 34,
-                      height: 34,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.14),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        p['jenis'] == 'PULANG' ? Icons.home_rounded : Icons.directions_walk_rounded,
-                        size: 18,
-                        color: Colors.white,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        judul,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontFamily: 'Nunito',
-                          fontSize: 14,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                      decoration: BoxDecoration(
-                        color: late ? PColors.errorBg : PColors.gold.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
+                _dateCol('Tanggal Keluar', _fmtTanggal(p['tanggalKeluar']?.toString(), withHari: true)),
+                const SizedBox(width: 12),
+                _dateCol(
+                  'Rencana Kembali',
+                  _fmtTanggal((p['rencanaKembali'] ?? p['tanggalKembaliRencana'])?.toString(), withHari: true),
+                  right: true,
+                ),
+              ],
+            ),
+            if ((penjemput != null && penjemput.isNotEmpty) || (disahkan != null && disahkan.isNotEmpty)) ...[
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  if (penjemput != null && penjemput.isNotEmpty)
+                    _chip(Icons.family_restroom_rounded, 'Penjemput: $penjemput'),
+                  if (disahkan != null && disahkan.isNotEmpty) _chip(Icons.verified_rounded, 'Disahkan: $disahkan'),
+                ],
+              ),
+            ],
+            if (telat) ...[
+              const SizedBox(height: 12),
+              const _NoteBox(
+                title: 'Perhatian',
+                text: 'Ananda melewati batas rencana kembali. Silakan hubungi musyrif pembina bila ada kendala.',
+                icon: Icons.warning_amber_rounded,
+              ),
+            ],
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: PColors.goldSurface,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: PColors.gold.withOpacity(0.35)),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.menu_book_rounded, size: 15, color: PColors.gold),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text.rich(
+                      TextSpan(
+                        text: 'Adab Santri: ',
+                        style: PText.bodySm.copyWith(color: PColors.ink, fontWeight: FontWeight.w800, height: 1.4),
                         children: [
-                          Container(
-                            width: 6,
-                            height: 6,
-                            decoration: BoxDecoration(
-                              color: late ? PColors.errorText : PColors.gold,
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                          const SizedBox(width: 5),
-                          Text(
-                            late ? 'Terlambat' : 'Sedang Berjalan',
-                            style: TextStyle(
-                              fontFamily: 'Nunito',
-                              fontSize: 10.5,
-                              fontWeight: FontWeight.w800,
-                              color: late ? PColors.errorText : PColors.gold,
-                            ),
-                          ),
+                          TextSpan(text: adab, style: PText.bodySm.copyWith(height: 1.4)),
                         ],
                       ),
                     ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  'KEPERLUAN & ALASAN IZIN',
-                  style: TextStyle(
-                    fontFamily: 'Nunito',
-                    fontSize: 9.5,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.9,
-                    color: PColors.gold,
                   ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  p['alasan']?.toString() ?? '-',
-                  style: const TextStyle(
-                    fontFamily: 'Nunito',
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800,
-                    height: 1.3,
-                    color: Colors.white,
-                  ),
-                ),
-                const SizedBox(height: 18),
-                // Timeline
-                Row(
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: telat ? PColors.errorBorder : PColors.border),
+        boxShadow: [
+          BoxShadow(color: accent.withOpacity(0.08), blurRadius: 10, offset: const Offset(0, 4)),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(19),
+        child: Material(
+          color: bg,
+          child: InkWell(
+            onTap: () => setState(() => _open = !_open),
+            child: AnimatedSize(
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeOut,
+              alignment: Alignment.topCenter,
+              child: IntrinsicHeight(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const Icon(Icons.logout_rounded, size: 16, color: PColors.gold),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: progress != null
-                          ? ClipRRect(
-                              borderRadius: BorderRadius.circular(999),
-                              child: LinearProgressIndicator(
-                                value: progress,
-                                minHeight: 6,
-                                backgroundColor: Colors.white.withOpacity(0.16),
-                                valueColor: AlwaysStoppedAnimation<Color>(
-                                  late ? PColors.errorText : PColors.gold,
-                                ),
-                              ),
-                            )
-                          : Container(
-                              height: 2,
-                              color: Colors.white.withOpacity(0.2),
-                            ),
-                    ),
-                    const SizedBox(width: 8),
-                    const Icon(Icons.home_rounded, size: 16, color: Colors.white70),
+                    Container(width: 4, color: accent),
+                    Expanded(child: content),
                   ],
                 ),
-                const SizedBox(height: 10),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _dateCol('Tanggal Keluar', _fmtTanggal(p['tanggalKeluar']?.toString(), withHari: true)),
-                    const SizedBox(width: 12),
-                    _dateCol(
-                      'Rencana Kembali',
-                      _fmtTanggal((p['rencanaKembali'] ?? p['tanggalKembaliRencana'])?.toString(), withHari: true),
-                      right: true,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.10),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.timer_outlined, size: 16, color: Colors.white70),
-                      const SizedBox(width: 8),
-                      const Expanded(
-                        child: Text(
-                          'Tenggat Kembali',
-                          style: TextStyle(fontFamily: 'Nunito', fontSize: 12, color: Colors.white70),
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                        decoration: BoxDecoration(
-                          color: late ? PColors.errorBg : PColors.gold,
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        child: Text(
-                          sisaWaktuText,
-                          style: TextStyle(
-                            fontFamily: 'Nunito',
-                            fontSize: 11,
-                            fontWeight: FontWeight.w800,
-                            color: late ? PColors.errorText : PTheme.primary,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                if (penjemput != null && penjemput.isNotEmpty)
-                  _infoRow(Icons.family_restroom_rounded, 'Penjemput: $penjemput'),
-                if (disahkan != null && disahkan.isNotEmpty)
-                  _infoRow(Icons.verified_rounded, 'Disahkan: $disahkan'),
-                _infoRow(Icons.menu_book_rounded, 'Adab Santri: $adab'),
-              ],
+              ),
             ),
           ),
-        ],
+        ),
       ),
     );
   }
@@ -1592,7 +1690,10 @@ class _ActivePerizinanCard extends StatelessWidget {
 // ===========================================================================
 
 class _DisciplineGuideCard extends StatelessWidget {
-  const _DisciplineGuideCard();
+  /// [batas] diisi hanya kalau ada tepat satu izin berjalan, supaya jamnya
+  /// pasti benar. Kalau tidak, teks memakai kalimat umum tanpa jam.
+  const _DisciplineGuideCard({this.batas});
+  final DateTime? batas;
 
   @override
   Widget build(BuildContext context) {
@@ -1625,7 +1726,7 @@ class _DisciplineGuideCard extends StatelessWidget {
                 Text('Panduan Disiplin & Keterlambatan', style: PText.labelLg),
                 const SizedBox(height: 4),
                 Text(
-                  'Apabila santri belum check-in di posko keamanan setelah pukul 17:00 WIB, sistem otomatis menerbitkan status "Telat" disertai notifikasi resmi kepada wali santri dan musyrif pembina.',
+                  'Apabila santri belum check-in di posko keamanan setelah melewati batas rencana kembali pada izin${batas != null ? ' (${_fmtRingkas(batas)} WIB)' : ''}, sistem otomatis menerbitkan status "Telat" disertai notifikasi resmi kepada wali santri dan musyrif pembina.',
                   style: PText.bodySm.copyWith(height: 1.45),
                 ),
               ],
@@ -1830,7 +1931,7 @@ class _DateBadge extends StatelessWidget {
   }
 }
 
-class _RiwayatTile extends StatelessWidget {
+class _RiwayatTile extends StatefulWidget {
   const _RiwayatTile({
     required this.p,
     required this.showActions,
@@ -1848,6 +1949,15 @@ class _RiwayatTile extends StatelessWidget {
   final VoidCallback? onReturn;
 
   @override
+  State<_RiwayatTile> createState() => _RiwayatTileState();
+}
+
+class _RiwayatTileState extends State<_RiwayatTile> {
+  bool _open = false;
+
+  Map<String, dynamic> get p => widget.p;
+
+  @override
   Widget build(BuildContext context) {
     final resolved = _resolveStatus(p);
     final status = p['statusApproval'] as String?;
@@ -1859,164 +1969,187 @@ class _RiwayatTile extends StatelessWidget {
     final santriMap = p['santri'];
     final namaSantri = santriMap is Map ? santriMap['nama']?.toString() : null;
     final detail = _buildDetailRows();
+    final onApprove = widget.onApprove;
+    final onReject = widget.onReject;
+    final onReturn = widget.onReturn;
+
+    final content = Padding(
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _DateBadge(
+                dt: _dt(p['tanggalKeluar']),
+                style: resolved.style,
+                icon: _iconForJenis(p),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (widget.showNama && namaSantri != null && namaSantri.isNotEmpty)
+                      Text(
+                        namaSantri,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: PText.bodySm.copyWith(
+                          color: PColors.inkSecondary,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    Row(
+                      children: [
+                        Icon(_iconForJenis(p), size: 14, color: PTheme.primary),
+                        const SizedBox(width: 5),
+                        Expanded(
+                          child: Text(
+                            judul,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: PText.labelLg.copyWith(fontSize: 14),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      alasan,
+                      maxLines: _open ? 3 : 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: PText.bodySm.copyWith(color: PColors.ink, height: 1.35),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              _StatusChip(resolved: resolved),
+              const Spacer(),
+              if (nomor != null && nomor.isNotEmpty)
+                Flexible(
+                  child: Text(
+                    nomor,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: PText.bodySm.copyWith(
+                      fontFamily: 'monospace',
+                      fontSize: 10.5,
+                      letterSpacing: 0.2,
+                    ),
+                  ),
+                ),
+              const SizedBox(width: 4),
+              Icon(
+                _open ? Icons.expand_less_rounded : Icons.expand_more_rounded,
+                size: 20,
+                color: PColors.inkSecondary,
+              ),
+            ],
+          ),
+          if (_open) ...[
+            if (detail.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: PColors.background,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Column(children: detail),
+              ),
+            ],
+            if (status == 'DITOLAK' && (p['alasanPenolakan'] as String?)?.isNotEmpty == true) ...[
+              const SizedBox(height: 10),
+              _NoteBox(title: 'Alasan Penolakan', text: p['alasanPenolakan'] as String),
+            ],
+            if (status == 'TELAT' && (p['catatanKeterlambatan'] as String?)?.isNotEmpty == true) ...[
+              const SizedBox(height: 10),
+              _NoteBox(
+                title: 'Catatan Kedisiplinan',
+                text: p['catatanKeterlambatan'] as String,
+                icon: Icons.report_gmailerrorred_rounded,
+              ),
+            ],
+          ],
+          if (widget.showActions && (onApprove != null || onReject != null || onReturn != null)) ...[
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                if (onApprove != null)
+                  Expanded(
+                    child: _PButton(
+                      label: 'Setujui',
+                      icon: Icons.check_rounded,
+                      color: PColors.successText,
+                      filled: true,
+                      onPressed: onApprove,
+                    ),
+                  ),
+                if (onApprove != null && onReject != null) const SizedBox(width: 8),
+                if (onReject != null)
+                  Expanded(
+                    child: _PButton(
+                      label: 'Tolak',
+                      icon: Icons.close_rounded,
+                      color: PColors.errorText,
+                      onPressed: onReject,
+                    ),
+                  ),
+                if (onReturn != null)
+                  Expanded(
+                    child: _PButton(
+                      label: 'Tandai Kembali',
+                      icon: Icons.how_to_reg_rounded,
+                      color: PTheme.primary,
+                      filled: true,
+                      onPressed: onReturn,
+                    ),
+                  ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      clipBehavior: Clip.antiAlias,
+      margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
-        color: PColors.surface,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: PColors.border),
         boxShadow: const [
           BoxShadow(color: Color(0x0A0F3A2E), blurRadius: 8, offset: Offset(0, 3)),
         ],
       ),
-      child: IntrinsicHeight(
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Container(width: 4, color: resolved.style.fg),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.all(14),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(19),
+        child: Material(
+          color: PColors.surface,
+          child: InkWell(
+            onTap: () => setState(() => _open = !_open),
+            child: AnimatedSize(
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeOut,
+              alignment: Alignment.topCenter,
+              child: IntrinsicHeight(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _DateBadge(
-                          dt: _dt(p['tanggalKeluar']),
-                          style: resolved.style,
-                          icon: _iconForJenis(p),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              if (showNama && namaSantri != null && namaSantri.isNotEmpty)
-                                Text(
-                                  namaSantri,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: PText.bodySm.copyWith(
-                                    color: PColors.inkSecondary,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                              Row(
-                                children: [
-                                  Icon(_iconForJenis(p), size: 14, color: PTheme.primary),
-                                  const SizedBox(width: 5),
-                                  Expanded(
-                                    child: Text(
-                                      judul,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: PText.labelLg.copyWith(fontSize: 14),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 3),
-                              Text(
-                                alasan,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: PText.bodySm.copyWith(color: PColors.ink, height: 1.35),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    Row(
-                      children: [
-                        _StatusChip(resolved: resolved),
-                        const Spacer(),
-                        if (nomor != null && nomor.isNotEmpty)
-                          Flexible(
-                            child: Text(
-                              nomor,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: PText.bodySm.copyWith(
-                                fontFamily: 'monospace',
-                                fontSize: 10.5,
-                                letterSpacing: 0.2,
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                    if (detail.isNotEmpty) ...[
-                      const SizedBox(height: 10),
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: PColors.background,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Column(children: detail),
-                      ),
-                    ],
-                    if (status == 'DITOLAK' && (p['alasanPenolakan'] as String?)?.isNotEmpty == true) ...[
-                      const SizedBox(height: 10),
-                      _NoteBox(title: 'Alasan Penolakan', text: p['alasanPenolakan'] as String),
-                    ],
-                    if (status == 'TELAT' && (p['catatanKeterlambatan'] as String?)?.isNotEmpty == true) ...[
-                      const SizedBox(height: 10),
-                      _NoteBox(
-                        title: 'Catatan Kedisiplinan',
-                        text: p['catatanKeterlambatan'] as String,
-                        icon: Icons.report_gmailerrorred_rounded,
-                      ),
-                    ],
-                    if (showActions && (onApprove != null || onReject != null || onReturn != null)) ...[
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          if (onApprove != null)
-                            Expanded(
-                              child: _PButton(
-                                label: 'Setujui',
-                                icon: Icons.check_rounded,
-                                color: PColors.successText,
-                                filled: true,
-                                onPressed: onApprove!,
-                              ),
-                            ),
-                          if (onApprove != null && onReject != null) const SizedBox(width: 8),
-                          if (onReject != null)
-                            Expanded(
-                              child: _PButton(
-                                label: 'Tolak',
-                                icon: Icons.close_rounded,
-                                color: PColors.errorText,
-                                onPressed: onReject!,
-                              ),
-                            ),
-                          if (onReturn != null)
-                            Expanded(
-                              child: _PButton(
-                                label: 'Tandai Kembali',
-                                icon: Icons.how_to_reg_rounded,
-                                color: PTheme.primary,
-                                filled: true,
-                                onPressed: onReturn!,
-                              ),
-                            ),
-                        ],
-                      ),
-                    ],
+                    Container(width: 4, color: resolved.style.fg),
+                    Expanded(child: content),
                   ],
                 ),
               ),
             ),
-          ],
+          ),
         ),
       ),
     );
@@ -2147,7 +2280,7 @@ class _PButton extends StatelessWidget {
         onTap: onPressed,
         borderRadius: BorderRadius.circular(9999),
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 11),
+          padding: const EdgeInsets.symmetric(vertical: 9),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(9999),
             border: filled ? null : Border.all(color: color.withOpacity(0.5)),
