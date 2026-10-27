@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../services/api_client.dart';
 import '../../services/app_scope.dart';
 import 'santri_ui.dart';
+import 'santri_detail_screen.dart';
 import '../notifikasi/notifikasi_screen.dart';
 import '../kesantrian/pelanggaran_screen.dart';
 import '../kesantrian/perizinan_screen.dart';
@@ -196,6 +197,13 @@ class _DirektoriSantriScreenState extends State<DirektoriSantriScreen> {
         _loading = false;
       });
     }
+  }
+
+  void _bukaDetail(_SantriItem santri) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => SantriDetailScreen(santriId: santri.id)),
+    );
   }
 
   void _notAvailable() {
@@ -827,7 +835,7 @@ class _DirektoriSantriScreenState extends State<DirektoriSantriScreen> {
         santri: s,
         statusBg: _statusBg(s.status),
         statusFg: _statusFg(s.status),
-        onDetail: _notAvailable,
+        onDetail: () => _bukaDetail(s),
         onPelanggaran: () => Navigator.push(context, MaterialPageRoute(builder: (_) => PelanggaranScreen())),
         onIzin: () => Navigator.push(context, MaterialPageRoute(builder: (_) => PerizinanScreen())),
         onKesehatan: () => Navigator.push(context, MaterialPageRoute(builder: (_) => KesehatanScreen())),

@@ -18,7 +18,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../services/api_client.dart';
 import '../../services/app_scope.dart';
 import '../santri/santri_ui.dart';
-import '../super_admin/pengaturan_dialogs.dart';
+import 'pengaturan_musyrif_dialogs.dart';
 
 // ============================================================================
 // Token warna lokal (emerald + emas). Private supaya tidak bentrok dengan
