@@ -99,6 +99,13 @@ class _JurnalMengajarScreenState extends State<JurnalMengajarScreen> {
   bool _canEdit(Map<String, dynamic> j) =>
       !_readOnly && (_isAdmin || (_myId != null && j['inputOleh'] == _myId));
 
+  /// Admin & Pimpinan/Mudir melihat semua jurnal; ustadz hanya miliknya sendiri.
+  bool get _lihatSemua => _isAdmin || _readOnly;
+
+  List<Map<String, dynamic>> get _itemsSaya => _lihatSemua
+      ? _items
+      : _items.where((j) => _myId != null && j['inputOleh'] == _myId).toList();
+
   // ---- data ----
   Future<void> _loadMaster() async {
     try {
@@ -200,11 +207,11 @@ class _JurnalMengajarScreenState extends State<JurnalMengajarScreen> {
     return true;
   }
 
-  int _hitung(String p) => _items.where((j) => _dalamPeriode(_parseTanggal(j['tanggal']), p)).length;
+  int _hitung(String p) => _itemsSaya.where((j) => _dalamPeriode(_parseTanggal(j['tanggal']), p)).length;
 
   List<Map<String, dynamic>> get _tampil {
     final q = _q.toLowerCase();
-    return _items.where((j) {
+    return _itemsSaya.where((j) {
       if (!_dalamPeriode(_parseTanggal(j['tanggal']), _periode)) return false;
       if (q.isEmpty) return true;
       final hay = '${j['materi']} ${j['catatan'] ?? ''} '
@@ -915,7 +922,7 @@ class _JurnalMengajarScreenState extends State<JurnalMengajarScreen> {
       child: ListView(
         scrollDirection: Axis.horizontal,
         children: [
-          _pill('Semua', _periode == 'semua', () => setState(() => _periode = 'semua'), badge: _items.length),
+          _pill('Semua', _periode == 'semua', () => setState(() => _periode = 'semua'), badge: _itemsSaya.length),
           _pill('Minggu Ini', _periode == 'minggu', () => setState(() => _periode = 'minggu'),
               icon: Icons.calendar_today_outlined),
           _pill('Bulan Ini', _periode == 'bulan', () => setState(() => _periode = 'bulan')),
@@ -952,7 +959,7 @@ class _JurnalMengajarScreenState extends State<JurnalMengajarScreen> {
   Widget _statsRow() {
     return Row(
       children: [
-        _stat('Total Jurnal', '${_items.length}', _JC.ink),
+        _stat('Total Jurnal', '${_itemsSaya.length}', _JC.ink),
         const SizedBox(width: 10),
         _stat('Minggu Ini', '${_hitung('minggu')}', _JC.primary),
         const SizedBox(width: 10),
@@ -1164,7 +1171,7 @@ class _JurnalMengajarScreenState extends State<JurnalMengajarScreen> {
                     const SizedBox(height: 14),
                     _statsRow(),
                     const SizedBox(height: 16),
-                    if (_items.isEmpty)
+                    if (_itemsSaya.isEmpty)
                       _empty('Belum ada jurnal mengajar',
                           _canWrite ? 'Tekan "Jurnal Baru" untuk mencatat kegiatan mengajar.' : 'Belum ada catatan dari ustadz.')
                     else if (tampil.isEmpty)

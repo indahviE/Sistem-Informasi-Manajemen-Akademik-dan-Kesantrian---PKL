@@ -18,8 +18,12 @@ export class JurnalMengajarController {
 
   @Roles(Role.ADMIN, Role.PIMPINAN, Role.USTADZ)
   @Get()
-  findAll(@TenantId() tenantId: string, @Query() q: QueryJurnalMengajarDto) {
-    return this.jurnalService.findAll(tenantId, q);
+  findAll(
+    @TenantId() tenantId: string,
+    @Query() q: QueryJurnalMengajarDto,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return this.jurnalService.findAll(tenantId, q, user);
   }
 
   @Roles(Role.ADMIN, Role.USTADZ)

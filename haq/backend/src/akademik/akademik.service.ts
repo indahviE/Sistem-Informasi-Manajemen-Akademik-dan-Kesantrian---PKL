@@ -20,16 +20,27 @@ export class AkademikService {
     return this.prisma.santri.findFirst({ where: { id: santriId, tenantId } });
   }
 
+  /**
+   * Menyusun filter santriId.
+   * - allowedSantriIds undefined -> tidak dibatasi (admin/pimpinan/dst)
+   * - allowedSantriIds ada       -> hanya boleh santri di daftar itu
+   *   (wali = anaknya, ustadz = santri binaan)
+   */
+  private scopeSantri(santriId?: string, allowedSantriIds?: string[]) {
+    if (!allowedSantriIds) return santriId ? { santriId } : {};
+    if (santriId) {
+      if (!allowedSantriIds.includes(santriId)) {
+        throw new ForbiddenException('Anda tidak berhak melihat data santri ini.');
+      }
+      return { santriId };
+    }
+    return { santriId: { in: allowedSantriIds } };
+  }
+
   // ===== Absensi =====
   async findAllAbsensi(tenantId: string, query: QueryAbsensiDto, allowedSantriIds?: string[]) {
     // Wali: hanya boleh melihat anaknya sendiri
-    const santriFilter = allowedSantriIds
-      ? query.santriId
-        ? { santriId: query.santriId }
-        : { santriId: { in: allowedSantriIds } }
-      : query.santriId
-        ? { santriId: query.santriId }
-        : {};
+    const santriFilter = this.scopeSantri(query.santriId, allowedSantriIds);
 
     const where: any = {
       tenantId,
@@ -194,13 +205,7 @@ export class AkademikService {
     tahunAjaranId?: string,
   ) {
     // Wali: hanya boleh melihat anaknya sendiri
-    const santriFilter = allowedSantriIds
-      ? santriId
-        ? { santriId }
-        : { santriId: { in: allowedSantriIds } }
-      : santriId
-        ? { santriId }
-        : {};
+    const santriFilter = this.scopeSantri(santriId, allowedSantriIds);
 
     // Default: tahun ajaran aktif. Kirim "semua" untuk melihat seluruh tahun.
     let taFilter = {};
@@ -415,18 +420,9 @@ export class AkademikService {
     // Ustadz hanya boleh melihat santri binaannya
     if (user?.role === Role.USTADZ) {
       allowed = await this.santriIdsBinaan(tenantId, user);
-      if (santriId && !allowed.includes(santriId)) {
-        throw new ForbiddenException('Santri ini bukan binaan Anda.');
-      }
     }
 
-    const santriFilter = allowed
-      ? santriId
-        ? { santriId }
-        : { santriId: { in: allowed } }
-      : santriId
-        ? { santriId }
-        : {};
+    const santriFilter = this.scopeSantri(santriId, allowed);
 
     return this.prisma.capaianTahfidz.findMany({
       where: { tenantId, ...santriFilter },

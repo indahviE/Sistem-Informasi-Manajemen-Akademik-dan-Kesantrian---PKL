@@ -27,6 +27,23 @@ export class KesantrianService {
     return found;
   }
 
+    /**
+   * Menyusun filter santriId.
+   * - allowedSantriIds undefined  -> tidak dibatasi (admin/pimpinan/dst)
+   * - allowedSantriIds ada        -> hanya boleh santri di daftar itu
+   *   (dipakai untuk wali = anaknya, ustadz = santri binaan)
+   */
+  private scopeSantri(santriId?: string, allowedSantriIds?: string[]) {
+    if (!allowedSantriIds) return santriId ? { santriId } : {};
+    if (santriId) {
+      if (!allowedSantriIds.includes(santriId)) {
+        throw new ForbiddenException('Anda tidak berhak melihat data santri ini.');
+      }
+      return { santriId };
+    }
+    return { santriId: { in: allowedSantriIds } };
+  }
+
   private async getAllowedSantriIdsForWali(tenantId: string, userId: string): Promise<string[]> {
   const walis = await this.prisma.waliSantri.findMany({
     where: { tenantId, userId },

@@ -51,10 +51,12 @@ export class JurnalMengajarService {
     return rows.map((r) => ({ ...r, penulis: map.get(r.inputOleh) ?? null }));
   }
 
-  async findAll(tenantId: string, query: QueryJurnalMengajarDto) {
+  async findAll(tenantId: string, query: QueryJurnalMengajarDto, user: RequestUser) {
     const rows = await this.prisma.jurnalMengajar.findMany({
       where: {
         tenantId,
+        // Ustadz hanya melihat jurnal miliknya. Admin & Pimpinan melihat semua.
+        ...(user.role === Role.USTADZ ? { inputOleh: user.userId } : {}),
         ...(query.kelasId ? { kelasId: query.kelasId } : {}),
         ...(query.startDate || query.endDate
           ? {
