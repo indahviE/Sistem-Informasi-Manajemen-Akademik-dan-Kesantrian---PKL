@@ -70,6 +70,8 @@ export class AkademikController {
     @Query('mapelId') mapelId?: string,
     @Query('jenis') jenis?: JenisNilai,
     @Query('tahunAjaranId') tahunAjaranId?: string,
+    @Query('page') page?: string,        // BARU
+    @Query('perPage') perPage?: string,  // BARU
   ) {
     let allowed: string[] | undefined;
     if (user.role === Role.WALI_SANTRI) {
@@ -78,7 +80,16 @@ export class AkademikController {
         throw new ForbiddenException('Anda tidak memiliki akses ke data santri ini.');
       }
     }
-    return this.akademikService.findAllNilai(tenantId, santriId, mapelId, jenis, allowed, tahunAjaranId);
+    return this.akademikService.findAllNilai(
+      tenantId,
+      santriId,
+      mapelId,
+      jenis,
+      allowed,
+      tahunAjaranId,
+      page ? Number(page) : undefined,       // BARU
+      perPage ? Number(perPage) : undefined, // BARU
+    );
   }
 
   @Roles(Role.ADMIN, Role.USTADZ)

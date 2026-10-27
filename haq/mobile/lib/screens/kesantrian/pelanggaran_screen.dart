@@ -139,6 +139,13 @@ class _PelanggaranScreenState extends State<PelanggaranScreen> {
   List<Map<String, dynamic>> _all = [];
   List<Map<String, dynamic>> _santris = [];
 
+  // BARU: pagination
+  static const _perPage = 20;
+  int _page = 1;
+  int _total = 0;
+  bool _loadingMore = false;
+  bool get _hasMore => _all.length < _total;
+
   final _searchCtrl = TextEditingController();
   String _query = '';
   String _timeFilter = 'Semua';
@@ -180,7 +187,7 @@ class _PelanggaranScreenState extends State<PelanggaranScreen> {
       final api = AppScope.of(context).api;
       final isWali = _isWali;
       final results = await Future.wait<dynamic>([
-        api.get(ApiUrl.pelanggaran),
+        api.get(ApiUrl.pelanggaran, query: {'page': '1', 'perPage': '$_perPage'}),
         isWali ? api.get(ApiUrl.waliMe) : _fetchSemuaSantri(api),
       ]);
       final pelanggaranRaw = results[0];
@@ -191,6 +198,9 @@ class _PelanggaranScreenState extends State<PelanggaranScreen> {
       final santris = (santriRaw is List ? santriRaw : (santriRaw is Map ? (santriRaw['items'] as List? ?? []) : []))
           .map((e) => (e as Map).cast<String, dynamic>())
           .toList();
+      final total = pelanggaranRaw is Map
+          ? ((pelanggaranRaw['total'] as num?)?.toInt() ?? list.length)
+          : list.length; // BARU
       list.sort((a, b) {
         final ta = DateTime.tryParse(a['tanggal']?.toString() ?? '')?.toLocal() ?? DateTime(2000);
         final tb = DateTime.tryParse(b['tanggal']?.toString() ?? '')?.toLocal() ?? DateTime(2000);
@@ -200,6 +210,8 @@ class _PelanggaranScreenState extends State<PelanggaranScreen> {
       setState(() {
         _all = list;
         _santris = santris;
+        _page = 1;       // BARU
+        _total = total;  // BARU
         _loading = false;
       });
     } on ApiException catch (e) {
@@ -216,6 +228,33 @@ class _PelanggaranScreenState extends State<PelanggaranScreen> {
           _loading = false;
         });
       }
+    }
+  }
+
+    Future<void> _loadMore() async {
+    if (_loadingMore || !_hasMore) return;
+    setState(() => _loadingMore = true);
+    try {
+      final api = AppScope.of(context).api;
+      final res = await api.get(ApiUrl.pelanggaran,
+          query: {'page': '${_page + 1}', 'perPage': '$_perPage'});
+      final raw = (res is Map ? res['items'] : res) as List? ?? const [];
+      final baru = raw.map((e) => (e as Map).cast<String, dynamic>()).toList();
+      if (!mounted) return;
+      final ids = _all.map((e) => e['id']).toSet();
+      setState(() {
+        _all = [..._all, ...baru.where((e) => !ids.contains(e['id']))];
+        _page++;
+        _loadingMore = false;
+      });
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() => _loadingMore = false);
+      _toast(e.message, error: true);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _loadingMore = false);
+      _toast('Gagal memuat data berikutnya.', error: true);
     }
   }
 
@@ -406,7 +445,8 @@ class _PelanggaranScreenState extends State<PelanggaranScreen> {
                                             emptyView(_all.isEmpty
                                                 ? 'Belum ada catatan pelanggaran.'
                                                 : 'Tidak ada hasil yang cocok.'),
-                                          ],
+                                            if (_hasMore) _loadMoreButton(), // BARU
+                                          ], 
                                         )
                                       : ListView(
                                           physics: const AlwaysScrollableScrollPhysics(),
@@ -453,8 +493,34 @@ class _PelanggaranScreenState extends State<PelanggaranScreen> {
       }
       children.add(_pelanggaranCard(p));
     }
+    if (_hasMore) children.add(_loadMoreButton()); // BARU
     if (isWali) children.add(_waliPanduan());
     return children;
+  }
+
+    Widget _loadMoreButton() {
+    return Padding(
+      padding: const EdgeInsets.only(top: 4, bottom: 8),
+      child: Center(
+        child: _loadingMore
+            ? SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(strokeWidth: 2, color: PTheme.primary),
+              )
+            : OutlinedButton.icon(
+                onPressed: _loadMore,
+                icon: const Icon(Icons.expand_more_rounded, size: 18),
+                label: Text('Muat lebih banyak (${_all.length} dari $_total)',
+                    style: const TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w700)),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: PTheme.primary,
+                  side: const BorderSide(color: _kBorder),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+                ),
+              ),
+      ),
+    );
   }
 
   // ---------------------------------------------------------------------
@@ -513,7 +579,7 @@ class _PelanggaranScreenState extends State<PelanggaranScreen> {
               children: [
                 Icon(Icons.folder_open_rounded, size: 13, color: PTheme.primary),
                 const SizedBox(width: 5),
-                Text('${_all.length}',
+                Text('$_total',
                     style: TextStyle(
                         fontFamily: 'Nunito', fontSize: 12, fontWeight: FontWeight.w800, color: PTheme.primary)),
               ],

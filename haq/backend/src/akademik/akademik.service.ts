@@ -10,7 +10,8 @@ import {
 } from './dto/akademik.dto';
 import { RequestUser } from '../common/decorators/current-user.decorator';
 import { juzEndAbs, juzStartAbs, toAbs, validateSetoran } from './quran-meta';
-import { JenisNilai, Role } from '@prisma/client';
+import { JenisNilai, Prisma, Role } from '@prisma/client';
+import { pageArgs } from '../common/pagination';
 
 @Injectable()
 export class AkademikService {
@@ -57,14 +58,24 @@ export class AkademikService {
         : {}),
     };
 
-    return this.prisma.absensi.findMany({
+    const include = {
+      santri: { select: { id: true, nama: true, nis: true, kelas: { select: { namaKelas: true } } } },
+      mapel: { select: { id: true, namaMapel: true } },
+    };
+    // id ikut diurutkan supaya urutan stabil antar halaman
+    const orderBy: Prisma.AbsensiOrderByWithRelationInput[] = [{ tanggal: 'desc' }, { id: 'desc' }];
+
+    const pg = pageArgs(query.page, query.perPage);
+    const items = await this.prisma.absensi.findMany({
       where,
-      include: {
-        santri: { select: { id: true, nama: true, nis: true, kelas: { select: { namaKelas: true } } } },
-        mapel: { select: { id: true, namaMapel: true } },
-      },
-      orderBy: { tanggal: 'desc' },
+      include,
+      orderBy,
+      ...(pg ? { skip: pg.skip, take: pg.take } : {}),
     });
+    if (!pg) return items; // mode lama: array biasa
+
+    const total = await this.prisma.absensi.count({ where });
+    return { items, total, page: pg.page, perPage: pg.perPage };
   }
 
   async createAbsensi(tenantId: string, dto: CreateAbsensiDto, user: RequestUser) {
@@ -203,6 +214,8 @@ export class AkademikService {
     jenis?: JenisNilai,
     allowedSantriIds?: string[],
     tahunAjaranId?: string,
+    page?: number,
+    perPage?: number,
   ) {
     // Wali: hanya boleh melihat anaknya sendiri
     const santriFilter = this.scopeSantri(santriId, allowedSantriIds);
@@ -215,20 +228,30 @@ export class AkademikService {
       if (taId) taFilter = { OR: [{ tahunAjaranId: taId }, { tahunAjaranId: null }] };
     }
 
-    return this.prisma.nilai.findMany({
-      where: {
-        tenantId,
-        ...santriFilter,
-        ...taFilter,
-        ...(mapelId ? { mapelId } : {}),
-        ...(jenis ? { jenis } : {}),
-      },
-      include: {
-        santri: { select: { id: true, nama: true, nis: true } },
-        mapel: { select: { id: true, namaMapel: true } },
-      },
-      orderBy: { tanggal: 'desc' },
+    const where: Prisma.NilaiWhereInput = {
+      tenantId,
+      ...santriFilter,
+      ...taFilter,
+      ...(mapelId ? { mapelId } : {}),
+      ...(jenis ? { jenis } : {}),
+    };
+    const include = {
+      santri: { select: { id: true, nama: true, nis: true } },
+      mapel: { select: { id: true, namaMapel: true } },
+    };
+    const orderBy: Prisma.NilaiOrderByWithRelationInput[] = [{ tanggal: 'desc' }, { id: 'desc' }];
+
+    const pg = pageArgs(page, perPage);
+    const items = await this.prisma.nilai.findMany({
+      where,
+      include,
+      orderBy,
+      ...(pg ? { skip: pg.skip, take: pg.take } : {}),
     });
+    if (!pg) return items;
+
+    const total = await this.prisma.nilai.count({ where });
+    return { items, total, page: pg.page, perPage: pg.perPage };
   }
 
   /** Skill hanya berlaku untuk BAHASA_ARAB; selain itu selalu "" supaya unique tetap konsisten. */

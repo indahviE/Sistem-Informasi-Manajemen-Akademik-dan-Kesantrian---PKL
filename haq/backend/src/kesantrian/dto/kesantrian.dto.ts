@@ -5,7 +5,10 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
+  Max,
+  Min,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 import { JenisPerizinan, StatusApproval, StatusKesehatan } from '@prisma/client';
 
 export class CreatePelanggaranDto {
@@ -175,6 +178,20 @@ export class QueryKesantrianDto {
   @IsOptional()
   @IsString()
   kelasId?: string;
+
+  // BARU: pagination (opsional)
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  perPage?: number;
 }
 
 export class UpdateKesehatanDto {

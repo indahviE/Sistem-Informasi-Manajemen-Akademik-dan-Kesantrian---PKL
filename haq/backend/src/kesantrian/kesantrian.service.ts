@@ -13,7 +13,8 @@ import {
   UpdatePerizinanDto,
 } from './dto/kesantrian.dto';
 import { JenisNotifikasi, Prisma, Role } from '@prisma/client';
-import { NotifikasiService } from '../notifikasi/notifikasi.service'; // sesuaikan path kalau beda
+import { NotifikasiService } from '../notifikasi/notifikasi.service';
+import { pageArgs } from '../common/pagination'; // sesuaikan path kalau beda
 @Injectable()
 export class KesantrianService {
   constructor(
@@ -83,18 +84,28 @@ private async buildSantriScope(
 
   // ===== Pelanggaran =====
   async findAllPelanggaran(tenantId: string, query: QueryKesantrianDto, user: RequestUser) {
-  const santriId = await this.buildSantriScope(tenantId, user, query.santriId);
-  return this.prisma.pelanggaran.findMany({
-    where: {
+    const santriId = await this.buildSantriScope(tenantId, user, query.santriId);
+    const where: Prisma.PelanggaranWhereInput = {
       tenantId,
       ...(santriId ? { santriId } : {}),
       ...(query.kelasId ? { santri: { kelasId: query.kelasId } } : {}),
-      },
-      include: {
-        santri: { select: { id: true, nama: true, nis: true, kelas: { select: { namaKelas: true } } } },
-      },
-      orderBy: { tanggal: 'desc' },
+    };
+    const include = {
+      santri: { select: { id: true, nama: true, nis: true, kelas: { select: { namaKelas: true } } } },
+    };
+    const orderBy: Prisma.PelanggaranOrderByWithRelationInput[] = [{ tanggal: 'desc' }, { id: 'desc' }];
+
+    const pg = pageArgs(query.page, query.perPage);
+    const items = await this.prisma.pelanggaran.findMany({
+      where,
+      include,
+      orderBy,
+      ...(pg ? { skip: pg.skip, take: pg.take } : {}),
     });
+    if (!pg) return items;
+
+    const total = await this.prisma.pelanggaran.count({ where });
+    return { items, total, page: pg.page, perPage: pg.perPage };
   }
 
   async createPelanggaran(tenantId: string, dto: CreatePelanggaranDto, user: RequestUser) {
@@ -143,15 +154,21 @@ private async buildSantriScope(
   // ===== Perizinan =====
     async findAllPerizinan(tenantId: string, query: QueryKesantrianDto, user: RequestUser) {
     const santriId = await this.buildSantriScope(tenantId, user, query.santriId);
+    const where: Prisma.PerizinanWhereInput = {
+      tenantId,
+      ...(santriId ? { santriId } : {}),
+    };
+    const include = {
+      santri: { select: { id: true, nama: true, nis: true, kelas: { select: { namaKelas: true } } } },
+    };
+    const orderBy: Prisma.PerizinanOrderByWithRelationInput[] = [{ tanggalKeluar: 'desc' }, { id: 'desc' }];
+
+    const pg = pageArgs(query.page, query.perPage);
     const items = await this.prisma.perizinan.findMany({
-      where: {
-        tenantId,
-        ...(santriId ? { santriId } : {}),
-      },
-      include: {
-        santri: { select: { id: true, nama: true, nis: true, kelas: { select: { namaKelas: true } } } },
-      },
-      orderBy: { tanggalKeluar: 'desc' },
+      where,
+      include,
+      orderBy,
+      ...(pg ? { skip: pg.skip, take: pg.take } : {}),
     });
 
     // disetujuiOleh hanya string userId (bukan relasi Prisma), jadi lookup nama secara manual
@@ -162,10 +179,14 @@ private async buildSantriScope(
       : [];
     const namaById = new Map(users.map((u) => [u.id, u.nama]));
 
-    return items.map((p) => ({
+    const hasil = items.map((p) => ({
       ...p,
       disetujuiOlehNama: p.disetujuiOleh ? namaById.get(p.disetujuiOleh) ?? null : null,
     }));
+    if (!pg) return hasil;
+
+    const total = await this.prisma.perizinan.count({ where });
+    return { items: hasil, total, page: pg.page, perPage: pg.perPage };
   }
 
   async createPerizinan(tenantId: string, dto: CreatePerizinanDto, user: RequestUser) {
@@ -253,15 +274,27 @@ private async buildSantriScope(
   // ===== Kesehatan =====
   async findAllKesehatan(tenantId: string, query: QueryKesantrianDto, user: RequestUser) {
     const santriId = await this.buildSantriScope(tenantId, user, query.santriId);
-    return this.prisma.kesehatanLog.findMany({
-      where: {
-        tenantId,
-        ...(santriId ? { santriId } : {}),
-        ...(query.kelasId ? { santri: { kelasId: query.kelasId } } : {}),
-      },
-      include: { santri: { select: { id: true, nama: true, nis: true, kelas: { select: { namaKelas: true } } } } },
-      orderBy: { tanggal: 'desc' },
+    const where: Prisma.KesehatanLogWhereInput = {
+      tenantId,
+      ...(santriId ? { santriId } : {}),
+      ...(query.kelasId ? { santri: { kelasId: query.kelasId } } : {}),
+    };
+    const include = {
+      santri: { select: { id: true, nama: true, nis: true, kelas: { select: { namaKelas: true } } } },
+    };
+    const orderBy: Prisma.KesehatanLogOrderByWithRelationInput[] = [{ tanggal: 'desc' }, { id: 'desc' }];
+
+    const pg = pageArgs(query.page, query.perPage);
+    const items = await this.prisma.kesehatanLog.findMany({
+      where,
+      include,
+      orderBy,
+      ...(pg ? { skip: pg.skip, take: pg.take } : {}),
     });
+    if (!pg) return items;
+
+    const total = await this.prisma.kesehatanLog.count({ where });
+    return { items, total, page: pg.page, perPage: pg.perPage };
   }
 
   async createKesehatan(tenantId: string, dto: CreateKesehatanDto, user: RequestUser) {
