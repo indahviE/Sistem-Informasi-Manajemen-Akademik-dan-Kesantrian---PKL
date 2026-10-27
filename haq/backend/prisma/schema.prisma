@@ -389,6 +389,7 @@ model Absensi {
 
   @@index([tenantId, santriId, tanggal])
   @@index([tenantId, tanggal])
+  @@index([tenantId, mapelId, tanggal])   // BARU (opsional)
   @@index([tenantId])
   @@map("absensis")
 }
@@ -414,6 +415,7 @@ model Nilai {
   @@unique([santriId, mapelId, jenis, skill, tanggal])
   @@index([tenantId, santriId, mapelId])
   @@index([tenantId, tahunAjaranId])                                                 // BARU
+  @@index([tenantId, tanggal])                                                       // BARU: urutan daftar nilai
   @@index([tenantId])
   @@map("nilais")
 }
@@ -484,6 +486,7 @@ model Perizinan {
   santri Santri @relation(fields: [santriId], references: [id], onDelete: Cascade)
 
   @@index([tenantId, santriId])
+  @@index([tenantId, tanggalKeluar])   // BARU: urutan daftar perizinan
   @@index([tenantId])
   @@map("perizinan")
 }
@@ -505,6 +508,7 @@ model KesehatanLog {
   santri Santri @relation(fields: [santriId], references: [id], onDelete: Cascade)
 
   @@index([tenantId, santriId])
+  @@index([tenantId, tanggal])   // BARU: urutan daftar kesehatan
   @@index([tenantId])
   @@map("kesehatan_logs")
 }
