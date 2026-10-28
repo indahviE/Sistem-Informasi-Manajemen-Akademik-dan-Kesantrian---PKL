@@ -30,6 +30,20 @@ export class PpdbController {
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN, Role.PIMPINAN)
+  @Get('pengaturan')
+  getPengaturan(@TenantId() tenantId: string) {
+    return this.ppdbService.getPengaturan(tenantId);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  @Patch('pengaturan')
+  setGelombang(@TenantId() tenantId: string, @Body('dibuka') dibuka: boolean) {
+    return this.ppdbService.setGelombang(tenantId, dibuka === true);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN, Role.PIMPINAN)
   @Get()
   findAll(@TenantId() tenantId: string, @Query() q: QueryPpdbDto) {
     return this.ppdbService.findAll(tenantId, q);

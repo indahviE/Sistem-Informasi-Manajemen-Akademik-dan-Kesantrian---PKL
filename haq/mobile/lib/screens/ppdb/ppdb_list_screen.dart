@@ -57,6 +57,11 @@ class _PpdbListScreenState extends State<PpdbListScreen> {
   String? _error;
   String _filter = '';
 
+  String? _gelombang; // DIBUKA / DITUTUP
+  bool _togglingGelombang = false;
+  bool get _gelombangDibuka =>
+      (_gelombang ?? 'DIBUKA').toUpperCase() == 'DIBUKA';
+
   /// Ringkasan jumlah per status. Hanya diperbarui saat filter = "Semua"
   /// supaya angkanya tetap akurat walau lagi memfilter.
   Map<String, int>? _counts;
@@ -74,7 +79,10 @@ class _PpdbListScreenState extends State<PpdbListScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _load();
+      if (mounted) {
+        _load();
+        _loadGelombang();
+      }
     });
   }
 
@@ -110,6 +118,103 @@ class _PpdbListScreenState extends State<PpdbListScreen> {
     }
   }
 
+  Future<void> _loadGelombang() async {
+    try {
+      final res = await AppScope.of(context).api.get('${ApiUrl.ppdb}/pengaturan');
+      if (!mounted) return;
+      setState(() => _gelombang = (res as Map<String, dynamic>)['status']?.toString());
+    } catch (_) {
+      // Diam-diam: kartu tetap tampil dengan status bawaan.
+    }
+  }
+
+  Future<void> _toggleGelombang(bool buka) async {
+    setState(() => _togglingGelombang = true);
+    try {
+      await AppScope.of(context)
+          .api
+          .patch('${ApiUrl.ppdb}/pengaturan', {'dibuka': buka});
+      if (!mounted) return;
+      setState(() {
+        _gelombang = buka ? 'DIBUKA' : 'DITUTUP';
+        _togglingGelombang = false;
+      });
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() => _togglingGelombang = false);
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(e.message)));
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _togglingGelombang = false);
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Gagal mengubah status pendaftaran.')));
+    }
+  }
+
+  Widget _gelombangCard() {
+    final readOnly = AppScope.of(context).user?.isPimpinan == true;
+    final buka = _gelombangDibuka;
+    final fg = buka ? PColors.successText : PColors.errorText;
+    final bg = buka ? PColors.successBg : PColors.errorBg;
+    return Padding(
+      padding: EdgeInsets.fromLTRB(16, 4, 16, 0),
+      child: Container(
+        padding: EdgeInsets.fromLTRB(14, 12, 8, 12),
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: fg.withOpacity(0.25)),
+        ),
+        child: Row(
+          children: [
+            Icon(buka ? Icons.lock_open_rounded : Icons.lock_outline_rounded,
+                size: 22, color: fg),
+            SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    buka ? 'Pendaftaran DIBUKA' : 'Pendaftaran DITUTUP',
+                    style: TextStyle(
+                      fontFamily: 'Nunito',
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                      color: fg,
+                    ),
+                  ),
+                  SizedBox(height: 2),
+                  Text(
+                    buka
+                        ? 'Calon santri bisa mengisi formulir PPDB.'
+                        : 'Formulir PPDB tidak menerima pendaftar baru.',
+                    style: PText.bodySm,
+                  ),
+                ],
+              ),
+            ),
+            if (!readOnly)
+              _togglingGelombang
+                  ? Padding(
+                      padding: EdgeInsets.all(12),
+                      child: SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: fg),
+                      ),
+                    )
+                  : Switch(
+                      value: buka,
+                      activeColor: SC.primary,
+                      onChanged: _toggleGelombang,
+                    ),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _openDetail(Map<String, dynamic> p) {
     Navigator.of(context).push(MaterialPageRoute(
       builder: (_) => _PendaftarDetail(p: p, onChanged: _load),
@@ -134,6 +239,7 @@ class _PpdbListScreenState extends State<PpdbListScreen> {
                   total: _loading || _error != null ? null : _items.length,
                   counts: _counts,
                 ),
+                _gelombangCard(),
                 Padding(
                   padding: EdgeInsets.fromLTRB(16, 16, 16, 4),
                   child: SingleChildScrollView(

@@ -33,6 +33,9 @@ export class PpdbService {
     if (tenant.status !== 'AKTIF') {
       throw new BadRequestException('Pondok ini belum membuka PPDB online.');
     }
+    if (String(tenant.statusGelombangPpdb ?? 'DIBUKA').toUpperCase() !== 'DIBUKA') {
+      throw new BadRequestException('Pendaftaran PPDB sedang ditutup.');
+    }
 
     const pendaftaran = await this.prisma.pendaftaran.create({
       data: {
@@ -116,6 +119,24 @@ export class PpdbService {
         sisaKuota,
       },
     };
+  }
+
+  async getPengaturan(tenantId: string) {
+    const t = await this.prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: { statusGelombangPpdb: true, kuotaSantriPpdb: true },
+    });
+    if (!t) throw new NotFoundException('Pondok tidak ditemukan.');
+    return { status: t.statusGelombangPpdb, kuota: t.kuotaSantriPpdb };
+  }
+
+  async setGelombang(tenantId: string, dibuka: boolean) {
+    const t = await this.prisma.tenant.update({
+      where: { id: tenantId },
+      data: { statusGelombangPpdb: (dibuka ? 'DIBUKA' : 'DITUTUP') as any },
+      select: { statusGelombangPpdb: true },
+    });
+    return { status: t.statusGelombangPpdb };
   }
 
   async findAll(tenantId: string, q: QueryPpdbDto) {
