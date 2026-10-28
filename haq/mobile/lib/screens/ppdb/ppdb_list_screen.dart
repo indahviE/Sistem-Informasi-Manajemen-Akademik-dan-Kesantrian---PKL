@@ -1,6 +1,11 @@
+import 'dart:convert';
+import 'dart:io';
 import 'dart:math' as math;
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:open_filex/open_filex.dart';
+import 'package:path_provider/path_provider.dart';
 import '../../services/api_client.dart';
 import '../../services/app_scope.dart';
 import '../signup_screen.dart'; // reuse PColors & PText (sama seperti ppdb_form_screen)
@@ -714,6 +719,113 @@ class _PendaftarDetailState extends State<_PendaftarDetail> {
     super.dispose();
   }
 
+  Uint8List? _decodeDataUri(String? s) {
+    if (s == null || !s.startsWith('data:')) return null;
+    final i = s.indexOf(',');
+    if (i < 0) return null;
+    try {
+      return base64Decode(s.substring(i + 1));
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _bukaDokumen(String judul, String? data) async {
+    final bytes = _decodeDataUri(data);
+    if (bytes == null || data == null) {
+      _toast('Dokumen tidak bisa dibuka', error: true);
+      return;
+    }
+    final mime = RegExp(r'^data:([^;]+);').firstMatch(data)?.group(1) ?? '';
+
+    if (mime.startsWith('image/')) {
+      await showDialog(
+        context: context,
+        builder: (ctx) => Dialog(
+          backgroundColor: PColors.surface,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: EdgeInsets.fromLTRB(16, 12, 8, 4),
+                child: Row(
+                  children: [
+                    Expanded(child: Text(judul, style: PText.headlineSm)),
+                    IconButton(
+                      icon: Icon(Icons.close),
+                      onPressed: () => Navigator.pop(ctx),
+                    ),
+                  ],
+                ),
+              ),
+              Flexible(
+                child: InteractiveViewer(
+                  child: Image.memory(bytes, fit: BoxFit.contain),
+                ),
+              ),
+              SizedBox(height: 12),
+            ],
+          ),
+        ),
+      );
+    } else if (mime == 'application/pdf') {
+      final dir = await getTemporaryDirectory();
+      final file = File('${dir.path}/${judul.replaceAll(' ', '_')}_${_p['id']}.pdf');
+      await file.writeAsBytes(bytes);
+      await OpenFilex.open(file.path);
+    } else {
+      _toast('Format dokumen tidak dikenali', error: true);
+    }
+  }
+
+  List<Widget> _dokumenTiles() {
+    final items = <List<String?>>[
+      ['Pas Foto Ananda', _p['fotoUrl'] as String?],
+      ['Kartu Keluarga', _p['kartuKeluargaUrl'] as String?],
+      ['Akta Kelahiran', _p['aktaLahirUrl'] as String?],
+    ];
+    return [
+      for (final it in items)
+        Padding(
+          padding: EdgeInsets.only(bottom: 8),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(14),
+            onTap: (it[1] ?? '').isEmpty ? null : () => _bukaDokumen(it[0]!, it[1]),
+            child: Container(
+              padding: EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: PColors.surface,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: PColors.border),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.description_outlined, color: SC.primary, size: 22),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(it[0]!, style: PText.labelLg),
+                        SizedBox(height: 2),
+                        Text(
+                          (it[1] ?? '').isEmpty ? 'Belum diunggah' : 'Ketuk untuk melihat',
+                          style: PText.bodySm,
+                        ),
+                      ],
+                    ),
+                  ),
+                  if ((it[1] ?? '').isNotEmpty)
+                    Icon(Icons.open_in_new, size: 18, color: PColors.inkSecondary),
+                ],
+              ),
+            ),
+          ),
+        ),
+    ];
+  }
+
   Future<void> _simpanTest() async {
     final nilaiText = _testNilai.text.trim();
     final nilai = double.tryParse(nilaiText);
@@ -1422,7 +1534,15 @@ class _PendaftarDetailState extends State<_PendaftarDetail> {
                 ],
               ),
 
-                            // ---------- Placement test ----------
+              // ---------- Dokumen ----------
+              _card(
+                title: 'Dokumen Pendaftar',
+                icon: Icons.folder_open_outlined,
+                subtitle: 'Ketuk dokumen untuk membukanya.',
+                children: _dokumenTiles(),
+              ),
+
+              // ---------- Placement test ----------
               _card(
                 title: 'Placement Test',
                 icon: Icons.quiz_outlined,
