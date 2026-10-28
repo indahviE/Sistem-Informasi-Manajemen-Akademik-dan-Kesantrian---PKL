@@ -135,7 +135,7 @@ export class SantriService {
             kelasId: dto.kelasId,
             asrama: dto.asrama,
             waliId: dto.waliId,
-            tahunMasuk: dto.tahunMasuk,
+            tahunMasuk: dto.tahunMasuk ?? new Date().getFullYear(),
           },
         });
       } catch (e: any) {
