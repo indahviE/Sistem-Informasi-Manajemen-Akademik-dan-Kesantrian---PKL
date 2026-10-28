@@ -73,7 +73,7 @@ class _ShellScreenState extends State<ShellScreen> {
   // Fallback pin order used only when a role has more than 5 menu items
   // (super admin's 5-item menu is shown in full, without this cap).
   static const _pinned = ['Dashboard', 'Santri', 'Absensi', 'Kurikulum'];
-  static const _adminPinned = ['Dashboard', 'Santri', 'Absensi', 'Pengaturan'];
+  static const _adminPinned = ['Dashboard', 'Santri', 'Absensi', 'PPDB Online'];
   static const _waliPinned = ['Beranda', 'Anak Saya', 'Perizinan', 'Pelanggaran'];
 
   // Keeps the bottom nav pinned to a mobile-sized width and centered,
@@ -122,7 +122,10 @@ class _ShellScreenState extends State<ShellScreen> {
     }
 
     _navItems = chosen;
-    _moreItems = all.where((e) => !chosen.contains(e)).toList();
+    final more = all.where((e) => !chosen.contains(e)).toList();
+    final idxPengaturan = more.indexWhere((e) => e.label == 'Pengaturan');
+    if (idxPengaturan >= 0) more.add(more.removeAt(idxPengaturan));
+    _moreItems = more;
     if (_navIndex >= _navItems.length) _navIndex = 0;
     _activeExtra = null;
 

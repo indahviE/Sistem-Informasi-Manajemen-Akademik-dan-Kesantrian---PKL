@@ -96,25 +96,24 @@ export class SantriService {
     return santri;
   }
 
-  /** NIS otomatis: 11 digit, mulai 01234567890, naik 1 dari NIS terbesar di tenant. */
-  private async buatNisBerikutnya(tenantId: string): Promise<string> {
-    const AWAL = 1234567890n; // "01234567890"
-    const LEBAR = 11;
+  /** NIS otomatis: tahun masuk (4 digit) + nomor urut 4 digit per tahun, mis. 20260001. */
+  private async buatNisBerikutnya(tenantId: string, tahunMasuk: number): Promise<string> {
+    const prefix = String(tahunMasuk);
+    const pola = new RegExp(`^${prefix}\\d{4}$`);
 
     const rows = await this.prisma.santri.findMany({
-      where: { tenantId },
+      where: { tenantId, nis: { startsWith: prefix } },
       select: { nis: true },
     });
 
-    let maks: bigint | null = null;
+    let maks = 0;
     for (const r of rows) {
-      if (!/^\d{11}$/.test(r.nis)) continue; // abaikan NIS berformat lain
-      const n = BigInt(r.nis);
-      if (maks === null || n > maks) maks = n;
+      if (!pola.test(r.nis)) continue; // abaikan NIS berformat lain
+      const n = parseInt(r.nis.slice(prefix.length), 10);
+      if (n > maks) maks = n;
     }
 
-    const berikut = maks === null ? AWAL : maks + 1n;
-    return berikut.toString().padStart(LEBAR, '0');
+    return prefix + String(maks + 1).padStart(4, '0');
   }
 
   async create(tenantId: string, dto: CreateSantriDto) {
@@ -122,7 +121,9 @@ export class SantriService {
 
     // Coba ulang kalau dua admin menyimpan bersamaan dan NIS otomatisnya bentrok.
     for (let percobaan = 0; percobaan < 5; percobaan++) {
-      const nis = manual || (await this.buatNisBerikutnya(tenantId));
+      const nis =
+        manual ||
+        (await this.buatNisBerikutnya(tenantId, dto.tahunMasuk ?? new Date().getFullYear()));
       try {
         return await this.prisma.santri.create({
           data: {
@@ -134,7 +135,7 @@ export class SantriService {
             kelasId: dto.kelasId,
             asrama: dto.asrama,
             waliId: dto.waliId,
-            tahunMasuk: dto.tahunMasuk,
+            tahunMasuk: dto.tahunMasuk ?? new Date().getFullYear(),
           },
         });
       } catch (e: any) {

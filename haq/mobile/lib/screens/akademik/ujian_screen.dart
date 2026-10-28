@@ -541,7 +541,7 @@ class _UjianScreenState extends State<UjianScreen> {
                         : (_filterRemedial
                             ? 'Ketuk: tampilkan semua'
                             : 'dari ${_remedialById.values.where((v) => v > 0).length} ujian')),
-                icon: Icons.priority_high_rounded,
+                 icon: (_remedialCount ?? 0) > 0 ? Icons.priority_high_rounded : null,
                 iconBg: _C.badBg,
                 iconFg: _C.badFg,
                 valueColor: (_remedialCount ?? 0) > 0 ? _C.badFg : _C.ink,
@@ -761,37 +761,38 @@ class _UjianScreenState extends State<UjianScreen> {
     );
   }
 
-  Widget _statCard({
-    required String label,
-    required String value,
-    required String sub,
-    required IconData icon,
-    Color iconBg = _C.chipGray,
-    Color iconFg = _C.ink2,
-    Color valueColor = _C.ink,
-    Color subColor = _C.ink2,
-    bool subBold = false,
-    bool active = false,
-    VoidCallback? onTap,
-  }) {
-    return Expanded(
-      child: GestureDetector(
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.all(12),
-          decoration: active
-              ? _cardDeco().copyWith(border: Border.all(color: _C.badFg, width: 1.5))
-              : _cardDeco(),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(label,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 11.5, color: _C.ink2)),
-                  ),
+Widget _statCard({
+  required String label,
+  required String value,
+  required String sub,
+  IconData? icon, // <- jadi nullable
+  Color iconBg = _C.chipGray,
+  Color iconFg = _C.ink2,
+  Color valueColor = _C.ink,
+  Color subColor = _C.ink2,
+  bool subBold = false,
+  bool active = false,
+  VoidCallback? onTap,
+}) {
+  return Expanded(
+    child: GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: active
+            ? _cardDeco().copyWith(border: Border.all(color: _C.badFg, width: 1.5))
+            : _cardDeco(),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(label,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 11.5, color: _C.ink2)),
+                ),
+                if (icon != null) // <- hanya tampil kalau ada ikon
                   Container(
                     width: 24,
                     height: 24,
@@ -799,8 +800,9 @@ class _UjianScreenState extends State<UjianScreen> {
                         BoxDecoration(color: iconBg, borderRadius: BorderRadius.circular(8)),
                     child: Icon(icon, size: 14, color: iconFg),
                   ),
-                ],
-              ),
+              ],
+            ),
+            // ... sisanya sama
               const SizedBox(height: 6),
               Text(value,
                   style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: valueColor)),

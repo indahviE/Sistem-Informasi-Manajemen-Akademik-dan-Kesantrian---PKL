@@ -448,47 +448,32 @@ class _TahfidzScreenState extends State<TahfidzScreen> {
     }
   }
 
-// =============================================================================
-// RIWAYAT SETORAN TAHFIDZ  —  tempel ke lib/.../tahfidz_screen.dart
-//
-// LANGKAH:
-//  1. Di _TahfidzScreenState, HAPUS method _detail() yang lama, ganti dengan
-//     versi di bawah (bagian 1).
-//  2. Tempel bagian 2 (helper + widget) di bagian paling bawah file yang sama.
-//     Harus satu file karena memakai _C, _t, _lb, _posisi, dst. yang private.
-//
-// Tidak butuh endpoint baru: riwayat diambil dari _capaian yang sudah dimuat.
-// =============================================================================
+  // Riwayat setoran santri (diambil dari _capaian yang sudah dimuat).
+  void _detail(Map<String, dynamic> santri) {
+    final id = '${santri['id']}';
+    final riwayat = _capaian.where((r) {
+      final sid = (r['santriId'] ?? (r['santri'] as Map?)?['id'])?.toString();
+      return sid == id;
+    }).toList()
+      ..sort((a, b) => '${b['tanggalSetor']}${b['createdAt']}'
+          .compareTo('${a['tanggalSetor']}${a['createdAt']}'));
 
-// ---------------------------------------------------------------------------
-// 1. GANTI _detail() di dalam _TahfidzScreenState
-// ---------------------------------------------------------------------------
-
-void _detail(Map<String, dynamic> santri) {
-  final id = '${santri['id']}';
-  final riwayat = _capaian.where((r) {
-    final sid = (r['santriId'] ?? (r['santri'] as Map?)?['id'])?.toString();
-    return sid == id;
-  }).toList()
-    ..sort((a, b) => '${b['tanggalSetor']}${b['createdAt']}'
-        .compareTo('${a['tanggalSetor']}${a['createdAt']}'));
-
-  showModalBottomSheet<void>(
-    context: context,
-    isScrollControlled: true,
-    useSafeArea: true,
-    backgroundColor: Colors.transparent,
-    barrierColor: _C.scrim,
-    constraints: const BoxConstraints(maxWidth: 448),
-    builder: (_) => _RiwayatSheet(
-      santri: santri,
-      riwayat: riwayat,
-      ringkas: _ringkas[id],
-      bisaInput: !_readOnly,
-      onInput: () => _bukaSheet(santri),
-    ),
-  );
-}
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      barrierColor: _C.scrim,
+      constraints: const BoxConstraints(maxWidth: 448),
+      builder: (_) => _RiwayatSheet(
+        santri: santri,
+        riwayat: riwayat,
+        ringkas: _ringkas[id],
+        bisaInput: !_readOnly,
+        onInput: () => _bukaSheet(santri),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1022,20 +1007,20 @@ class _SantriCard extends StatelessWidget {
     final showDivider = giliran || selesai;
 
     final detailBtn = InkWell(
-  onTap: onDetail,
-  borderRadius: BorderRadius.circular(8),
-  child: Padding(
-    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
-    child: Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text('Riwayat', style: _lb(11, FontWeight.w700, _C.onSurface)),
-        const SizedBox(width: 2),
-        const Icon(Icons.arrow_forward, size: 14, color: _C.onSurface),
-      ],
-    ),
-  ),
-);
+      onTap: onDetail,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('Riwayat', style: _lb(11, FontWeight.w700, _C.onSurface)),
+            const SizedBox(width: 2),
+            const Icon(Icons.arrow_forward, size: 14, color: _C.onSurface),
+          ],
+        ),
+      ),
+    );
 
     final body = Padding(
       padding: const EdgeInsets.all(16),
@@ -1195,105 +1180,105 @@ class _SantriCard extends StatelessWidget {
             Container(height: 1, color: _C.divider),
             const SizedBox(height: 10),
           ],
-if (giliran)
-  Column(
-    children: [
-      SizedBox(
-        width: double.infinity,
-        child: FilledButton.icon(
-          onPressed: onInput,
-          icon: const Icon(Icons.post_add, size: 18),
-          label: Text('+ Input Setoran Santri', style: _t(13.5, FontWeight.w700, Colors.white)),
-          style: FilledButton.styleFrom(
-            backgroundColor: _C.primaryContainer,
-            foregroundColor: Colors.white,
-            elevation: 1,
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            shape: const StadiumBorder(),
-          ),
-        ),
-      ),
-      if (t != null) ...[
-        const SizedBox(height: 4),
-        Align(alignment: Alignment.centerRight, child: detailBtn),
-      ],
-    ],
-  )
-else if (selesai)
-  Row(
-    children: [
-      const Icon(Icons.verified_user_outlined, size: 15, color: _C.secondary),
-      const SizedBox(width: 6),
-      Expanded(
-        child: Text.rich(
-          TextSpan(
-            style: _lb(11, FontWeight.w400, _C.onSurfaceVariant),
-            children: [
-              TextSpan(
-                text: t == null
-                    ? ''
-                    : (t['jenis'] == 'MURAJAAH'
-                        ? " • Muroja'ah • Juz ${t['juz']} • ${_rentang(t)}"
-                        : 'Juz ${t['juz']} • ${_rentang(t)} • '),
-              ),
-              TextSpan(
-                  text: kualitas.isEmpty ? '-' : kualitas,
-                  style: _lb(11, FontWeight.w700, _C.onSurface)),
-              if (jam.isNotEmpty) TextSpan(text: ' ($jam)'),
-            ],
-          ),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-      ),
-      const SizedBox(width: 8),
-      detailBtn,
-    ],
-  )
-else if (sudah)
-  Row(
-    children: [
-      Expanded(
-        child: Text.rich(
-          TextSpan(
-            style: _lb(11, FontWeight.w400, _C.onSurfaceVariant),
-            children: [
-              const TextSpan(text: 'Nilai: '),
-              TextSpan(
-                  text: kualitas.isEmpty ? '-' : kualitas,
-                  style: _lb(11, FontWeight.w700, _C.primary)),
-              if (t != null)
-                TextSpan(
-                  text: t['jenis'] == 'MURAJAAH'
-                      ? " • Muroja'ah • Juz ${t['juz']} • ${_rentang(t)}"
-                      : ' • Juz ${t['juz']} • ${_rentang(t)}',
+          if (giliran)
+            Column(
+              children: [
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: onInput,
+                    icon: const Icon(Icons.post_add, size: 18),
+                    label: Text('+ Input Setoran Santri', style: _t(13.5, FontWeight.w700, Colors.white)),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: _C.primaryContainer,
+                      foregroundColor: Colors.white,
+                      elevation: 1,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: const StadiumBorder(),
+                    ),
+                  ),
                 ),
-            ],
-          ),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-      ),
-      const SizedBox(width: 8),
-      detailBtn,
-    ],
-  )
-else
-  Row(
-    children: [
-      Expanded(
-        child: Text(
-          t == null ? 'Belum pernah setor' : 'Terakhir setor: ${_relatif('${t['tanggalSetor']}')}',
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: _lb(11, FontWeight.w500, _C.error),
-        ),
-      ),
-      const SizedBox(width: 8),
-      if (t != null) detailBtn,
-    ],
-  ),
-          ],
+                if (t != null) ...[
+                  const SizedBox(height: 4),
+                  Align(alignment: Alignment.centerRight, child: detailBtn),
+                ],
+              ],
+            )
+          else if (selesai)
+            Row(
+              children: [
+                const Icon(Icons.verified_user_outlined, size: 15, color: _C.secondary),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text.rich(
+                    TextSpan(
+                      style: _lb(11, FontWeight.w400, _C.onSurfaceVariant),
+                      children: [
+                        TextSpan(
+                          text: t == null
+                              ? ''
+                              : (t['jenis'] == 'MURAJAAH'
+                                  ? " • Muroja'ah • Juz ${t['juz']} • ${_rentang(t)}"
+                                  : 'Juz ${t['juz']} • ${_rentang(t)} • '),
+                        ),
+                        TextSpan(
+                            text: kualitas.isEmpty ? '-' : kualitas,
+                            style: _lb(11, FontWeight.w700, _C.onSurface)),
+                        if (jam.isNotEmpty) TextSpan(text: ' ($jam)'),
+                      ],
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                detailBtn,
+              ],
+            )
+          else if (sudah)
+            Row(
+              children: [
+                Expanded(
+                  child: Text.rich(
+                    TextSpan(
+                      style: _lb(11, FontWeight.w400, _C.onSurfaceVariant),
+                      children: [
+                        const TextSpan(text: 'Nilai: '),
+                        TextSpan(
+                            text: kualitas.isEmpty ? '-' : kualitas,
+                            style: _lb(11, FontWeight.w700, _C.primary)),
+                        if (t != null)
+                          TextSpan(
+                            text: t['jenis'] == 'MURAJAAH'
+                                ? " • Muroja'ah • Juz ${t['juz']} • ${_rentang(t)}"
+                                : ' • Juz ${t['juz']} • ${_rentang(t)}',
+                          ),
+                      ],
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                detailBtn,
+              ],
+            )
+          else
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    t == null ? 'Belum pernah setor' : 'Terakhir setor: ${_relatif('${t['tanggalSetor']}')}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: _lb(11, FontWeight.w500, _C.error),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                if (t != null) detailBtn,
+              ],
+            ),
+        ],
       ),
     );
 
@@ -1675,7 +1660,6 @@ class _SetoranSheetState extends State<_SetoranSheet> {
                   label: 'Ayat Mulai',
                   controller: _ayatMulaiCtrl,
                   value: _ayatMulai,
-                  flex: 2,
                   onMinus: _ayatMulai > batasAyatDiJuz(_juz, _suratMulai)[0] && !_saving
                       ? () => _setAyatMulai(_ayatMulai - 1)
                       : null,
@@ -1703,7 +1687,6 @@ class _SetoranSheetState extends State<_SetoranSheet> {
                   label: 'Ayat Selesai',
                   controller: _ayatSelesaiCtrl,
                   value: _ayatSelesai,
-                  flex: 2,
                   onMinus: _ayatSelesai > batasAyatDiJuz(_juz, _suratSelesai)[0] && !_saving
                       ? () => _setAyatSelesai(_ayatSelesai - 1)
                       : null,
@@ -1715,7 +1698,6 @@ class _SetoranSheetState extends State<_SetoranSheet> {
               ],
             ),
             const SizedBox(height: 14),
-
 
             // Banner juz: nama juz (Arab), rentang setoran terpilih, dan awal juz.
             Container(
@@ -1845,7 +1827,6 @@ class _SetoranSheetState extends State<_SetoranSheet> {
     required ValueChanged<int> onChanged,
   }) {
     return Expanded(
-      flex: 3,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1879,6 +1860,7 @@ class _SetoranSheetState extends State<_SetoranSheet> {
   /// manual. Hanya angka 0-9 yang diterima, maksimal 3 digit (ayat sampai 286).
   /// Nilai divalidasi & di-clamp oleh onSubmit saat fokus keluar (onTapOutside)
   /// atau saat menekan Enter/Done.
+  /// Lebar dibuat tetap (140) supaya angka 3 digit selalu muat di layar HP.
   Widget _stepper({
     required String label,
     required TextEditingController controller,
@@ -1886,10 +1868,9 @@ class _SetoranSheetState extends State<_SetoranSheet> {
     required VoidCallback? onMinus,
     required VoidCallback? onPlus,
     required ValueChanged<int> onSubmit,
-    int flex = 1,
   }) {
-    return Expanded(
-      flex: flex,
+    return SizedBox(
+      width: 140,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1907,33 +1888,40 @@ class _SetoranSheetState extends State<_SetoranSheet> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 _StepBtn(icon: Icons.remove, onTap: onMinus),
-                Expanded(
-                  child: TextField(
-                    controller: controller,
-                    textAlign: TextAlign.center,
-                    keyboardType: TextInputType.number,
-                    enabled: !_saving,
-                    inputFormatters: [
-                      FilteringTextInputFormatter.digitsOnly, // hanya 0-9
-                      LengthLimitingTextInputFormatter(3), // maks 3 digit (ayat sampai 286)
-                    ],
-                    style: _t(18, FontWeight.w700, _C.primary),
-                    decoration: const InputDecoration(
-                      border: InputBorder.none,
-                      isDense: true,
-                      isCollapsed: true,
-                    ),
-                    onSubmitted: (v) {
-                      final n = int.tryParse(v.trim());
-                      onSubmit(n ?? value);
-                    },
-                    onTapOutside: (_) {
-                      final n = int.tryParse(controller.text.trim());
-                      onSubmit(n ?? value);
-                    },
+              Expanded(
+                child: TextField(
+                  controller: controller,
+                  textAlign: TextAlign.center,
+                  keyboardType: TextInputType.number,
+                  enabled: !_saving,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly, // hanya 0-9
+                    LengthLimitingTextInputFormatter(3), // maks 3 digit (ayat sampai 286)
+                  ],
+                  maxLines: 1,                                              // baru
+                  textAlignVertical: TextAlignVertical.center,              // baru
+                  style: _t(18, FontWeight.w700, _C.primary, h: 1.3),       // + h: 1.3
+                  strutStyle: const StrutStyle(forceStrutHeight: true, height: 1.3), // baru
+                  decoration: const InputDecoration(
+                    border: InputBorder.none,
+                    enabledBorder: InputBorder.none,                        // baru
+                    focusedBorder: InputBorder.none,                        // baru
+                    disabledBorder: InputBorder.none,                       // baru
+                    isDense: true,
+                    // isCollapsed: true,  <- dihapus
+                    contentPadding: EdgeInsets.symmetric(vertical: 8),      // baru
                   ),
+                  onSubmitted: (v) {
+                    final n = int.tryParse(v.trim());
+                    onSubmit(n ?? value);
+                  },
+                  onTapOutside: (_) {
+                    final n = int.tryParse(controller.text.trim());
+                    onSubmit(n ?? value);
+                  },
                 ),
-                _StepBtn(icon: Icons.add, filled: true, onTap: onPlus),
+              ),    
+            _StepBtn(icon: Icons.add, filled: true, onTap: onPlus),
               ],
             ),
           ),
@@ -2054,8 +2042,9 @@ class _KualitasTile extends StatelessWidget {
     );
   }
 }
+
 // ---------------------------------------------------------------------------
-// 2. TEMPEL DI BAWAH FILE
+// Riwayat setoran
 // ---------------------------------------------------------------------------
 const _bulanPanjang = [
   '', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',

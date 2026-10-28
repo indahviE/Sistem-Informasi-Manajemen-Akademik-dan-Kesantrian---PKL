@@ -1,6 +1,11 @@
+import 'dart:convert';
+import 'dart:io';
 import 'dart:math' as math;
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:open_filex/open_filex.dart';
+import 'package:path_provider/path_provider.dart';
 import '../../services/api_client.dart';
 import '../../services/app_scope.dart';
 import '../signup_screen.dart'; // reuse PColors & PText (sama seperti ppdb_form_screen)
@@ -52,6 +57,11 @@ class _PpdbListScreenState extends State<PpdbListScreen> {
   String? _error;
   String _filter = '';
 
+  String? _gelombang; // DIBUKA / DITUTUP
+  bool _togglingGelombang = false;
+  bool get _gelombangDibuka =>
+      (_gelombang ?? 'DIBUKA').toUpperCase() == 'DIBUKA';
+
   /// Ringkasan jumlah per status. Hanya diperbarui saat filter = "Semua"
   /// supaya angkanya tetap akurat walau lagi memfilter.
   Map<String, int>? _counts;
@@ -69,7 +79,10 @@ class _PpdbListScreenState extends State<PpdbListScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _load();
+      if (mounted) {
+        _load();
+        _loadGelombang();
+      }
     });
   }
 
@@ -105,6 +118,138 @@ class _PpdbListScreenState extends State<PpdbListScreen> {
     }
   }
 
+  Future<void> _loadGelombang() async {
+    try {
+      final res = await AppScope.of(context).api.get('${ApiUrl.ppdb}/pengaturan');
+      if (!mounted) return;
+      setState(() => _gelombang = (res as Map<String, dynamic>)['status']?.toString());
+    } catch (_) {
+      // Diam-diam: kartu tetap tampil dengan status bawaan.
+    }
+  }
+
+  Future<void> _toggleGelombang(bool buka) async {
+    setState(() => _togglingGelombang = true);
+    try {
+      await AppScope.of(context)
+          .api
+          .patch('${ApiUrl.ppdb}/pengaturan', {'dibuka': buka});
+      if (!mounted) return;
+      setState(() {
+        _gelombang = buka ? 'DIBUKA' : 'DITUTUP';
+        _togglingGelombang = false;
+      });
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() => _togglingGelombang = false);
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(e.message)));
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _togglingGelombang = false);
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Gagal mengubah status pendaftaran.')));
+    }
+  }
+
+  Widget _gelombangCard() {
+    final readOnly = AppScope.of(context).user?.isPimpinan == true;
+    final buka = _gelombangDibuka;
+    final fg = buka ? PColors.successText : PColors.errorText;
+
+    return Padding(
+      padding: EdgeInsets.fromLTRB(16, 2, 16, 0),
+      child: AnimatedContainer(
+        duration: Duration(milliseconds: 200),
+        padding: EdgeInsets.fromLTRB(14, 8, 8, 8),
+        decoration: BoxDecoration(
+          color: PColors.surface,
+          borderRadius: BorderRadius.circular(9999),
+          border: Border.all(color: fg.withOpacity(0.35)),
+          boxShadow: [
+            BoxShadow(
+              color: fg.withOpacity(0.08),
+              blurRadius: 10,
+              offset: Offset(0, 3),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            // Titik status dengan lingkar lembut
+            Container(
+              width: 18,
+              height: 18,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: fg.withOpacity(0.15),
+              ),
+              child: Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(shape: BoxShape.circle, color: fg),
+              ),
+            ),
+            SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    buka ? 'Pendaftaran dibuka' : 'Pendaftaran ditutup',
+                    style: TextStyle(
+                      fontFamily: 'Nunito',
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      color: fg,
+                    ),
+                  ),
+                  Text(
+                    buka
+                        ? 'Formulir PPDB menerima pendaftar'
+                        : 'Formulir PPDB tidak menerima pendaftar',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontFamily: 'Nunito',
+                      fontSize: 11,
+                      color: PColors.inkSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (!readOnly)
+              _togglingGelombang
+                  ? Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 14),
+                      child: SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: fg),
+                      ),
+                    )
+                  : Transform.scale(
+                      scale: 0.8,
+                      child: Switch(
+                        value: buka,
+                        onChanged: _toggleGelombang,
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        thumbColor: MaterialStatePropertyAll(Colors.white),
+                        trackOutlineColor:
+                            MaterialStatePropertyAll(Colors.transparent),
+                        activeTrackColor: PColors.successText,
+                        inactiveTrackColor: PColors.errorText.withOpacity(0.55),
+                      ),
+                    ),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _openDetail(Map<String, dynamic> p) {
     Navigator.of(context).push(MaterialPageRoute(
       builder: (_) => _PendaftarDetail(p: p, onChanged: _load),
@@ -129,6 +274,7 @@ class _PpdbListScreenState extends State<PpdbListScreen> {
                   total: _loading || _error != null ? null : _items.length,
                   counts: _counts,
                 ),
+                _gelombangCard(),
                 Padding(
                   padding: EdgeInsets.fromLTRB(16, 16, 16, 4),
                   child: SingleChildScrollView(
@@ -712,6 +858,113 @@ class _PendaftarDetailState extends State<_PendaftarDetail> {
     _testHasil.dispose();
     _testCatatan.dispose();
     super.dispose();
+  }
+
+  Uint8List? _decodeDataUri(String? s) {
+    if (s == null || !s.startsWith('data:')) return null;
+    final i = s.indexOf(',');
+    if (i < 0) return null;
+    try {
+      return base64Decode(s.substring(i + 1));
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _bukaDokumen(String judul, String? data) async {
+    final bytes = _decodeDataUri(data);
+    if (bytes == null || data == null) {
+      _toast('Dokumen tidak bisa dibuka', error: true);
+      return;
+    }
+    final mime = RegExp(r'^data:([^;]+);').firstMatch(data)?.group(1) ?? '';
+
+    if (mime.startsWith('image/')) {
+      await showDialog(
+        context: context,
+        builder: (ctx) => Dialog(
+          backgroundColor: PColors.surface,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: EdgeInsets.fromLTRB(16, 12, 8, 4),
+                child: Row(
+                  children: [
+                    Expanded(child: Text(judul, style: PText.headlineSm)),
+                    IconButton(
+                      icon: Icon(Icons.close),
+                      onPressed: () => Navigator.pop(ctx),
+                    ),
+                  ],
+                ),
+              ),
+              Flexible(
+                child: InteractiveViewer(
+                  child: Image.memory(bytes, fit: BoxFit.contain),
+                ),
+              ),
+              SizedBox(height: 12),
+            ],
+          ),
+        ),
+      );
+    } else if (mime == 'application/pdf') {
+      final dir = await getTemporaryDirectory();
+      final file = File('${dir.path}/${judul.replaceAll(' ', '_')}_${_p['id']}.pdf');
+      await file.writeAsBytes(bytes);
+      await OpenFilex.open(file.path);
+    } else {
+      _toast('Format dokumen tidak dikenali', error: true);
+    }
+  }
+
+  List<Widget> _dokumenTiles() {
+    final items = <List<String?>>[
+      ['Pas Foto Ananda', _p['fotoUrl'] as String?],
+      ['Kartu Keluarga', _p['kartuKeluargaUrl'] as String?],
+      ['Akta Kelahiran', _p['aktaLahirUrl'] as String?],
+    ];
+    return [
+      for (final it in items)
+        Padding(
+          padding: EdgeInsets.only(bottom: 8),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(14),
+            onTap: (it[1] ?? '').isEmpty ? null : () => _bukaDokumen(it[0]!, it[1]),
+            child: Container(
+              padding: EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: PColors.surface,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: PColors.border),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.description_outlined, color: SC.primary, size: 22),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(it[0]!, style: PText.labelLg),
+                        SizedBox(height: 2),
+                        Text(
+                          (it[1] ?? '').isEmpty ? 'Belum diunggah' : 'Ketuk untuk melihat',
+                          style: PText.bodySm,
+                        ),
+                      ],
+                    ),
+                  ),
+                  if ((it[1] ?? '').isNotEmpty)
+                    Icon(Icons.open_in_new, size: 18, color: PColors.inkSecondary),
+                ],
+              ),
+            ),
+          ),
+        ),
+    ];
   }
 
   Future<void> _simpanTest() async {
@@ -1422,7 +1675,15 @@ class _PendaftarDetailState extends State<_PendaftarDetail> {
                 ],
               ),
 
-                            // ---------- Placement test ----------
+              // ---------- Dokumen ----------
+              _card(
+                title: 'Dokumen Pendaftar',
+                icon: Icons.folder_open_outlined,
+                subtitle: 'Ketuk dokumen untuk membukanya.',
+                children: _dokumenTiles(),
+              ),
+
+              // ---------- Placement test ----------
               _card(
                 title: 'Placement Test',
                 icon: Icons.quiz_outlined,

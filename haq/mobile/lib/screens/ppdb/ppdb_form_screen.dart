@@ -1,14 +1,16 @@
 // ppdb_form_screen.dart
 //
-// Formulir PPDB Online — mengikuti desain baru (hero banner, gerbang kode
-// PPDB, step indicator 4 langkah). Menggunakan PColors & PText yang sama
-// dengan signup_screen.dart supaya konsisten secara visual.
+// Formulir Pendaftaran Santri Baru (PPDB Online).
+// Alur: Pondok (kode) -> Santri -> Wali -> Berkas -> Kirim.
+// Khusus pendaftaran: tanpa tab status & kelulusan.
+// Memakai PColors & PText dari signup_screen.dart supaya tema tetap hijau.
 
 import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../services/api_client.dart';
@@ -16,7 +18,7 @@ import '../../services/app_scope.dart';
 import '../signup_screen.dart'; // reuse PColors & PText
 
 // ============================================================================
-// Data models lokal
+// Data lokal
 // ============================================================================
 
 class _JenjangOption {
@@ -59,14 +61,12 @@ class _TenantInfo {
     required this.namaPondok,
     required this.alamat,
     required this.sisaKuota,
-    required this.gelombangLabel,
     required this.gelombangDibuka,
   });
 
   final String namaPondok;
   final String alamat;
   final int? sisaKuota;
-  final String gelombangLabel;
   final bool gelombangDibuka;
 
   factory _TenantInfo.fromJson(Map<String, dynamic> j) {
@@ -80,13 +80,24 @@ class _TenantInfo {
           : '-',
       alamat: (j['alamat'] as String?) ?? '',
       sisaKuota: sisaKuota is int ? sisaKuota : int.tryParse('$sisaKuota'),
-      gelombangLabel: 'Gelombang 1',
       gelombangDibuka: status == 'DIBUKA',
     );
   }
 }
 
-const List<String> _kStepTitles = ['Santri', 'Wali', 'Berkas', 'Kirim'];
+class _StepDef {
+  const _StepDef(this.title, this.icon);
+  final String title;
+  final IconData icon;
+}
+
+const List<_StepDef> _kSteps = [
+  _StepDef('Pondok', Icons.mosque_outlined),
+  _StepDef('Santri', Icons.person_outline),
+  _StepDef('Wali', Icons.family_restroom_outlined),
+  _StepDef('Berkas', Icons.folder_outlined),
+  _StepDef('Kirim', Icons.send_outlined),
+];
 
 // ============================================================================
 // PpdbFormScreen
@@ -100,43 +111,48 @@ class PpdbFormScreen extends StatefulWidget {
 }
 
 class _PpdbFormScreenState extends State<PpdbFormScreen> {
-  // --- Gerbang Kode PPDB ---
-  // TODO: ganti nilai awal & validasi dengan hasil GET /api/ppdb/lookup?kode=...
-  final _kode = TextEditingController(text: 'mahad-alquran');
+  final _scroll = ScrollController();
+
+  // --- Step 0: Pondok ---
+  final _kode = TextEditingController();
   bool _kodeValid = false;
   bool _checkingKode = false;
   _TenantInfo? _tenantInfo;
-  int _heroTab = 0;
 
-  // --- Step 0: Data Calon Santri ---
+  // --- Step 1: Calon santri ---
   final _namaCalon = TextEditingController();
   final _nisn = TextEditingController();
   final _tempatLahir = TextEditingController();
   final _tglLahir = TextEditingController();
   final _asalSekolah = TextEditingController();
-  String? _tglLahirIso; // format YYYY-MM-DD untuk dikirim ke backend
+  String? _tglLahirIso; // YYYY-MM-DD untuk backend
   String _jenisKelamin = 'L';
   String _jenjang = 'mutawassithah';
 
-  // --- Step 1: Data Wali ---
+  // --- Step 2: Wali ---
   final _namaWali = TextEditingController();
   final _noHpWali = TextEditingController();
   final _emailWali = TextEditingController();
   final _alamatWali = TextEditingController();
 
-  // --- Step 2: Berkas (placeholder nama/link berkas) ---
+  // --- Step 3: Berkas (data URI base64) ---
   final _fotoAnak = TextEditingController();
   final _kartuKeluarga = TextEditingController();
   final _aktaLahir = TextEditingController();
+
+  /// Naik setiap form di-reset, dipakai sebagai key supaya tile berkas dibuat ulang.
+  int _gen = 0;
 
   int _step = 0;
   bool _loading = false;
   bool _submitted = false;
   String? _error;
-  String? _sukses;
+  String? _suksesPesan;
+  String? _suksesNomor;
 
   @override
   void dispose() {
+    _scroll.dispose();
     _kode.dispose();
     _namaCalon.dispose();
     _nisn.dispose();
@@ -153,9 +169,55 @@ class _PpdbFormScreenState extends State<PpdbFormScreen> {
     super.dispose();
   }
 
+  void _scrollTop() {
+    if (_scroll.hasClients) {
+      _scroll.animateTo(
+        0,
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOut,
+      );
+    }
+  }
+
+  /// Kosongkan semua isian untuk pendaftar berikutnya.
+  /// Kode & info pondok dipertahankan (pondoknya sama), langsung ke langkah Santri.
+  void _resetForm() {
+    _namaCalon.clear();
+    _nisn.clear();
+    _tempatLahir.clear();
+    _tglLahir.clear();
+    _asalSekolah.clear();
+    _namaWali.clear();
+    _noHpWali.clear();
+    _emailWali.clear();
+    _alamatWali.clear();
+    _fotoAnak.clear();
+    _kartuKeluarga.clear();
+    _aktaLahir.clear();
+    setState(() {
+      _gen++;
+      _tglLahirIso = null;
+      _jenisKelamin = 'L';
+      _jenjang = 'mutawassithah';
+      _step = 1;
+      _error = null;
+      _submitted = false;
+      _suksesPesan = null;
+      _suksesNomor = null;
+    });
+    _scrollTop();
+  }
+
+  // ---------------------------------------------------------------------
+  // Aksi
+  // ---------------------------------------------------------------------
   Future<void> _cekKode() async {
+    FocusScope.of(context).unfocus();
     final kode = _kode.text.trim();
-    if (kode.isEmpty) return;
+    if (kode.isEmpty) {
+      setState(() => _error = 'Masukkan kode registrasi PPDB pondok.');
+      return;
+    }
 
     setState(() {
       _checkingKode = true;
@@ -169,9 +231,8 @@ class _PpdbFormScreenState extends State<PpdbFormScreen> {
             auth: false,
           );
       if (!mounted) return;
-      final data = res as Map<String, dynamic>;
       setState(() {
-        _tenantInfo = _TenantInfo.fromJson(data);
+        _tenantInfo = _TenantInfo.fromJson(res as Map<String, dynamic>);
         _kodeValid = true;
         _checkingKode = false;
       });
@@ -182,7 +243,7 @@ class _PpdbFormScreenState extends State<PpdbFormScreen> {
         _tenantInfo = null;
         _checkingKode = false;
         _error = e.statusCode == 404
-            ? 'Kode Registrasi PPDB tidak ditemukan. Periksa kembali kode Anda.'
+            ? 'Kode PPDB tidak ditemukan. Periksa kembali kode Anda.'
             : e.message;
       });
     } catch (_) {
@@ -214,39 +275,64 @@ class _PpdbFormScreenState extends State<PpdbFormScreen> {
     }
   }
 
-  bool _validateStep0() {
-    if (_namaCalon.text.trim().isEmpty) {
-      setState(() => _error = 'Nama lengkap ananda wajib diisi.');
-      return false;
+  String? _validateStep(int s) {
+    if (s == 0) {
+      if (!_kodeValid) return 'Periksa kode PPDB pondok terlebih dahulu.';
+      if (_tenantInfo?.gelombangDibuka == false) {
+        return 'Pendaftaran di pondok ini sedang ditutup.';
+      }
     }
-    setState(() => _error = null);
-    return true;
-  }
-
-  bool _validateStep1() {
-    if (_namaWali.text.trim().isEmpty || _noHpWali.text.trim().isEmpty) {
-      setState(() => _error = 'Nama dan No. HP wali wajib diisi.');
-      return false;
+    if (s == 1) {
+      if (_namaCalon.text.trim().isEmpty) {
+        return 'Nama lengkap ananda wajib diisi.';
+      }
+      final nisn = _nisn.text.trim();
+      if (nisn.isNotEmpty && nisn.length != 10) {
+        return 'NISN harus 10 digit. Kosongkan kalau belum punya.';
+      }
     }
-    setState(() => _error = null);
-    return true;
+    if (s == 2) {
+      if (_namaWali.text.trim().isEmpty || _noHpWali.text.trim().isEmpty) {
+        return 'Nama dan No. HP wali wajib diisi.';
+      }
+      if (_noHpWali.text.replaceAll(RegExp(r'\D'), '').length < 9) {
+        return 'No. HP wali tidak valid.';
+      }
+      final email = _emailWali.text.trim();
+      if (email.isNotEmpty &&
+          !RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email)) {
+        return 'Format email tidak valid.';
+      }
+    }
+    return null;
   }
 
   void _goNext() {
-    if (!_kodeValid) {
-      setState(() => _error = 'Periksa Kode Registrasi PPDB terlebih dahulu.');
+    FocusScope.of(context).unfocus();
+
+    // Di langkah Pondok, kalau kode belum diperiksa tombol berfungsi sebagai "Periksa".
+    if (_step == 0 && !_kodeValid) {
+      _cekKode();
       return;
     }
-    if (_step == 0 && !_validateStep0()) return;
-    if (_step == 1 && !_validateStep1()) return;
-    if (_step < 3) {
+
+    final err = _validateStep(_step);
+    if (err != null) {
+      setState(() => _error = err);
+      return;
+    }
+    setState(() => _error = null);
+
+    if (_step < _kSteps.length - 1) {
       setState(() => _step += 1);
+      _scrollTop();
     } else {
       _submit();
     }
   }
 
   void _goBack() {
+    FocusScope.of(context).unfocus();
     if (_step == 0) {
       Navigator.of(context).maybePop();
     } else {
@@ -254,7 +340,21 @@ class _PpdbFormScreenState extends State<PpdbFormScreen> {
         _error = null;
         _step -= 1;
       });
+      _scrollTop();
     }
+  }
+
+  void _jumpTo(int step) {
+    setState(() {
+      _error = null;
+      _step = step;
+    });
+    _scrollTop();
+  }
+
+  String? _nullIfEmpty(TextEditingController c) {
+    final t = c.text.trim();
+    return t.isEmpty ? null : t;
   }
 
   Future<void> _submit() async {
@@ -267,38 +367,57 @@ class _PpdbFormScreenState extends State<PpdbFormScreen> {
         'kodeTenant': _kode.text.trim(),
         'nama': _namaCalon.text.trim(),
         'jenisKelamin': _jenisKelamin,
-        'nisn': _nisn.text.trim().isEmpty ? null : _nisn.text.trim(),
-        'tempatLahir':
-            _tempatLahir.text.trim().isEmpty ? null : _tempatLahir.text.trim(),
+        'nisn': _nullIfEmpty(_nisn),
+        'tempatLahir': _nullIfEmpty(_tempatLahir),
         'tanggalLahir': _tglLahirIso,
-        'asalSekolah':
-            _asalSekolah.text.trim().isEmpty ? null : _asalSekolah.text.trim(),
+        'asalSekolah': _nullIfEmpty(_asalSekolah),
         'jenjang': _jenjang,
         'namaWali': _namaWali.text.trim(),
         'noHp': _noHpWali.text.trim(),
-        'email': _emailWali.text.trim().isEmpty ? null : _emailWali.text.trim(),
-        'alamat': _alamatWali.text.trim().isEmpty ? null : _alamatWali.text.trim(),
-        'fotoUrl': _fotoAnak.text.trim().isEmpty ? null : _fotoAnak.text.trim(),
-        'kartuKeluargaUrl':
-            _kartuKeluarga.text.trim().isEmpty ? null : _kartuKeluarga.text.trim(),
-        'aktaLahirUrl': _aktaLahir.text.trim().isEmpty ? null : _aktaLahir.text.trim(),
+        'email': _nullIfEmpty(_emailWali),
+        'alamat': _nullIfEmpty(_alamatWali),
+        'fotoUrl': _nullIfEmpty(_fotoAnak),
+        'kartuKeluargaUrl': _nullIfEmpty(_kartuKeluarga),
+        'aktaLahirUrl': _nullIfEmpty(_aktaLahir),
       });
       if (!mounted) return;
       final m = res as Map<String, dynamic>;
       setState(() {
         _submitted = true;
-        _sukses =
-            '${m['message'] ?? 'Pendaftaran berhasil dikirim.'} ${m['noPendaftaran'] ?? ''}';
+        _suksesPesan =
+            (m['message'] as String?) ?? 'Pendaftaran berhasil dikirim.';
+        _suksesNomor = m['noPendaftaran'] as String?;
       });
+      _scrollTop();
     } on ApiException catch (e) {
       if (mounted) setState(() => _error = e.message);
     } catch (_) {
-      if (mounted) setState(() => _error = 'Gagal mengirim pendaftaran. Coba lagi.');
+      if (mounted) {
+        setState(() => _error = 'Gagal mengirim pendaftaran. Coba lagi.');
+      }
     } finally {
       if (mounted) setState(() => _loading = false);
     }
   }
 
+  String _nextLabel() {
+    switch (_step) {
+      case 0:
+        return _kodeValid ? 'Lanjut ke Data Santri' : 'Periksa Kode';
+      case 1:
+        return 'Lanjut ke Data Wali';
+      case 2:
+        return 'Lanjut ke Berkas';
+      case 3:
+        return 'Lanjut ke Ringkasan';
+      default:
+        return 'Kirim Pendaftaran';
+    }
+  }
+
+  // ---------------------------------------------------------------------
+  // Build
+  // ---------------------------------------------------------------------
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -306,265 +425,464 @@ class _PpdbFormScreenState extends State<PpdbFormScreen> {
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 480),
-          child: SafeArea(
-            child: Column(
-              children: [
-                _PpdbHeader(onBack: _goBack),
-                Expanded(
-                  child: SingleChildScrollView(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        _HeroBanner(
-                          activeTab: _heroTab,
-                          onTabChanged: (i) => setState(() => _heroTab = i),
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              _KodeGateCard(
-                                controller: _kode,
-                                valid: _kodeValid,
-                                checking: _checkingKode,
-                                tenantInfo: _tenantInfo,
-                                onCek: _cekKode,
-                              ),
+          child: Column(
+            children: [
+              Expanded(
+                child: SingleChildScrollView(
+                  controller: _scroll,
+                  keyboardDismissBehavior:
+                      ScrollViewKeyboardDismissBehavior.onDrag,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _Hero(
+                        onBack: _goBack,
+                        namaPondok: _kodeValid ? _tenantInfo?.namaPondok : null,
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            if (_submitted)
+                              _SuksesCard(
+                                message:
+                                    _suksesPesan ?? 'Pendaftaran terkirim.',
+                                nomor: _suksesNomor,
+                                namaPondok: _tenantInfo?.namaPondok,
+                                onReset: _resetForm,
+                              )
+                            else ...[
+                              _StepTracker(step: _step, onTap: _tapStep),
                               const SizedBox(height: 16),
-                              _StepIndicator(step: _step),
-                              const SizedBox(height: 16),
-                              if (_submitted)
-                                _SuksesCard(
-                                  message: _sukses ?? 'Pendaftaran terkirim.',
-                                  onReset: () => setState(() {
-                                    _submitted = false;
-                                    _sukses = null;
-                                    _step = 0;
-                                  }),
-                                )
-                              else ...[
-                                if (_step == 0) _buildStepSantri(),
-                                if (_step == 1) _buildStepWali(),
-                                if (_step == 2) _buildStepBerkas(),
-                                if (_step == 3) _buildStepKirim(),
-                                if (_error != null) ...[
-                                  const SizedBox(height: 16),
-                                  _MessageBanner(text: _error!),
-                                ],
-                                const SizedBox(height: 16),
-                                _PrimaryButton(
-                                  label: _step < 3 ? _nextLabel() : 'Kirim Pendaftaran',
-                                  loading: _loading,
-                                  showArrow: _step < 3,
-                                  onPressed: _goNext,
-                                ),
-                              ],
-                              const SizedBox(height: 20),
-                              const _PpdbFooter(),
+                              if (_step == 0) _buildStepPondok(),
+                              if (_step == 1) _buildStepSantri(),
+                              if (_step == 2) _buildStepWali(),
+                              if (_step == 3) _buildStepBerkas(),
+                              if (_step == 4) _buildStepKirim(),
                             ],
-                          ),
+                            const SizedBox(height: 20),
+                            const _PpdbFooter(),
+                          ],
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
-              ],
-            ),
+              ),
+              if (!_submitted) _bottomBar(),
+            ],
           ),
         ),
       ),
     );
   }
 
-  String _nextLabel() {
-    switch (_step) {
-      case 0:
-        return 'Lanjut ke Data Wali';
-      case 1:
-        return 'Lanjut ke Berkas';
-      default:
-        return 'Lanjut ke Ringkasan';
-    }
+  /// Boleh loncat mundur ke langkah yang sudah dilewati.
+  void _tapStep(int i) {
+    if (i < _step && !_loading) _jumpTo(i);
+  }
+
+  Widget _bottomBar() {
+    return Container(
+      decoration: const BoxDecoration(
+        color: PColors.surface,
+        border: Border(top: BorderSide(color: PColors.border)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (_error != null) ...[
+                _MessageBanner(text: _error!),
+                const SizedBox(height: 10),
+              ],
+              Row(
+                children: [
+                  if (_step > 0) ...[
+                    SizedBox(
+                      height: 52,
+                      width: 52,
+                      child: OutlinedButton(
+                        onPressed: _loading ? null : _goBack,
+                        style: OutlinedButton.styleFrom(
+                          padding: EdgeInsets.zero,
+                          side: const BorderSide(color: PColors.border),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(9999),
+                          ),
+                        ),
+                        child: const Icon(Icons.arrow_back,
+                            color: PColors.ink, size: 20),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                  ],
+                  Expanded(
+                    child: _PrimaryButton(
+                      label: _nextLabel(),
+                      loading: _loading || _checkingKode,
+                      showArrow: _step < _kSteps.length - 1,
+                      onPressed: _goNext,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   // ---------------------------------------------------------------------
-  // STEP 0 — Data Calon Santri
+  // STEP 0 — Pondok
   // ---------------------------------------------------------------------
-  Widget _buildStepSantri() {
-    return _PCard(
+  Widget _buildStepPondok() {
+    final info = _tenantInfo;
+
+    if (_kodeValid && info != null) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: PColors.successBg,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: PColors.successBorder),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.check_circle,
+                        size: 16, color: PColors.successText),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        'Kode valid & terhubung',
+                        style: TextStyle(
+                          fontFamily: 'Nunito',
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          color: PColors.successText,
+                        ),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () => setState(() {
+                        _kodeValid = false;
+                        _tenantInfo = null;
+                        _error = null;
+                      }),
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                        minimumSize: const Size(0, 30),
+                      ),
+                      child: Text(
+                        'Ganti',
+                        style: TextStyle(
+                          fontFamily: 'Nunito',
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          color: PColors.primary,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: PColors.primary,
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: const Icon(Icons.mosque_outlined,
+                          size: 24, color: Colors.white),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(info.namaPondok, style: PText.headlineSm),
+                          if (info.alamat.isNotEmpty) ...[
+                            const SizedBox(height: 2),
+                            Text(info.alamat, style: PText.bodySm),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    _PPill(
+                      label: info.gelombangDibuka
+                          ? 'Pendaftaran dibuka'
+                          : 'Pendaftaran ditutup',
+                      bg: Colors.white,
+                      fg: info.gelombangDibuka
+                          ? PColors.successText
+                          : PColors.errorText,
+                    ),
+                    if (info.sisaKuota != null)
+                      _PPill(
+                        label: 'Sisa kuota ${info.sisaKuota} santri',
+                        bg: Colors.white,
+                        fg: PColors.successText,
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
+
+    return _SectionCard(
+      title: 'Masuk ke Pondok',
+      subtitle: 'Masukkan kode PPDB dari brosur pendaftaran',
+      icon: Icons.vpn_key_outlined,
       children: [
+        _Field(
+          label: 'Kode Registrasi PPDB',
+          required: true,
+          child: _PInput(
+            controller: _kode,
+            hint: 'mis. nama-pondok',
+            icon: Icons.tag,
+            bold: true,
+            onSubmitted: (_) => _cekKode(),
+          ),
+        ),
+        const SizedBox(height: 14),
         Row(
           children: [
-            Expanded(child: Text('Data Calon Santri', style: PText.headlineSm)),
-            Text('Langkah 1 dari 4', style: PText.bodySm),
+            const Icon(Icons.help_outline,
+                size: 14, color: PColors.inkSecondary),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                'Belum punya kode? Hubungi panitia PPDB pondok.',
+                style: PText.bodySm,
+              ),
+            ),
           ],
         ),
+      ],
+    );
+  }
+
+  // ---------------------------------------------------------------------
+  // STEP 1 — Calon Santri
+  // ---------------------------------------------------------------------
+  Widget _buildStepSantri() {
+    return _SectionCard(
+      title: 'Data Calon Santri',
+      subtitle: 'Isi sesuai akta kelahiran ananda',
+      icon: Icons.person_rounded,
+      children: [
+        _Field(
+          label: 'Nama Lengkap',
+          required: true,
+          child: _PInput(
+            controller: _namaCalon,
+            hint: 'Nama lengkap ananda',
+            icon: Icons.person_outline,
+            capitalization: TextCapitalization.words,
+          ),
+        ),
         const SizedBox(height: 16),
-        Text('Nama Lengkap Ananda', style: PText.labelLg),
-        const SizedBox(height: 8),
-        _PInput(
-          controller: _namaCalon,
-          hint: 'Nama lengkap sesuai akta kelahiran',
+        _Field(
+          label: 'Jenis Kelamin',
+          child: Row(
+            children: [
+              Expanded(
+                child: _GenderTile(
+                  icon: Icons.male,
+                  label: 'Ikhwan (Putra)',
+                  selected: _jenisKelamin == 'L',
+                  onTap: () => setState(() => _jenisKelamin = 'L'),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _GenderTile(
+                  icon: Icons.female,
+                  label: 'Akhwat (Putri)',
+                  selected: _jenisKelamin == 'P',
+                  onTap: () => setState(() => _jenisKelamin = 'P'),
+                ),
+              ),
+            ],
+          ),
         ),
         const SizedBox(height: 16),
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('NISN (10 Digit)', style: PText.labelLg),
-                  const SizedBox(height: 8),
-                  _PInput(
-                    controller: _nisn,
-                    hint: '01xxxxxxxx',
-                    keyboardType: TextInputType.number,
-                  ),
-                ],
+              child: _Field(
+                label: 'Tempat Lahir',
+                child: _PInput(
+                  controller: _tempatLahir,
+                  hint: 'Jakarta',
+                  capitalization: TextCapitalization.words,
+                ),
               ),
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Tempat Lahir', style: PText.labelLg),
-                  const SizedBox(height: 8),
-                  _PInput(controller: _tempatLahir, hint: 'Jakarta'),
-                ],
+              child: _Field(
+                label: 'Tanggal Lahir',
+                child: _PInput(
+                  controller: _tglLahir,
+                  hint: 'DD/MM/YYYY',
+                  readOnly: true,
+                  onTap: _pickTanggalLahir,
+                ),
               ),
             ),
           ],
         ),
         const SizedBox(height: 16),
-        Text('Tanggal Lahir', style: PText.labelLg),
-        const SizedBox(height: 8),
-        _PInput(
-          controller: _tglLahir,
-          hint: 'DD/MM/YYYY',
-          readOnly: true,
-          onTap: _pickTanggalLahir,
-          suffixIcon: IconButton(
-            icon: const Icon(Icons.calendar_today_outlined,
-                size: 18, color: PColors.inkSecondary),
-            onPressed: _pickTanggalLahir,
+        _Field(
+          label: 'NISN',
+          optional: true,
+          child: _PInput(
+            controller: _nisn,
+            hint: '10 digit (nomor dari sekolah asal)',
+            icon: Icons.badge_outlined,
+            keyboardType: TextInputType.number,
+            maxLength: 10,
+            formatters: [FilteringTextInputFormatter.digitsOnly],
           ),
         ),
         const SizedBox(height: 16),
-        Text('Jenis Kelamin', style: PText.labelLg),
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            Expanded(
-              child: _GenderTile(
-                icon: Icons.male,
-                label: 'Ikhwan (Putra)',
-                selected: _jenisKelamin == 'L',
-                onTap: () => setState(() => _jenisKelamin = 'L'),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _GenderTile(
-                icon: Icons.female,
-                label: 'Akhwat (Putri)',
-                selected: _jenisKelamin == 'P',
-                onTap: () => setState(() => _jenisKelamin = 'P'),
-              ),
-            ),
-          ],
+        _Field(
+          label: 'Asal Sekolah / Madrasah',
+          child: _PInput(
+            controller: _asalSekolah,
+            hint: 'SDIT Ibnu Abbas',
+            icon: Icons.school_outlined,
+          ),
         ),
         const SizedBox(height: 16),
-        Text('Asal Sekolah / Madrasah', style: PText.labelLg),
-        const SizedBox(height: 8),
-        _PInput(controller: _asalSekolah, hint: 'SDIT Ibnu Abbas'),
-        const SizedBox(height: 16),
-        Text('Pilihan Jenjang & Peminatan', style: PText.labelLg),
-        const SizedBox(height: 8),
-        _JenjangSelector(
-          selectedId: _jenjang,
-          onSelect: (id) => setState(() => _jenjang = id),
+        _Field(
+          label: 'Jenjang yang Dipilih',
+          child: Column(
+            children: [
+              for (final o in _kJenjangOptions)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: GestureDetector(
+                    onTap: () => setState(() => _jenjang = o.id),
+                    child: _JenjangTile(option: o, selected: _jenjang == o.id),
+                  ),
+                ),
+            ],
+          ),
         ),
       ],
     );
   }
 
   // ---------------------------------------------------------------------
-  // STEP 1 — Data Wali
+  // STEP 2 — Wali
   // ---------------------------------------------------------------------
   Widget _buildStepWali() {
-    return _PCard(
+    return _SectionCard(
+      title: 'Data Wali Santri',
+      subtitle: 'Kontak yang akan dihubungi panitia',
+      icon: Icons.family_restroom_rounded,
       children: [
-        Row(
-          children: [
-            Expanded(child: Text('Data Wali Santri', style: PText.headlineSm)),
-            Text('Langkah 2 dari 4', style: PText.bodySm),
-          ],
+        _Field(
+          label: 'Nama Ayah / Bunda / Wali',
+          required: true,
+          child: _PInput(
+            controller: _namaWali,
+            hint: 'Nama lengkap wali',
+            icon: Icons.person_outline,
+            capitalization: TextCapitalization.words,
+          ),
         ),
         const SizedBox(height: 16),
-        Text('Nama Lengkap Ayah/Bunda/Wali', style: PText.labelLg),
-        const SizedBox(height: 8),
-        _PInput(
-          controller: _namaWali,
-          hint: 'Nama lengkap wali santri',
-          icon: Icons.person_outline,
+        _Field(
+          label: 'No. HP / WhatsApp Aktif',
+          required: true,
+          child: _PInput(
+            controller: _noHpWali,
+            hint: '08xxxxxxxxxx',
+            icon: Icons.phone_outlined,
+            keyboardType: TextInputType.phone,
+            formatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9+]'))],
+          ),
         ),
         const SizedBox(height: 16),
-        Text('No. HP / WhatsApp Aktif', style: PText.labelLg),
-        const SizedBox(height: 8),
-        _PInput(
-          controller: _noHpWali,
-          hint: '08xx-xxxx-xxxx',
-          icon: Icons.phone_outlined,
-          keyboardType: TextInputType.phone,
+        _Field(
+          label: 'Email',
+          optional: true,
+          child: _PInput(
+            controller: _emailWali,
+            hint: 'wali@email.com',
+            icon: Icons.mail_outline,
+            keyboardType: TextInputType.emailAddress,
+          ),
         ),
         const SizedBox(height: 16),
-        Text('Email (opsional)', style: PText.labelLg),
-        const SizedBox(height: 8),
-        _PInput(
-          controller: _emailWali,
-          hint: 'wali@email.com',
-          icon: Icons.mail_outline,
-          keyboardType: TextInputType.emailAddress,
+        _Field(
+          label: 'Alamat Domisili',
+          optional: true,
+          child: _PInput(
+            controller: _alamatWali,
+            hint: 'Alamat lengkap domisili',
+            maxLines: 3,
+          ),
         ),
-        const SizedBox(height: 16),
-        Text('Alamat Domisili', style: PText.labelLg),
-        const SizedBox(height: 8),
-        _PInput(controller: _alamatWali, hint: 'Alamat lengkap domisili wali', maxLines: 2),
       ],
     );
   }
 
   // ---------------------------------------------------------------------
-  // STEP 2 — Berkas
+  // STEP 3 — Berkas
   // ---------------------------------------------------------------------
   Widget _buildStepBerkas() {
-    return _PCard(
+    return _SectionCard(
+      title: 'Unggah Berkas',
+      subtitle: 'PNG / JPG / PDF, maksimal 2MB per berkas',
+      icon: Icons.folder_copy_outlined,
       children: [
-        Row(
-          children: [
-            Expanded(child: Text('Unggah Berkas', style: PText.headlineSm)),
-            Text('Langkah 3 dari 4', style: PText.bodySm),
-          ],
-        ),
-        const SizedBox(height: 6),
-        Text('Format PNG/JPG/PDF, maksimal 2MB per berkas.', style: PText.bodySm),
-        const SizedBox(height: 16),
         _UploadTile(
+          key: ValueKey('foto$_gen'),
           title: 'Pas Foto Ananda',
           controller: _fotoAnak,
           kind: _BerkasKind.photoOnly,
         ),
         const SizedBox(height: 12),
         _UploadTile(
+          key: ValueKey('kk$_gen'),
           title: 'Kartu Keluarga',
           controller: _kartuKeluarga,
           kind: _BerkasKind.documentOnly,
         ),
         const SizedBox(height: 12),
         _UploadTile(
+          key: ValueKey('akta$_gen'),
           title: 'Akta Kelahiran',
           controller: _aktaLahir,
           kind: _BerkasKind.documentOnly,
@@ -574,40 +892,70 @@ class _PpdbFormScreenState extends State<PpdbFormScreen> {
   }
 
   // ---------------------------------------------------------------------
-  // STEP 3 — Ringkasan & Kirim
+  // STEP 4 — Ringkasan
   // ---------------------------------------------------------------------
   Widget _buildStepKirim() {
     final jenjang = _kJenjangOptions.firstWhere((j) => j.id == _jenjang);
-    return _PCard(
+    final ttl = [_tempatLahir.text.trim(), _tglLahir.text.trim()]
+        .where((e) => e.isNotEmpty)
+        .join(', ');
+    String berkas(TextEditingController c) =>
+        c.text.trim().isEmpty ? 'Belum diunggah' : 'Terunggah';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
+        _SectionCard(
+          title: 'Ringkasan Pendaftaran',
+          subtitle: 'Periksa kembali sebelum dikirim',
+          icon: Icons.fact_check_outlined,
           children: [
-            Expanded(child: Text('Ringkasan Pendaftaran', style: PText.headlineSm)),
-            Text('Langkah 4 dari 4', style: PText.bodySm),
+            _SummarySection(
+              title: 'Pondok',
+              onEdit: () => _jumpTo(0),
+              rows: [
+                _SummaryRow('Pondok', _tenantInfo?.namaPondok ?? '-'),
+              ],
+            ),
+            const Divider(color: PColors.border, height: 24),
+            _SummarySection(
+              title: 'Calon Santri',
+              onEdit: () => _jumpTo(1),
+              rows: [
+                _SummaryRow('Nama', _namaCalon.text.trim()),
+                _SummaryRow('Jenis Kelamin',
+                    _jenisKelamin == 'L' ? 'Ikhwan (Putra)' : 'Akhwat (Putri)'),
+                _SummaryRow('Tempat, Tgl Lahir', ttl),
+                _SummaryRow('NISN', _nisn.text.trim()),
+                _SummaryRow('Asal Sekolah', _asalSekolah.text.trim()),
+                _SummaryRow('Jenjang', jenjang.label),
+              ],
+            ),
+            const Divider(color: PColors.border, height: 24),
+            _SummarySection(
+              title: 'Wali Santri',
+              onEdit: () => _jumpTo(2),
+              rows: [
+                _SummaryRow('Nama', _namaWali.text.trim()),
+                _SummaryRow('No. HP', _noHpWali.text.trim()),
+                _SummaryRow('Email', _emailWali.text.trim()),
+                _SummaryRow('Alamat', _alamatWali.text.trim()),
+              ],
+            ),
+            const Divider(color: PColors.border, height: 24),
+            _SummarySection(
+              title: 'Berkas',
+              onEdit: () => _jumpTo(3),
+              rows: [
+                _SummaryRow('Pas Foto', berkas(_fotoAnak)),
+                _SummaryRow('Kartu Keluarga', berkas(_kartuKeluarga)),
+                _SummaryRow('Akta Kelahiran', berkas(_aktaLahir)),
+              ],
+            ),
           ],
         ),
-        const SizedBox(height: 16),
-        Text('Data Calon Santri', style: PText.labelLg),
-        const SizedBox(height: 10),
-        _SummaryRow('Nama Ananda', _namaCalon.text.trim()),
-        _SummaryRow('NISN', _nisn.text.trim()),
-        _SummaryRow(
-            'Tempat, Tgl Lahir', '${_tempatLahir.text.trim()}, ${_tglLahir.text.trim()}'),
-        _SummaryRow(
-            'Jenis Kelamin', _jenisKelamin == 'L' ? 'Ikhwan (Putra)' : 'Akhwat (Putri)'),
-        _SummaryRow('Asal Sekolah', _asalSekolah.text.trim()),
-        _SummaryRow('Jenjang', jenjang.label),
-        const SizedBox(height: 16),
-        Divider(color: PColors.border, height: 1),
-        const SizedBox(height: 16),
-        Text('Data Wali', style: PText.labelLg),
-        const SizedBox(height: 10),
-        _SummaryRow('Nama Wali', _namaWali.text.trim()),
-        _SummaryRow('No. HP', _noHpWali.text.trim()),
-        _SummaryRow('Email', _emailWali.text.trim()),
-        _SummaryRow('Alamat', _alamatWali.text.trim()),
-        const SizedBox(height: 16),
-        _MessageBanner(
+        const SizedBox(height: 14),
+        const _MessageBanner(
           text: 'Pastikan seluruh data sudah benar sebelum mengirim pendaftaran.',
           bg: PColors.pendingBg,
           fg: PColors.pendingText,
@@ -619,112 +967,10 @@ class _PpdbFormScreenState extends State<PpdbFormScreen> {
 }
 
 // ============================================================================
-// Header
+// Hero
 // ============================================================================
 
-class _PpdbHeader extends StatelessWidget {
-  const _PpdbHeader({required this.onBack});
-
-  final VoidCallback onBack;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(4, 8, 12, 12),
-      child: Row(
-        children: [
-          IconButton(
-            onPressed: onBack,
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-            icon: const Icon(Icons.chevron_left, color: PColors.ink, size: 26),
-          ),
-          const SizedBox(width: 4),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'SIMPesantren',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontFamily: 'Nunito',
-                    fontSize: 17,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: -0.01,
-                    color: PColors.ink,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 4,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    Text('Informasi Institusi', style: PText.bodySm),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: PColors.mint,
-                        borderRadius: BorderRadius.circular(9999),
-                      ),
-                      child: const Text(
-                        'Registrasi Tenant Baru',
-                        style: TextStyle(
-                          fontFamily: 'Nunito',
-                          fontSize: 9,
-                          fontWeight: FontWeight.w600,
-                          color: PColors.primary,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          IconButton(
-            onPressed: () {},
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-            icon: const Icon(Icons.help_outline, color: PColors.inkSecondary, size: 22),
-          ),
-          const SizedBox(width: 6),
-          Container(
-            width: 32,
-            height: 32,
-            decoration: const BoxDecoration(color: PColors.primary, shape: BoxShape.circle),
-            child: const Icon(Icons.person, color: Colors.white, size: 16),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ============================================================================
-// Hero banner
-// ============================================================================
-
-/// Motif geometris tipis di background hero banner, terinspirasi pola
-/// arabesque/bintang delapan yang umum dipakai di ornamen pesantren.
-/// Digambar manual pakai CustomPainter (bukan asset gambar) biar ringan
-/// dan gampang diubah opacity/warnanya, tanpa nambah dependency baru.
-class _ArabesquePattern extends StatelessWidget {
-  const _ArabesquePattern();
-
-  @override
-  Widget build(BuildContext context) {
-    return IgnorePointer(
-      child: CustomPaint(
-        painter: _ArabesquePatternPainter(),
-        size: Size.infinite,
-      ),
-    );
-  }
-}
-
+/// Motif bintang delapan tipis (arabesque), digambar dengan CustomPainter.
 class _ArabesquePatternPainter extends CustomPainter {
   static const double _tile = 48;
   static const double _starRadius = _tile * 0.34;
@@ -743,7 +989,8 @@ class _ArabesquePatternPainter extends CustomPainter {
     }
   }
 
-  void _drawEightPointStar(Canvas canvas, Offset center, double r, Paint paint) {
+  void _drawEightPointStar(
+      Canvas canvas, Offset center, double r, Paint paint) {
     final square1 = Path();
     final square2 = Path();
     for (int i = 0; i < 4; i++) {
@@ -769,18 +1016,22 @@ class _ArabesquePatternPainter extends CustomPainter {
   bool shouldRepaint(covariant _ArabesquePatternPainter oldDelegate) => false;
 }
 
-class _HeroBanner extends StatelessWidget {
-  const _HeroBanner({required this.activeTab, required this.onTabChanged});
+class _Hero extends StatelessWidget {
+  const _Hero({required this.onBack, this.namaPondok});
 
-  final int activeTab;
-  final ValueChanged<int> onTabChanged;
+  final VoidCallback onBack;
+  final String? namaPondok;
 
   @override
   Widget build(BuildContext context) {
+    final top = MediaQuery.of(context).padding.top + 12;
+    final y = DateTime.now().year;
+
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(20, 18, 20, 22),
+      clipBehavior: Clip.antiAlias,
       decoration: const BoxDecoration(
+        borderRadius: BorderRadius.vertical(bottom: Radius.circular(28)),
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
@@ -789,424 +1040,224 @@ class _HeroBanner extends StatelessWidget {
       ),
       child: Stack(
         children: [
-          const Positioned.fill(child: _ArabesquePattern()),
-          Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.14),
-              borderRadius: BorderRadius.circular(9999),
+          Positioned.fill(
+            child: IgnorePointer(
+              child: CustomPaint(
+                painter: _ArabesquePatternPainter(),
+                size: Size.infinite,
+              ),
             ),
-            child: const Row(
-              mainAxisSize: MainAxisSize.min,
+          ),
+          Positioned(
+            right: -40,
+            top: -50,
+            child: Container(
+              width: 150,
+              height: 150,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white.withOpacity(0.08),
+              ),
+            ),
+          ),
+          Positioned(
+            right: 36,
+            bottom: -34,
+            child: Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: PColors.gold.withOpacity(0.16),
+              ),
+            ),
+          ),
+          Padding(
+            padding: EdgeInsets.fromLTRB(16, top, 16, 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(Icons.auto_awesome, size: 13, color: Colors.white),
-                SizedBox(width: 6),
-                Text(
-                  'Tahun Ajaran 1446-1447 H / 2025-2026 M',
-                  style: TextStyle(
-                    fontFamily: 'Nunito',
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 14),
-          const Text(
-            'Penerimaan Santri Baru',
-            style: TextStyle(
-              fontFamily: 'Nunito',
-              fontSize: 24,
-              fontWeight: FontWeight.w800,
-              height: 30 / 24,
-              color: Colors.white,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            "Bismillah. Ahlan wa Sahlan Ayah & Bunda. Mari bersama membina "
-            "generasi penghafal Al-Qur'an yang beradab dan berwawasan luas.",
-            style: TextStyle(
-              fontFamily: 'Nunito',
-              fontSize: 13,
-              height: 19 / 13,
-              color: Colors.white.withOpacity(0.85),
-            ),
-          ),
-          const SizedBox(height: 18),
-          Row(
-            children: [
-              Expanded(
-                child: _HeroTab(
-                  icon: Icons.description_outlined,
-                  label: 'Formulir PPDB',
-                  selected: activeTab == 0,
-                  onTap: () => onTabChanged(0),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _HeroTab(
-                  icon: Icons.verified_outlined,
-                  label: 'Status & Kelulusan',
-                  selected: activeTab == 1,
-                  onTap: () => onTabChanged(1),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-        ],
-      ),
-    );
-  }
-}
-
-class _HeroTab extends StatelessWidget {
-  const _HeroTab({
-    required this.icon,
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        decoration: BoxDecoration(
-          color: selected ? Colors.white : Colors.transparent,
-          borderRadius: BorderRadius.circular(9999),
-          border: Border.all(
-            color: selected ? Colors.white : Colors.white.withOpacity(0.4),
-          ),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, size: 16, color: selected ? PColors.primary : Colors.white),
-            const SizedBox(width: 6),
-            Flexible(
-              child: Text(
-                label,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontFamily: 'Nunito',
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: selected ? PColors.primary : Colors.white,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ============================================================================
-// Gerbang Kode PPDB
-// ============================================================================
-
-class _KodeGateCard extends StatelessWidget {
-  const _KodeGateCard({
-    required this.controller,
-    required this.valid,
-    required this.checking,
-    required this.tenantInfo,
-    required this.onCek,
-  });
-
-  final TextEditingController controller;
-  final bool valid;
-  final bool checking;
-  final _TenantInfo? tenantInfo;
-  final VoidCallback onCek;
-
-  @override
-  Widget build(BuildContext context) {
-    return _PCard(
-      children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: 26,
-              height: 26,
-              alignment: Alignment.center,
-              decoration: const BoxDecoration(color: PColors.goldSurface, shape: BoxShape.circle),
-              child: const Text(
-                '0',
-                style: TextStyle(
-                  fontFamily: 'Nunito',
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
-                  color: PColors.gold,
-                ),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(child: Text('Gerbang Kode PPDB', style: PText.headlineSm)),
-            const _PPill(
-              label: 'Wajib',
-              bg: PColors.pendingBg,
-              fg: PColors.pendingText,
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
-        Text(
-          'Masukkan kode registrasi resmi pondok pesantren yang tercantum pada '
-          'brosur pendaftaran untuk memvalidasi gelombang kuota santri.',
-          style: PText.bodyMd,
-        ),
-        const SizedBox(height: 16),
-        Text('Kode Registrasi PPDB', style: PText.labelLg),
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            Expanded(
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                decoration: BoxDecoration(
-                  color: PColors.background,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: PColors.inputBorder),
-                ),
-                child: TextField(
-                  controller: controller,
-                  style: const TextStyle(
-                    fontFamily: 'Nunito',
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    color: PColors.ink,
-                  ),
-                  decoration: const InputDecoration(
-                    isDense: true,
-                    border: InputBorder.none,
-                    hintText: 'mis. mahad-alquran',
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 10),
-            SizedBox(
-              height: 48,
-              child: FilledButton(
-                onPressed: checking ? null : onCek,
-                style: FilledButton.styleFrom(
-                  backgroundColor: PColors.primary,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9999)),
-                  padding: const EdgeInsets.symmetric(horizontal: 18),
-                ),
-                child: checking
-                    ? const SizedBox(
-                        height: 16,
-                        width: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                      )
-                    : const Text(
-                        'Periksa',
-                        style: TextStyle(
-                          fontFamily: 'Nunito',
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white,
+                Row(
+                  children: [
+                    Material(
+                      color: Colors.white.withOpacity(0.16),
+                      shape: CircleBorder(
+                        side: BorderSide(color: Colors.white.withOpacity(0.28)),
+                      ),
+                      child: InkWell(
+                        customBorder: const CircleBorder(),
+                        onTap: onBack,
+                        child: const SizedBox(
+                          width: 40,
+                          height: 40,
+                          child: Icon(Icons.arrow_back_rounded,
+                              size: 20, color: Colors.white),
                         ),
                       ),
-              ),
-            ),
-          ],
-        ),
-        if (valid && tenantInfo != null) ...[
-          const SizedBox(height: 14),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: PColors.successBg,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: PColors.successBorder),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.check_circle, size: 18, color: PColors.successText),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Kode Valid & Terhubung',
-                    style: TextStyle(
-                      fontFamily: 'Nunito',
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: PColors.successText,
                     ),
-                  ),
-                ),
-                _PPill(
-                  label: '${tenantInfo!.gelombangLabel}: '
-                      '${tenantInfo!.gelombangDibuka ? "Dibuka" : "Ditutup"}',
-                  bg: PColors.successBg,
-                  fg: PColors.successText,
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: PColors.primary,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Icon(Icons.menu_book_outlined, size: 19, color: Colors.white),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
+                    const SizedBox(width: 12),
                     Text(
-                      tenantInfo!.namaPondok,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: PText.labelLg,
-                    ),
-                    const SizedBox(height: 2),
-                    Text(tenantInfo!.alamat, style: PText.bodySm),
-                    const SizedBox(height: 2),
-                    Text(
-                      tenantInfo!.sisaKuota != null
-                          ? 'Sisa Kuota: ${tenantInfo!.sisaKuota} Santri (Ikhwan & Akhwat)'
-                          : 'Sisa kuota tidak tersedia',
+                      'SIMPesantren',
                       style: TextStyle(
                         fontFamily: 'Nunito',
-                        fontSize: 12,
+                        fontSize: 13,
                         fontWeight: FontWeight.w700,
-                        color: PColors.successText,
+                        letterSpacing: 0.6,
+                        color: Colors.white.withOpacity(0.85),
                       ),
                     ),
                   ],
                 ),
-              ),
-            ],
+                const SizedBox(height: 20),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.14),
+                    borderRadius: BorderRadius.circular(9999),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.auto_awesome,
+                          size: 13, color: Colors.white),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Tahun Ajaran $y/${y + 1}',
+                        style: const TextStyle(
+                          fontFamily: 'Nunito',
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Pendaftaran Santri Baru',
+                  style: TextStyle(
+                    fontFamily: 'Nunito',
+                    fontSize: 24,
+                    fontWeight: FontWeight.w800,
+                    height: 1.25,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  namaPondok != null
+                      ? namaPondok!
+                      : "Bismillah. Ahlan wa Sahlan Ayah & Bunda, mari bersama "
+                          "membina generasi penghafal Al-Qur'an.",
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontFamily: 'Nunito',
+                    fontSize: 13,
+                    height: 1.45,
+                    fontWeight:
+                        namaPondok != null ? FontWeight.w700 : FontWeight.w400,
+                    color: Colors.white.withOpacity(0.88),
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
-        const SizedBox(height: 14),
-        Row(
-          children: [
-            const Icon(Icons.help_outline, size: 14, color: PColors.inkSecondary),
-            const SizedBox(width: 4),
-            Text('Simulasi kode keliru / kedaluwarsa?', style: PText.bodySm),
-            const Spacer(),
-            const Icon(Icons.support_agent_outlined, size: 14, color: PColors.primary),
-            const SizedBox(width: 4),
-            Text(
-              'Tanya Panitia',
-              style: TextStyle(
-                fontFamily: 'Nunito',
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                color: PColors.primary,
-              ),
-            ),
-          ],
-        ),
-      ],
+      ),
     );
   }
 }
 
 // ============================================================================
-// Step indicator
+// Step tracker
 // ============================================================================
 
-class _StepIndicator extends StatelessWidget {
-  const _StepIndicator({required this.step});
+class _StepTracker extends StatelessWidget {
+  const _StepTracker({required this.step, required this.onTap});
 
   final int step;
+  final ValueChanged<int> onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: List.generate(_kStepTitles.length * 2 - 1, (i) {
-        if (i.isOdd) {
-          final leftDone = (i - 1) ~/ 2 < step;
-          return Expanded(
-            child: Container(
-              height: 2,
-              margin: const EdgeInsets.symmetric(horizontal: 4),
-              color: leftDone ? PColors.primary : PColors.border,
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 14),
+      decoration: BoxDecoration(
+        color: PColors.surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: PColors.border),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: List.generate(_kSteps.length * 2 - 1, (i) {
+          if (i.isOdd) {
+            final done = (i - 1) ~/ 2 < step;
+            return Expanded(
+              child: Container(
+                height: 2,
+                margin: const EdgeInsets.only(top: 17, left: 2, right: 2),
+                color: done ? PColors.primary : PColors.border,
+              ),
+            );
+          }
+          final idx = i ~/ 2;
+          final active = idx == step;
+          final done = idx < step;
+          return GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => onTap(idx),
+            child: SizedBox(
+              width: 50,
+              child: Column(
+                children: [
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: (active || done)
+                          ? PColors.primary
+                          : PColors.surfaceDim,
+                      shape: BoxShape.circle,
+                      border: active
+                          ? Border.all(color: PColors.gold, width: 2)
+                          : null,
+                    ),
+                    child: Icon(
+                      done ? Icons.check : _kSteps[idx].icon,
+                      size: 17,
+                      color: (active || done)
+                          ? Colors.white
+                          : PColors.inkSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    _kSteps[idx].title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontFamily: 'Nunito',
+                      fontSize: 10.5,
+                      fontWeight: active ? FontWeight.w800 : FontWeight.w600,
+                      color: active ? PColors.ink : PColors.inkSecondary,
+                    ),
+                  ),
+                ],
+              ),
             ),
           );
-        }
-        final idx = i ~/ 2;
-        final active = idx == step;
-        final done = idx < step;
-        return Column(
-          children: [
-            Container(
-              width: 32,
-              height: 32,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: (active || done) ? PColors.primary : PColors.surfaceDim,
-                shape: BoxShape.circle,
-              ),
-              child: done
-                  ? const Icon(Icons.check, size: 16, color: Colors.white)
-                  : Text(
-                      '${idx + 1}',
-                      style: TextStyle(
-                        fontFamily: 'Nunito',
-                        fontWeight: FontWeight.w600,
-                        fontSize: 13,
-                        color: active ? Colors.white : PColors.inkSecondary,
-                      ),
-                    ),
-            ),
-            const SizedBox(height: 6),
-            SizedBox(
-              width: 64,
-              child: Text(
-                _kStepTitles[idx],
-                textAlign: TextAlign.center,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontFamily: 'Nunito',
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: active ? PColors.ink : PColors.inkSecondary,
-                ),
-              ),
-            ),
-          ],
-        );
-      }),
+        }),
+      ),
     );
   }
 }
 
 // ============================================================================
-// Gender tile & jenjang selector
+// Gender tile & jenjang tile
 // ============================================================================
 
 class _GenderTile extends StatelessWidget {
@@ -1226,17 +1277,20 @@ class _GenderTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
-      child: Container(
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
         padding: const EdgeInsets.symmetric(vertical: 14),
         decoration: BoxDecoration(
           color: selected ? PColors.primary : PColors.surface,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: selected ? PColors.primary : PColors.border),
+          border:
+              Border.all(color: selected ? PColors.primary : PColors.border),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: 18, color: selected ? Colors.white : PColors.primary),
+            Icon(icon,
+                size: 18, color: selected ? Colors.white : PColors.primary),
             const SizedBox(width: 8),
             Flexible(
               child: Text(
@@ -1257,80 +1311,38 @@ class _GenderTile extends StatelessWidget {
   }
 }
 
-class _JenjangSelector extends StatelessWidget {
-  const _JenjangSelector({required this.selectedId, required this.onSelect});
-
-  final String selectedId;
-  final ValueChanged<String> onSelect;
-
-  Future<void> _openPicker(BuildContext context) async {
-    final result = await showModalBottomSheet<String>(
-      context: context,
-      backgroundColor: PColors.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text('Pilih Jenjang & Peminatan', style: PText.headlineSm),
-                const SizedBox(height: 12),
-                ..._kJenjangOptions.map((opt) {
-                  final selected = opt.id == selectedId;
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 10),
-                    child: GestureDetector(
-                      onTap: () => Navigator.pop(ctx, opt.id),
-                      child: _JenjangTile(option: opt, selected: selected),
-                    ),
-                  );
-                }),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-    if (result != null) onSelect(result);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final selected = _kJenjangOptions.firstWhere((j) => j.id == selectedId);
-    return GestureDetector(
-      onTap: () => _openPicker(context),
-      child: _JenjangTile(option: selected, selected: false, showChevron: true),
-    );
-  }
-}
-
 class _JenjangTile extends StatelessWidget {
-  const _JenjangTile({
-    required this.option,
-    required this.selected,
-    this.showChevron = false,
-  });
+  const _JenjangTile({required this.option, required this.selected});
 
   final _JenjangOption option;
   final bool selected;
-  final bool showChevron;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 160),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: selected ? PColors.sage : PColors.surfaceDim,
+        color: selected ? PColors.sage : PColors.surface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: selected ? PColors.primary : PColors.border),
+        border: Border.all(
+          color: selected ? PColors.primary : PColors.border,
+          width: selected ? 1.6 : 1,
+        ),
       ),
       child: Row(
         children: [
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: selected ? PColors.primary : PColors.surfaceDim,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(option.icon,
+                size: 19, color: selected ? Colors.white : PColors.primary),
+          ),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1341,12 +1353,12 @@ class _JenjangTile extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(width: 10),
-          Icon(option.icon, color: PColors.primary),
-          if (showChevron) ...[
-            const SizedBox(width: 6),
-            const Icon(Icons.chevron_right, color: PColors.inkSecondary),
-          ],
+          const SizedBox(width: 8),
+          Icon(
+            selected ? Icons.check_circle : Icons.radio_button_unchecked,
+            size: 20,
+            color: selected ? PColors.primary : PColors.inkSecondary,
+          ),
         ],
       ),
     );
@@ -1354,16 +1366,16 @@ class _JenjangTile extends StatelessWidget {
 }
 
 // ============================================================================
-// Upload tile (step Berkas)
+// Upload tile
 // ============================================================================
 
-/// Jenis berkas yang boleh diambil untuk tile ini.
-/// - photoOnly: hanya kamera/galeri (untuk Pas Foto)
-/// - documentOnly: file picker untuk PDF/JPG/PNG (untuk KK, Akta, dsb.)
+/// - photoOnly: kamera/galeri (Pas Foto)
+/// - documentOnly: file picker PDF/JPG/PNG (KK, Akta)
 enum _BerkasKind { photoOnly, documentOnly }
 
 class _UploadTile extends StatefulWidget {
   const _UploadTile({
+    super.key,
     required this.title,
     required this.controller,
     this.kind = _BerkasKind.documentOnly,
@@ -1378,107 +1390,153 @@ class _UploadTile extends StatefulWidget {
 }
 
 class _UploadTileState extends State<_UploadTile> {
-  bool _uploading = false;
-  String? _fileNameLocal;
+  bool _busy = false;
   String? _error;
 
   static const int _maxBytes = 2 * 1024 * 1024;
 
-  Future<void> _showSourceSheet() async {
-    if (widget.kind == _BerkasKind.photoOnly) {
-      final source = await showModalBottomSheet<ImageSource>(
-        context: context,
-        backgroundColor: PColors.surface,
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        builder: (ctx) => SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                leading: const Icon(Icons.photo_camera_outlined, color: PColors.primary),
-                title: const Text('Ambil Foto'),
-                onTap: () => Navigator.pop(ctx, ImageSource.camera),
-              ),
-              ListTile(
-                leading: const Icon(Icons.photo_library_outlined, color: PColors.primary),
-                title: const Text('Pilih dari Galeri'),
-                onTap: () => Navigator.pop(ctx, ImageSource.gallery),
-              ),
-            ],
+  bool get _hasFile => widget.controller.text.trim().isNotEmpty;
+
+  /// Info singkat dari data URI, mis. "PDF • 340 KB".
+  String get _info {
+    final t = widget.controller.text;
+    final semi = t.indexOf(';');
+    final comma = t.indexOf(',');
+    if (!t.startsWith('data:') || semi < 0 || comma < 0) return 'Berkas siap';
+    final mime = t.substring(5, semi);
+    final jenis = switch (mime) {
+      'image/jpeg' => 'JPG',
+      'image/png' => 'PNG',
+      'application/pdf' => 'PDF',
+      _ => 'Berkas',
+    };
+    final bytes = ((t.length - comma - 1) * 3 / 4).round();
+    final ukuran = bytes >= 1024 * 1024
+        ? '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB'
+        : '${(bytes / 1024).round()} KB';
+    return '$jenis • $ukuran';
+  }
+
+  Future<void> _pick() async {
+    try {
+      if (widget.kind == _BerkasKind.photoOnly) {
+        final source = await showModalBottomSheet<ImageSource>(
+          context: context,
+          backgroundColor: PColors.surface,
+          shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
           ),
-        ),
-      );
-      if (source == null) return;
-      final xfile = await ImagePicker().pickImage(source: source, imageQuality: 85);
-      if (xfile == null) return;
-      final bytes = await xfile.readAsBytes();
-      final ext = xfile.name.contains('.') ? xfile.name.split('.').last.toLowerCase() : 'jpg';
-      await _encodeAndStore(bytes, xfile.name, ext);
-    } else {
-      final result = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'],
-        withData: true,
-      );
-      if (result == null || result.files.single.bytes == null) return;
-      final file = result.files.single;
-      final ext = (file.extension ?? '').toLowerCase();
-      await _encodeAndStore(file.bytes!, file.name, ext);
+          builder: (ctx) => SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.photo_camera_outlined,
+                      color: PColors.primary),
+                  title: const Text('Ambil Foto'),
+                  onTap: () => Navigator.pop(ctx, ImageSource.camera),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.photo_library_outlined,
+                      color: PColors.primary),
+                  title: const Text('Pilih dari Galeri'),
+                  onTap: () => Navigator.pop(ctx, ImageSource.gallery),
+                ),
+              ],
+            ),
+          ),
+        );
+        if (source == null) return;
+        final xfile =
+            await ImagePicker().pickImage(source: source, imageQuality: 85);
+        if (xfile == null) return;
+        final bytes = await xfile.readAsBytes();
+        final ext = xfile.name.contains('.')
+            ? xfile.name.split('.').last.toLowerCase()
+            : 'jpg';
+        _store(bytes, ext);
+      } else {
+        final result = await FilePicker.platform.pickFiles(
+          type: FileType.custom,
+          allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'],
+          withData: true,
+        );
+        if (result == null || result.files.single.bytes == null) return;
+        final file = result.files.single;
+        _store(file.bytes!, (file.extension ?? '').toLowerCase());
+      }
+    } catch (_) {
+      if (mounted) setState(() => _error = 'Gagal membuka berkas. Coba lagi.');
     }
   }
 
-  Future<void> _encodeAndStore(List<int> bytes, String fileName, String ext) async {
-    setState(() => _error = null);
-
+  void _store(List<int> bytes, String ext) {
+    if (!mounted) return;
     if (bytes.length > _maxBytes) {
       setState(() => _error = 'Ukuran berkas maksimal 2MB.');
       return;
     }
-
-    setState(() {
-      _uploading = true;
-      _fileNameLocal = fileName;
-    });
-
     final mime = switch (ext) {
       'jpg' || 'jpeg' => 'image/jpeg',
       'png' => 'image/png',
       'pdf' => 'application/pdf',
       _ => 'application/octet-stream',
     };
-
     widget.controller.text = 'data:$mime;base64,${base64Encode(bytes)}';
+    setState(() {
+      _busy = false;
+      _error = null;
+    });
+  }
 
-    if (!mounted) return;
-    setState(() => _uploading = false);
+  void _remove() {
+    widget.controller.clear();
+    setState(() => _error = null);
   }
 
   @override
   Widget build(BuildContext context) {
-    final hasFile = widget.controller.text.trim().isNotEmpty;
+    final hasFile = _hasFile;
+    final hasError = _error != null;
+    final accent = hasError
+        ? PColors.errorText
+        : hasFile
+            ? PColors.successText
+            : PColors.inkSecondary;
+
     return GestureDetector(
-      onTap: _uploading ? null : _showSourceSheet,
+      onTap: _busy ? null : _pick,
       child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: PColors.surfaceDim,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: _error != null ? PColors.errorBorder : PColors.border),
+          color: hasFile ? PColors.successBg : PColors.surfaceDim,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: hasError
+                ? PColors.errorBorder
+                : hasFile
+                    ? PColors.successBorder
+                    : PColors.border,
+          ),
         ),
         child: Row(
           children: [
             Container(
-              width: 36,
-              height: 36,
-              decoration: const BoxDecoration(color: PColors.sage, shape: BoxShape.circle),
-              child: _uploading
-                  ? const Padding(
-                      padding: EdgeInsets.all(9),
-                      child: CircularProgressIndicator(strokeWidth: 2, color: PColors.primary),
-                    )
-                  : const Icon(Icons.cloud_upload_outlined, size: 18, color: PColors.primary),
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: hasFile ? Colors.white : PColors.sage,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                hasFile
+                    ? Icons.check_rounded
+                    : widget.kind == _BerkasKind.photoOnly
+                        ? Icons.photo_camera_outlined
+                        : Icons.upload_file_outlined,
+                size: 20,
+                color: hasFile ? PColors.successText : PColors.primary,
+              ),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -1489,34 +1547,29 @@ class _UploadTileState extends State<_UploadTile> {
                   const SizedBox(height: 2),
                   Text(
                     _error ??
-                        (_uploading
-                            ? 'Memproses berkas...'
-                            : hasFile
-                                ? (_fileNameLocal ?? 'Berkas siap')
-                                : 'Klik untuk unggah'),
-                    style: PText.bodySm.copyWith(
-                      color: _error != null
-                          ? PColors.errorText
-                          : hasFile
-                              ? PColors.successText
-                              : PColors.inkSecondary,
-                    ),
+                        (hasFile
+                            ? _info
+                            : widget.kind == _BerkasKind.photoOnly
+                                ? 'Ketuk untuk ambil / pilih foto'
+                                : 'Ketuk untuk pilih berkas'),
+                    style: PText.bodySm.copyWith(color: accent),
                   ),
                 ],
               ),
             ),
-            if (!_uploading)
+            if (hasFile)
+              IconButton(
+                onPressed: _remove,
+                tooltip: 'Hapus',
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                icon: const Icon(Icons.close_rounded,
+                    size: 20, color: PColors.inkSecondary),
+              )
+            else
               Icon(
-                _error != null
-                    ? Icons.error_outline
-                    : hasFile
-                        ? Icons.check_circle
-                        : Icons.chevron_right,
-                color: _error != null
-                    ? PColors.errorText
-                    : hasFile
-                        ? PColors.successText
-                        : PColors.inkSecondary,
+                hasError ? Icons.error_outline : Icons.chevron_right,
+                color: accent,
               ),
           ],
         ),
@@ -1526,12 +1579,20 @@ class _UploadTileState extends State<_UploadTile> {
 }
 
 // ============================================================================
-// Shared low-level widgets
+// Widget bersama
 // ============================================================================
 
-class _PCard extends StatelessWidget {
-  const _PCard({required this.children});
+class _SectionCard extends StatelessWidget {
+  const _SectionCard({
+    required this.title,
+    required this.children,
+    this.subtitle,
+    this.icon,
+  });
 
+  final String title;
+  final String? subtitle;
+  final IconData? icon;
   final List<Widget> children;
 
   @override
@@ -1540,13 +1601,90 @@ class _PCard extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: PColors.surface,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(color: PColors.border),
         boxShadow: const [
-          BoxShadow(color: Color(0x0A0F3A2E), blurRadius: 6, offset: Offset(0, 2)),
+          BoxShadow(
+              color: Color(0x0A0F3A2E), blurRadius: 6, offset: Offset(0, 2)),
         ],
       ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: children),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              if (icon != null) ...[
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: PColors.sage,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(icon, size: 20, color: PColors.primary),
+                ),
+                const SizedBox(width: 12),
+              ],
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title, style: PText.headlineSm),
+                    if (subtitle != null) ...[
+                      const SizedBox(height: 2),
+                      Text(subtitle!, style: PText.bodySm),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          ...children,
+        ],
+      ),
+    );
+  }
+}
+
+class _Field extends StatelessWidget {
+  const _Field({
+    required this.label,
+    required this.child,
+    this.required = false,
+    this.optional = false,
+  });
+
+  final String label;
+  final Widget child;
+  final bool required;
+  final bool optional;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: RichText(
+            text: TextSpan(
+              style: PText.labelLg,
+              children: [
+                TextSpan(text: label),
+                if (required)
+                  const TextSpan(
+                    text: ' *',
+                    style: TextStyle(color: PColors.errorText),
+                  ),
+                if (optional)
+                  TextSpan(text: '  (opsional)', style: PText.bodySm),
+              ],
+            ),
+          ),
+        ),
+        child,
+      ],
     );
   }
 }
@@ -1558,11 +1696,15 @@ class _PInput extends StatelessWidget {
     this.icon,
     this.suffixIcon,
     this.maxLines = 1,
-    this.obscureText = false,
+    this.maxLength,
     this.keyboardType,
     this.readOnly = false,
     this.onTap,
     this.onChanged,
+    this.onSubmitted,
+    this.formatters,
+    this.capitalization = TextCapitalization.none,
+    this.bold = false,
   });
 
   final TextEditingController controller;
@@ -1570,43 +1712,53 @@ class _PInput extends StatelessWidget {
   final IconData? icon;
   final Widget? suffixIcon;
   final int maxLines;
-  final bool obscureText;
+  final int? maxLength;
   final TextInputType? keyboardType;
   final bool readOnly;
   final VoidCallback? onTap;
   final ValueChanged<String>? onChanged;
+  final ValueChanged<String>? onSubmitted;
+  final List<TextInputFormatter>? formatters;
+  final TextCapitalization capitalization;
+  final bool bold;
 
   @override
   Widget build(BuildContext context) {
+    OutlineInputBorder border(Color c, [double w = 1]) => OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: c, width: w),
+        );
+
     return TextField(
       controller: controller,
-      maxLines: obscureText ? 1 : maxLines,
-      obscureText: obscureText,
+      maxLines: maxLines,
+      maxLength: maxLength,
       keyboardType: keyboardType,
       readOnly: readOnly,
       onTap: onTap,
       onChanged: onChanged,
-      style: PText.bodyMd.copyWith(color: PColors.ink),
+      onSubmitted: onSubmitted,
+      inputFormatters: formatters,
+      textCapitalization: capitalization,
+      style: PText.bodyMd.copyWith(
+        color: PColors.ink,
+        fontWeight: bold ? FontWeight.w700 : null,
+      ),
       decoration: InputDecoration(
+        counterText: '',
         hintText: hint,
         hintStyle: PText.bodyMd,
-        prefixIcon: icon == null ? null : Icon(icon, color: PColors.inkSecondary, size: 20),
+        prefixIcon: icon == null
+            ? null
+            : Icon(icon, color: PColors.inkSecondary, size: 20),
         suffixIcon: suffixIcon,
         filled: true,
         fillColor: PColors.background,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: PColors.inputBorder),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: PColors.inputBorder),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: PColors.primary, width: 2),
-        ),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        border: border(PColors.inputBorder),
+        enabledBorder: border(PColors.inputBorder),
+        focusedBorder: border(PColors.primary, 2),
       ),
     );
   }
@@ -1623,16 +1775,75 @@ class _PPill extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(9999)),
+      decoration:
+          BoxDecoration(color: bg, borderRadius: BorderRadius.circular(9999)),
       child: Text(
         label,
         style: TextStyle(
           fontFamily: 'Nunito',
-          fontSize: 10,
+          fontSize: 10.5,
           fontWeight: FontWeight.w700,
           color: fg,
         ),
       ),
+    );
+  }
+}
+
+class _SummarySection extends StatelessWidget {
+  const _SummarySection({
+    required this.title,
+    required this.rows,
+    required this.onEdit,
+  });
+
+  final String title;
+  final List<Widget> rows;
+  final VoidCallback onEdit;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                title.toUpperCase(),
+                style: TextStyle(
+                  fontFamily: 'Nunito',
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.1,
+                  color: PColors.inkSecondary,
+                ),
+              ),
+            ),
+            GestureDetector(
+              onTap: onEdit,
+              child: Row(
+                children: [
+                  const Icon(Icons.edit_outlined,
+                      size: 14, color: PColors.primary),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Ubah',
+                    style: TextStyle(
+                      fontFamily: 'Nunito',
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: PColors.primary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        ...rows,
+      ],
     );
   }
 }
@@ -1650,11 +1861,12 @@ class _SummaryRow extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(width: 120, child: Text(label, style: PText.bodySm)),
+          SizedBox(width: 118, child: Text(label, style: PText.bodySm)),
           Expanded(
             child: Text(
               value.isEmpty ? '-' : value,
-              style: PText.bodyMd.copyWith(color: PColors.ink, fontWeight: FontWeight.w600),
+              style: PText.bodyMd
+                  .copyWith(color: PColors.ink, fontWeight: FontWeight.w600),
             ),
           ),
         ],
@@ -1711,30 +1923,37 @@ class _PrimaryButton extends StatelessWidget {
       child: FilledButton(
         style: FilledButton.styleFrom(
           backgroundColor: PColors.primary,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9999)),
+          disabledBackgroundColor: PColors.primary.withOpacity(0.5),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(9999)),
         ),
         onPressed: loading ? null : onPressed,
         child: loading
             ? const SizedBox(
                 height: 20,
                 width: 20,
-                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                child: CircularProgressIndicator(
+                    strokeWidth: 2, color: Colors.white),
               )
             : Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text(
-                    label,
-                    style: const TextStyle(
-                      fontFamily: 'Nunito',
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                      color: PColors.gold,
+                  Flexible(
+                    child: Text(
+                      label,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontFamily: 'Nunito',
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: PColors.gold,
+                      ),
                     ),
                   ),
                   if (showArrow) ...[
                     const SizedBox(width: 8),
-                    const Icon(Icons.arrow_forward, size: 18, color: PColors.gold),
+                    const Icon(Icons.arrow_forward,
+                        size: 18, color: PColors.gold),
                   ],
                 ],
               ),
@@ -1744,35 +1963,112 @@ class _PrimaryButton extends StatelessWidget {
 }
 
 class _SuksesCard extends StatelessWidget {
-  const _SuksesCard({required this.message, required this.onReset});
+  const _SuksesCard({
+    required this.message,
+    required this.nomor,
+    required this.namaPondok,
+    required this.onReset,
+  });
 
   final String message;
+  final String? nomor;
+  final String? namaPondok;
   final VoidCallback onReset;
 
   @override
   Widget build(BuildContext context) {
-    return _PCard(
+    return _SectionCard(
+      title: 'Pendaftaran Terkirim',
+      subtitle: namaPondok,
+      icon: Icons.mark_email_read_outlined,
       children: [
         Column(
           children: [
-            const Icon(Icons.check_circle, color: PColors.successText, size: 56),
-            const SizedBox(height: 12),
+            Container(
+              width: 72,
+              height: 72,
+              decoration: const BoxDecoration(
+                color: PColors.successBg,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.check_circle,
+                  color: PColors.successText, size: 44),
+            ),
+            const SizedBox(height: 14),
             Text(
               message,
               textAlign: TextAlign.center,
-              style: PText.bodyMd.copyWith(color: PColors.ink, fontWeight: FontWeight.w700),
+              style: PText.bodyMd
+                  .copyWith(color: PColors.ink, fontWeight: FontWeight.w700),
             ),
-            const SizedBox(height: 16),
+            if (nomor != null && nomor!.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              Container(
+                width: double.infinity,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                decoration: BoxDecoration(
+                  color: PColors.sage,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: PColors.border),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Nomor Pendaftaran', style: PText.bodySm),
+                          const SizedBox(height: 2),
+                          Text(
+                            nomor!,
+                            style: TextStyle(
+                              fontFamily: 'Nunito',
+                              fontSize: 15,
+                              fontWeight: FontWeight.w800,
+                              color: PColors.primary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Salin',
+                      onPressed: () {
+                        Clipboard.setData(ClipboardData(text: nomor!));
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                              content: Text('Nomor pendaftaran disalin')),
+                        );
+                      },
+                      icon: const Icon(Icons.copy_rounded,
+                          size: 18, color: PColors.primary),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Simpan nomor ini untuk konfirmasi dengan panitia.',
+                textAlign: TextAlign.center,
+                style: PText.bodySm,
+              ),
+            ],
+            const SizedBox(height: 18),
             SizedBox(
               width: double.infinity,
               height: 48,
-              child: FilledButton(
+              child: FilledButton.icon(
                 onPressed: onReset,
                 style: FilledButton.styleFrom(
                   backgroundColor: PColors.primary,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9999)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(9999),
+                  ),
                 ),
-                child: const Text(
+                icon: const Icon(Icons.person_add_alt_1,
+                    size: 18, color: PColors.gold),
+                label: const Text(
                   'Daftarkan Santri Lain',
                   style: TextStyle(
                     fontFamily: 'Nunito',
@@ -1813,12 +2109,14 @@ class _PpdbFooter extends StatelessWidget {
             style: PText.bodySm,
             children: [
               const TextSpan(
-                text: 'Butuh panduan teknis pendaftaran? Hubungi Call Center Layanan '
+                text:
+                    'Butuh panduan teknis pendaftaran? Hubungi Call Center Layanan '
                     'Wali Santri di ',
               ),
               TextSpan(
                 text: '0812-8800-4321.',
-                style: PText.bodySm.copyWith(fontWeight: FontWeight.w700, color: PColors.ink),
+                style: PText.bodySm
+                    .copyWith(fontWeight: FontWeight.w700, color: PColors.ink),
               ),
             ],
           ),
