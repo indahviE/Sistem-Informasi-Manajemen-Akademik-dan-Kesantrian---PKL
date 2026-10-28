@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 class ApiException implements Exception {
@@ -88,7 +89,8 @@ class ApiClient {
             res = await http.delete(uri, headers: headers).timeout(const Duration(seconds: 20));
         }
       } catch (e) {
-        throw ApiException(0, 'Tidak dapat terhubung ke server. Periksa jaringan Anda.');
+        debugPrint('API ERROR [$method $uri]: $e');
+        throw ApiException(0, 'Tidak dapat terhubung ke server. Periksa jaringan Anda.\n($uri)\n$e');
       }
 
       // Coba refresh sekali saat 401
