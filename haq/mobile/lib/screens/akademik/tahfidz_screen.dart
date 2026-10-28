@@ -1888,33 +1888,40 @@ class _SetoranSheetState extends State<_SetoranSheet> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 _StepBtn(icon: Icons.remove, onTap: onMinus),
-                Expanded(
-                  child: TextField(
-                    controller: controller,
-                    textAlign: TextAlign.center,
-                    keyboardType: TextInputType.number,
-                    enabled: !_saving,
-                    inputFormatters: [
-                      FilteringTextInputFormatter.digitsOnly, // hanya 0-9
-                      LengthLimitingTextInputFormatter(3), // maks 3 digit (ayat sampai 286)
-                    ],
-                    style: _t(18, FontWeight.w700, _C.primary),
-                    decoration: const InputDecoration(
-                      border: InputBorder.none,
-                      isDense: true,
-                      isCollapsed: true,
-                    ),
-                    onSubmitted: (v) {
-                      final n = int.tryParse(v.trim());
-                      onSubmit(n ?? value);
-                    },
-                    onTapOutside: (_) {
-                      final n = int.tryParse(controller.text.trim());
-                      onSubmit(n ?? value);
-                    },
+              Expanded(
+                child: TextField(
+                  controller: controller,
+                  textAlign: TextAlign.center,
+                  keyboardType: TextInputType.number,
+                  enabled: !_saving,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly, // hanya 0-9
+                    LengthLimitingTextInputFormatter(3), // maks 3 digit (ayat sampai 286)
+                  ],
+                  maxLines: 1,                                              // baru
+                  textAlignVertical: TextAlignVertical.center,              // baru
+                  style: _t(18, FontWeight.w700, _C.primary, h: 1.3),       // + h: 1.3
+                  strutStyle: const StrutStyle(forceStrutHeight: true, height: 1.3), // baru
+                  decoration: const InputDecoration(
+                    border: InputBorder.none,
+                    enabledBorder: InputBorder.none,                        // baru
+                    focusedBorder: InputBorder.none,                        // baru
+                    disabledBorder: InputBorder.none,                       // baru
+                    isDense: true,
+                    // isCollapsed: true,  <- dihapus
+                    contentPadding: EdgeInsets.symmetric(vertical: 8),      // baru
                   ),
+                  onSubmitted: (v) {
+                    final n = int.tryParse(v.trim());
+                    onSubmit(n ?? value);
+                  },
+                  onTapOutside: (_) {
+                    final n = int.tryParse(controller.text.trim());
+                    onSubmit(n ?? value);
+                  },
                 ),
-                _StepBtn(icon: Icons.add, filled: true, onTap: onPlus),
+              ),    
+            _StepBtn(icon: Icons.add, filled: true, onTap: onPlus),
               ],
             ),
           ),
