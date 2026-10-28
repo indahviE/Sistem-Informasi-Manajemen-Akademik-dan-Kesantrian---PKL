@@ -60,8 +60,11 @@ class SantriListScreen extends StatefulWidget {
 class _SantriListScreenState extends State<SantriListScreen> {
   static const _tanpaKelas = '__tanpa_kelas__';
 
-  /// Pimpinan/Mudir hanya memantau: tombol tambah/hapus disembunyikan.
-  bool get _readOnly => AppScope.of(context).user?.isPimpinan == true;
+  /// Pimpinan/Mudir dan Musyrif hanya melihat: tombol tambah, edit, dan hapus disembunyikan.
+  bool get _readOnly {
+    final u = AppScope.of(context).user;
+    return u?.isPimpinan == true || u?.isMusyrif == true;
+  }
 
   List<Map<String, dynamic>> _items = [];
 
@@ -919,6 +922,7 @@ class _SantriListScreenState extends State<SantriListScreen> {
                         Text('Edit data', style: sty(13, FontWeight.w600, SC.ink)),
                       ]),
                     ),
+                    if (!_readOnly)
                     PopupMenuItem(
                       value: 'hapus',
                       child: Row(children: [
