@@ -205,10 +205,19 @@ export class PpdbService {
     tanggalLahir?: Date | null;
   }, kelasId?: string) {
     const tahun = new Date().getFullYear();
-    const jumlah = await this.prisma.santri.count({
-      where: { tenantId: p.tenantId, tahunMasuk: tahun },
+    const prefix = String(tahun);
+    const pola = new RegExp(`^${prefix}\\d{4}$`);
+    const rows = await this.prisma.santri.findMany({
+      where: { tenantId: p.tenantId, nis: { startsWith: prefix } },
+      select: { nis: true },
     });
-    const nis = `${tahun}${String(jumlah + 1).padStart(4, '0')}`;
+    let maks = 0;
+    for (const r of rows) {
+      if (!pola.test(r.nis)) continue;
+      const n = parseInt(r.nis.slice(prefix.length), 10);
+      if (n > maks) maks = n;
+    }
+    const nis = prefix + String(maks + 1).padStart(4, '0');
 
     const nisExists = await this.prisma.santri.findUnique({
       where: { tenantId_nis: { tenantId: p.tenantId, nis } },
