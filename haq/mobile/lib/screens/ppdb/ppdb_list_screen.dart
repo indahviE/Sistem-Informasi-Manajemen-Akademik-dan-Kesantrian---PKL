@@ -156,40 +156,67 @@ class _PpdbListScreenState extends State<PpdbListScreen> {
     final readOnly = AppScope.of(context).user?.isPimpinan == true;
     final buka = _gelombangDibuka;
     final fg = buka ? PColors.successText : PColors.errorText;
-    final bg = buka ? PColors.successBg : PColors.errorBg;
+
     return Padding(
-      padding: EdgeInsets.fromLTRB(16, 4, 16, 0),
-      child: Container(
-        padding: EdgeInsets.fromLTRB(14, 12, 8, 12),
+      padding: EdgeInsets.fromLTRB(16, 2, 16, 0),
+      child: AnimatedContainer(
+        duration: Duration(milliseconds: 200),
+        padding: EdgeInsets.fromLTRB(14, 8, 8, 8),
         decoration: BoxDecoration(
-          color: bg,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: fg.withOpacity(0.25)),
+          color: PColors.surface,
+          borderRadius: BorderRadius.circular(9999),
+          border: Border.all(color: fg.withOpacity(0.35)),
+          boxShadow: [
+            BoxShadow(
+              color: fg.withOpacity(0.08),
+              blurRadius: 10,
+              offset: Offset(0, 3),
+            ),
+          ],
         ),
         child: Row(
           children: [
-            Icon(buka ? Icons.lock_open_rounded : Icons.lock_outline_rounded,
-                size: 22, color: fg),
-            SizedBox(width: 12),
+            // Titik status dengan lingkar lembut
+            Container(
+              width: 18,
+              height: 18,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: fg.withOpacity(0.15),
+              ),
+              child: Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(shape: BoxShape.circle, color: fg),
+              ),
+            ),
+            SizedBox(width: 10),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    buka ? 'Pendaftaran DIBUKA' : 'Pendaftaran DITUTUP',
+                    buka ? 'Pendaftaran dibuka' : 'Pendaftaran ditutup',
                     style: TextStyle(
                       fontFamily: 'Nunito',
-                      fontSize: 14,
+                      fontSize: 13,
                       fontWeight: FontWeight.w800,
                       color: fg,
                     ),
                   ),
-                  SizedBox(height: 2),
                   Text(
                     buka
-                        ? 'Calon santri bisa mengisi formulir PPDB.'
-                        : 'Formulir PPDB tidak menerima pendaftar baru.',
-                    style: PText.bodySm,
+                        ? 'Formulir PPDB menerima pendaftar'
+                        : 'Formulir PPDB tidak menerima pendaftar',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontFamily: 'Nunito',
+                      fontSize: 11,
+                      color: PColors.inkSecondary,
+                    ),
                   ),
                 ],
               ),
@@ -197,17 +224,25 @@ class _PpdbListScreenState extends State<PpdbListScreen> {
             if (!readOnly)
               _togglingGelombang
                   ? Padding(
-                      padding: EdgeInsets.all(12),
+                      padding: EdgeInsets.symmetric(horizontal: 14),
                       child: SizedBox(
-                        width: 20,
-                        height: 20,
+                        width: 18,
+                        height: 18,
                         child: CircularProgressIndicator(strokeWidth: 2, color: fg),
                       ),
                     )
-                  : Switch(
-                      value: buka,
-                      activeColor: SC.primary,
-                      onChanged: _toggleGelombang,
+                  : Transform.scale(
+                      scale: 0.8,
+                      child: Switch(
+                        value: buka,
+                        onChanged: _toggleGelombang,
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        thumbColor: MaterialStatePropertyAll(Colors.white),
+                        trackOutlineColor:
+                            MaterialStatePropertyAll(Colors.transparent),
+                        activeTrackColor: PColors.successText,
+                        inactiveTrackColor: PColors.errorText.withOpacity(0.55),
+                      ),
                     ),
           ],
         ),
