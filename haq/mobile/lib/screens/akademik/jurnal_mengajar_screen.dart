@@ -1,41 +1,119 @@
-// Layar Jurnal Mengajar (mengikuti desain screen.png).
-// Taruh di: lib/screens/akademik/jurnal_mengajar_screen.dart
-//
-// Endpoint (backend NestJS):
-//   GET    /jurnal-mengajar?kelasId=       -> array jurnal (+ kelas, mapel, penulis)
-//   POST   /jurnal-mengajar                -> {tanggal, kelasId, mapelId?, materi, catatan?}
-//   PATCH  /jurnal-mengajar/:id
-//   DELETE /jurnal-mengajar/:id
-//   GET    /kelas, GET /mapel              -> untuk dropdown (sesuaikan bila ApiUrl-mu beda)
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../../services/api_client.dart';
 import '../../services/app_scope.dart';
 import '../ui_utils.dart';
 import '../santri/santri_ui.dart';
 
-/// Palet sama dengan dashboard (Deep Emerald + Antique Gold di atas ivory).
-class _JC {
-  _JC._();
-  // Ikut tema tenant (sama dengan _TC di dashboard_screen.dart).
-  static Color get primary => SC.primary;
-  static Color get sage => SC.sage;
-  static const gold = Color(0xFFC5A059);
-  static const goldSurface = Color(0xFFFAF5EC);
-  static const goldDark = Color(0xFF7A5B10);
-  static const bg = Color(0xFFFAF9F5);
-  static const surface = Color(0xFFFFFFFF);
-  static const surfaceDim = Color(0xFFF5F4EE);
-  static const ink = Color(0xFF0F172A);
-  static const inkSecondary = Color(0xFF475569);
-  static const border = Color(0xFFEAE6DC);
-  static const successBg = Color(0xFFE8F5E9);
-  static const successText = Color(0xFF1B5E20);
-  static const errorText = Color(0xFF991B1B);
-  static const errorBg = Color(0xFFFEE2E2);
-  // Kotak isi materi (lavender lembut seperti di desain)
-  static const noteBg = Color(0xFFF1F2FB);
-  static const noteChip = Color(0xFFE4E7F7);
+// Layar Jurnal Mengajar.
+//
+// Endpoint (backend NestJS):
+//   GET    /jurnal-mengajar?kelasId=       -> array jurnal (+ kelas, mapel, penulis)
+//   POST   /jurnal-mengajar                -> {tanggal, kelasId, mapelId?, materi, catatan?}
+//   PATCH  /jurnal-mengajar/:id
+//   DELETE /jurnal-mengajar/:id
+//   GET    /kelas, GET /mapel              -> untuk dropdown
+//   GET    /mengajar/saya                  -> penugasan ustadz (kelasId, mapelId)
+//
+// Pimpinan/Mudir: mode baca saja (tanpa tambah, ubah, hapus).
+
+const double _maxW = 480;
+
+// Warna status (hijau tidak ada di SC; merah ikut SC.errorBg/errorText)
+const _kOkBg = Color(0xFFE8F5E9);
+const _kOkFg = Color(0xFF1B5E20);
+const _kOkBd = Color(0xFFC8E6C9);
+
+Color get _badBd => SC.errorText.withOpacity(0.25);
+
+/// Bar pencarian + filter periode yang menempel di atas saat digulir.
+class _PinnedBar extends SliverPersistentHeaderDelegate {
+  _PinnedBar({required this.height, required this.child});
+
+  final double height;
+  final Widget child;
+
+  @override
+  double get minExtent => height;
+  @override
+  double get maxExtent => height;
+
+  @override
+  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
+    return Container(
+      color: SC.background,
+      height: height,
+      alignment: Alignment.topCenter,
+      child: ClipRect(child: child),
+    );
+  }
+
+  @override
+  bool shouldRebuild(covariant _PinnedBar old) => true;
 }
+
+// ---------------------------------------------------------------------------
+// Helper
+// ---------------------------------------------------------------------------
+Widget _pill(String text, {required Color bg, required Color fg, Color? bd, IconData? icon}) {
+  return Container(
+    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+    decoration: BoxDecoration(
+      color: bg,
+      borderRadius: BorderRadius.circular(999),
+      border: bd == null ? null : Border.all(color: bd),
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (icon != null) ...[
+          Icon(icon, size: 12, color: fg),
+          const SizedBox(width: 4),
+        ],
+        Flexible(
+          child: Text(text,
+              maxLines: 1, overflow: TextOverflow.ellipsis, style: sty(10.5, FontWeight.w800, fg)),
+        ),
+      ],
+    ),
+  );
+}
+
+// Dialog bertema (sama dengan halaman Ustadz)
+RoundedRectangleBorder get _dialogShape =>
+    RoundedRectangleBorder(borderRadius: BorderRadius.circular(24));
+
+Widget _dialogIcon(IconData icon, Color bg, Color fg) => Container(
+      width: 56,
+      height: 56,
+      decoration: BoxDecoration(
+        color: bg,
+        shape: BoxShape.circle,
+        border: Border.all(color: SC.gold.withOpacity(0.45)),
+      ),
+      child: Icon(icon, size: 26, color: fg),
+    );
+
+Widget _btnBatal(VoidCallback onTap, {String label = 'Batal'}) => OutlinedButton(
+      style: OutlinedButton.styleFrom(
+        side: const BorderSide(color: SC.border),
+        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+      ),
+      onPressed: onTap,
+      child: Text(label, style: sty(13, FontWeight.w700, SC.inkSecondary)),
+    );
+
+Widget _btnUtama(String label, VoidCallback onTap, {Color? warna}) => FilledButton(
+      style: FilledButton.styleFrom(
+        backgroundColor: warna ?? SC.primary,
+        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+      ),
+      onPressed: onTap,
+      child: Text(label, style: sty(13, FontWeight.w700, Colors.white)),
+    );
 
 class JurnalMengajarScreen extends StatefulWidget {
   const JurnalMengajarScreen({super.key});
@@ -53,8 +131,15 @@ class _JurnalMengajarScreenState extends State<JurnalMengajarScreen> {
   String _periode = 'semua'; // semua | minggu | bulan
   String _q = '';
   final _searchC = TextEditingController();
+  final _scroll = ScrollController();
   bool _loading = true;
   String? _error;
+
+  /// Banner notifikasi inline (di bawah hero), hilang otomatis.
+  String? _bannerTitle;
+  String? _bannerSub;
+  bool _bannerError = false;
+  Timer? _bannerTimer;
 
   static const _bulan = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
   static const _hari = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
@@ -72,11 +157,15 @@ class _JurnalMengajarScreenState extends State<JurnalMengajarScreen> {
 
   @override
   void dispose() {
+    _bannerTimer?.cancel();
     _searchC.dispose();
+    _scroll.dispose();
     super.dispose();
   }
 
-  // ---- peran & kepemilikan ----
+  // ---------------------------------------------------------------------
+  // Peran & kepemilikan
+  // ---------------------------------------------------------------------
   dynamic get _user => AppScope.of(context).user;
   bool get _isAdmin => _user?.isAdmin == true;
 
@@ -106,7 +195,9 @@ class _JurnalMengajarScreenState extends State<JurnalMengajarScreen> {
       ? _items
       : _items.where((j) => _myId != null && j['inputOleh'] == _myId).toList();
 
-  // ---- data ----
+  // ---------------------------------------------------------------------
+  // Data
+  // ---------------------------------------------------------------------
   Future<void> _loadMaster() async {
     try {
       final api = AppScope.of(context).api;
@@ -119,19 +210,16 @@ class _JurnalMengajarScreenState extends State<JurnalMengajarScreen> {
       });
     } catch (_) {}
 
-    // Ustadz (bukan admin): ambil kelas & mapel yang diampu dari dashboard.
+    // Ustadz (bukan admin): ambil kelas & mapel yang diampu.
     if (!_isAdmin && mounted) {
       try {
-        // GANTI path ini dengan route controller untuk findMengajarSaya
         final res = await AppScope.of(context).api.get('/mengajar/saya');
         final list = res is List ? res : const [];
         if (!mounted) return;
         setState(() => _diampu = list.whereType<Map<String, dynamic>>().toList());
-        debugPrint('penugasan saya = $list');
       } catch (_) {}
     }
   }
-
 
   /// Admin: semua kelas. Ustadz: hanya kelas yang ada di penugasan mengajarnya.
   List<Map<String, dynamic>> get _kelasBoleh {
@@ -150,11 +238,13 @@ class _JurnalMengajarScreenState extends State<JurnalMengajarScreen> {
     return _mapel.where((m) => ids.contains('${m['id']}')).toList();
   }
 
-  Future<void> _load() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
+  Future<void> _load({bool spinner = true}) async {
+    if (spinner) {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+    }
     try {
       final api = AppScope.of(context).api;
       final res = await api.get(
@@ -165,16 +255,24 @@ class _JurnalMengajarScreenState extends State<JurnalMengajarScreen> {
       setState(() {
         _items = (res as List).cast<Map<String, dynamic>>();
         _loading = false;
+        _error = null;
       });
     } on ApiException catch (e) {
-      if (mounted) setState(() {
-        _error = e.message;
-        _loading = false;
-      });
+      if (!mounted) return;
+      if (spinner) {
+        setState(() {
+          _error = e.message;
+          _loading = false;
+        });
+      } else {
+        _toast(e.message, error: true);
+      }
     }
   }
 
-  // ---- helper ----
+  // ---------------------------------------------------------------------
+  // Helper
+  // ---------------------------------------------------------------------
   String _ymd(DateTime d) =>
       '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
@@ -228,103 +326,136 @@ class _JurnalMengajarScreenState extends State<JurnalMengajarScreen> {
     return null;
   }
 
-  /// Notifikasi melayang bertema, sama dengan _toast di absensi_screen.dart
-  /// (sukses = warna tema + border emas, gagal = merah lembut).
+  // ---------------------------------------------------------------------
+  // Banner inline (sama dengan halaman Ustadz)
+  // ---------------------------------------------------------------------
   void _toast(String title, {String? subtitle, bool error = false}) {
     if (!mounted) return;
-    final w = MediaQuery.of(context).size.width;
-    final side = w > 472 ? (w - 440) / 2 : 16.0;
-    final fg = error ? _JC.errorText : Colors.white;
-
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          behavior: SnackBarBehavior.floating,
-          backgroundColor: error ? _JC.errorBg : _JC.primary,
-          elevation: 6,
-          // angka 88 = jarak dari bawah supaya tidak menutupi tombol "Jurnal Baru"
-          margin: EdgeInsets.fromLTRB(side, 0, side, 88),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          duration: Duration(seconds: error ? 4 : 3),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-            side: BorderSide(
-              color: error ? _JC.errorText.withOpacity(0.25) : _JC.gold.withOpacity(0.5),
-            ),
-          ),
-          content: Row(
-            children: [
-              Container(
-                width: 32,
-                height: 32,
-                decoration: BoxDecoration(
-                  color: error ? Colors.white : _JC.gold.withOpacity(0.18),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  error ? Icons.error_outline : Icons.check_rounded,
-                  size: 18,
-                  color: error ? _JC.errorText : _JC.gold,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(title, style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: fg)),
-                    if (subtitle != null) ...[
-                      const SizedBox(height: 2),
-                      Text(subtitle, style: TextStyle(fontSize: 11.5, color: fg.withOpacity(0.75))),
-                    ],
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
+    _bannerTimer?.cancel();
+    setState(() {
+      _bannerTitle = title;
+      _bannerSub = subtitle;
+      _bannerError = error;
+    });
+    // Banner ada di bawah hero, jadi gulir ke atas supaya kelihatan.
+    if (_scroll.hasClients && _scroll.offset > 0) {
+      _scroll.animateTo(0, duration: const Duration(milliseconds: 250), curve: Curves.easeOut);
+    }
+    _bannerTimer = Timer(Duration(seconds: error ? 5 : 3), _closeBanner);
   }
 
-  // ---- filter kelas ----
+  void _closeBanner() {
+    _bannerTimer?.cancel();
+    if (mounted) setState(() => _bannerTitle = null);
+  }
+
+  Widget _banner() {
+    final title = _bannerTitle;
+    final error = _bannerError;
+    final fg = error ? SC.errorText : Colors.white;
+
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOutCubic,
+      alignment: Alignment.topCenter,
+      child: title == null
+          ? const SizedBox(width: double.infinity)
+          : Container(
+              margin: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+              padding: const EdgeInsets.fromLTRB(12, 10, 6, 10),
+              decoration: BoxDecoration(
+                color: error ? SC.errorBg : SC.primary,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: error ? SC.errorText.withOpacity(0.25) : SC.gold.withOpacity(0.5),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: error ? Colors.white : SC.gold.withOpacity(0.18),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      error ? Icons.error_outline : Icons.check_rounded,
+                      size: 18,
+                      color: error ? SC.errorText : SC.gold,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(title, style: sty(13.5, FontWeight.w800, fg)),
+                        if (_bannerSub != null && _bannerSub!.isNotEmpty) ...[
+                          const SizedBox(height: 2),
+                          Text(_bannerSub!, style: sty(11.5, FontWeight.w500, fg.withOpacity(0.75))),
+                        ],
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: _closeBanner,
+                    visualDensity: VisualDensity.compact,
+                    tooltip: 'Tutup',
+                    icon: Icon(Icons.close_rounded, size: 18, color: fg.withOpacity(0.7)),
+                  ),
+                ],
+              ),
+            ),
+    );
+  }
+
+  // ---------------------------------------------------------------------
+  // Filter kelas
+  // ---------------------------------------------------------------------
   Future<void> _pilihKelas() async {
     if (_kelas.isEmpty) await _loadMaster();
     if (!mounted) return;
     final v = await showModalBottomSheet<String>(
       context: context,
-      backgroundColor: _JC.surface,
-      constraints: const BoxConstraints(maxWidth: 480),
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      backgroundColor: SC.surface,
+      constraints: const BoxConstraints(maxWidth: _maxW),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (ctx) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Padding(
-              padding: EdgeInsets.fromLTRB(20, 18, 20, 6),
-              child: Text('Filter Kelas',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _JC.ink)),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 18, 20, 8),
+              child: Text('Filter Kelas', style: sty(15, FontWeight.w800, SC.ink)),
             ),
             Flexible(
               child: ListView(
                 shrinkWrap: true,
                 children: [
                   ListTile(
-                    title: const Text('Semua Kelas'),
-                    trailing: _filterKelasId.isEmpty ? Icon(Icons.check, color: _JC.primary) : null,
+                    title: Text('Semua Kelas',
+                        style: sty(14, _filterKelasId.isEmpty ? FontWeight.w800 : FontWeight.w500, SC.ink)),
+                    trailing: _filterKelasId.isEmpty
+                        ? Icon(Icons.check_circle, color: SC.primary, size: 20)
+                        : null,
                     onTap: () => Navigator.pop(ctx, ''),
                   ),
                   for (final k in _kelasBoleh)
                     ListTile(
-                      title: Text('${k['namaKelas']}'),
-                      trailing: _filterKelasId == k['id'] ? Icon(Icons.check, color: _JC.primary) : null,
+                      title: Text('${k['namaKelas']}',
+                          style: sty(14, _filterKelasId == k['id'] ? FontWeight.w800 : FontWeight.w500, SC.ink)),
+                      trailing: _filterKelasId == k['id']
+                          ? Icon(Icons.check_circle, color: SC.primary, size: 20)
+                          : null,
                       onTap: () => Navigator.pop(ctx, k['id'] as String),
                     ),
                 ],
               ),
             ),
+            const SizedBox(height: 8),
           ],
         ),
       ),
@@ -335,7 +466,9 @@ class _JurnalMengajarScreenState extends State<JurnalMengajarScreen> {
     }
   }
 
-  // ---- dekorasi field form ----
+  // ---------------------------------------------------------------------
+  // Form tambah / ubah
+  // ---------------------------------------------------------------------
   InputDecoration _dec(String label, {String? hint, IconData? icon}) {
     OutlineInputBorder b(Color c, [double w = 1]) => OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
@@ -344,21 +477,20 @@ class _JurnalMengajarScreenState extends State<JurnalMengajarScreen> {
     return InputDecoration(
       labelText: label,
       hintText: hint,
-      labelStyle: const TextStyle(fontSize: 13, color: _JC.inkSecondary),
-      hintStyle: const TextStyle(fontSize: 13, color: _JC.inkSecondary),
-      floatingLabelStyle: TextStyle(fontSize: 13, color: _JC.primary, fontWeight: FontWeight.w700),
-      prefixIcon: icon == null ? null : Icon(icon, size: 18, color: _JC.inkSecondary),
+      labelStyle: sty(13, FontWeight.w500, SC.inkSecondary),
+      hintStyle: sty(13, FontWeight.w500, SC.inkMuted),
+      floatingLabelStyle: sty(13, FontWeight.w700, SC.primary),
+      prefixIcon: icon == null ? null : Icon(icon, size: 18, color: SC.inkSecondary),
       filled: true,
-      fillColor: _JC.surface,
+      fillColor: SC.surface,
       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-      border: b(_JC.border),
-      enabledBorder: b(_JC.border),
-      focusedBorder: b(_JC.primary, 1.5),
-      counterStyle: const TextStyle(fontSize: 10.5, color: _JC.inkSecondary),
+      border: b(SC.border),
+      enabledBorder: b(SC.border),
+      focusedBorder: b(SC.primary, 1.4),
+      counterStyle: sty(10.5, FontWeight.w500, SC.inkSecondary),
     );
   }
 
-  // ---- form tambah / ubah ----
   Future<void> _form([Map<String, dynamic>? old]) async {
     if (_readOnly) return;
     if (_kelas.isEmpty || (!_isAdmin && _diampu.isEmpty)) await _loadMaster();
@@ -385,8 +517,8 @@ class _JurnalMengajarScreenState extends State<JurnalMengajarScreen> {
     final ok = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: _JC.bg,
-      constraints: const BoxConstraints(maxWidth: 480),
+      backgroundColor: SC.background,
+      constraints: const BoxConstraints(maxWidth: _maxW),
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setLocal) => Padding(
@@ -402,7 +534,7 @@ class _JurnalMengajarScreenState extends State<JurnalMengajarScreen> {
                     child: Container(
                       width: 40,
                       height: 4,
-                      decoration: BoxDecoration(color: _JC.border, borderRadius: BorderRadius.circular(99)),
+                      decoration: BoxDecoration(color: SC.border, borderRadius: BorderRadius.circular(999)),
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -411,8 +543,12 @@ class _JurnalMengajarScreenState extends State<JurnalMengajarScreen> {
                       Container(
                         width: 44,
                         height: 44,
-                        decoration: BoxDecoration(color: _JC.sage, borderRadius: BorderRadius.circular(14)),
-                        child: Icon(Icons.cast_for_education_outlined, size: 22, color: _JC.primary),
+                        decoration: BoxDecoration(
+                          color: SC.goldSurface,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: SC.gold.withOpacity(0.45)),
+                        ),
+                        child: Icon(Icons.cast_for_education_outlined, size: 21, color: SC.gold),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
@@ -420,10 +556,10 @@ class _JurnalMengajarScreenState extends State<JurnalMengajarScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(old == null ? 'Jurnal Baru' : 'Ubah Jurnal',
-                                style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w800, color: _JC.ink)),
+                                style: sty(19, FontWeight.w800, SC.ink)),
                             const SizedBox(height: 2),
-                            const Text('Catat kegiatan belajar mengajar hari ini',
-                                style: TextStyle(fontSize: 12, color: _JC.inkSecondary)),
+                            Text('Catat kegiatan belajar mengajar hari ini',
+                                style: sty(12, FontWeight.w500, SC.inkSecondary)),
                           ],
                         ),
                       ),
@@ -443,8 +579,7 @@ class _JurnalMengajarScreenState extends State<JurnalMengajarScreen> {
                     },
                     child: InputDecorator(
                       decoration: _dec('Tanggal', icon: Icons.calendar_today_outlined),
-                      child: Text(_tglPanjang(tanggal),
-                          style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: _JC.ink)),
+                      child: Text(_tglPanjang(tanggal), style: sty(13.5, FontWeight.w600, SC.ink)),
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -453,7 +588,7 @@ class _JurnalMengajarScreenState extends State<JurnalMengajarScreen> {
                     isExpanded: true,
                     decoration: _dec('Kelas', icon: Icons.groups_2_outlined),
                     borderRadius: BorderRadius.circular(14),
-                    style: const TextStyle(fontSize: 13.5, color: _JC.ink),
+                    style: sty(13.5, FontWeight.w600, SC.ink),
                     items: [
                       for (final k in boleh)
                         DropdownMenuItem(value: k['id'] as String, child: Text('${k['namaKelas']}')),
@@ -473,7 +608,7 @@ class _JurnalMengajarScreenState extends State<JurnalMengajarScreen> {
                     isExpanded: true,
                     decoration: _dec('Mata Pelajaran', icon: Icons.menu_book_outlined),
                     borderRadius: BorderRadius.circular(14),
-                    style: const TextStyle(fontSize: 13.5, color: _JC.ink),
+                    style: sty(13.5, FontWeight.w600, SC.ink),
                     items: [
                       if (_isAdmin || _mapelBoleh(kelasId).isEmpty)
                         const DropdownMenuItem(value: '', child: Text('— tanpa mapel —')),
@@ -488,7 +623,7 @@ class _JurnalMengajarScreenState extends State<JurnalMengajarScreen> {
                     maxLength: 500,
                     maxLines: 4,
                     minLines: 3,
-                    style: const TextStyle(fontSize: 13.5, color: _JC.ink),
+                    style: sty(13.5, FontWeight.w500, SC.ink, h: 1.35),
                     decoration: _dec('Materi yang disampaikan', hint: 'Tulis materi yang diajarkan...'),
                   ),
                   const SizedBox(height: 6),
@@ -497,16 +632,16 @@ class _JurnalMengajarScreenState extends State<JurnalMengajarScreen> {
                     maxLength: 300,
                     maxLines: 3,
                     minLines: 2,
-                    style: const TextStyle(fontSize: 13.5, color: _JC.ink),
+                    style: sty(13.5, FontWeight.w500, SC.ink, h: 1.35),
                     decoration: _dec('Catatan / kendala (opsional)', hint: 'Misalnya: sebagian santri belum hafal'),
                   ),
                   if (err != null) ...[
                     const SizedBox(height: 6),
                     Row(
                       children: [
-                        const Icon(Icons.error_outline, size: 15, color: _JC.errorText),
+                        const Icon(Icons.error_outline, size: 15, color: SC.errorText),
                         const SizedBox(width: 6),
-                        Text(err!, style: const TextStyle(color: _JC.errorText, fontSize: 12)),
+                        Text(err!, style: sty(12, FontWeight.w700, SC.errorText)),
                       ],
                     ),
                   ],
@@ -516,13 +651,12 @@ class _JurnalMengajarScreenState extends State<JurnalMengajarScreen> {
                       Expanded(
                         child: OutlinedButton(
                           style: OutlinedButton.styleFrom(
-                            foregroundColor: _JC.inkSecondary,
-                            side: const BorderSide(color: _JC.border),
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: const StadiumBorder(),
+                            side: const BorderSide(color: SC.border),
+                            minimumSize: const Size.fromHeight(48),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
                           ),
                           onPressed: () => Navigator.pop(ctx, false),
-                          child: const Text('Batal', style: TextStyle(fontWeight: FontWeight.w700)),
+                          child: Text('Batal', style: sty(13, FontWeight.w700, SC.inkSecondary)),
                         ),
                       ),
                       const SizedBox(width: 10),
@@ -530,9 +664,9 @@ class _JurnalMengajarScreenState extends State<JurnalMengajarScreen> {
                         flex: 2,
                         child: FilledButton(
                           style: FilledButton.styleFrom(
-                            backgroundColor: _JC.primary,
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: const StadiumBorder(),
+                            backgroundColor: SC.primary,
+                            minimumSize: const Size.fromHeight(48),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
                           ),
                           onPressed: () {
                             if (materi.text.trim().isEmpty) {
@@ -542,7 +676,7 @@ class _JurnalMengajarScreenState extends State<JurnalMengajarScreen> {
                             Navigator.pop(ctx, true);
                           },
                           child: Text(old == null ? 'Simpan Jurnal' : 'Simpan Perubahan',
-                              style: const TextStyle(fontWeight: FontWeight.w800)),
+                              style: sty(13, FontWeight.w800, Colors.white)),
                         ),
                       ),
                     ],
@@ -574,7 +708,7 @@ class _JurnalMengajarScreenState extends State<JurnalMengajarScreen> {
           _kelas.firstWhere((k) => k['id'] == kelasId, orElse: () => <String, dynamic>{})['namaKelas'];
       _toast(old == null ? 'Jurnal tersimpan' : 'Jurnal diperbarui',
           subtitle: '${namaKelas ?? '-'} • ${_tglPanjang(tanggal)}');
-      _load();
+      _load(spinner: false);
     } on ApiException catch (e) {
       _toast(e.message, error: true);
     }
@@ -584,76 +718,37 @@ class _JurnalMengajarScreenState extends State<JurnalMengajarScreen> {
     if (_readOnly) return;
     final yakin = await showDialog<bool>(
       context: context,
-      builder: (ctx) => Dialog(
-        backgroundColor: _JC.surface,
-        insetPadding: const EdgeInsets.symmetric(horizontal: 24),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 380),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(color: _JC.errorBg, borderRadius: BorderRadius.circular(14)),
-                  child: const Icon(Icons.delete_outline, size: 22, color: _JC.errorText),
-                ),
-                const SizedBox(height: 14),
-                const Text('Hapus jurnal?',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _JC.ink)),
-                const SizedBox(height: 4),
-                const Text('Jurnal yang dihapus tidak bisa dikembalikan.',
-                    style: TextStyle(fontSize: 12.5, height: 1.4, color: _JC.inkSecondary)),
-                const SizedBox(height: 18),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: _JC.inkSecondary,
-                          side: const BorderSide(color: _JC.border),
-                          padding: const EdgeInsets.symmetric(vertical: 13),
-                          shape: const StadiumBorder(),
-                        ),
-                        onPressed: () => Navigator.pop(ctx, false),
-                        child: const Text('Batal', style: TextStyle(fontWeight: FontWeight.w700)),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: FilledButton(
-                        style: FilledButton.styleFrom(
-                          backgroundColor: _JC.errorText,
-                          padding: const EdgeInsets.symmetric(vertical: 13),
-                          shape: const StadiumBorder(),
-                        ),
-                        onPressed: () => Navigator.pop(ctx, true),
-                        child: const Text('Hapus', style: TextStyle(fontWeight: FontWeight.w800)),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
+      builder: (ctx) => AlertDialog(
+        backgroundColor: SC.surface,
+        surfaceTintColor: Colors.transparent,
+        shape: _dialogShape,
+        icon: _dialogIcon(Icons.delete_outline_rounded, SC.errorBg, SC.errorText),
+        title: Text('Hapus jurnal?',
+            textAlign: TextAlign.center, style: sty(17, FontWeight.w800, SC.ink)),
+        content: Text('Jurnal yang dihapus tidak bisa dikembalikan.',
+            textAlign: TextAlign.center,
+            style: sty(13, FontWeight.w500, SC.inkSecondary, h: 1.45)),
+        actionsAlignment: MainAxisAlignment.center,
+        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        actions: [
+          _btnBatal(() => Navigator.pop(ctx, false)),
+          _btnUtama('Hapus', () => Navigator.pop(ctx, true), warna: SC.errorText),
+        ],
       ),
     );
     if (yakin != true) return;
     try {
       await AppScope.of(context).api.delete('${ApiUrl.jurnalMengajar}/${j['id']}');
       _toast('Jurnal dihapus');
-      _load();
+      _load(spinner: false);
     } on ApiException catch (e) {
       _toast(e.message, error: true);
     }
   }
 
-  // ---- detail ----
+  // ---------------------------------------------------------------------
+  // Detail
+  // ---------------------------------------------------------------------
   void _detail(Map<String, dynamic> j) {
     final d = _parseTanggal(j['tanggal']);
     final kelas = '${(j['kelas'] as Map?)?['namaKelas'] ?? '-'}';
@@ -664,63 +759,71 @@ class _JurnalMengajarScreenState extends State<JurnalMengajarScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: _JC.surface,
-      constraints: const BoxConstraints(maxWidth: 480),
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      backgroundColor: SC.surface,
+      constraints: const BoxConstraints(maxWidth: _maxW),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (ctx) => SafeArea(
         child: ConstrainedBox(
           constraints: BoxConstraints(maxHeight: MediaQuery.of(ctx).size.height * 0.85),
           child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
+            padding: const EdgeInsets.fromLTRB(20, 10, 20, 20),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(color: SC.border, borderRadius: BorderRadius.circular(999)),
+                  ),
+                ),
+                const SizedBox(height: 16),
                 Row(
                   children: [
-                    const Icon(Icons.calendar_today_outlined, size: 14, color: _JC.inkSecondary),
+                    Icon(Icons.calendar_today_outlined, size: 14, color: SC.inkSecondary),
                     const SizedBox(width: 6),
                     Expanded(
-                      child: Text(_tglPanjang(d),
-                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _JC.inkSecondary)),
+                      child: Text(_tglPanjang(d), style: sty(12, FontWeight.w700, SC.inkSecondary)),
                     ),
                     _statusPill(),
                   ],
                 ),
                 const SizedBox(height: 10),
-                Text(mapel ?? 'Jurnal $kelas',
-                    style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w800, color: _JC.ink, height: 1.25)),
+                Text(mapel ?? 'Jurnal $kelas', style: sty(19, FontWeight.w800, SC.ink, h: 1.25)),
                 const SizedBox(height: 6),
                 _metaRow(kelas, penulis),
                 const SizedBox(height: 16),
-                const Text('MATERI',
-                    style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 0.4, color: _JC.inkSecondary)),
+                Text('MATERI', style: sty(10, FontWeight.w800, SC.inkSecondary)),
                 const SizedBox(height: 6),
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(color: _JC.noteBg, borderRadius: BorderRadius.circular(14)),
-                  child: Text('${j['materi']}', style: const TextStyle(fontSize: 13.5, height: 1.5, color: _JC.ink)),
+                  decoration: BoxDecoration(color: SC.surfaceDim, borderRadius: BorderRadius.circular(14)),
+                  child: Text('${j['materi']}', style: sty(13.5, FontWeight.w500, SC.ink, h: 1.5)),
                 ),
                 if (catatan.isNotEmpty) ...[
                   const SizedBox(height: 14),
-                  const Text('CATATAN / KENDALA',
-                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 0.4, color: _JC.inkSecondary)),
+                  Text('CATATAN / KENDALA', style: sty(10, FontWeight.w800, SC.inkSecondary)),
                   const SizedBox(height: 6),
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(color: _JC.goldSurface, borderRadius: BorderRadius.circular(14)),
-                    child: Text(catatan, style: const TextStyle(fontSize: 13, height: 1.45, color: _JC.ink)),
+                    decoration: BoxDecoration(
+                      color: SC.goldSurface,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: SC.gold.withOpacity(0.4)),
+                    ),
+                    child: Text(catatan, style: sty(13, FontWeight.w500, SC.ink, h: 1.45)),
                   ),
                 ],
                 const SizedBox(height: 14),
                 Row(
                   children: [
-                    const Icon(Icons.verified_user_outlined, size: 14, color: _JC.inkSecondary),
+                    Icon(Icons.verified_user_outlined, size: 14, color: SC.inkSecondary),
                     const SizedBox(width: 6),
                     Text('Diserahkan ${_diserahkan(j['createdAt'])}',
-                        style: const TextStyle(fontSize: 11.5, color: _JC.inkSecondary)),
+                        style: sty(11.5, FontWeight.w500, SC.inkSecondary)),
                   ],
                 ),
                 if (_canEdit(j)) ...[
@@ -730,13 +833,13 @@ class _JurnalMengajarScreenState extends State<JurnalMengajarScreen> {
                       Expanded(
                         child: OutlinedButton.icon(
                           style: OutlinedButton.styleFrom(
-                            foregroundColor: _JC.errorText,
-                            side: const BorderSide(color: Color(0xFFF1B8B8)),
-                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            foregroundColor: SC.errorText,
+                            side: BorderSide(color: _badBd),
+                            minimumSize: const Size.fromHeight(48),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
                           ),
                           icon: const Icon(Icons.delete_outline, size: 18),
-                          label: const Text('Hapus'),
+                          label: Text('Hapus', style: sty(13, FontWeight.w700, SC.errorText)),
                           onPressed: () {
                             Navigator.pop(ctx);
                             _hapus(j);
@@ -748,12 +851,12 @@ class _JurnalMengajarScreenState extends State<JurnalMengajarScreen> {
                         flex: 2,
                         child: FilledButton.icon(
                           style: FilledButton.styleFrom(
-                            backgroundColor: _JC.primary,
-                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            backgroundColor: SC.primary,
+                            minimumSize: const Size.fromHeight(48),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
                           ),
-                          icon: const Icon(Icons.edit_outlined, size: 18),
-                          label: const Text('Ubah Jurnal'),
+                          icon: const Icon(Icons.edit_outlined, size: 18, color: Colors.white),
+                          label: Text('Ubah Jurnal', style: sty(13, FontWeight.w700, Colors.white)),
                           onPressed: () {
                             Navigator.pop(ctx);
                             _form(j);
@@ -771,33 +874,23 @@ class _JurnalMengajarScreenState extends State<JurnalMengajarScreen> {
     );
   }
 
-  // ---- komponen tampilan ----
-  Widget _statusPill() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(color: _JC.successBg, borderRadius: BorderRadius.circular(999)),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: const [
-          Icon(Icons.check_circle_outline, size: 13, color: _JC.successText),
-          SizedBox(width: 4),
-          Text('Terisi', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: _JC.successText)),
-        ],
-      ),
-    );
-  }
+  // ---------------------------------------------------------------------
+  // Komponen tampilan
+  // ---------------------------------------------------------------------
+  Widget _statusPill() =>
+      _pill('Terisi', bg: _kOkBg, fg: _kOkFg, bd: _kOkBd, icon: Icons.check_circle_outline);
 
   Widget _metaRow(String kelas, String? penulis) {
     Widget item(IconData icon, String text) => Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 14, color: _JC.inkSecondary),
+            Icon(icon, size: 14, color: SC.inkMuted),
             const SizedBox(width: 5),
             Flexible(
               child: Text(text,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 12, color: _JC.inkSecondary)),
+                  style: sty(12, FontWeight.w600, SC.inkSecondary)),
             ),
           ],
         );
@@ -811,163 +904,332 @@ class _JurnalMengajarScreenState extends State<JurnalMengajarScreen> {
     );
   }
 
-  Widget _header() {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Expanded(
+  // ---------------------------------------------------------------------
+  // Hero
+  // ---------------------------------------------------------------------
+  Widget _hero() {
+    final loaded = !_loading && _error == null;
+    String v(int n) => loaded ? '$n' : '–';
+
+    Widget stat(IconData icon, String value, String label, {bool gold = false}) => Expanded(
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Jurnal Mengajar',
-                  style: TextStyle(fontSize: 23, fontWeight: FontWeight.w800, color: _JC.ink, height: 1.2)),
-              SizedBox(height: 3),
-              Text('Catatan harian kegiatan belajar mengajar',
-                  style: TextStyle(fontSize: 12, color: _JC.inkSecondary)),
-            ],
-          ),
-        ),
-        const SizedBox(width: 10),
-        Container(
-          width: 44,
-          height: 44,
-          decoration: BoxDecoration(color: _JC.sage, borderRadius: BorderRadius.circular(14)),
-          child: Icon(Icons.cast_for_education_outlined, size: 22, color: _JC.primary),
-        ),
-      ],
-    );
-  }
-
-  Widget _searchBar() {
-    final aktif = _filterKelasId.isNotEmpty;
-    return Container(
-      height: 48,
-      padding: const EdgeInsets.only(left: 14),
-      decoration: BoxDecoration(
-        color: _JC.surface,
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: _JC.border),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.search, size: 20, color: _JC.inkSecondary),
-          const SizedBox(width: 8),
-          Expanded(
-            child: TextField(
-              controller: _searchC,
-              onChanged: (v) => setState(() => _q = v.trim()),
-              style: const TextStyle(fontSize: 13, color: _JC.ink),
-              decoration: const InputDecoration(
-                isDense: true,
-                border: InputBorder.none,
-                enabledBorder: InputBorder.none,
-                focusedBorder: InputBorder.none,
-                hintText: 'Cari materi, kelas, atau mapel...',
-                hintStyle: TextStyle(fontSize: 13, color: _JC.inkSecondary),
-              ),
-            ),
-          ),
-          IconButton(
-            tooltip: 'Filter kelas',
-            onPressed: _pilihKelas,
-            icon: Icon(Icons.tune_rounded, size: 20, color: aktif ? _JC.goldDark : _JC.inkSecondary),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _pill(String label, bool selected, VoidCallback onTap, {IconData? icon, int? badge}) {
-    final fg = selected ? Colors.white : _JC.inkSecondary;
-    return Padding(
-      padding: const EdgeInsets.only(right: 8),
-      child: GestureDetector(
-        onTap: onTap,
-        child: Container(
-          alignment: Alignment.center,
-          padding: const EdgeInsets.symmetric(horizontal: 14),
-          decoration: BoxDecoration(
-            color: selected ? _JC.primary : _JC.surface,
-            borderRadius: BorderRadius.circular(999),
-            border: Border.all(color: selected ? _JC.primary : _JC.border),
-          ),
-          child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (icon != null) ...[Icon(icon, size: 14, color: fg), const SizedBox(width: 6)],
-              Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: fg)),
-              if (badge != null) ...[
-                const SizedBox(width: 6),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                  decoration: BoxDecoration(
-                    color: selected ? Colors.white.withOpacity(0.2) : _JC.sage,
-                    borderRadius: BorderRadius.circular(999),
+              Icon(icon, size: 15, color: gold ? SC.gold : Colors.white.withOpacity(0.7)),
+              const SizedBox(height: 5),
+              Text(value, style: sty(20, FontWeight.w800, gold ? SC.gold : Colors.white, h: 1.1)),
+              const SizedBox(height: 2),
+              Text(label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: sty(10.5, FontWeight.w600, Colors.white.withOpacity(0.72))),
+            ],
+          ),
+        );
+
+    Widget garis() => Container(width: 1, height: 44, color: Colors.white.withOpacity(0.18));
+
+    return HeroShell(
+      top: 22,
+      bottom: 20,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 50,
+                height: 50,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.14),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: SC.gold.withOpacity(0.55)),
+                ),
+                child: const Icon(Icons.cast_for_education_outlined, size: 25, color: SC.gold),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Jurnal Mengajar', style: sty(22, FontWeight.w800, Colors.white, h: 1.15)),
+                    const SizedBox(height: 3),
+                    Text(
+                      'Catatan harian kegiatan belajar mengajar',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: sty(12.5, FontWeight.w500, Colors.white.withOpacity(0.78)),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: Colors.white.withOpacity(0.16)),
+            ),
+            child: Row(
+              children: [
+                stat(Icons.menu_book_rounded, v(_itemsSaya.length), 'Total jurnal'),
+                garis(),
+                stat(Icons.date_range_rounded, v(_hitung('minggu')), 'Minggu ini', gold: true),
+                garis(),
+                stat(Icons.calendar_month_rounded, v(_hitung('bulan')), 'Bulan ini'),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------------------
+  // Pencarian & filter periode
+  // ---------------------------------------------------------------------
+  Widget _searchBar() {
+    final aktif = _filterKelasId.isNotEmpty;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      child: SizedBox(
+        height: 48,
+        child: TextField(
+          controller: _searchC,
+          onChanged: (v) => setState(() => _q = v.trim()),
+          textInputAction: TextInputAction.search,
+          style: sty(14, FontWeight.w600, SC.ink),
+          decoration: InputDecoration(
+            hintText: 'Cari materi, kelas, atau mapel',
+            hintStyle: sty(14, FontWeight.w500, SC.inkMuted),
+            prefixIcon: Icon(Icons.search_rounded, size: 21, color: SC.primary),
+            suffixIcon: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (_q.isNotEmpty)
+                  IconButton(
+                    tooltip: 'Hapus pencarian',
+                    icon: const Icon(Icons.close_rounded, size: 18, color: SC.inkSecondary),
+                    onPressed: () {
+                      _searchC.clear();
+                      setState(() => _q = '');
+                    },
                   ),
-                  child: Text('$badge',
-                      style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: selected ? Colors.white : _JC.primary)),
+                IconButton(
+                  tooltip: 'Filter kelas',
+                  onPressed: _pilihKelas,
+                  icon: Icon(Icons.tune_rounded,
+                      size: 20, color: aktif ? SC.goldDark : SC.inkSecondary),
                 ),
               ],
-            ],
+            ),
+            filled: true,
+            fillColor: SC.surface,
+            isDense: true,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(999),
+              borderSide: const BorderSide(color: SC.border),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(999),
+              borderSide: BorderSide(color: SC.primary, width: 1.4),
+            ),
           ),
         ),
       ),
     );
   }
 
-  Widget _filterRow() {
-    final namaKelas = _namaKelasFilter;
-    return SizedBox(
-      height: 38,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        children: [
-          _pill('Semua', _periode == 'semua', () => setState(() => _periode = 'semua'), badge: _itemsSaya.length),
-          _pill('Minggu Ini', _periode == 'minggu', () => setState(() => _periode = 'minggu'),
-              icon: Icons.calendar_today_outlined),
-          _pill('Bulan Ini', _periode == 'bulan', () => setState(() => _periode = 'bulan')),
-          if (_filterKelasId.isNotEmpty)
-            _pill('Kelas: ${namaKelas ?? '-'}  ✕', true, () {
-              setState(() => _filterKelasId = '');
-              _load();
-            }),
-        ],
-      ),
-    );
-  }
-
-  Widget _stat(String label, String value, Color color) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        decoration: BoxDecoration(
-          color: _JC.surface,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: _JC.border),
+  /// Kontrol segmen Semua / Minggu Ini / Bulan Ini.
+  Widget _segmented() {
+    Widget seg(String value, String label, int n) {
+      final active = _periode == value;
+      return Expanded(
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => setState(() => _periode = value),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 160),
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: active ? SC.primary : Colors.transparent,
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Text('$label ($n)',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: sty(11.5, FontWeight.w700, active ? Colors.white : SC.inkSecondary)),
+          ),
         ),
-        child: Column(
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+      child: Container(
+        height: 38,
+        padding: const EdgeInsets.all(3),
+        decoration: BoxDecoration(
+          color: SC.surfaceDim,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: SC.border),
+        ),
+        child: Row(
           children: [
-            Text(label, style: const TextStyle(fontSize: 11, color: _JC.inkSecondary)),
-            const SizedBox(height: 4),
-            Text(value, style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: color)),
+            seg('semua', 'Semua', _itemsSaya.length),
+            seg('minggu', 'Minggu Ini', _hitung('minggu')),
+            seg('bulan', 'Bulan Ini', _hitung('bulan')),
           ],
         ),
       ),
     );
   }
 
-  Widget _statsRow() {
-    return Row(
-      children: [
-        _stat('Total Jurnal', '${_itemsSaya.length}', _JC.ink),
-        const SizedBox(width: 10),
-        _stat('Minggu Ini', '${_hitung('minggu')}', _JC.primary),
-        const SizedBox(width: 10),
-        _stat('Bulan Ini', '${_hitung('bulan')}', _JC.goldDark),
-      ],
+  // ---------------------------------------------------------------------
+  // Isi daftar
+  // ---------------------------------------------------------------------
+  List<Widget> _bodySlivers() {
+    if (_loading) {
+      return [SliverToBoxAdapter(child: SizedBox(height: 320, child: loadingView()))];
+    }
+    if (_error != null) {
+      return [
+        SliverToBoxAdapter(child: SizedBox(height: 320, child: errorView(_error!, () => _load())))
+      ];
+    }
+
+    if (_itemsSaya.isEmpty) {
+      return [
+        SliverToBoxAdapter(
+          child: _kosong(
+            judul: 'Belum ada jurnal mengajar',
+            pesan: _canWrite
+                ? 'Tekan "Jurnal Baru" untuk mencatat kegiatan mengajar.'
+                : 'Belum ada catatan dari ustadz.',
+          ),
+        ),
+      ];
+    }
+
+    final tampil = _tampil;
+    final namaKelas = _namaKelasFilter;
+
+    return [
+      SliverToBoxAdapter(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(18, 2, 16, 10),
+          child: Row(
+            children: [
+              Text('Daftar Jurnal', style: sty(15, FontWeight.w800, SC.ink)),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(color: SC.mint, borderRadius: BorderRadius.circular(999)),
+                child: Text('${tampil.length}', style: sty(10.5, FontWeight.w800, SC.primary)),
+              ),
+              const Spacer(),
+              if (_filterKelasId.isNotEmpty)
+                InkWell(
+                  borderRadius: BorderRadius.circular(999),
+                  onTap: () {
+                    setState(() => _filterKelasId = '');
+                    _load();
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.fromLTRB(10, 5, 8, 5),
+                    decoration: BoxDecoration(
+                      color: SC.goldSurface,
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(color: SC.gold.withOpacity(0.4)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.groups_2_outlined, size: 13, color: SC.goldDark),
+                        const SizedBox(width: 5),
+                        ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 110),
+                          child: Text(namaKelas ?? '-',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: sty(11, FontWeight.w800, SC.goldDark)),
+                        ),
+                        const SizedBox(width: 4),
+                        Icon(Icons.close_rounded, size: 14, color: SC.goldDark),
+                      ],
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+      if (tampil.isEmpty)
+        SliverToBoxAdapter(
+          child: _kosong(
+            judul: 'Tidak ada jurnal yang cocok',
+            pesan: 'Coba ubah kata kunci atau filter.',
+            icon: Icons.search_off_rounded,
+          ),
+        )
+      else
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(16, 2, 16, 110),
+          sliver: SliverList(
+            delegate: SliverChildListDelegate([for (final j in tampil) _card(j)]),
+          ),
+        ),
+    ];
+  }
+
+  Widget _kosong({required String judul, required String pesan, IconData? icon}) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(32, 40, 32, 120),
+      child: Column(
+        children: [
+          SizedBox(
+            width: 116,
+            height: 116,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                Container(
+                  width: 116,
+                  height: 116,
+                  decoration: BoxDecoration(shape: BoxShape.circle, color: SC.sage.withOpacity(0.55)),
+                ),
+                Container(
+                  width: 86,
+                  height: 86,
+                  decoration: BoxDecoration(
+                    color: SC.sage,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: SC.gold.withOpacity(0.5), width: 1.5),
+                  ),
+                  child: Icon(icon ?? Icons.cast_for_education_outlined, size: 38, color: SC.primary),
+                ),
+                Positioned(top: 8, right: 14, child: Icon(Icons.star_rounded, size: 17, color: SC.gold)),
+              ],
+            ),
+          ),
+          const SizedBox(height: 18),
+          Text(judul, textAlign: TextAlign.center, style: sty(16, FontWeight.w800, SC.ink)),
+          const SizedBox(height: 6),
+          Text(pesan,
+              textAlign: TextAlign.center,
+              style: sty(12.5, FontWeight.w500, SC.inkSecondary, h: 1.5)),
+        ],
+      ),
     );
   }
 
+  // ---------------------------------------------------------------------
+  // Kartu jurnal
+  // ---------------------------------------------------------------------
   Widget _card(Map<String, dynamic> j) {
     final d = _parseTanggal(j['tanggal']);
     final kelas = '${(j['kelas'] as Map?)?['namaKelas'] ?? '-'}';
@@ -977,24 +1239,24 @@ class _JurnalMengajarScreenState extends State<JurnalMengajarScreen> {
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
-      child: Material(
-        color: _JC.surface,
-        borderRadius: BorderRadius.circular(18),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(18),
-          onTap: () => _detail(j),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(18),
-            child: Container(
-              decoration: BoxDecoration(
-                border: Border.all(color: _JC.border),
-                borderRadius: BorderRadius.circular(18),
-              ),
+      child: Container(
+        decoration: BoxDecoration(
+          color: SC.surface,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: SC.border),
+          boxShadow: softShadow,
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(20),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () => _detail(j),
               child: IntrinsicHeight(
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Container(width: 4, color: _JC.primary),
+                    Container(width: 4, color: SC.primary),
                     Expanded(
                       child: Padding(
                         padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
@@ -1003,11 +1265,11 @@ class _JurnalMengajarScreenState extends State<JurnalMengajarScreen> {
                           children: [
                             Row(
                               children: [
-                                const Icon(Icons.calendar_today_outlined, size: 13, color: _JC.inkSecondary),
+                                Icon(Icons.calendar_today_outlined, size: 13, color: SC.inkSecondary),
                                 const SizedBox(width: 6),
                                 Expanded(
                                   child: Text(_tglPanjang(d),
-                                      style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: _JC.ink)),
+                                      style: sty(11.5, FontWeight.w700, SC.ink)),
                                 ),
                                 _statusPill(),
                               ],
@@ -1016,40 +1278,46 @@ class _JurnalMengajarScreenState extends State<JurnalMengajarScreen> {
                             Text(mapel ?? 'Jurnal $kelas',
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: _JC.ink, height: 1.25)),
+                                style: sty(16.5, FontWeight.w800, SC.ink, h: 1.25)),
                             const SizedBox(height: 5),
                             _metaRow(kelas, penulis),
                             const SizedBox(height: 12),
                             Container(
                               width: double.infinity,
                               padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(color: _JC.noteBg, borderRadius: BorderRadius.circular(14)),
+                              decoration: BoxDecoration(
+                                  color: SC.surfaceDim, borderRadius: BorderRadius.circular(14)),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text('${j['materi']}',
                                       maxLines: 4,
                                       overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(fontSize: 13, height: 1.45, color: _JC.ink)),
+                                      style: sty(13, FontWeight.w500, SC.ink, h: 1.45)),
                                   if (catatan.isNotEmpty) ...[
                                     const SizedBox(height: 10),
                                     Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-                                      decoration: BoxDecoration(color: _JC.noteChip, borderRadius: BorderRadius.circular(8)),
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                                      decoration: BoxDecoration(
+                                        color: SC.goldSurface,
+                                        borderRadius: BorderRadius.circular(10),
+                                        border: Border.all(color: SC.gold.withOpacity(0.4)),
+                                      ),
                                       child: Row(
                                         mainAxisSize: MainAxisSize.min,
                                         crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
-                                          const Padding(
-                                            padding: EdgeInsets.only(top: 1),
-                                            child: Icon(Icons.info_outline, size: 13, color: _JC.inkSecondary),
+                                          Padding(
+                                            padding: const EdgeInsets.only(top: 1),
+                                            child: Icon(Icons.info_outline,
+                                                size: 13, color: SC.goldDark),
                                           ),
                                           const SizedBox(width: 6),
                                           Flexible(
                                             child: Text(catatan,
                                                 maxLines: 2,
                                                 overflow: TextOverflow.ellipsis,
-                                                style: const TextStyle(fontSize: 11, color: _JC.ink)),
+                                                style: sty(11, FontWeight.w600, SC.goldDark)),
                                           ),
                                         ],
                                       ),
@@ -1061,17 +1329,16 @@ class _JurnalMengajarScreenState extends State<JurnalMengajarScreen> {
                             const SizedBox(height: 10),
                             Row(
                               children: [
-                                const Icon(Icons.verified_user_outlined, size: 14, color: _JC.inkSecondary),
+                                Icon(Icons.verified_user_outlined, size: 14, color: SC.inkMuted),
                                 const SizedBox(width: 6),
                                 Expanded(
                                   child: Text('Diserahkan ${_diserahkan(j['createdAt'])}',
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(fontSize: 11, color: _JC.inkSecondary)),
+                                      style: sty(11, FontWeight.w500, SC.inkSecondary)),
                                 ),
-                                const Text('Lihat Detail',
-                                    style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: _JC.ink)),
-                                const Icon(Icons.chevron_right, size: 16, color: _JC.ink),
+                                Text('Lihat Detail', style: sty(11.5, FontWeight.w800, SC.primary)),
+                                Icon(Icons.chevron_right, size: 16, color: SC.primary),
                               ],
                             ),
                           ],
@@ -1088,31 +1355,9 @@ class _JurnalMengajarScreenState extends State<JurnalMengajarScreen> {
     );
   }
 
-  Widget _empty(String judul, String sub) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 48),
-      child: Column(
-        children: [
-          Container(
-            width: 64,
-            height: 64,
-            decoration: BoxDecoration(color: _JC.sage, shape: BoxShape.circle),
-            child: Icon(Icons.cast_for_education_outlined, size: 30, color: _JC.primary),
-          ),
-          const SizedBox(height: 14),
-          Text(judul, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _JC.ink)),
-          const SizedBox(height: 4),
-          Text(sub,
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 12, color: _JC.inkSecondary)),
-        ],
-      ),
-    );
-  }
-
   Widget _tombolBaru() {
     return Material(
-      color: _JC.primary,
+      color: SC.primary,
       elevation: 6,
       shadowColor: Colors.black45,
       shape: const StadiumBorder(),
@@ -1127,12 +1372,11 @@ class _JurnalMengajarScreenState extends State<JurnalMengajarScreen> {
               Container(
                 width: 26,
                 height: 26,
-                decoration: const BoxDecoration(color: _JC.gold, shape: BoxShape.circle),
-                child: Icon(Icons.add, size: 17, color: _JC.primary),
+                decoration: const BoxDecoration(color: SC.gold, shape: BoxShape.circle),
+                child: Icon(Icons.add, size: 17, color: SC.primary),
               ),
               const SizedBox(width: 10),
-              const Text('Jurnal Baru',
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Colors.white)),
+              Text('Jurnal Baru', style: sty(14, FontWeight.w800, Colors.white)),
             ],
           ),
         ),
@@ -1140,48 +1384,51 @@ class _JurnalMengajarScreenState extends State<JurnalMengajarScreen> {
     );
   }
 
+  // ---------------------------------------------------------------------
+  // Build
+  // ---------------------------------------------------------------------
   @override
   Widget build(BuildContext context) {
-    if (_loading) return Scaffold(backgroundColor: _JC.bg, body: loadingView());
-    if (_error != null) return Scaffold(backgroundColor: _JC.bg, body: errorView(_error!, _load));
+    final showControls = !_loading && _error == null && _itemsSaya.isNotEmpty;
 
-    final tampil = _tampil;
     return Scaffold(
-      backgroundColor: _JC.bg,
+      backgroundColor: SC.background,
       // Seluruh konten (termasuk tombol "Jurnal Baru") berada di dalam kolom
       // tengah selebar maks. 480, jadi di layar lebar tetap rata tengah.
       body: Align(
         alignment: Alignment.topCenter,
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 480),
+          constraints: const BoxConstraints(maxWidth: _maxW),
           child: Stack(
             fit: StackFit.expand,
             children: [
               RefreshIndicator(
-                onRefresh: _load,
-                child: ListView(
+                color: SC.primary,
+                onRefresh: () => _load(spinner: false),
+                child: CustomScrollView(
+                  controller: _scroll,
                   physics: const AlwaysScrollableScrollPhysics(),
-                  padding: const EdgeInsets.fromLTRB(14, 14, 14, 110),
-                  children: [
-                    _header(),
-                    const SizedBox(height: 16),
-                    _searchBar(),
-                    const SizedBox(height: 12),
-                    _filterRow(),
-                    const SizedBox(height: 14),
-                    _statsRow(),
-                    const SizedBox(height: 16),
-                    if (_itemsSaya.isEmpty)
-                      _empty('Belum ada jurnal mengajar',
-                          _canWrite ? 'Tekan "Jurnal Baru" untuk mencatat kegiatan mengajar.' : 'Belum ada catatan dari ustadz.')
-                    else if (tampil.isEmpty)
-                      _empty('Tidak ada jurnal yang cocok', 'Coba ubah kata kunci atau filter.')
-                    else
-                      for (final j in tampil) _card(j),
+                  slivers: [
+                    SliverToBoxAdapter(child: _hero()),
+                    SliverToBoxAdapter(child: _banner()),
+                    SliverPersistentHeader(
+                      pinned: true,
+                      delegate: _PinnedBar(
+                        height: showControls ? 118 : 0.0,
+                        child: showControls
+                            ? Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [_searchBar(), _segmented()],
+                              )
+                            : const SizedBox.shrink(),
+                      ),
+                    ),
+                    ..._bodySlivers(),
                   ],
                 ),
               ),
-              if (_canWrite) Positioned(right: 16, bottom: 20, child: _tombolBaru()),
+              if (_canWrite && !_loading && _error == null)
+                Positioned(right: 16, bottom: 20, child: _tombolBaru()),
             ],
           ),
         ),

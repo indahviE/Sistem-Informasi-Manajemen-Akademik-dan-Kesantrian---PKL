@@ -1,36 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../services/api_client.dart';
 import '../../services/app_scope.dart';
 import '../ui_utils.dart';
-import '../santri/santri_ui.dart' show SC;
-
-/// Palet sama dengan `_AC` di absensi_screen.dart.
-/// Warna utama (primary, mint, sage) ikut tema pondok yang diatur admin.
-class _NC {
-  _NC._();
-
-  // Ikut tema pondok (diatur admin).
-  static Color get primary => SC.primary;
-  static Color get primaryGradientEnd => SC.primaryEnd;
-  static Color get mint => SC.mint;
-  static Color get sage => SC.sage;
-
-  static const gold = Color(0xFFC5A059);
-  static const goldSurface = Color(0xFFFAF5EC);
-  static const goldDark = Color(0xFF7A5B10);
-
-  static const background = Color(0xFFFAF9F5);
-  static const surface = Color(0xFFFFFFFF);
-  static const surfaceDim = Color(0xFFF5F4EE);
-
-  static const ink = Color(0xFF0F172A);
-  static const inkSecondary = Color(0xFF475569);
-  static const border = Color(0xFFEAE6DC);
-
-  static const errorBg = Color(0xFFFEE2E2);
-  static const errorText = Color(0xFF991B1B);
-}
+import '../santri/santri_ui.dart';
 
 class _Predikat {
   final String label;
@@ -135,10 +110,22 @@ class _NilaiScreenState extends State<NilaiScreen> {
   int _seqRiwayat = 0;
   String? _error;
 
+  final ScrollController _scroll = ScrollController();
+
+  /// Banner notifikasi inline (di bawah hero), hilang otomatis.
+  String? _bannerTitle;
+  String? _bannerSub;
+  bool _bannerError = false;
+  Timer? _bannerTimer;
+
   // Filter riwayat
   final TextEditingController _cari = TextEditingController();
   String _cariQ = '';
   bool _terbaru = true; // urutan sesi di Riwayat
+
+  // Cari santri di tab Input & List
+  final TextEditingController _cariS = TextEditingController();
+  String _qS = '';
 
   /// Baris nilai HARI INI untuk kelas + mapel + jenis (+ skill) yang dipilih.
   List<Map<String, dynamic>> get _sesiHariIni {
@@ -162,10 +149,13 @@ class _NilaiScreenState extends State<NilaiScreen> {
 
   @override
   void dispose() {
+    _bannerTimer?.cancel();
+    _scroll.dispose();
     for (final c in _ctrl.values) {
       c.dispose();
     }
     _cari.dispose();
+    _cariS.dispose();
     super.dispose();
   }
 
@@ -239,6 +229,8 @@ class _NilaiScreenState extends State<NilaiScreen> {
         _ctrl.clear();
         _catatan.clear();
         _santris = list;
+        _cariS.clear();
+        _qS = '';
         _riwayat = [];
         _editTanggal = null;
         for (final s in list) {
@@ -324,8 +316,13 @@ class _NilaiScreenState extends State<NilaiScreen> {
     });
   }
 
+  /// Daftar santri yang tampil: disaring pencarian (nama / NIS), lalu diurutkan.
+  /// Penyimpanan tetap memakai _santris, jadi santri yang tersaring tidak hilang.
   List<Map<String, dynamic>> get _sorted {
-    final l = [..._santris];
+    final l = _santris.where((s) {
+      if (_qS.isEmpty) return true;
+      return '${s['nama'] ?? ''} ${s['nis'] ?? ''}'.toLowerCase().contains(_qS);
+    }).toList();
     l.sort((a, b) => (a['nama'] ?? '').toString().toLowerCase().compareTo((b['nama'] ?? '').toString().toLowerCase()));
     return _sortAz ? l : l.reversed.toList();
   }
@@ -439,67 +436,88 @@ class _NilaiScreenState extends State<NilaiScreen> {
   }
 
   // ---------------------------------------------------------------------
-  // Notifikasi (sama dengan absensi_screen.dart)
+  // Banner inline (sama dengan halaman Ustadz)
   // ---------------------------------------------------------------------
-  /// Notifikasi melayang bertema (sukses = emerald, gagal = merah lembut).
   void _toast(String title, {String? subtitle, bool error = false}) {
     if (!mounted) return;
-    final w = MediaQuery.of(context).size.width;
-    final side = w > 472 ? (w - 440) / 2 : 16.0;
-    final fg = error ? _NC.errorText : Colors.white;
+    _bannerTimer?.cancel();
+    setState(() {
+      _bannerTitle = title;
+      _bannerSub = subtitle;
+      _bannerError = error;
+    });
+    // Banner ada di bawah hero, jadi gulir ke atas supaya kelihatan.
+    if (_scroll.hasClients && _scroll.offset > 0) {
+      _scroll.animateTo(0, duration: const Duration(milliseconds: 250), curve: Curves.easeOut);
+    }
+    _bannerTimer = Timer(Duration(seconds: error ? 5 : 3), _closeBanner);
+  }
 
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          behavior: SnackBarBehavior.floating,
-          backgroundColor: error ? _NC.errorBg : _NC.primary,
-          elevation: 6,
-          // 88 = jarak dari bawah supaya tidak menutupi bar simpan
-          margin: EdgeInsets.fromLTRB(side, 0, side, 88),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          duration: Duration(seconds: error ? 4 : 3),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-            side: BorderSide(
-              color: error ? _NC.errorText.withOpacity(0.25) : _NC.gold.withOpacity(0.5),
+  void _closeBanner() {
+    _bannerTimer?.cancel();
+    if (mounted) setState(() => _bannerTitle = null);
+  }
+
+  Widget _banner() {
+    final title = _bannerTitle;
+    final error = _bannerError;
+    final fg = error ? SC.errorText : Colors.white;
+
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOutCubic,
+      alignment: Alignment.topCenter,
+      child: title == null
+          ? const SizedBox(width: double.infinity)
+          : Container(
+              margin: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+              padding: const EdgeInsets.fromLTRB(12, 10, 6, 10),
+              decoration: BoxDecoration(
+                color: error ? SC.errorBg : SC.primary,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: error ? SC.errorText.withOpacity(0.25) : SC.gold.withOpacity(0.5),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: error ? Colors.white : SC.gold.withOpacity(0.18),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      error ? Icons.error_outline : Icons.check_rounded,
+                      size: 18,
+                      color: error ? SC.errorText : SC.gold,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(title, style: sty(13.5, FontWeight.w800, fg)),
+                        if (_bannerSub != null && _bannerSub!.isNotEmpty) ...[
+                          const SizedBox(height: 2),
+                          Text(_bannerSub!, style: sty(11.5, FontWeight.w500, fg.withOpacity(0.75))),
+                        ],
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: _closeBanner,
+                    visualDensity: VisualDensity.compact,
+                    tooltip: 'Tutup',
+                    icon: Icon(Icons.close_rounded, size: 18, color: fg.withOpacity(0.7)),
+                  ),
+                ],
+              ),
             ),
-          ),
-          content: Row(
-            children: [
-              Container(
-                width: 32,
-                height: 32,
-                decoration: BoxDecoration(
-                  color: error ? Colors.white : _NC.gold.withOpacity(0.18),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  error ? Icons.error_outline : Icons.check_rounded,
-                  size: 18,
-                  color: error ? _NC.errorText : _NC.gold,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(title,
-                        style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: fg)),
-                    if (subtitle != null) ...[
-                      const SizedBox(height: 2),
-                      Text(subtitle,
-                          style: TextStyle(fontSize: 11.5, color: fg.withOpacity(0.75))),
-                    ],
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
+    );
   }
 
   // ---------------------------------------------------------------------
@@ -513,9 +531,9 @@ class _NilaiScreenState extends State<NilaiScreen> {
   }) {
     return showModalBottomSheet<void>(
       context: context,
-      backgroundColor: _NC.surface,
+      backgroundColor: SC.surface,
       constraints: const BoxConstraints(maxWidth: 480),
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (ctx) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -523,8 +541,7 @@ class _NilaiScreenState extends State<NilaiScreen> {
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 18, 20, 8),
-              child: Text(title,
-                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: _NC.ink)),
+              child: Text(title, style: sty(15, FontWeight.w800, SC.ink)),
             ),
             Flexible(
               child: ListView(
@@ -533,14 +550,9 @@ class _NilaiScreenState extends State<NilaiScreen> {
                   for (final it in items)
                     ListTile(
                       title: Text(it.value,
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: it.key == selectedId ? FontWeight.w800 : FontWeight.w500,
-                            color: _NC.ink,
-                          )),
-                      trailing: it.key == selectedId
-                          ? Icon(Icons.check_circle, color: _NC.primary, size: 20)
-                          : null,
+                          style: sty(14, it.key == selectedId ? FontWeight.w800 : FontWeight.w500, SC.ink)),
+                      trailing:
+                          it.key == selectedId ? Icon(Icons.check_circle, color: SC.primary, size: 20) : null,
                       onTap: () {
                         Navigator.pop(ctx);
                         onSelect(it.key);
@@ -560,9 +572,9 @@ class _NilaiScreenState extends State<NilaiScreen> {
     final res = await showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: _NC.surface,
+      backgroundColor: SC.surface,
       constraints: const BoxConstraints(maxWidth: 480),
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (ctx) => _CatatanSheet(
         title: 'Catatan Lisan • $nama',
         initial: _catatan[id] ?? '',
@@ -580,6 +592,100 @@ class _NilaiScreenState extends State<NilaiScreen> {
   }
 
   // ---------------------------------------------------------------------
+  // Hero
+  // ---------------------------------------------------------------------
+  Widget _hero(List<double> vals) {
+    final n = DateTime.now();
+    final mulai = n.month >= 7 ? n.year : n.year - 1;
+    final avg = vals.isEmpty ? null : vals.reduce((a, b) => a + b) / vals.length;
+    final mx = vals.isEmpty ? null : vals.reduce((a, b) => a > b ? a : b);
+    final mn = vals.isEmpty ? null : vals.reduce((a, b) => a < b ? a : b);
+    String f(double? v) => v == null ? '–' : _fmt(v);
+
+    final ket = _tab == 0
+        ? 'Statistik isian saat ini'
+        : (_tab == 1 ? 'Statistik nilai hari ini' : 'Statistik semua sesi');
+
+    Widget stat(IconData icon, String value, String label) => Expanded(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 15, color: Colors.white.withOpacity(0.7)),
+              const SizedBox(height: 5),
+              Text(value, style: sty(20, FontWeight.w800, Colors.white, h: 1.1)),
+              const SizedBox(height: 2),
+              Text(label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: sty(10.5, FontWeight.w600, Colors.white.withOpacity(0.72))),
+            ],
+          ),
+        );
+
+    Widget garis() => Container(width: 1, height: 44, color: Colors.white.withOpacity(0.18));
+
+    return HeroShell(
+      top: 22,
+      bottom: 20,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 50,
+                height: 50,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.14),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: SC.gold.withOpacity(0.55)),
+                ),
+                child: const Icon(Icons.grading_rounded, size: 25, color: SC.gold),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Penilaian Santri', style: sty(22, FontWeight.w800, Colors.white, h: 1.15)),
+                    const SizedBox(height: 3),
+                    Text(
+                      'T.A. $mulai/${mulai + 1} • Skala 0 - 100',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: sty(12.5, FontWeight.w500, Colors.white.withOpacity(0.78)),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: Colors.white.withOpacity(0.16)),
+            ),
+            child: Row(
+              children: [
+                stat(Icons.functions_rounded, f(avg), 'Rata-rata'),
+                garis(),
+                stat(Icons.trending_up_rounded, f(mx), 'Tertinggi'),
+                garis(),
+                stat(Icons.trending_down_rounded, f(mn), 'Terendah'),
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(ket, style: sty(11, FontWeight.w600, Colors.white.withOpacity(0.7))),
+        ],
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------------------
   // Building blocks
   // ---------------------------------------------------------------------
   Widget _card({required Widget child, EdgeInsets padding = const EdgeInsets.all(14)}) {
@@ -587,15 +693,16 @@ class _NilaiScreenState extends State<NilaiScreen> {
       width: double.infinity,
       padding: padding,
       decoration: BoxDecoration(
-        color: _NC.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _NC.border),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 6, offset: const Offset(0, 2))],
+        color: SC.surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: SC.border),
+        boxShadow: softShadow,
       ),
       child: child,
     );
   }
 
+  /// Kontrol segmen Input / List / Riwayat.
   Widget _tabs() {
     Widget item(int i, IconData icon, String label) {
       final on = _tab == i;
@@ -607,25 +714,21 @@ class _NilaiScreenState extends State<NilaiScreen> {
             if (i != 0) _loadRiwayat();
           },
           child: AnimatedContainer(
-            duration: const Duration(milliseconds: 150),
-            height: 44,
+            duration: const Duration(milliseconds: 160),
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: on ? _NC.primary : Colors.transparent,
-              borderRadius: BorderRadius.circular(14),
+              color: on ? SC.primary : Colors.transparent,
+              borderRadius: BorderRadius.circular(999),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(icon, size: 17, color: on ? Colors.white : _NC.inkSecondary),
+                Icon(icon, size: 16, color: on ? Colors.white : SC.inkSecondary),
                 const SizedBox(width: 6),
                 Flexible(
                   child: Text(label,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                          fontSize: 13.5,
-                          fontWeight: FontWeight.w700,
-                          color: on ? Colors.white : _NC.inkSecondary)),
+                      style: sty(12, FontWeight.w700, on ? Colors.white : SC.inkSecondary)),
                 ),
               ],
             ),
@@ -635,8 +738,13 @@ class _NilaiScreenState extends State<NilaiScreen> {
     }
 
     return Container(
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(color: _NC.surfaceDim, borderRadius: BorderRadius.circular(18)),
+      height: 38,
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: SC.surfaceDim,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: SC.border),
+      ),
       child: Row(children: [
         if (!_readOnly) item(0, Icons.edit_note_rounded, 'Input'),
         item(1, Icons.list_alt_rounded, 'List'),
@@ -655,21 +763,6 @@ class _NilaiScreenState extends State<NilaiScreen> {
 
   String get _jenisLabel => _kJenis.firstWhere((e) => e.key == _jenis).value;
 
-  Widget _header() {
-    final n = DateTime.now();
-    final mulai = n.month >= 7 ? n.year : n.year - 1;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text('Penilaian Santri',
-            style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800, color: _NC.ink)),
-        const SizedBox(height: 2),
-        Text('T.A. $mulai/${mulai + 1} • Skala 0 - 100',
-            style: const TextStyle(fontSize: 12, color: _NC.inkSecondary)),
-      ],
-    );
-  }
-
   Widget _pickerRow({
     required IconData icon,
     required String label,
@@ -681,22 +774,18 @@ class _NilaiScreenState extends State<NilaiScreen> {
         Container(
           width: 40,
           height: 40,
-          decoration: BoxDecoration(color: _NC.surfaceDim, borderRadius: BorderRadius.circular(12)),
-          child: Icon(icon, size: 19, color: _NC.primary),
+          decoration: BoxDecoration(color: SC.surfaceDim, borderRadius: BorderRadius.circular(12)),
+          child: Icon(icon, size: 19, color: SC.primary),
         ),
         const SizedBox(width: 12),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(label,
-                  style: const TextStyle(
-                      fontSize: 10, letterSpacing: 0.4, fontWeight: FontWeight.w700, color: _NC.inkSecondary)),
+              Text(label, style: sty(10, FontWeight.w700, SC.inkSecondary)),
               const SizedBox(height: 2),
               Text(value,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w800, color: _NC.ink)),
+                  maxLines: 1, overflow: TextOverflow.ellipsis, style: sty(14.5, FontWeight.w800, SC.ink)),
             ],
           ),
         ),
@@ -710,15 +799,14 @@ class _NilaiScreenState extends State<NilaiScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(999),
-                border: Border.all(color: _NC.border),
+                border: Border.all(color: SC.border),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text('Ganti',
-                      style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: _NC.primary)),
+                  Text('Ganti', style: sty(11.5, FontWeight.w700, SC.primary)),
                   const SizedBox(width: 2),
-                  Icon(Icons.unfold_more_rounded, size: 14, color: _NC.primary),
+                  Icon(Icons.unfold_more_rounded, size: 14, color: SC.primary),
                 ],
               ),
             ),
@@ -728,9 +816,9 @@ class _NilaiScreenState extends State<NilaiScreen> {
     );
   }
 
-  Widget _divider() => const Padding(
-        padding: EdgeInsets.symmetric(vertical: 12),
-        child: Divider(height: 1, color: _NC.border),
+  Widget _divider() => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        child: Divider(height: 1, color: SC.border),
       );
 
   Widget _paramCard() {
@@ -810,108 +898,101 @@ class _NilaiScreenState extends State<NilaiScreen> {
     );
   }
 
-  Widget _stat(String label, String value) {
-    return Expanded(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label,
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white.withOpacity(0.8))),
-          const SizedBox(height: 2),
-          Text(value,
-              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: Colors.white)),
-        ],
-      ),
-    );
-  }
-
-  Widget _statsCard(List<double> vals, {bool quick = true}) {
-    final avg = vals.isEmpty ? null : vals.reduce((a, b) => a + b) / vals.length;
-    final mx = vals.isEmpty ? null : vals.reduce((a, b) => a > b ? a : b);
-    final mn = vals.isEmpty ? null : vals.reduce((a, b) => a < b ? a : b);
-    String f(double? v) => v == null ? '-' : v.toStringAsFixed(1).replaceAll(RegExp(r'\.0$'), '');
-
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [_NC.primary, _NC.primaryGradientEnd],
-        ),
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: [BoxShadow(color: _NC.primary.withOpacity(0.18), blurRadius: 12, offset: const Offset(0, 4))],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Statistik Kelas Saat Ini',
-              style: TextStyle(fontSize: 11.5, color: Colors.white.withOpacity(0.7))),
-          const SizedBox(height: 6),
-          Row(
-            children: [
-              _stat('Rata:', f(avg)),
-              _stat('Max:', f(mx)),
-              _stat('Min:', f(mn)),
-              if (quick)
-                InkWell(
-                  onTap: vals.isEmpty ? null : _quickAdd,
-                  borderRadius: BorderRadius.circular(14),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.14),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.add_circle_outline, size: 20, color: Colors.white),
-                        SizedBox(width: 6),
-                        Text('+2\nCepat',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                                fontSize: 12, height: 1.2, fontWeight: FontWeight.w700, color: Colors.white)),
-                      ],
-                    ),
-                  ),
+  /// Kolom cari santri (nama / NIS) untuk tab Input dan List.
+  Widget _searchSantri() {
+    return SizedBox(
+      height: 48,
+      child: TextField(
+        controller: _cariS,
+        onChanged: (v) => setState(() => _qS = v.trim().toLowerCase()),
+        textInputAction: TextInputAction.search,
+        style: sty(14, FontWeight.w600, SC.ink),
+        decoration: InputDecoration(
+          hintText: 'Cari nama atau NIS santri',
+          hintStyle: sty(14, FontWeight.w500, SC.inkMuted),
+          prefixIcon: Icon(Icons.search_rounded, size: 21, color: SC.primary),
+          suffixIcon: _qS.isEmpty
+              ? null
+              : IconButton(
+                  tooltip: 'Hapus pencarian',
+                  icon: const Icon(Icons.close_rounded, size: 18, color: SC.inkSecondary),
+                  onPressed: () {
+                    _cariS.clear();
+                    setState(() => _qS = '');
+                  },
                 ),
-            ],
+          filled: true,
+          fillColor: SC.surface,
+          isDense: true,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(999),
+            borderSide: const BorderSide(color: SC.border),
           ),
-        ],
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(999),
+            borderSide: BorderSide(color: SC.primary, width: 1.4),
+          ),
+        ),
       ),
     );
   }
 
-  Widget _listHeader(int total) {
+  Widget _listHeader(int total, bool adaIsian) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Flexible(
           child: Row(children: [
-            const Text('Daftar Santri',
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _NC.ink)),
+            Text('Daftar Santri', style: sty(15, FontWeight.w800, SC.ink)),
             const SizedBox(width: 8),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(color: _NC.surfaceDim, borderRadius: BorderRadius.circular(999)),
-              child: Text('$total Santri Ditampilkan',
-                  style: const TextStyle(fontSize: 10.5, color: _NC.inkSecondary)),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(color: SC.mint, borderRadius: BorderRadius.circular(999)),
+              child: Text('$total', style: sty(10.5, FontWeight.w800, SC.primary)),
             ),
           ]),
         ),
-        InkWell(
-          onTap: () => setState(() => _sortAz = !_sortAz),
-          borderRadius: BorderRadius.circular(8),
-          child: Padding(
-            padding: const EdgeInsets.all(4),
-            child: Row(children: [
-              const Icon(Icons.sort_by_alpha_rounded, size: 16, color: _NC.goldDark),
-              const SizedBox(width: 4),
-              Text(_sortAz ? 'Urut Abjad' : 'Urut Z-A',
-                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _NC.goldDark)),
-            ]),
-          ),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Opacity(
+              opacity: adaIsian ? 1 : 0.4,
+              child: InkWell(
+                onTap: adaIsian ? _quickAdd : null,
+                borderRadius: BorderRadius.circular(999),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: SC.surface,
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(color: SC.primary.withOpacity(0.35)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.add_circle_outline, size: 14, color: SC.primary),
+                      const SizedBox(width: 4),
+                      Text('+2 Cepat', style: sty(11, FontWeight.w800, SC.primary)),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 6),
+            InkWell(
+              onTap: () => setState(() => _sortAz = !_sortAz),
+              borderRadius: BorderRadius.circular(8),
+              child: Padding(
+                padding: const EdgeInsets.all(4),
+                child: Row(children: [
+                  Icon(Icons.sort_by_alpha_rounded, size: 16, color: SC.goldDark),
+                  const SizedBox(width: 4),
+                  Text(_sortAz ? 'A-Z' : 'Z-A', style: sty(12, FontWeight.w700, SC.goldDark)),
+                ]),
+              ),
+            ),
+          ],
         ),
       ],
     );
@@ -924,9 +1005,8 @@ class _NilaiScreenState extends State<NilaiScreen> {
       width: 48,
       height: 48,
       alignment: Alignment.center,
-      decoration: BoxDecoration(color: even ? _NC.sage : _NC.goldSurface, shape: BoxShape.circle),
-      child: Text(inisial,
-          style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: even ? _NC.primary : _NC.gold)),
+      decoration: BoxDecoration(color: even ? SC.sage : SC.goldSurface, shape: BoxShape.circle),
+      child: Text(inisial, style: sty(17, FontWeight.w800, even ? SC.primary : SC.gold)),
     );
   }
 
@@ -936,15 +1016,14 @@ class _NilaiScreenState extends State<NilaiScreen> {
     return Container(
       constraints: const BoxConstraints(maxWidth: 150),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(color: p.bg, borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(color: p.bg, borderRadius: BorderRadius.circular(999)),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(p.icon, size: 14, color: p.fg),
           const SizedBox(width: 5),
           Flexible(
-            child: Text(p.label,
-                style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: p.fg, height: 1.2)),
+            child: Text(p.label, style: sty(11.5, FontWeight.w700, p.fg, h: 1.2)),
           ),
         ],
       ),
@@ -958,8 +1037,8 @@ class _NilaiScreenState extends State<NilaiScreen> {
       child: Container(
         width: 28,
         height: 24,
-        decoration: BoxDecoration(color: _NC.surfaceDim, borderRadius: BorderRadius.circular(8)),
-        child: Icon(icon, size: 18, color: _NC.ink),
+        decoration: BoxDecoration(color: SC.surfaceDim, borderRadius: BorderRadius.circular(8)),
+        child: Icon(icon, size: 18, color: SC.ink),
       ),
     );
   }
@@ -984,12 +1063,9 @@ class _NilaiScreenState extends State<NilaiScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(nama,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: _NC.ink)),
+                        maxLines: 1, overflow: TextOverflow.ellipsis, style: sty(15, FontWeight.w800, SC.ink)),
                     const SizedBox(height: 2),
-                    Text('NIS: $nis',
-                        style: const TextStyle(fontSize: 12.5, color: _NC.inkSecondary)),
+                    Text('NIS: $nis', style: sty(12.5, FontWeight.w500, SC.inkSecondary)),
                   ],
                 ),
               ),
@@ -998,11 +1074,11 @@ class _NilaiScreenState extends State<NilaiScreen> {
             ],
           ),
           const SizedBox(height: 12),
-          const Row(
+          Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Nilai Akhir', style: TextStyle(fontSize: 11.5, color: _NC.inkSecondary)),
-              Text('Catatan Lisan', style: TextStyle(fontSize: 11.5, color: _NC.inkSecondary)),
+              Text('Nilai Akhir', style: sty(11.5, FontWeight.w600, SC.inkSecondary)),
+              Text('Catatan Lisan', style: sty(11.5, FontWeight.w600, SC.inkSecondary)),
             ],
           ),
           const SizedBox(height: 4),
@@ -1017,15 +1093,19 @@ class _NilaiScreenState extends State<NilaiScreen> {
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
                   inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]'))],
                   onChanged: (_) => setState(() {}),
-                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: _NC.ink),
+                  style: sty(20, FontWeight.w700, SC.ink),
                   decoration: InputDecoration(
                     filled: true,
-                    fillColor: _NC.surfaceDim,
+                    fillColor: SC.surfaceDim,
                     hintText: '-',
                     contentPadding: EdgeInsets.zero,
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(14),
                       borderSide: BorderSide.none,
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: BorderSide(color: SC.primary, width: 1.4),
                     ),
                   ),
                 ),
@@ -1043,24 +1123,21 @@ class _NilaiScreenState extends State<NilaiScreen> {
               Expanded(
                 child: InkWell(
                   onTap: () => _editCatatan(id, nama),
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(14),
                   child: Container(
                     height: 52,
                     padding: const EdgeInsets.symmetric(horizontal: 12),
-                    decoration: BoxDecoration(color: _NC.surfaceDim, borderRadius: BorderRadius.circular(12)),
+                    decoration: BoxDecoration(color: SC.surfaceDim, borderRadius: BorderRadius.circular(14)),
                     child: Row(
                       children: [
-                        const Icon(Icons.edit_note_rounded, size: 18, color: _NC.goldDark),
+                        Icon(Icons.edit_note_rounded, size: 18, color: SC.goldDark),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
                             cat.isEmpty ? 'Tambah catatan' : cat,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: cat.isEmpty ? _NC.inkSecondary : _NC.ink,
-                            ),
+                            style: sty(13, FontWeight.w500, cat.isEmpty ? SC.inkSecondary : SC.ink),
                           ),
                         ),
                       ],
@@ -1078,17 +1155,17 @@ class _NilaiScreenState extends State<NilaiScreen> {
   Widget _errorBox(String msg) {
     return Container(
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: _NC.errorBg, borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(color: SC.errorBg, borderRadius: BorderRadius.circular(14)),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Padding(
             padding: EdgeInsets.only(top: 1),
-            child: Icon(Icons.error_outline, size: 16, color: _NC.errorText),
+            child: Icon(Icons.error_outline, size: 16, color: SC.errorText),
           ),
           const SizedBox(width: 8),
           Expanded(
-            child: Text(msg, style: const TextStyle(fontSize: 12.5, color: _NC.errorText, height: 1.35)),
+            child: Text(msg, style: sty(12.5, FontWeight.w500, SC.errorText, h: 1.35)),
           ),
         ],
       ),
@@ -1100,24 +1177,21 @@ class _NilaiScreenState extends State<NilaiScreen> {
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(14, 10, 8, 10),
       decoration: BoxDecoration(
-        color: _NC.goldSurface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: _NC.gold.withOpacity(0.5)),
+        color: SC.goldSurface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: SC.gold.withOpacity(0.5)),
       ),
       child: Row(
         children: [
-          const Icon(Icons.info_outline_rounded, size: 18, color: _NC.goldDark),
+          Icon(Icons.info_outline_rounded, size: 18, color: SC.goldDark),
           const SizedBox(width: 10),
           Expanded(
-            child: Text(text,
-                style: const TextStyle(
-                    fontSize: 12.5, height: 1.35, fontWeight: FontWeight.w600, color: _NC.goldDark)),
+            child: Text(text, style: sty(12.5, FontWeight.w600, SC.goldDark, h: 1.35)),
           ),
           if (onBatal != null)
             TextButton(
               onPressed: onBatal,
-              child: const Text('Batal',
-                  style: TextStyle(fontWeight: FontWeight.w800, color: _NC.goldDark)),
+              child: Text('Batal', style: sty(13, FontWeight.w800, SC.goldDark)),
             ),
         ],
       ),
@@ -1131,9 +1205,9 @@ class _NilaiScreenState extends State<NilaiScreen> {
         : (_editTanggal != null ? 'Simpan Perubahan' : 'Simpan Nilai');
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
-      decoration: const BoxDecoration(
-        color: _NC.surface,
-        border: Border(top: BorderSide(color: _NC.border)),
+      decoration: BoxDecoration(
+        color: SC.surface,
+        border: Border(top: BorderSide(color: SC.border)),
       ),
       child: Row(
         children: [
@@ -1142,29 +1216,27 @@ class _NilaiScreenState extends State<NilaiScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Row(children: [
-                  Icon(Icons.circle, size: 8, color: _NC.gold),
-                  SizedBox(width: 6),
-                  Text('Status Isian', style: TextStyle(fontSize: 11.5, color: _NC.inkSecondary)),
+                Row(children: [
+                  const Icon(Icons.circle, size: 8, color: SC.gold),
+                  const SizedBox(width: 6),
+                  Text('Status Isian', style: sty(11.5, FontWeight.w600, SC.inkSecondary)),
                 ]),
                 const SizedBox(height: 2),
                 Text('$filled / $total Nilai Terisi ($pct%)',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: _NC.ink)),
+                    maxLines: 1, overflow: TextOverflow.ellipsis, style: sty(14, FontWeight.w800, SC.ink)),
               ],
             ),
           ),
           const SizedBox(width: 12),
           SizedBox(
-            height: 52,
+            height: 50,
             child: FilledButton.icon(
               onPressed: _saving ? null : _save,
               style: FilledButton.styleFrom(
-                backgroundColor: _NC.primary,
-                disabledBackgroundColor: _NC.primary.withOpacity(0.5),
+                backgroundColor: SC.primary,
+                disabledBackgroundColor: SC.primary.withOpacity(0.5),
                 padding: const EdgeInsets.symmetric(horizontal: 20),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
               ),
               icon: _saving
                   ? const SizedBox(
@@ -1177,8 +1249,7 @@ class _NilaiScreenState extends State<NilaiScreen> {
                       size: 20,
                       color: Colors.white,
                     ),
-              label: Text(labelSimpan,
-                  style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: Colors.white)),
+              label: Text(labelSimpan, style: sty(14, FontWeight.w700, Colors.white)),
             ),
           ),
         ],
@@ -1191,24 +1262,22 @@ class _NilaiScreenState extends State<NilaiScreen> {
     final filled = _sesiHariIni.length;
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
-      decoration: const BoxDecoration(
-        color: _NC.surface,
-        border: Border(top: BorderSide(color: _NC.border)),
+      decoration: BoxDecoration(
+        color: SC.surface,
+        border: Border(top: BorderSide(color: SC.border)),
       ),
       child: Row(
         children: [
-          Icon(Icons.lock_outline, size: 20, color: _NC.primary),
+          Icon(Icons.lock_outline, size: 20, color: SC.primary),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Nilai sudah tersimpan',
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: _NC.ink)),
+                Text('Nilai sudah tersimpan', style: sty(13, FontWeight.w800, SC.ink)),
                 const SizedBox(height: 2),
-                Text('$filled / $total santri dinilai',
-                    style: const TextStyle(fontSize: 11.5, color: _NC.inkSecondary)),
+                Text('$filled / $total santri dinilai', style: sty(11.5, FontWeight.w500, SC.inkSecondary)),
               ],
             ),
           ),
@@ -1216,11 +1285,10 @@ class _NilaiScreenState extends State<NilaiScreen> {
           OutlinedButton.icon(
             onPressed: () => _mulaiUbah(_sesiHariIni),
             icon: const Icon(Icons.edit_outlined, size: 16),
-            label: const Text('Ubah Nilai',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+            label: Text('Ubah Nilai', style: sty(13, FontWeight.w700, SC.primary)),
             style: OutlinedButton.styleFrom(
-              foregroundColor: _NC.primary,
-              side: const BorderSide(color: _NC.border),
+              foregroundColor: SC.primary,
+              side: BorderSide(color: SC.border),
               minimumSize: const Size(0, 46),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
             ),
@@ -1275,11 +1343,11 @@ class _NilaiScreenState extends State<NilaiScreen> {
             child: FilledButton.icon(
               onPressed: () => setState(() => _tab = 0),
               icon: const Icon(Icons.edit_note_rounded, size: 18, color: Colors.white),
-              label: const Text('Input Nilai',
-                  style: TextStyle(fontWeight: FontWeight.w700, color: Colors.white)),
+              label: Text('Input Nilai', style: sty(13, FontWeight.w700, Colors.white)),
               style: FilledButton.styleFrom(
-                backgroundColor: _NC.primary,
+                backgroundColor: SC.primary,
                 minimumSize: const Size(0, 46),
+                padding: const EdgeInsets.symmetric(horizontal: 22),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
               ),
             ),
@@ -1287,24 +1355,21 @@ class _NilaiScreenState extends State<NilaiScreen> {
         ],
       ];
     }
+    if (sorted.isEmpty) return [emptyView('Tidak ada santri yang cocok.')];
     final byId = {for (final r in rows) r['santriId'].toString(): r};
-    final vals = [for (final r in rows) ((r['nilai'] as num?) ?? 0).toDouble()];
     return [
-      _statsCard(vals, quick: false),
-      const SizedBox(height: 16),
       Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          const Text('Nilai Hari Ini',
-              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _NC.ink)),
+          Text('Nilai Hari Ini', style: sty(15, FontWeight.w800, SC.ink)),
           Text('$_jenisLabel • ${_fmtTgl(_iso(DateTime.now()))}',
-              style: const TextStyle(fontSize: 11, color: _NC.inkSecondary)),
+              style: sty(11, FontWeight.w500, SC.inkSecondary)),
         ],
       ),
       const SizedBox(height: 10),
       for (int i = 0; i < sorted.length; i++)
         Padding(
-          padding: const EdgeInsets.only(bottom: 10),
+          padding: const EdgeInsets.only(bottom: 12),
           child: _listCard(i, sorted[i], byId[sorted[i]['id'].toString()]),
         ),
     ];
@@ -1329,22 +1394,19 @@ class _NilaiScreenState extends State<NilaiScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(nama,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: _NC.ink)),
+                        maxLines: 1, overflow: TextOverflow.ellipsis, style: sty(15, FontWeight.w800, SC.ink)),
                     const SizedBox(height: 2),
-                    Text('NIS: $nis',
-                        style: const TextStyle(fontSize: 12.5, color: _NC.inkSecondary)),
+                    Text('NIS: $nis', style: sty(12.5, FontWeight.w500, SC.inkSecondary)),
                   ],
                 ),
               ),
               const SizedBox(width: 8),
               if (v == null)
-                const Text('Belum dinilai',
-                    style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: _NC.inkSecondary))
+                Text('Belum dinilai',
+                    style: TextStyle(
+                        fontSize: 12, fontStyle: FontStyle.italic, color: SC.inkSecondary))
               else
-                Text(_fmt(v),
-                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: _NC.primary)),
+                Text(_fmt(v), style: sty(24, FontWeight.w800, SC.primary)),
             ],
           ),
           if (v != null) ...[
@@ -1358,7 +1420,7 @@ class _NilaiScreenState extends State<NilaiScreen> {
                     child: Text('Ket: $cat',
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 11.5, color: _NC.inkSecondary, height: 1.3)),
+                        style: sty(11.5, FontWeight.w500, SC.inkSecondary, h: 1.3)),
                   ),
                 ],
               ],
@@ -1380,40 +1442,36 @@ class _NilaiScreenState extends State<NilaiScreen> {
     required ValueChanged<T> onSelected,
   }) {
     return PopupMenuButton<T>(
-      color: _NC.surface,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      color: SC.surface,
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       onSelected: onSelected,
       itemBuilder: (_) => [
         for (final o in options)
           PopupMenuItem<T>(
             value: o.key,
             child: Text(o.value,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: o.key == value ? FontWeight.w800 : FontWeight.w600,
-                  color: o.key == value ? _NC.primary : _NC.inkSecondary,
-                )),
+                style: sty(13, o.key == value ? FontWeight.w800 : FontWeight.w600,
+                    o.key == value ? SC.primary : SC.inkSecondary)),
           ),
       ],
       child: Container(
         height: 42,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 14),
         decoration: BoxDecoration(
-          color: _NC.surface,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: _NC.border),
+          color: SC.surface,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: SC.border),
         ),
         child: Row(
           children: [
-            Icon(icon, size: 15, color: _NC.inkSecondary),
+            Icon(icon, size: 15, color: SC.inkSecondary),
             const SizedBox(width: 6),
             Expanded(
               child: Text(label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _NC.primary)),
+                  maxLines: 1, overflow: TextOverflow.ellipsis, style: sty(12, FontWeight.w700, SC.primary)),
             ),
-            const Icon(Icons.keyboard_arrow_down_rounded, size: 16, color: _NC.inkSecondary),
+            Icon(Icons.keyboard_arrow_down_rounded, size: 16, color: SC.inkSecondary),
           ],
         ),
       ),
@@ -1424,50 +1482,44 @@ class _NilaiScreenState extends State<NilaiScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Kolom cari (pill, sama seperti Audit Log)
-        Container(
-          height: 46,
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          decoration: BoxDecoration(
-            color: _NC.surface,
-            borderRadius: BorderRadius.circular(999),
-            border: Border.all(color: _NC.border),
-          ),
-          child: Row(
-            children: [
-              const Icon(Icons.search, size: 20, color: _NC.inkSecondary),
-              const SizedBox(width: 8),
-              Expanded(
-                child: TextField(
-                  controller: _cari,
-                  onChanged: (v) => setState(() => _cariQ = v.trim().toLowerCase()),
-                  style: const TextStyle(fontSize: 14, color: _NC.ink),
-                  decoration: const InputDecoration(
-                    isDense: true,
-                    border: InputBorder.none,
-                    hintText: 'Cari nama santri...',
-                    hintStyle: TextStyle(fontSize: 13, color: _NC.inkSecondary),
-                  ),
-                ),
+        // Kolom cari: gaya sama dengan halaman Ustadz
+        SizedBox(
+          height: 48,
+          child: TextField(
+            controller: _cari,
+            onChanged: (v) => setState(() => _cariQ = v.trim().toLowerCase()),
+            textInputAction: TextInputAction.search,
+            style: sty(14, FontWeight.w600, SC.ink),
+            decoration: InputDecoration(
+              hintText: 'Cari nama santri atau tanggal',
+              hintStyle: sty(14, FontWeight.w500, SC.inkMuted),
+              prefixIcon: Icon(Icons.search_rounded, size: 21, color: SC.primary),
+              suffixIcon: _cariQ.isEmpty
+                  ? null
+                  : IconButton(
+                      tooltip: 'Hapus pencarian',
+                      icon: const Icon(Icons.close_rounded, size: 18, color: SC.inkSecondary),
+                      onPressed: () {
+                        _cari.clear();
+                        setState(() => _cariQ = '');
+                      },
+                    ),
+              filled: true,
+              fillColor: SC.surface,
+              isDense: true,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(999),
+                borderSide: const BorderSide(color: SC.border),
               ),
-              if (_cariQ.isNotEmpty)
-                InkWell(
-                  onTap: () {
-                    _cari.clear();
-                    setState(() => _cariQ = '');
-                  },
-                  borderRadius: BorderRadius.circular(999),
-                  child: const Padding(
-                    padding: EdgeInsets.all(2),
-                    child: Icon(Icons.cancel, size: 18, color: _NC.inkSecondary),
-                  ),
-                ),
-            ],
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(999),
+                borderSide: BorderSide(color: SC.primary, width: 1.4),
+              ),
+            ),
           ),
         ),
         const SizedBox(height: 10),
-
-        // Dropdown pill: urutan
         _filterPill<bool>(
           label: _terbaru ? 'Urutkan: Terbaru' : 'Urutkan: Terlama',
           icon: Icons.swap_vert_rounded,
@@ -1514,11 +1566,11 @@ class _NilaiScreenState extends State<NilaiScreen> {
         Padding(
           padding: const EdgeInsets.only(bottom: 8),
           child: Text('Menampilkan ${keys.length} dari $totalSesi sesi',
-              style: const TextStyle(fontSize: 11.5, color: _NC.inkSecondary)),
+              style: sty(11.5, FontWeight.w500, SC.inkSecondary)),
         ),
         for (final k in keys)
           Padding(
-            padding: const EdgeInsets.only(bottom: 10),
+            padding: const EdgeInsets.only(bottom: 12),
             child: _sesiCard(groups[k]!),
           ),
       ],
@@ -1535,7 +1587,7 @@ class _NilaiScreenState extends State<NilaiScreen> {
       padding: EdgeInsets.zero,
       child: InkWell(
         onTap: () => _bukaDetail(rows),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(20),
         child: Padding(
           padding: const EdgeInsets.all(14),
           child: Row(
@@ -1544,9 +1596,8 @@ class _NilaiScreenState extends State<NilaiScreen> {
                 width: 46,
                 height: 46,
                 alignment: Alignment.center,
-                decoration: BoxDecoration(color: _NC.sage, shape: BoxShape.circle),
-                child: Text(_fmt(avg),
-                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: _NC.primary)),
+                decoration: BoxDecoration(color: SC.sage, shape: BoxShape.circle),
+                child: Text(_fmt(avg), style: sty(15, FontWeight.w800, SC.primary)),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -1554,18 +1605,16 @@ class _NilaiScreenState extends State<NilaiScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text('$mapel • ${_jenisLabelOf(first)}',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: _NC.ink)),
+                        maxLines: 1, overflow: TextOverflow.ellipsis, style: sty(14, FontWeight.w800, SC.ink)),
                     const SizedBox(height: 2),
                     Text('${_fmtTgl(_tgl10(first['tanggal']))} • ${rows.length} santri • rata-rata ${_fmt(avg)}',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 11.5, color: _NC.inkSecondary)),
+                        style: sty(11.5, FontWeight.w500, SC.inkSecondary)),
                   ],
                 ),
               ),
-              const Icon(Icons.chevron_right_rounded, color: _NC.inkSecondary),
+              const Icon(Icons.chevron_right_rounded, color: SC.inkSecondary),
             ],
           ),
         ),
@@ -1586,17 +1635,15 @@ class _NilaiScreenState extends State<NilaiScreen> {
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: Colors.white.withOpacity(0.12),
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.white.withOpacity(0.16)),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(label,
-                style: TextStyle(
-                    fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white.withOpacity(0.85))),
+            Text(label, style: sty(12, FontWeight.w600, Colors.white.withOpacity(0.85))),
             const SizedBox(height: 4),
-            Text(value,
-                style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: Colors.white)),
+            Text(value, style: sty(26, FontWeight.w800, Colors.white)),
           ],
         ),
       ),
@@ -1633,7 +1680,7 @@ class _NilaiScreenState extends State<NilaiScreen> {
         ..sort((a, b) => desc ? nilaiOf(b).compareTo(nilaiOf(a)) : nilaiOf(a).compareTo(nilaiOf(b)));
 
       return Scaffold(
-        backgroundColor: _NC.background,
+        backgroundColor: SC.background,
         body: SafeArea(
           child: Align(
             alignment: Alignment.topCenter,
@@ -1643,7 +1690,7 @@ class _NilaiScreenState extends State<NilaiScreen> {
                 children: [
                   Expanded(
                     child: ListView(
-                      padding: const EdgeInsets.fromLTRB(12, 12, 12, 16),
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
                       children: [
                         // Header
                         Row(
@@ -1655,11 +1702,11 @@ class _NilaiScreenState extends State<NilaiScreen> {
                                 width: 44,
                                 height: 44,
                                 decoration: BoxDecoration(
-                                  color: _NC.surface,
+                                  color: SC.surface,
                                   shape: BoxShape.circle,
-                                  border: Border.all(color: _NC.border),
+                                  border: Border.all(color: SC.border),
                                 ),
-                                child: const Icon(Icons.chevron_left_rounded, size: 26, color: _NC.ink),
+                                child: const Icon(Icons.chevron_left_rounded, size: 26, color: SC.ink),
                               ),
                             ),
                             const SizedBox(width: 12),
@@ -1670,13 +1717,12 @@ class _NilaiScreenState extends State<NilaiScreen> {
                                   Text('$mapel · ${_jenisLabelOf(first)}',
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
-                                          fontSize: 17, fontWeight: FontWeight.w800, color: _NC.ink)),
+                                      style: sty(17, FontWeight.w800, SC.ink)),
                                   const SizedBox(height: 2),
                                   Text('$kelas · ${_hari(tgl)}, ${_fmtTgl(tgl)}',
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(fontSize: 12, color: _NC.inkSecondary)),
+                                      style: sty(12, FontWeight.w500, SC.inkSecondary)),
                                 ],
                               ),
                             ),
@@ -1691,15 +1737,10 @@ class _NilaiScreenState extends State<NilaiScreen> {
                             gradient: LinearGradient(
                               begin: Alignment.topLeft,
                               end: Alignment.bottomRight,
-                              colors: [_NC.primary, _NC.primaryGradientEnd],
+                              colors: [SC.primary, SC.primaryEnd],
                             ),
                             borderRadius: BorderRadius.circular(20),
-                            boxShadow: [
-                              BoxShadow(
-                                  color: _NC.primary.withOpacity(0.18),
-                                  blurRadius: 12,
-                                  offset: const Offset(0, 4)),
-                            ],
+                            boxShadow: softShadow,
                           ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1708,21 +1749,16 @@ class _NilaiScreenState extends State<NilaiScreen> {
                                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
                                   Text('RINGKASAN SESI',
-                                      style: TextStyle(
-                                          fontSize: 11,
-                                          letterSpacing: 0.6,
-                                          fontWeight: FontWeight.w700,
-                                          color: Colors.white.withOpacity(0.75))),
+                                      style: sty(11, FontWeight.w700, Colors.white.withOpacity(0.75))),
                                   Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                                     decoration: BoxDecoration(
                                       color: Colors.white.withOpacity(0.10),
                                       borderRadius: BorderRadius.circular(999),
-                                      border: Border.all(color: _NC.gold.withOpacity(0.7)),
+                                      border: Border.all(color: SC.gold.withOpacity(0.7)),
                                     ),
                                     child: Text('${vals.length} santri dinilai',
-                                        style: const TextStyle(
-                                            fontSize: 11, fontWeight: FontWeight.w700, color: _NC.gold)),
+                                        style: sty(11, FontWeight.w700, SC.gold)),
                                   ),
                                 ],
                               ),
@@ -1738,7 +1774,7 @@ class _NilaiScreenState extends State<NilaiScreen> {
                               ),
                               const SizedBox(height: 14),
                               Text('Sebaran predikat',
-                                  style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.8))),
+                                  style: sty(12, FontWeight.w500, Colors.white.withOpacity(0.8))),
                               const SizedBox(height: 6),
                               ClipRRect(
                                 borderRadius: BorderRadius.circular(999),
@@ -1762,10 +1798,7 @@ class _NilaiScreenState extends State<NilaiScreen> {
                                 children: [
                                   for (final k in kunci)
                                     Text('$k·${dist[k]}',
-                                        style: TextStyle(
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.w700,
-                                            color: Colors.white.withOpacity(0.85))),
+                                        style: sty(11, FontWeight.w700, Colors.white.withOpacity(0.85))),
                                 ],
                               ),
                             ],
@@ -1777,19 +1810,17 @@ class _NilaiScreenState extends State<NilaiScreen> {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            const Text('Nilai per Santri',
-                                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: _NC.ink)),
+                            Text('Nilai per Santri', style: sty(15, FontWeight.w800, SC.ink)),
                             InkWell(
                               onTap: () => setL(() => desc = !desc),
                               borderRadius: BorderRadius.circular(8),
                               child: Padding(
                                 padding: const EdgeInsets.all(4),
                                 child: Row(children: [
-                                  const Icon(Icons.swap_vert_rounded, size: 16, color: _NC.goldDark),
+                                  Icon(Icons.swap_vert_rounded, size: 16, color: SC.goldDark),
                                   const SizedBox(width: 4),
                                   Text(desc ? 'Nilai tertinggi' : 'Nilai terendah',
-                                      style: const TextStyle(
-                                          fontSize: 12, fontWeight: FontWeight.w600, color: _NC.goldDark)),
+                                      style: sty(12, FontWeight.w700, SC.goldDark)),
                                 ]),
                               ),
                             ),
@@ -1800,7 +1831,7 @@ class _NilaiScreenState extends State<NilaiScreen> {
                         // Kartu per santri
                         for (int i = 0; i < list.length; i++)
                           Padding(
-                            padding: const EdgeInsets.only(bottom: 10),
+                            padding: const EdgeInsets.only(bottom: 12),
                             child: Builder(builder: (_) {
                               final r = list[i];
                               final nama = ((r['santri'] as Map?)?['nama'] ?? '-').toString().trim();
@@ -1819,21 +1850,19 @@ class _NilaiScreenState extends State<NilaiScreen> {
                                           Text(nama,
                                               maxLines: 1,
                                               overflow: TextOverflow.ellipsis,
-                                              style: const TextStyle(
-                                                  fontSize: 15, fontWeight: FontWeight.w800, color: _NC.ink)),
+                                              style: sty(15, FontWeight.w800, SC.ink)),
                                           const SizedBox(height: 2),
-                                          Text('NIS $nis',
-                                              style: const TextStyle(fontSize: 12.5, color: _NC.inkSecondary)),
+                                          Text('NIS $nis', style: sty(12.5, FontWeight.w500, SC.inkSecondary)),
                                           if (cat.isNotEmpty) ...[
                                             const SizedBox(height: 3),
                                             Row(children: [
-                                              const Icon(Icons.edit_outlined, size: 12, color: _NC.goldDark),
+                                              Icon(Icons.edit_outlined, size: 12, color: SC.goldDark),
                                               const SizedBox(width: 4),
                                               Expanded(
                                                 child: Text(cat,
                                                     maxLines: 1,
                                                     overflow: TextOverflow.ellipsis,
-                                                    style: const TextStyle(fontSize: 12, color: _NC.goldDark)),
+                                                    style: sty(12, FontWeight.w500, SC.goldDark)),
                                               ),
                                             ]),
                                           ],
@@ -1844,9 +1873,7 @@ class _NilaiScreenState extends State<NilaiScreen> {
                                     Column(
                                       crossAxisAlignment: CrossAxisAlignment.end,
                                       children: [
-                                        Text(_fmt(v),
-                                            style: const TextStyle(
-                                                fontSize: 24, fontWeight: FontWeight.w800, color: _NC.ink)),
+                                        Text(_fmt(v), style: sty(24, FontWeight.w800, SC.ink)),
                                         const SizedBox(height: 4),
                                         _badge(v),
                                       ],
@@ -1863,9 +1890,9 @@ class _NilaiScreenState extends State<NilaiScreen> {
                   // Bar bawah
                   Container(
                     padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
-                    decoration: const BoxDecoration(
-                      color: _NC.surface,
-                      border: Border(top: BorderSide(color: _NC.border)),
+                    decoration: BoxDecoration(
+                      color: SC.surface,
+                      border: Border(top: BorderSide(color: SC.border)),
                     ),
                     child: Row(
                       children: [
@@ -1874,15 +1901,13 @@ class _NilaiScreenState extends State<NilaiScreen> {
                             mainAxisSize: MainAxisSize.min,
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text('Sesi ${_fmtTgl(tgl)}',
-                                  style: const TextStyle(
-                                      fontSize: 14, fontWeight: FontWeight.w800, color: _NC.ink)),
+                              Text('Sesi ${_fmtTgl(tgl)}', style: sty(14, FontWeight.w800, SC.ink)),
                               const SizedBox(height: 2),
                               Text(
                                   _readOnly
                                       ? 'Mode pantau, hanya bisa dilihat'
                                       : 'Hanya guru pengampu yang bisa mengubah',
-                                  style: const TextStyle(fontSize: 11.5, color: _NC.inkSecondary)),
+                                  style: sty(11.5, FontWeight.w500, SC.inkSecondary)),
                             ],
                           ),
                         ),
@@ -1894,11 +1919,10 @@ class _NilaiScreenState extends State<NilaiScreen> {
                               _mulaiUbah(rows);
                             },
                             icon: const Icon(Icons.edit_outlined, size: 16),
-                            label: const Text('Ubah Nilai',
-                                style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700)),
+                            label: Text('Ubah Nilai', style: sty(13.5, FontWeight.w700, SC.primary)),
                             style: OutlinedButton.styleFrom(
-                              foregroundColor: _NC.primary,
-                              side: const BorderSide(color: _NC.border),
+                              foregroundColor: SC.primary,
+                              side: BorderSide(color: SC.border),
                               minimumSize: const Size(0, 50),
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
                             ),
@@ -1929,8 +1953,18 @@ class _NilaiScreenState extends State<NilaiScreen> {
     final filled = vals.length;
     final sorted = _sorted;
 
+    // Statistik di hero mengikuti tab yang sedang dibuka.
+    final List<double> heroVals;
+    if (_tab == 0) {
+      heroVals = vals;
+    } else if (_tab == 1) {
+      heroVals = [for (final r in _sesiHariIni) ((r['nilai'] as num?) ?? 0).toDouble()];
+    } else {
+      heroVals = [for (final r in _riwayat) (((r as Map)['nilai'] as num?) ?? 0).toDouble()];
+    }
+
     return Scaffold(
-      backgroundColor: _NC.background,
+      backgroundColor: SC.background,
       body: _loadingMeta
           ? loadingView()
           : Align(
@@ -1941,48 +1975,62 @@ class _NilaiScreenState extends State<NilaiScreen> {
                   children: [
                     Expanded(
                       child: ListView(
-                        padding: const EdgeInsets.fromLTRB(12, 12, 12, 16),
+                        controller: _scroll,
+                        padding: EdgeInsets.zero,
                         children: [
-                          _header(),
-                          const SizedBox(height: 14),
-                          _tabs(),
-                          const SizedBox(height: 14),
-                          _paramCard(),
-                          if (_error != null) ...[
-                            const SizedBox(height: 12),
-                            _errorBox(_error!),
-                          ],
-                          const SizedBox(height: 14),
-                          if (_loadingSantri)
-                            Padding(
-                              padding: const EdgeInsets.all(24),
-                              child: Center(child: CircularProgressIndicator(color: _NC.primary)),
-                            )
-                          else if (total == 0)
-                            emptyView('Kelas ini belum punya santri.')
-                          else if (_tab == 0) ...[
-                            if (_editTanggal != null) ...[
-                              _infoBanner('Mengubah nilai sesi ${_fmtTgl(_editTanggal!)}',
-                                  onBatal: _batalUbah),
-                              const SizedBox(height: 12),
-                            ] else if (_adaTersimpan) ...[
-                              _infoBanner(
-                                  'Nilai hari ini untuk pilihan ini sudah ada. Menyimpan lagi bisa menimpa nilai santri yang sama. Untuk mengubah, pakai Ubah Nilai di tab List.'),
-                              const SizedBox(height: 12),
-                            ],
-                            _statsCard(vals),
-                            const SizedBox(height: 16),
-                            _listHeader(total),
-                            const SizedBox(height: 10),
-                            for (int i = 0; i < sorted.length; i++)
-                              Padding(
-                                padding: const EdgeInsets.only(bottom: 10),
-                                child: _santriCard(i, sorted[i]),
-                              ),
-                          ] else if (_tab == 1)
-                            ..._listTab(sorted)
-                          else
-                            ..._riwayatList(),
+                          _hero(heroVals),
+                          _banner(),
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                _tabs(),
+                                const SizedBox(height: 14),
+                                _paramCard(),
+                                if (_error != null) ...[
+                                  const SizedBox(height: 12),
+                                  _errorBox(_error!),
+                                ],
+                                const SizedBox(height: 14),
+                                if (!_loadingSantri && total > 0 && _tab != 2) ...[
+                                  _searchSantri(),
+                                  const SizedBox(height: 12),
+                                ],
+                                if (_loadingSantri)
+                                  Padding(
+                                    padding: const EdgeInsets.all(24),
+                                    child: Center(child: CircularProgressIndicator(color: SC.primary)),
+                                  )
+                                else if (total == 0)
+                                  emptyView('Kelas ini belum punya santri.')
+                                else if (_tab == 0) ...[
+                                  if (_editTanggal != null) ...[
+                                    _infoBanner('Mengubah nilai sesi ${_fmtTgl(_editTanggal!)}',
+                                        onBatal: _batalUbah),
+                                    const SizedBox(height: 12),
+                                  ] else if (_adaTersimpan) ...[
+                                    _infoBanner(
+                                        'Nilai hari ini untuk pilihan ini sudah ada. Menyimpan lagi bisa menimpa nilai santri yang sama. Untuk mengubah, pakai Ubah Nilai di tab List.'),
+                                    const SizedBox(height: 12),
+                                  ],
+                                  _listHeader(sorted.length, filled > 0),
+                                  const SizedBox(height: 10),
+                                  if (sorted.isEmpty)
+                                    emptyView('Tidak ada santri yang cocok.')
+                                  else
+                                    for (int i = 0; i < sorted.length; i++)
+                                      Padding(
+                                        padding: const EdgeInsets.only(bottom: 12),
+                                        child: _santriCard(i, sorted[i]),
+                                      ),
+                                ] else if (_tab == 1)
+                                  ..._listTab(sorted)
+                                else
+                                  ..._riwayatList(),
+                              ],
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -2032,9 +2080,7 @@ class _CatatanSheetState extends State<_CatatanSheet> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(widget.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: _NC.ink)),
+                  maxLines: 1, overflow: TextOverflow.ellipsis, style: sty(15, FontWeight.w800, SC.ink)),
               const SizedBox(height: 12),
               TextField(
                 controller: _c,
@@ -2043,15 +2089,19 @@ class _CatatanSheetState extends State<_CatatanSheet> {
                 minLines: 2,
                 maxLines: 3,
                 textCapitalization: TextCapitalization.sentences,
-                style: const TextStyle(fontSize: 14, color: _NC.ink),
+                style: sty(14, FontWeight.w500, SC.ink),
                 decoration: InputDecoration(
                   hintText: 'Contoh: Pelafalan makhraj sudah baik',
-                  hintStyle: const TextStyle(fontSize: 13, color: _NC.inkSecondary),
+                  hintStyle: sty(13, FontWeight.w500, SC.inkSecondary),
                   filled: true,
-                  fillColor: _NC.surfaceDim,
+                  fillColor: SC.surfaceDim,
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(14),
                     borderSide: BorderSide.none,
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide(color: SC.primary, width: 1.4),
                   ),
                 ),
               ),
@@ -2061,20 +2111,18 @@ class _CatatanSheetState extends State<_CatatanSheet> {
                   if (widget.initial.isNotEmpty)
                     TextButton(
                       onPressed: () => Navigator.pop(context, ''),
-                      child: const Text('Hapus',
-                          style: TextStyle(fontWeight: FontWeight.w700, color: _NC.errorText)),
+                      child: Text('Hapus', style: sty(13, FontWeight.w700, SC.errorText)),
                     ),
                   const Spacer(),
                   FilledButton(
                     onPressed: () => Navigator.pop(context, _c.text),
                     style: FilledButton.styleFrom(
-                      backgroundColor: _NC.primary,
+                      backgroundColor: SC.primary,
                       minimumSize: const Size(0, 46),
                       padding: const EdgeInsets.symmetric(horizontal: 28),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
                     ),
-                    child: const Text('Simpan',
-                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Colors.white)),
+                    child: Text('Simpan', style: sty(14, FontWeight.w700, Colors.white)),
                   ),
                 ],
               ),

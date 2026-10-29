@@ -1,69 +1,61 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../../services/api_client.dart';
 import '../../services/app_scope.dart';
-import '../santri/santri_ui.dart' show SC;
+import '../ui_utils.dart';
+import '../santri/santri_ui.dart';
 
-/// Palet layar Keadaan Darurat — sama dengan layar redesain lain
-/// (beranda ustadz, absensi, konseling): zamrud + emas + gading.
-class _DC {
-  _DC._();
+// Layar Keadaan Darurat.
+//
+// Endpoint:
+//   GET   /keadaan-darurat          -> array laporan (+ santri{kelas})
+//   POST  /keadaan-darurat          -> {santriId?, jenis, lokasi?, deskripsi}
+//   PATCH /keadaan-darurat/:id      -> {status, tindakLanjut?}
+//   GET   /santri?search=&perPage=  -> pencarian santri di form lapor
+//
+// Hak akses:
+//   - Lapor     : semua role kecuali Wali dan Pimpinan/Mudir
+//   - Tindaklanjut : Admin dan Musyrif
+//   - Pimpinan/Mudir: mode baca saja
 
-  static Color get primary => SC.primary;
-  static Color get primaryEnd => SC.primaryEnd;
+const double _maxW = 480;
 
-  static const gold = Color(0xFFC5A059);
-  static const goldSurface = Color(0xFFFAF5EC);
-  static const goldBorder = Color(0xFFE7D2A7);
-  static const goldDark = Color(0xFF7A5B10);
+// Warna status (tidak ada di SC)
+const _kBaruBg = Color(0xFFFEE2E2);
+const _kBaruFg = Color(0xFF991B1B);
+const _kProsesBg = Color(0xFFFDE9B8);
+const _kProsesFg = Color(0xFF7A5B10);
+const _kSelesaiBg = Color(0xFFD8F0E2);
+const _kSelesaiFg = Color(0xFF1B5E20);
+const _kDanger = Color(0xFFB91C1C);
 
-  static const mint = Color(0xFFD2E4DC);
-  static const sage = Color(0xFFE2ECE9);
-
-  static const background = Color(0xFFFAF9F5);
-  static const surface = Color(0xFFFFFFFF);
-  static const surfaceDim = Color(0xFFF5F4EE);
-  static const surfaceContainer = Color(0xFFEFEEEA);
-
-  static const ink = Color(0xFF0F172A);
-  static const inkSecondary = Color(0xFF475569);
-  static const border = Color(0xFFEAE6DC);
-  static const inputBorder = Color(0xFFE2E8F0);
-
-  static const danger = Color(0xFFB91C1C);
-  static const errorBg = Color(0xFFFEE2E2);
-  static const errorText = Color(0xFF991B1B);
-
-  static const amberBg = Color(0xFFFDE9B8);
-  static const pendingBg = Color(0xFFFFF8E1);
-  static const pendingText = Color(0xFFB78103);
-
-  static const successBg = Color(0xFFD8F0E2);
-  static const successText = Color(0xFF1B5E20);
-}
+const _kBulan = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
 
 // ---------------------------------------------------------------------------
-// Helper status, jenis, dan format waktu
+// Helper
 // ---------------------------------------------------------------------------
-
 class _St {
+  final String key;
   final String label;
   final Color fg;
   final Color bg;
   final IconData icon;
-  const _St(this.label, this.fg, this.bg, this.icon);
+  const _St(this.key, this.label, this.fg, this.bg, this.icon);
 }
 
 _St _st(String s) {
   switch (s) {
     case 'DITANGANI':
-      return const _St('DITANGANI', _DC.goldDark, _DC.amberBg, Icons.pending_actions_rounded);
+      return const _St('DITANGANI', 'Ditangani', _kProsesFg, _kProsesBg, Icons.pending_actions_rounded);
     case 'SELESAI':
-      return const _St('SELESAI', _DC.successText, _DC.successBg, Icons.check_circle_outline_rounded);
+      return const _St('SELESAI', 'Selesai', _kSelesaiFg, _kSelesaiBg, Icons.check_circle_outline_rounded);
     default:
-      return const _St('BARU', _DC.errorText, _DC.errorBg, Icons.emergency_rounded);
+      return const _St('BARU', 'Baru', _kBaruFg, _kBaruBg, Icons.emergency_rounded);
   }
 }
+
+String _statusOf(Map<String, dynamic> d) => (d['status'] as String?) ?? 'BARU';
 
 IconData _jenisIcon(String jenis) {
   final j = jenis.toLowerCase();
@@ -80,9 +72,7 @@ IconData _jenisIcon(String jenis) {
   return Icons.emergency_rounded;
 }
 
-const _bulan = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
-
-String _tgl(DateTime d) => '${d.day.toString().padLeft(2, '0')} ${_bulan[d.month - 1]} ${d.year}';
+String _tgl(DateTime d) => '${d.day.toString().padLeft(2, '0')} ${_kBulan[d.month - 1]} ${d.year}';
 
 String _jam(DateTime d) =>
     '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')} WIB';
@@ -90,18 +80,60 @@ String _jam(DateTime d) =>
 String _waktuLabel(DateTime? d) {
   if (d == null) return '-';
   final now = DateTime.now();
-  final a = DateTime(d.year, d.month, d.day);
-  final b = DateTime(now.year, now.month, now.day);
-  final diff = b.difference(a).inDays;
-  if (diff == 0) return '${_jam(d)} (Hari ini)';
+  final diff = DateTime(now.year, now.month, now.day).difference(DateTime(d.year, d.month, d.day)).inDays;
+  if (diff == 0) return 'Hari ini, ${_jam(d)}';
   if (diff == 1) return 'Kemarin, ${_jam(d)}';
   return _tgl(d);
+}
+
+List<Map<String, dynamic>> _asList(dynamic res) {
+  final raw = res is List ? res : (res is Map ? (res['items'] ?? res['data']) : null);
+  return (raw is List ? raw : const [])
+      .whereType<Map>()
+      .map((e) => Map<String, dynamic>.from(e))
+      .toList();
+}
+
+Widget _pill(String text, {required Color bg, required Color fg, IconData? icon}) {
+  return Container(
+    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+    decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(999)),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (icon != null) ...[
+          Icon(icon, size: 12, color: fg),
+          const SizedBox(width: 4),
+        ],
+        Text(text, style: sty(10.5, FontWeight.w800, fg)),
+      ],
+    ),
+  );
+}
+
+InputDecoration _dec(String hint, {IconData? icon, Color? iconColor}) {
+  OutlineInputBorder b(Color c, [double w = 1]) => OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: BorderSide(color: c, width: w),
+      );
+  return InputDecoration(
+    hintText: hint,
+    hintStyle: sty(13.5, FontWeight.w500, SC.inkMuted, h: 1.4),
+    prefixIcon: icon == null ? null : Icon(icon, size: 19, color: iconColor ?? SC.inkSecondary),
+    filled: true,
+    fillColor: SC.surface,
+    counterText: '',
+    isDense: true,
+    contentPadding: const EdgeInsets.all(14),
+    border: b(SC.border),
+    enabledBorder: b(SC.border),
+    focusedBorder: b(SC.primary, 1.4),
+  );
 }
 
 // ---------------------------------------------------------------------------
 // Layar utama
 // ---------------------------------------------------------------------------
-
 class KeadaanDaruratScreen extends StatefulWidget {
   const KeadaanDaruratScreen({super.key});
 
@@ -110,22 +142,26 @@ class KeadaanDaruratScreen extends StatefulWidget {
 }
 
 class _KeadaanDaruratScreenState extends State<KeadaanDaruratScreen> {
-  /// Sama dengan _maxMobileWidth di shell_screen.dart.
-  static const double _maxWidth = 480;
-
   List<Map<String, dynamic>> _items = [];
   bool _loading = true;
   String? _error;
-  String _filter = 'SEMUA'; // SEMUA | BARU | DITANGANI | SELESAI
-  final Set<String> _open = {}; // id laporan yang sedang dibuka
+  String _filter = ''; // '' = semua | BARU | DITANGANI | SELESAI
+  final Set<String> _open = {};
   bool _firstLoad = true;
+  final _scroll = ScrollController();
 
-  /// Wali tidak boleh melapor. Pimpinan/Mudir bertugas menerima & menindaklanjuti
-  /// laporan, bukan membuatnya. Admin dan role lain tetap bisa melapor.
-  bool get _bisaLapor {
-    final user = AppScope.of(context).user;
-    return user?.isWali != true && user?.isPimpinan != true;
-  }
+  String? _bannerTitle;
+  String? _bannerSub;
+  bool _bannerError = false;
+  Timer? _bannerTimer;
+
+  dynamic get _user => AppScope.of(context).user;
+
+  /// Wali tidak boleh melapor. Pimpinan/Mudir hanya memantau.
+  bool get _bisaLapor => _user?.isWali != true && _user?.isPimpinan != true;
+
+  /// Yang menindaklanjuti laporan: Admin dan Musyrif.
+  bool get _bisaTangani => _user?.isAdmin == true || _user?.isMusyrif == true;
 
   @override
   void initState() {
@@ -135,100 +171,148 @@ class _KeadaanDaruratScreenState extends State<KeadaanDaruratScreen> {
     });
   }
 
+  @override
+  void dispose() {
+    _bannerTimer?.cancel();
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  // ---------------------------------------------------------------------
+  // Data
+  // ---------------------------------------------------------------------
   Future<void> _load() async {
-    setState(() {
-      _loading = _items.isEmpty;
-      _error = null;
-    });
+    if (_items.isEmpty) {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+    }
     try {
-      final api = AppScope.of(context).api;
-      final res = await api.get(ApiUrl.keadaanDarurat);
+      final res = await AppScope.of(context).api.get(ApiUrl.keadaanDarurat);
       if (!mounted) return;
-      final list = (res as List).cast<Map<String, dynamic>>();
+      final list = _asList(res);
       setState(() {
         _items = list;
         _loading = false;
+        _error = null;
         if (_firstLoad) {
           // Laporan baru langsung terbuka supaya cepat terbaca.
           for (final d in list) {
-            if ((d['status'] ?? 'BARU') == 'BARU') _open.add('${d['id']}');
+            if (_statusOf(d) == 'BARU') _open.add('${d['id']}');
           }
           _firstLoad = false;
         }
       });
     } on ApiException catch (e) {
-      if (mounted) {
-        setState(() {
-          _error = e.message;
-          _loading = false;
-        });
-      }
+      _gagalMuat(e.message);
+    } catch (_) {
+      _gagalMuat('Gagal memuat laporan darurat.');
     }
   }
 
-  // ---- Notifikasi ----
-  /// Notifikasi melayang bertema (sukses = zamrud, gagal = merah lembut).
-  void _toast(String title, {String? subtitle, bool error = false}) {
+  void _gagalMuat(String msg) {
     if (!mounted) return;
-    final w = MediaQuery.of(context).size.width;
-    final side = w > 472 ? (w - 440) / 2 : 16.0;
-    final fg = error ? _DC.errorText : Colors.white;
-
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          behavior: SnackBarBehavior.floating,
-          backgroundColor: error ? _DC.errorBg : _DC.primary,
-          elevation: 6,
-          // 88 = jarak dari bawah supaya tidak menutupi tombol "Lapor Darurat"
-          margin: EdgeInsets.fromLTRB(side, 0, side, 88),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          duration: Duration(seconds: error ? 4 : 3),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-            side: BorderSide(
-              color: error ? _DC.errorText.withOpacity(0.25) : _DC.gold.withOpacity(0.5),
-            ),
-          ),
-          content: Row(
-            children: [
-              Container(
-                width: 32,
-                height: 32,
-                decoration: BoxDecoration(
-                  color: error ? Colors.white : _DC.gold.withOpacity(0.18),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  error ? Icons.error_outline : Icons.check_rounded,
-                  size: 18,
-                  color: error ? _DC.errorText : _DC.gold,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(title,
-                        style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: fg)),
-                    if (subtitle != null) ...[
-                      const SizedBox(height: 2),
-                      Text(subtitle,
-                          style: TextStyle(fontSize: 11.5, color: fg.withOpacity(0.75))),
-                    ],
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
+    if (_items.isEmpty) {
+      setState(() {
+        _error = msg;
+        _loading = false;
+      });
+    } else {
+      setState(() => _loading = false);
+      _toast(msg, error: true);
+    }
   }
 
-  // ---- Lapor ----
+  int _count(String status) => _items.where((e) => _statusOf(e) == status).length;
+
+  // ---------------------------------------------------------------------
+  // Banner inline
+  // ---------------------------------------------------------------------
+  void _toast(String title, {String? subtitle, bool error = false}) {
+    if (!mounted) return;
+    _bannerTimer?.cancel();
+    setState(() {
+      _bannerTitle = title;
+      _bannerSub = subtitle;
+      _bannerError = error;
+    });
+    if (_scroll.hasClients && _scroll.offset > 0) {
+      _scroll.animateTo(0, duration: const Duration(milliseconds: 250), curve: Curves.easeOut);
+    }
+    _bannerTimer = Timer(Duration(seconds: error ? 5 : 3), _closeBanner);
+  }
+
+  void _closeBanner() {
+    _bannerTimer?.cancel();
+    if (mounted) setState(() => _bannerTitle = null);
+  }
+
+  Widget _banner() {
+    final title = _bannerTitle;
+    final error = _bannerError;
+    final fg = error ? SC.errorText : Colors.white;
+
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOutCubic,
+      alignment: Alignment.topCenter,
+      child: title == null
+          ? const SizedBox(width: double.infinity)
+          : Container(
+              margin: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+              padding: const EdgeInsets.fromLTRB(12, 10, 6, 10),
+              decoration: BoxDecoration(
+                color: error ? SC.errorBg : SC.primary,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: error ? SC.errorText.withOpacity(0.25) : SC.gold.withOpacity(0.5),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: error ? Colors.white : SC.gold.withOpacity(0.18),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      error ? Icons.error_outline : Icons.check_rounded,
+                      size: 18,
+                      color: error ? SC.errorText : SC.gold,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(title, style: sty(13.5, FontWeight.w800, fg)),
+                        if (_bannerSub != null && _bannerSub!.isNotEmpty) ...[
+                          const SizedBox(height: 2),
+                          Text(_bannerSub!, style: sty(11.5, FontWeight.w500, fg.withOpacity(0.75))),
+                        ],
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: _closeBanner,
+                    visualDensity: VisualDensity.compact,
+                    tooltip: 'Tutup',
+                    icon: Icon(Icons.close_rounded, size: 18, color: fg.withOpacity(0.7)),
+                  ),
+                ],
+              ),
+            ),
+    );
+  }
+
+  // ---------------------------------------------------------------------
+  // Aksi
+  // ---------------------------------------------------------------------
   Future<void> _lapor() async {
     if (!_bisaLapor) return;
     final api = AppScope.of(context).api;
@@ -237,603 +321,579 @@ class _KeadaanDaruratScreenState extends State<KeadaanDaruratScreen> {
       isScrollControlled: true,
       useSafeArea: true,
       backgroundColor: Colors.transparent,
-      constraints: const BoxConstraints(maxWidth: 480),
+      constraints: const BoxConstraints(maxWidth: _maxW),
       builder: (_) => _LaporSheet(api: api),
     );
     if (payload == null || !mounted) return;
     try {
       await api.post(ApiUrl.keadaanDarurat, payload);
       if (!mounted) return;
-      _toast('Laporan darurat dikirim',
-          subtitle: 'Admin & Pimpinan akan segera mendapat notifikasi');
+      _toast('Laporan darurat dikirim', subtitle: 'Admin & Musyrif akan segera mendapat notifikasi');
       _load();
     } on ApiException catch (e) {
-      if (mounted) _toast(e.message, error: true);
+      _toast(e.message, error: true);
+    } catch (_) {
+      _toast('Gagal mengirim laporan.', error: true);
     }
   }
 
-  // ---- Tindak lanjut (Admin / Pimpinan) ----
   Future<void> _tangani(Map<String, dynamic> item) async {
+    if (!_bisaTangani) return;
     final res = await showModalBottomSheet<Map<String, dynamic>>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
       backgroundColor: Colors.transparent,
-      constraints: const BoxConstraints(maxWidth: 480),
+      constraints: const BoxConstraints(maxWidth: _maxW),
       builder: (_) => _TindakSheet(item: item),
     );
     if (res == null || !mounted) return;
     try {
-      final api = AppScope.of(context).api;
-      await api.patch('${ApiUrl.keadaanDarurat}/${item['id']}', res);
+      await AppScope.of(context).api.patch('${ApiUrl.keadaanDarurat}/${item['id']}', res);
       if (!mounted) return;
-      _toast('Status laporan diperbarui', subtitle: '${item['jenis']}');
+      _toast('Status laporan diperbarui', subtitle: '${item['jenis']} • ${_st(res['status'] as String).label}');
       _load();
     } on ApiException catch (e) {
-      if (mounted) _toast(e.message, error: true);
+      _toast(e.message, error: true);
+    } catch (_) {
+      _toast('Gagal memperbarui laporan.', error: true);
     }
   }
 
-  int _count(String status) => _items.where((e) => (e['status'] ?? 'BARU') == status).length;
-
-  @override
-  Widget build(BuildContext context) {
-    final user = AppScope.of(context).user;
-   final bisaTangani = user?.isAdmin == true || user?.isMusyrif == true;
-    final bisaLapor = _bisaLapor;
-
-    final konten = _loading
-        ? Center(child: CircularProgressIndicator(color: _DC.primary, strokeWidth: 2.5))
-        : _error != null
-            ? _errorView()
-            : RefreshIndicator(
-                color: _DC.primary,
-                onRefresh: _load,
-                child: _body(bisaTangani),
-              );
-
-    // Konten dibatasi selebar _maxWidth dan diletakkan di tengah, sama seperti
-    // halaman login dan bottom nav di shell (480px) — di web tidak melebar.
-    return Scaffold(
-      backgroundColor: _DC.background,
-      body: Align(
-        alignment: Alignment.topCenter,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: _maxWidth),
-          child: Stack(
-            children: [
-              Positioned.fill(child: konten),
-              if (bisaLapor)
-                Positioned(
-                  right: 16,
-                  bottom: 16,
-                  child: FloatingActionButton.extended(
-                    onPressed: _lapor,
-                    tooltip: 'Lapor Keadaan Darurat',
-                    backgroundColor: _DC.danger,
-                    foregroundColor: Colors.white,
-                    elevation: 3,
-                    icon: const Icon(Icons.add_alert_rounded),
-                    label: const Text('Lapor Darurat', style: TextStyle(fontWeight: FontWeight.w800)),
-                  ),
-                ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _body(bool bisaTangani) {
-    final baru = _count('BARU');
-    final proses = _count('DITANGANI');
-    final selesai = _count('SELESAI');
-    final tampil = _filter == 'SEMUA'
-        ? _items
-        : _items.where((e) => (e['status'] ?? 'BARU') == _filter).toList();
-
-    return ListView(
-      physics: const AlwaysScrollableScrollPhysics(),
-      padding: EdgeInsets.only(bottom: _bisaLapor ? 110 : 24),
-      children: [
-        _hero(),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
-          child: Row(
-            children: [
-              Expanded(
-                child: _stat('Baru', baru, 'Laporan', Icons.emergency_rounded, _DC.errorText, _DC.errorBg),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _stat('Proses', proses, 'Kasus', Icons.pending_actions_rounded, _DC.goldDark, _DC.amberBg),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _stat('Selesai', selesai, 'Pulih', Icons.check_circle_outline_rounded,
-                    _DC.successText, _DC.successBg),
-              ),
-            ],
-          ),
-        ),
-        if (_items.isNotEmpty) ...[
-          const SizedBox(height: 14),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Row(
-              children: [
-                _chip('SEMUA', 'Semua (${_items.length})'),
-                _chip('BARU', 'Baru ($baru)', dot: _DC.errorText),
-                _chip('DITANGANI', 'Ditangani ($proses)', dot: _DC.goldDark),
-                _chip('SELESAI', 'Selesai ($selesai)', dot: _DC.successText),
-              ],
-            ),
-          ),
-        ],
-        const SizedBox(height: 8),
-        if (_items.isEmpty)
-          _emptyState('Belum ada laporan keadaan darurat.')
-        else if (tampil.isEmpty)
-          _emptyState('Tidak ada laporan dengan status ini.')
-        else
-          for (final d in tampil) _card(d, bisaTangani),
-        if (_items.isNotEmpty && baru == 0) _footerAman(),
-      ],
-    );
-  }
-
-  // ---- Hero ----
+  // ---------------------------------------------------------------------
+  // Hero
+  // ---------------------------------------------------------------------
   Widget _hero() {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 14, 16, 0),
-      padding: const EdgeInsets.fromLTRB(20, 18, 16, 20),
-      clipBehavior: Clip.antiAlias,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(24),
-        gradient: LinearGradient(
-          colors: [_DC.primary, _DC.primaryEnd],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-      ),
-      child: Stack(
-        children: [
-          Positioned(
-            right: -14,
-            bottom: -26,
-            child: Icon(Icons.mosque_outlined, size: 120, color: Colors.white.withOpacity(0.06)),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    width: 6,
-                    height: 6,
-                    decoration: const BoxDecoration(color: _DC.gold, shape: BoxShape.circle),
-                  ),
-                  const SizedBox(width: 6),
-                  const Expanded(
-                    child: Text(
-                      "SIAGA MA'HAD",
-                      style: TextStyle(
-                        color: _DC.gold,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 1.2,
-                      ),
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: _DC.background,
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.calendar_today_outlined, size: 13, color: _DC.primary),
-                        const SizedBox(width: 6),
-                        Text(
-                          _tgl(DateTime.now()),
-                          style: TextStyle(
-                              color: _DC.primary, fontSize: 12, fontWeight: FontWeight.w800),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              const Text(
-                'Keadaan Darurat',
-                style: TextStyle(
-                    color: Colors.white, fontSize: 26, fontWeight: FontWeight.w800, letterSpacing: -0.3),
-              ),
-              const SizedBox(height: 4),
-              const Text(
-                'Pantau dan tangani laporan\nkedaruratan santri',
-                style: TextStyle(color: _DC.mint, fontSize: 13.5, height: 1.35),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
+    final loaded = !_loading && _error == null;
+    final baru = _count('BARU');
 
-  Widget _stat(String label, int n, String caption, IconData icon, Color fg, Color bg) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
-      decoration: BoxDecoration(
-        color: _DC.surface,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: _DC.border),
-      ),
+    final String ringkas;
+    final bool siaga;
+    if (!loaded) {
+      ringkas = 'Memuat laporan…';
+      siaga = false;
+    } else if (baru > 0) {
+      ringkas = '$baru laporan menunggu penanganan';
+      siaga = true;
+    } else {
+      ringkas = 'Tidak ada laporan baru, situasi terkendali';
+      siaga = false;
+    }
+
+    return HeroShell(
+      top: 22,
+      bottom: 20,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
+              Container(
+                width: 6,
+                height: 6,
+                decoration: const BoxDecoration(color: SC.gold, shape: BoxShape.circle),
+              ),
+              const SizedBox(width: 6),
               Expanded(
-                child: Text(label,
-                    style: const TextStyle(
-                        color: _DC.inkSecondary, fontSize: 12.5, fontWeight: FontWeight.w600)),
+                child: Text("SIAGA MA'HAD",
+                    style: sty(11, FontWeight.w800, SC.gold)),
               ),
               Container(
-                width: 28,
-                height: 28,
-                decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(9)),
-                child: Icon(icon, size: 16, color: fg),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.14),
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(color: Colors.white.withOpacity(0.18)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.calendar_today_outlined, size: 12, color: Colors.white.withOpacity(0.85)),
+                    const SizedBox(width: 6),
+                    Text(_tgl(DateTime.now()), style: sty(11.5, FontWeight.w700, Colors.white)),
+                  ],
+                ),
               ),
             ],
           ),
-          const SizedBox(height: 8),
-          Text('$n', style: TextStyle(color: fg, fontSize: 26, fontWeight: FontWeight.w800, height: 1)),
-          const SizedBox(height: 2),
-          Text(caption, style: const TextStyle(color: _DC.inkSecondary, fontSize: 12)),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Container(
+                width: 50,
+                height: 50,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.14),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: SC.gold.withOpacity(0.55)),
+                ),
+                child: const Icon(Icons.emergency_outlined, size: 25, color: SC.gold),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Keadaan Darurat', style: sty(22, FontWeight.w800, Colors.white, h: 1.15)),
+                    const SizedBox(height: 3),
+                    Text('Pantau dan tangani laporan santri',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: sty(12.5, FontWeight.w500, Colors.white.withOpacity(0.78))),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.white.withOpacity(0.16)),
+            ),
+            child: Row(
+              children: [
+                Icon(siaga ? Icons.notification_important_outlined : Icons.verified_user_outlined,
+                    size: 18, color: siaga ? SC.gold : Colors.white.withOpacity(0.8)),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(ringkas,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: sty(12.5, FontWeight.w700, siaga ? SC.gold : Colors.white)),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _chip(String key, String label, {Color? dot}) {
-    final selected = _filter == key;
-    return Padding(
-      padding: const EdgeInsets.only(right: 8),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(999),
-        onTap: () => setState(() => _filter = key),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-          decoration: BoxDecoration(
-            color: selected ? _DC.primary : _DC.surface,
-            borderRadius: BorderRadius.circular(999),
-            border: Border.all(color: selected ? _DC.primary : _DC.border),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (dot != null && !selected) ...[
-                Container(width: 7, height: 7, decoration: BoxDecoration(color: dot, shape: BoxShape.circle)),
-                const SizedBox(width: 6),
-              ],
-              Text(
-                label,
-                style: TextStyle(
-                  color: selected ? Colors.white : _DC.ink,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
+  // ---------------------------------------------------------------------
+  // Kartu status (sekaligus filter)
+  // ---------------------------------------------------------------------
+  Widget _statusTiles() {
+    Widget tile(String key) {
+      final st = _st(key);
+      final n = _count(key);
+      final on = _filter == key;
+      return Expanded(
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => setState(() => _filter = on ? '' : key),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 160),
+            padding: const EdgeInsets.fromLTRB(12, 12, 10, 12),
+            decoration: BoxDecoration(
+              color: on ? st.bg : SC.surface,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: on ? st.fg.withOpacity(0.4) : SC.border, width: on ? 1.4 : 1),
+              boxShadow: softShadow,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 28,
+                  height: 28,
+                  decoration: BoxDecoration(
+                    color: on ? Colors.white.withOpacity(0.7) : st.bg,
+                    borderRadius: BorderRadius.circular(9),
+                  ),
+                  child: Icon(st.icon, size: 16, color: st.fg),
                 ),
-              ),
-            ],
+                const SizedBox(height: 10),
+                Text('$n', style: sty(24, FontWeight.w800, st.fg, h: 1)),
+                const SizedBox(height: 3),
+                Text(st.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: sty(11.5, FontWeight.w700, on ? st.fg : SC.inkSecondary)),
+              ],
+            ),
           ),
         ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+      child: Row(
+        children: [
+          tile('BARU'),
+          const SizedBox(width: 10),
+          tile('DITANGANI'),
+          const SizedBox(width: 10),
+          tile('SELESAI'),
+        ],
       ),
     );
   }
 
-  // ---- Kartu laporan ----
-  Widget _card(Map<String, dynamic> d, bool bisaTangani) {
+  // ---------------------------------------------------------------------
+  // Isi daftar
+  // ---------------------------------------------------------------------
+  List<Widget> _bodySlivers() {
+    if (_loading) {
+      return [SliverToBoxAdapter(child: SizedBox(height: 320, child: loadingView()))];
+    }
+    if (_error != null) {
+      return [SliverToBoxAdapter(child: SizedBox(height: 320, child: errorView(_error!, _load)))];
+    }
+    if (_items.isEmpty) {
+      return [
+        SliverToBoxAdapter(
+          child: _kosong(
+            icon: Icons.verified_user_outlined,
+            judul: 'Belum ada laporan darurat',
+            pesan: _bisaLapor
+                ? 'Tekan "Lapor Darurat" bila ada situasi yang perlu penanganan segera.'
+                : 'Laporan dari ustadz dan musyrif akan muncul di sini.',
+          ),
+        ),
+      ];
+    }
+
+    final tampil = _filter.isEmpty ? _items : _items.where((e) => _statusOf(e) == _filter).toList();
+
+    return [
+      SliverToBoxAdapter(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(18, 18, 16, 10),
+          child: Row(
+            children: [
+              Text('Daftar Laporan', style: sty(15, FontWeight.w800, SC.ink)),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(color: SC.mint, borderRadius: BorderRadius.circular(999)),
+                child: Text('${tampil.length}', style: sty(10.5, FontWeight.w800, SC.primary)),
+              ),
+              const Spacer(),
+              if (_filter.isNotEmpty)
+                InkWell(
+                  borderRadius: BorderRadius.circular(999),
+                  onTap: () => setState(() => _filter = ''),
+                  child: Container(
+                    padding: const EdgeInsets.fromLTRB(10, 5, 8, 5),
+                    decoration: BoxDecoration(
+                      color: SC.goldSurface,
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(color: SC.gold.withOpacity(0.4)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(_st(_filter).label, style: sty(11, FontWeight.w800, SC.goldDark)),
+                        const SizedBox(width: 4),
+                        Icon(Icons.close_rounded, size: 14, color: SC.goldDark),
+                      ],
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+      if (tampil.isEmpty)
+        SliverToBoxAdapter(
+          child: _kosong(
+            icon: Icons.search_off_rounded,
+            judul: 'Tidak ada laporan',
+            pesan: 'Belum ada laporan dengan status ini.',
+          ),
+        )
+      else
+        SliverPadding(
+          padding: EdgeInsets.fromLTRB(16, 0, 16, _bisaLapor ? 110 : 28),
+          sliver: SliverList(
+            delegate: SliverChildListDelegate([for (final d in tampil) _card(d)]),
+          ),
+        ),
+    ];
+  }
+
+  Widget _kosong({required IconData icon, required String judul, required String pesan}) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(32, 36, 32, 120),
+      child: Column(
+        children: [
+          Container(
+            width: 88,
+            height: 88,
+            decoration: BoxDecoration(
+              color: SC.sage,
+              shape: BoxShape.circle,
+              border: Border.all(color: SC.gold.withOpacity(0.5), width: 1.5),
+            ),
+            child: Icon(icon, size: 38, color: SC.primary),
+          ),
+          const SizedBox(height: 18),
+          Text(judul, textAlign: TextAlign.center, style: sty(16, FontWeight.w800, SC.ink)),
+          const SizedBox(height: 6),
+          Text(pesan,
+              textAlign: TextAlign.center,
+              style: sty(12.5, FontWeight.w500, SC.inkSecondary, h: 1.5)),
+        ],
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------------------
+  // Kartu laporan
+  // ---------------------------------------------------------------------
+  Widget _card(Map<String, dynamic> d) {
     final id = '${d['id']}';
-    final status = (d['status'] as String?) ?? 'BARU';
+    final status = _statusOf(d);
     final st = _st(status);
     final jenis = (d['jenis'] as String?) ?? 'Darurat';
     final santri = (d['santri'] as Map?)?.cast<String, dynamic>();
     final kelas = (santri?['kelas'] as Map?)?['namaKelas'];
     final lokasi = ((d['lokasi'] as String?) ?? '').trim();
     final deskripsi = (d['deskripsi'] as String?) ?? '';
-    final tindak = (d['tindakLanjut'] as String?)?.trim();
+    final tindak = ((d['tindakLanjut'] as String?) ?? '').trim();
     final dt = DateTime.tryParse('${d['tanggal']}')?.toLocal();
     final open = _open.contains(id);
+    final baru = status == 'BARU';
 
     final nama = santri == null ? 'Umum' : '${santri['nama']}';
     final sub = kelas != null ? '$nama • $kelas' : nama;
-    final adaLokasi = lokasi.isNotEmpty;
 
     void toggle() => setState(() => open ? _open.remove(id) : _open.add(id));
 
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
-      decoration: BoxDecoration(
-        color: _DC.surface,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: _DC.border),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 14, offset: const Offset(0, 4)),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header
-            InkWell(
-              borderRadius: BorderRadius.circular(12),
-              onTap: toggle,
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(color: st.bg, borderRadius: BorderRadius.circular(14)),
-                    child: Icon(_jenisIcon(jenis), color: st.fg, size: 24),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(jenis,
-                            style: const TextStyle(
-                                color: _DC.ink, fontSize: 16, fontWeight: FontWeight.w800, height: 1.25)),
-                        const SizedBox(height: 3),
-                        Text(sub,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                                color: _DC.inkSecondary, fontSize: 13, fontWeight: FontWeight.w600)),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  _badge(st),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-
-            // Waktu & lokasi
-            Container(
-              padding: open ? const EdgeInsets.symmetric(horizontal: 12, vertical: 10) : EdgeInsets.zero,
-              decoration: open
-                  ? BoxDecoration(color: _DC.surfaceDim, borderRadius: BorderRadius.circular(14))
-                  : null,
-              child: Row(
-                children: [
-                  const Icon(Icons.schedule_rounded, size: 16, color: _DC.inkSecondary),
-                  const SizedBox(width: 6),
-                  Text(_waktuLabel(dt),
-                      style: const TextStyle(
-                          color: _DC.inkSecondary, fontSize: 12.5, fontWeight: FontWeight.w600)),
-                  if (adaLokasi) ...[
-                    const SizedBox(width: 10),
-                    Container(width: 1, height: 14, color: _DC.border),
-                    const SizedBox(width: 10),
-                    const Icon(Icons.location_on_outlined, size: 16, color: _DC.goldDark),
-                    const SizedBox(width: 4),
-                    Expanded(
-                      child: Text(lokasi,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                              color: _DC.inkSecondary, fontSize: 12.5, fontWeight: FontWeight.w600)),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            const SizedBox(height: 10),
-
-            // Deskripsi
-            if (open)
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(color: _DC.background, borderRadius: BorderRadius.circular(14)),
-                child: Text(deskripsi,
-                    style: const TextStyle(color: _DC.ink, fontSize: 14, height: 1.45)),
-              )
-            else
-              Text(deskripsi,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: _DC.inkSecondary, fontSize: 13.5, height: 1.4)),
-
-            // Tindak lanjut
-            if (open && tindak != null && tindak.isNotEmpty) ...[
-              const SizedBox(height: 10),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(color: _DC.sage, borderRadius: BorderRadius.circular(14)),
-                child: Column(
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Container(
+        decoration: BoxDecoration(
+          color: SC.surface,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: baru ? _kBaruFg.withOpacity(0.28) : SC.border),
+          boxShadow: softShadow,
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              InkWell(
+                borderRadius: BorderRadius.circular(14),
+                onTap: toggle,
+                child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        Icon(Icons.verified_user_outlined, size: 15, color: _DC.primary),
-                        SizedBox(width: 6),
-                        Text('TINDAK LANJUT',
-                            style: TextStyle(
-                                color: _DC.primary,
-                                fontSize: 11.5,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: 0.8)),
-                      ],
+                    Container(
+                      width: 46,
+                      height: 46,
+                      decoration: BoxDecoration(color: st.bg, borderRadius: BorderRadius.circular(14)),
+                      child: Icon(_jenisIcon(jenis), size: 23, color: st.fg),
                     ),
-                    const SizedBox(height: 6),
-                    Text(tindak, style: const TextStyle(color: _DC.ink, fontSize: 13.5, height: 1.4)),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(jenis,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: sty(16, FontWeight.w800, SC.ink, h: 1.25)),
+                          const SizedBox(height: 3),
+                          Text(sub,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: sty(12.5, FontWeight.w600, SC.inkSecondary)),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    _pill(st.label.toUpperCase(), bg: st.bg, fg: st.fg),
                   ],
                 ),
               ),
-            ],
-
-            // Aksi
-            if (open && bisaTangani) ...[
               const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                height: 48,
-                child: FilledButton.icon(
-                  onPressed: () => _tangani(d),
-                  icon: const Icon(Icons.edit_note_rounded, size: 20),
-                  label: const Text('Update Tindak Lanjut',
-                      style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14.5)),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: _DC.amberBg,
-                    foregroundColor: _DC.goldDark,
-                    elevation: 0,
-                    shape: const StadiumBorder(),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 6),
-              const Center(
-                child: Text("Akses: Admin & Musyrif Ma'had",
-                    style: TextStyle(color: _DC.inkSecondary, fontSize: 11.5)),
-              ),
-            ] else if (open && status != 'SELESAI') ...[
-              const SizedBox(height: 10),
-              const Row(
+              Wrap(
+                spacing: 14,
+                runSpacing: 6,
                 children: [
-                  Icon(Icons.info_outline_rounded, size: 15, color: _DC.inkSecondary),
-                  SizedBox(width: 6),
-                  Expanded(
-                    child: Text('Tindak lanjut dilakukan oleh Admin & Musyrif.',
-                        style: TextStyle(color: _DC.inkSecondary, fontSize: 12)),
-                  ),
+                  _meta(Icons.schedule_rounded, _waktuLabel(dt)),
+                  if (lokasi.isNotEmpty) _meta(Icons.location_on_outlined, lokasi, iconColor: SC.goldDark),
                 ],
               ),
-            ],
-
-            // Toggle
-            const SizedBox(height: 8),
-            Align(
-              alignment: Alignment.centerRight,
-              child: InkWell(
-                borderRadius: BorderRadius.circular(8),
-                onTap: toggle,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
+              const SizedBox(height: 10),
+              if (open)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(color: SC.surfaceDim, borderRadius: BorderRadius.circular(14)),
+                  child: Text(deskripsi, style: sty(13.5, FontWeight.w500, SC.ink, h: 1.5)),
+                )
+              else
+                Text(deskripsi,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: sty(13, FontWeight.w500, SC.inkSecondary, h: 1.4)),
+              if (open && tindak.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: SC.sage,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(open ? 'Sembunyikan' : 'Detail Penanganan',
-                          style: TextStyle(
-                              color: _DC.primary, fontSize: 13, fontWeight: FontWeight.w800)),
-                      Icon(open ? Icons.expand_less_rounded : Icons.chevron_right_rounded,
-                          size: 20, color: _DC.primary),
+                      Row(
+                        children: [
+                          Icon(Icons.verified_user_outlined, size: 14, color: SC.primary),
+                          const SizedBox(width: 6),
+                          Text('TINDAK LANJUT', style: sty(10, FontWeight.w800, SC.primary)),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Text(tindak, style: sty(13, FontWeight.w500, SC.ink, h: 1.45)),
                     ],
                   ),
                 ),
+              ],
+              if (open && _bisaTangani) ...[
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: () => _tangani(d),
+                    icon: Icon(Icons.edit_note_rounded, size: 20, color: SC.goldDark),
+                    label: Text('Update Tindak Lanjut', style: sty(13.5, FontWeight.w800, SC.goldDark)),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: _kProsesBg,
+                      minimumSize: const Size.fromHeight(46),
+                      elevation: 0,
+                      shape: const StadiumBorder(),
+                    ),
+                  ),
+                ),
+              ] else if (open && status != 'SELESAI') ...[
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Icon(Icons.info_outline_rounded, size: 14, color: SC.inkMuted),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text('Tindak lanjut dilakukan oleh Admin & Musyrif.',
+                          style: sty(11.5, FontWeight.w500, SC.inkSecondary)),
+                    ),
+                  ],
+                ),
+              ],
+              const SizedBox(height: 6),
+              Align(
+                alignment: Alignment.centerRight,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(8),
+                  onTap: toggle,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(open ? 'Sembunyikan' : 'Lihat Penanganan',
+                            style: sty(12, FontWeight.w800, SC.primary)),
+                        Icon(open ? Icons.expand_less_rounded : Icons.chevron_right_rounded,
+                            size: 18, color: SC.primary),
+                      ],
+                    ),
+                  ),
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _badge(_St st) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(color: st.bg, borderRadius: BorderRadius.circular(999)),
-      child: Text(st.label,
-          style: TextStyle(color: st.fg, fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 0.6)),
+  Widget _meta(IconData icon, String text, {Color? iconColor}) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 14, color: iconColor ?? SC.inkMuted),
+        const SizedBox(width: 5),
+        Flexible(
+          child: Text(text,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: sty(12, FontWeight.w600, SC.inkSecondary)),
+        ),
+      ],
     );
   }
 
-  Widget _footerAman() {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: _DC.surfaceDim, borderRadius: BorderRadius.circular(18)),
-      child: Row(
-        children: [
-          Container(
-            width: 46,
-            height: 46,
-            decoration: BoxDecoration(color: _DC.primary, borderRadius: BorderRadius.circular(14)),
-            child: const Icon(Icons.verified_user_outlined, color: Colors.white, size: 24),
+  Widget _tombolLapor() {
+    return Material(
+      color: _kDanger,
+      elevation: 6,
+      shadowColor: Colors.black45,
+      shape: const StadiumBorder(),
+      child: InkWell(
+        customBorder: const StadiumBorder(),
+        onTap: _lapor,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(10, 10, 20, 10),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 26,
+                height: 26,
+                decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                child: const Icon(Icons.add_alert_rounded, size: 15, color: _kDanger),
+              ),
+              const SizedBox(width: 10),
+              Text('Lapor Darurat', style: sty(14, FontWeight.w800, Colors.white)),
+            ],
           ),
-          const SizedBox(width: 12),
-          const Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Alhamdulillah, Terkendali',
-                    style: TextStyle(color: _DC.ink, fontSize: 14.5, fontWeight: FontWeight.w800)),
-                SizedBox(height: 2),
-                Text('Tidak ada laporan baru yang menunggu penanganan.',
-                    style: TextStyle(color: _DC.inkSecondary, fontSize: 12.5, height: 1.35)),
-              ],
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
 
-  Widget _emptyState(String msg) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 24),
-      child: Column(
-        children: [
-          Container(
-            width: 84,
-            height: 84,
-            decoration: const BoxDecoration(color: _DC.sage, shape: BoxShape.circle),
-            child: Icon(Icons.verified_user_outlined, size: 40, color: _DC.primary),
-          ),
-          const SizedBox(height: 14),
-          Text(msg,
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: _DC.inkSecondary, fontSize: 14, fontWeight: FontWeight.w600)),
-        ],
-      ),
-    );
-  }
+  // ---------------------------------------------------------------------
+  // Build
+  // ---------------------------------------------------------------------
+  @override
+  Widget build(BuildContext context) {
+    final loaded = !_loading && _error == null;
 
-  Widget _errorView() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 72,
-              height: 72,
-              decoration: const BoxDecoration(color: _DC.errorBg, shape: BoxShape.circle),
-              child: const Icon(Icons.cloud_off_rounded, size: 34, color: _DC.errorText),
-            ),
-            const SizedBox(height: 12),
-            Text(_error ?? 'Terjadi kesalahan.',
-                textAlign: TextAlign.center,
-                style: const TextStyle(color: _DC.inkSecondary, fontSize: 14)),
-            const SizedBox(height: 14),
-            FilledButton(
-              onPressed: _load,
-              style: FilledButton.styleFrom(backgroundColor: _DC.primary, shape: const StadiumBorder()),
-              child: const Text('Coba Lagi'),
-            ),
-          ],
+    return Scaffold(
+      backgroundColor: SC.background,
+      body: Align(
+        alignment: Alignment.topCenter,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: _maxW),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              RefreshIndicator(
+                color: SC.primary,
+                onRefresh: _load,
+                child: CustomScrollView(
+                  controller: _scroll,
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  slivers: [
+                    SliverToBoxAdapter(child: _hero()),
+                    SliverToBoxAdapter(child: _banner()),
+                    if (loaded && _items.isNotEmpty) SliverToBoxAdapter(child: _statusTiles()),
+                    ..._bodySlivers(),
+                  ],
+                ),
+              ),
+              if (_bisaLapor && loaded) Positioned(right: 16, bottom: 20, child: _tombolLapor()),
+            ],
+          ),
         ),
       ),
     );
@@ -841,12 +901,11 @@ class _KeadaanDaruratScreenState extends State<KeadaanDaruratScreen> {
 }
 
 // ---------------------------------------------------------------------------
-// Kerangka bottom sheet (dipakai form Lapor & Tindak Lanjut)
+// Kerangka bottom sheet (form Lapor & Tindak Lanjut)
 // ---------------------------------------------------------------------------
-
 class _SheetShell extends StatelessWidget {
   final String title;
-  final String? subtitle;
+  final String subtitle;
   final IconData icon;
   final Color iconBg;
   final Color iconFg;
@@ -855,7 +914,7 @@ class _SheetShell extends StatelessWidget {
 
   const _SheetShell({
     required this.title,
-    this.subtitle,
+    required this.subtitle,
     required this.icon,
     required this.iconBg,
     required this.iconFg,
@@ -871,9 +930,9 @@ class _SheetShell extends StatelessWidget {
       child: ConstrainedBox(
         constraints: BoxConstraints(maxHeight: (mq.size.height - mq.viewInsets.bottom) * 0.94),
         child: Container(
-          decoration: const BoxDecoration(
-            color: _DC.background,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+          decoration: BoxDecoration(
+            color: SC.background,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -882,54 +941,61 @@ class _SheetShell extends StatelessWidget {
               Container(
                 width: 40,
                 height: 4,
-                decoration: BoxDecoration(color: _DC.border, borderRadius: BorderRadius.circular(4)),
+                decoration: BoxDecoration(color: SC.border, borderRadius: BorderRadius.circular(999)),
               ),
               Padding(
-                padding: const EdgeInsets.fromLTRB(20, 14, 12, 12),
+                padding: const EdgeInsets.fromLTRB(20, 14, 16, 12),
                 child: Row(
                   children: [
                     Container(
-                      width: 46,
-                      height: 46,
-                      decoration: BoxDecoration(color: iconBg, borderRadius: BorderRadius.circular(14)),
-                      child: Icon(icon, color: iconFg, size: 24),
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: iconBg,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: SC.gold.withOpacity(0.45)),
+                      ),
+                      child: Icon(icon, size: 21, color: iconFg),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(title,
-                              style: const TextStyle(
-                                  color: _DC.ink, fontSize: 18, fontWeight: FontWeight.w800)),
-                          if (subtitle != null) ...[
-                            const SizedBox(height: 2),
-                            Text(subtitle!,
-                                style: const TextStyle(color: _DC.inkSecondary, fontSize: 12.5, height: 1.3)),
-                          ],
+                          Text(title, style: sty(19, FontWeight.w800, SC.ink)),
+                          const SizedBox(height: 2),
+                          Text(subtitle, style: sty(12, FontWeight.w500, SC.inkSecondary, h: 1.3)),
                         ],
                       ),
                     ),
-                    IconButton(
-                      onPressed: () => Navigator.pop(context),
-                      style: IconButton.styleFrom(backgroundColor: _DC.surfaceContainer),
-                      icon: const Icon(Icons.close_rounded, size: 20, color: _DC.ink),
+                    InkWell(
+                      onTap: () => Navigator.pop(context),
+                      customBorder: const CircleBorder(),
+                      child: Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          color: SC.surface,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: SC.border),
+                        ),
+                        child: const Icon(Icons.close_rounded, size: 18, color: SC.ink),
+                      ),
                     ),
                   ],
                 ),
               ),
-              const Divider(height: 1, color: _DC.border),
               Flexible(
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+                  padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
                   child: body,
                 ),
               ),
               Container(
-                padding: EdgeInsets.fromLTRB(20, 12, 20, 12 + mq.padding.bottom),
-                decoration: const BoxDecoration(
-                  color: _DC.background,
-                  border: Border(top: BorderSide(color: _DC.border)),
+                padding: EdgeInsets.fromLTRB(16, 10, 16, 10 + mq.padding.bottom),
+                decoration: BoxDecoration(
+                  color: SC.surface,
+                  border: Border(top: BorderSide(color: SC.border)),
                 ),
                 child: footer,
               ),
@@ -946,40 +1012,32 @@ Widget _footerButtons({
   required String submitLabel,
   required IconData submitIcon,
   required VoidCallback onSubmit,
+  Color? warna,
 }) {
   return Row(
     children: [
       Expanded(
-        flex: 2,
-        child: SizedBox(
-          height: 52,
-          child: FilledButton(
-            onPressed: () => Navigator.pop(context),
-            style: FilledButton.styleFrom(
-              backgroundColor: _DC.surfaceContainer,
-              foregroundColor: _DC.ink,
-              elevation: 0,
-              shape: const StadiumBorder(),
-            ),
-            child: const Text('Batal', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+        child: OutlinedButton(
+          onPressed: () => Navigator.pop(context),
+          style: OutlinedButton.styleFrom(
+            side: const BorderSide(color: SC.border),
+            minimumSize: const Size.fromHeight(50),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
           ),
+          child: Text('Batal', style: sty(14, FontWeight.w700, SC.inkSecondary)),
         ),
       ),
-      const SizedBox(width: 12),
+      const SizedBox(width: 10),
       Expanded(
-        flex: 3,
-        child: SizedBox(
-          height: 52,
-          child: FilledButton.icon(
-            onPressed: onSubmit,
-            icon: Icon(submitIcon, size: 20),
-            label: Text(submitLabel, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
-            style: FilledButton.styleFrom(
-              backgroundColor: _DC.primary,
-              foregroundColor: Colors.white,
-              elevation: 0,
-              shape: const StadiumBorder(),
-            ),
+        flex: 2,
+        child: FilledButton.icon(
+          onPressed: onSubmit,
+          icon: Icon(submitIcon, size: 19, color: Colors.white),
+          label: Text(submitLabel, style: sty(14, FontWeight.w800, Colors.white)),
+          style: FilledButton.styleFrom(
+            backgroundColor: warna ?? SC.primary,
+            minimumSize: const Size.fromHeight(50),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
           ),
         ),
       ),
@@ -987,57 +1045,40 @@ Widget _footerButtons({
   );
 }
 
-Widget _label(String text, {bool required = false, String? tag, bool tagStrong = false}) {
+Widget _label(String text, {bool req = false, String? tag, String? kanan}) {
   return Padding(
-    padding: const EdgeInsets.only(bottom: 8),
+    padding: const EdgeInsets.only(left: 2, bottom: 8),
     child: Row(
       children: [
-        Text(text, style: const TextStyle(color: _DC.ink, fontSize: 15, fontWeight: FontWeight.w800)),
-        if (required)
-          const Text(' *', style: TextStyle(color: _DC.danger, fontSize: 15, fontWeight: FontWeight.w800)),
-        const Spacer(),
-        if (tag != null)
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-            decoration: BoxDecoration(
-              color: tagStrong ? Colors.transparent : _DC.surfaceContainer,
-              borderRadius: BorderRadius.circular(999),
-            ),
-            child: Text(tag,
-                style: TextStyle(
-                  color: tagStrong ? _DC.primary : _DC.inkSecondary,
-                  fontSize: 11.5,
-                  fontWeight: FontWeight.w700,
-                )),
+        Text.rich(
+          TextSpan(
+            text: text,
+            style: sty(13, FontWeight.w800, SC.ink),
+            children: [if (req) const TextSpan(text: ' *', style: TextStyle(color: _kDanger))],
           ),
+        ),
+        const Spacer(),
+        if (tag != null) Text(tag, style: sty(11.5, FontWeight.w500, SC.inkSecondary)),
+        if (kanan != null) Text(kanan, style: sty(11.5, FontWeight.w500, SC.inkSecondary)),
       ],
     ),
   );
 }
 
-InputDecoration _dec(String hint, {IconData? icon, Color? iconColor, String? counter}) {
-  OutlineInputBorder b(Color c, [double w = 1]) => OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
-        borderSide: BorderSide(color: c, width: w),
-      );
-  return InputDecoration(
-    hintText: hint,
-    hintStyle: const TextStyle(color: _DC.inkSecondary, fontSize: 14),
-    prefixIcon: icon == null ? null : Icon(icon, size: 20, color: iconColor ?? _DC.inkSecondary),
-    filled: true,
-    fillColor: _DC.surface,
-    counterText: counter ?? '',
-    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-    border: b(_DC.inputBorder),
-    enabledBorder: b(_DC.inputBorder),
-    focusedBorder: b(_DC.primary, 1.5),
-  );
-}
+Widget _errorNote(String msg) => Padding(
+      padding: const EdgeInsets.only(top: 8, left: 2),
+      child: Row(
+        children: [
+          const Icon(Icons.error_outline, size: 15, color: SC.errorText),
+          const SizedBox(width: 6),
+          Expanded(child: Text(msg, style: sty(12, FontWeight.w700, SC.errorText))),
+        ],
+      ),
+    );
 
 // ---------------------------------------------------------------------------
 // Sheet: Lapor Keadaan Darurat
 // ---------------------------------------------------------------------------
-
 class _LaporSheet extends StatefulWidget {
   final ApiClient api;
   const _LaporSheet({required this.api});
@@ -1093,7 +1134,7 @@ class _LaporSheetState extends State<_LaporSheet> {
         final res = await widget.api.get(ApiUrl.santri, query: {'search': q.trim(), 'perPage': '6'});
         if (!mounted) return;
         setState(() {
-          _hasil = ((res['items'] as List?) ?? []).cast<Map<String, dynamic>>();
+          _hasil = _asList(res);
           _mencari = false;
         });
       } catch (_) {
@@ -1118,38 +1159,37 @@ class _LaporSheetState extends State<_LaporSheet> {
   @override
   Widget build(BuildContext context) {
     return _SheetShell(
-      title: 'Lapor Keadaan Darurat',
-      subtitle: 'Admin dan Musyrif akan mendapat notifikasi segera.',
+      title: 'Lapor Darurat',
+      subtitle: 'Admin dan Musyrif akan segera diberi tahu',
       icon: Icons.emergency_rounded,
-      iconBg: _DC.errorBg,
-      iconFg: _DC.errorText,
+      iconBg: SC.errorBg,
+      iconFg: SC.errorText,
       footer: _footerButtons(
         context: context,
-        submitLabel: 'Kirim Laporan Darurat',
+        submitLabel: 'Kirim Laporan',
         submitIcon: Icons.send_rounded,
         onSubmit: _kirim,
+        warna: _kDanger,
       ),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Peringatan
           Container(
-            padding: const EdgeInsets.all(14),
+            padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: _DC.goldSurface,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: _DC.goldBorder),
+              color: SC.goldSurface,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: SC.gold.withOpacity(0.4)),
             ),
-            child: const Row(
+            child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(Icons.warning_amber_rounded, color: _DC.goldDark, size: 22),
-                SizedBox(width: 10),
+                Icon(Icons.warning_amber_rounded, size: 18, color: SC.goldDark),
+                const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    'Gunakan formulir ini hanya untuk situasi kritis yang membutuhkan penanganan medis, '
-                    'keselamatan santri, atau pengamanan pondok secara cepat.',
-                    style: TextStyle(color: _DC.goldDark, fontSize: 13, height: 1.4),
+                    'Gunakan hanya untuk situasi kritis: penanganan medis, keselamatan santri, atau pengamanan pondok.',
+                    style: sty(12, FontWeight.w600, SC.goldDark, h: 1.45),
                   ),
                 ),
               ],
@@ -1157,7 +1197,6 @@ class _LaporSheetState extends State<_LaporSheet> {
           ),
           const SizedBox(height: 18),
 
-          // Santri
           _label('Santri Terkait', tag: 'Opsional'),
           if (_santri != null)
             _santriTerpilih()
@@ -1165,19 +1204,19 @@ class _LaporSheetState extends State<_LaporSheet> {
             TextField(
               controller: _cari,
               onChanged: _onCari,
-              decoration: _dec('Cari nama atau NIS, atau biarkan kosong', icon: Icons.person_search_outlined),
+              style: sty(14, FontWeight.w600, SC.ink),
+              decoration: _dec('Cari nama atau NIS, atau kosongkan', icon: Icons.search_rounded),
             ),
             if (_mencari)
               Padding(
-                padding: const EdgeInsets.only(top: 10),
-                child: LinearProgressIndicator(color: _DC.primary, minHeight: 2),
+                padding: const EdgeInsets.only(top: 8),
+                child: LinearProgressIndicator(color: SC.primary, minHeight: 2),
               ),
             if (_hasil.isNotEmpty) _hasilCari(),
           ],
           const SizedBox(height: 18),
 
-          // Jenis
-          _label('Jenis Kedaruratan', required: true, tag: 'Wajib Diisi', tagStrong: true),
+          _label('Jenis Kedaruratan', req: true),
           LayoutBuilder(
             builder: (context, c) {
               final w = (c.maxWidth - 10) / 2;
@@ -1193,55 +1232,33 @@ class _LaporSheetState extends State<_LaporSheet> {
             TextField(
               controller: _jenisLain,
               onChanged: (_) => setState(() {}),
+              style: sty(14, FontWeight.w600, SC.ink),
               decoration: _dec('Tulis jenis kedaruratan'),
             ),
           ],
-          if (_tampilError && _jenisFinal.isEmpty)
-            const Padding(
-              padding: EdgeInsets.only(top: 6),
-              child: Text('Pilih jenis kedaruratan.',
-                  style: TextStyle(color: _DC.errorText, fontSize: 12.5, fontWeight: FontWeight.w600)),
-            ),
+          if (_tampilError && _jenisFinal.isEmpty) _errorNote('Pilih jenis kedaruratan.'),
           const SizedBox(height: 18),
 
-          // Lokasi
           _label('Lokasi Kejadian', tag: 'Opsional'),
           TextField(
             controller: _lokasi,
+            style: sty(14, FontWeight.w600, SC.ink),
             decoration: _dec('Contoh: Asrama Putra Blok B, Kamar 04',
-                icon: Icons.location_on_outlined, iconColor: _DC.goldDark),
+                icon: Icons.location_on_outlined, iconColor: SC.goldDark),
           ),
           const SizedBox(height: 18),
 
-          // Deskripsi
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: Row(
-              children: [
-                const Text('Deskripsi Kronologi & Kondisi',
-                    style: TextStyle(color: _DC.ink, fontSize: 15, fontWeight: FontWeight.w800)),
-                const Text(' *',
-                    style: TextStyle(color: _DC.danger, fontSize: 15, fontWeight: FontWeight.w800)),
-                const Spacer(),
-                Text('${_deskripsi.text.length} / $_maxDeskripsi',
-                    style: const TextStyle(color: _DC.inkSecondary, fontSize: 12)),
-              ],
-            ),
-          ),
+          _label('Kronologi & Kondisi', req: true, kanan: '${_deskripsi.text.length} / $_maxDeskripsi'),
           TextField(
             controller: _deskripsi,
             maxLines: 5,
             minLines: 4,
             maxLength: _maxDeskripsi,
             onChanged: (_) => setState(() {}),
+            style: sty(13.5, FontWeight.w500, SC.ink, h: 1.4),
             decoration: _dec('Ceritakan apa yang terjadi, kondisi santri, dan tindakan awal yang sudah dilakukan.'),
           ),
-          if (_tampilError && _deskripsi.text.trim().isEmpty)
-            const Padding(
-              padding: EdgeInsets.only(top: 6),
-              child: Text('Deskripsi wajib diisi.',
-                  style: TextStyle(color: _DC.errorText, fontSize: 12.5, fontWeight: FontWeight.w600)),
-            ),
+          if (_tampilError && _deskripsi.text.trim().isEmpty) _errorNote('Deskripsi wajib diisi.'),
         ],
       ),
     );
@@ -1252,26 +1269,23 @@ class _LaporSheetState extends State<_LaporSheet> {
     return InkWell(
       borderRadius: BorderRadius.circular(14),
       onTap: () => setState(() => _jenis = label),
-      child: Container(
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
         decoration: BoxDecoration(
-          color: sel ? _DC.primary : _DC.surface,
+          color: sel ? SC.primary : SC.surface,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: sel ? _DC.primary : _DC.border),
+          border: Border.all(color: sel ? SC.primary : SC.border),
         ),
         child: Row(
           children: [
-            Icon(icon, size: 20, color: sel ? Colors.white : _DC.primary),
+            Icon(icon, size: 19, color: sel ? SC.gold : SC.primary),
             const SizedBox(width: 8),
             Expanded(
               child: Text(label,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: sel ? Colors.white : _DC.ink,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                  )),
+                  style: sty(12.5, FontWeight.w700, sel ? Colors.white : SC.ink)),
             ),
           ],
         ),
@@ -1285,40 +1299,38 @@ class _LaporSheetState extends State<_LaporSheet> {
     final nis = s['nis'];
     final info = [if (nis != null) 'NIS $nis', if (kelas != null) '$kelas'].join(' • ');
     return Container(
-      padding: const EdgeInsets.fromLTRB(12, 10, 6, 10),
+      padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
       decoration: BoxDecoration(
-        color: _DC.surface,
+        color: SC.surface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: _DC.border),
+        border: Border.all(color: SC.border),
       ),
       child: Row(
         children: [
           Container(
             width: 40,
             height: 40,
-            decoration: const BoxDecoration(color: _DC.sage, shape: BoxShape.circle),
-            child: Icon(Icons.school_outlined, size: 20, color: _DC.primary),
+            decoration: BoxDecoration(color: SC.sage, shape: BoxShape.circle),
+            child: Icon(Icons.school_outlined, size: 20, color: SC.primary),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('${s['nama']}',
-                    style: const TextStyle(color: _DC.ink, fontSize: 14.5, fontWeight: FontWeight.w800)),
-                if (info.isNotEmpty)
-                  Text(info, style: const TextStyle(color: _DC.inkSecondary, fontSize: 12.5)),
+                Text('${s['nama']}', style: sty(14, FontWeight.w800, SC.ink)),
+                if (info.isNotEmpty) Text(info, style: sty(12, FontWeight.w500, SC.inkSecondary)),
               ],
             ),
           ),
           IconButton(
+            tooltip: 'Ganti santri',
             onPressed: () => setState(() {
               _santri = null;
               _hasil = [];
               _cari.clear();
             }),
-            style: IconButton.styleFrom(backgroundColor: _DC.surfaceContainer),
-            icon: const Icon(Icons.close_rounded, size: 18, color: _DC.ink),
+            icon: const Icon(Icons.close_rounded, size: 18, color: SC.inkSecondary),
           ),
         ],
       ),
@@ -1329,14 +1341,14 @@ class _LaporSheetState extends State<_LaporSheet> {
     return Container(
       margin: const EdgeInsets.only(top: 8),
       decoration: BoxDecoration(
-        color: _DC.surface,
+        color: SC.surface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: _DC.border),
+        border: Border.all(color: SC.border),
       ),
       child: Column(
         children: [
           for (var i = 0; i < _hasil.length; i++) ...[
-            if (i > 0) const Divider(height: 1, color: _DC.border),
+            if (i > 0) Divider(height: 1, color: SC.border),
             InkWell(
               borderRadius: BorderRadius.circular(14),
               onTap: () => setState(() {
@@ -1348,14 +1360,10 @@ class _LaporSheetState extends State<_LaporSheet> {
                 child: Row(
                   children: [
                     Expanded(
-                      child: Text('${_hasil[i]['nama']}',
-                          style: const TextStyle(
-                              color: _DC.ink, fontSize: 14, fontWeight: FontWeight.w700)),
+                      child: Text('${_hasil[i]['nama']}', style: sty(13.5, FontWeight.w700, SC.ink)),
                     ),
-                    Text(
-                      '${(_hasil[i]['kelas'] as Map?)?['namaKelas'] ?? ''}',
-                      style: const TextStyle(color: _DC.inkSecondary, fontSize: 12.5),
-                    ),
+                    Text('${(_hasil[i]['kelas'] as Map?)?['namaKelas'] ?? ''}',
+                        style: sty(12, FontWeight.w500, SC.inkSecondary)),
                   ],
                 ),
               ),
@@ -1368,9 +1376,8 @@ class _LaporSheetState extends State<_LaporSheet> {
 }
 
 // ---------------------------------------------------------------------------
-// Sheet: Tindak Lanjuti Laporan (Admin / Pimpinan)
+// Sheet: Tindak Lanjuti Laporan (Admin / Musyrif)
 // ---------------------------------------------------------------------------
-
 class _TindakSheet extends StatefulWidget {
   final Map<String, dynamic> item;
   const _TindakSheet({required this.item});
@@ -1380,13 +1387,13 @@ class _TindakSheet extends StatefulWidget {
 }
 
 class _TindakSheetState extends State<_TindakSheet> {
-  late String _status = (widget.item['status'] as String?) ?? 'BARU';
+  late String _status = _statusOf(widget.item);
   late final TextEditingController _tindak =
       TextEditingController(text: widget.item['tindakLanjut'] as String? ?? '');
 
   static const _hint = {
     'BARU': 'Laporan belum ditangani.',
-    'DITANGANI': 'Pilih "Ditangani" saat tindakan medis atau penanganan awal santri dimulai.',
+    'DITANGANI': 'Pilih "Ditangani" saat tindakan medis atau penanganan awal dimulai.',
     'SELESAI': 'Pilih "Selesai" setelah kondisi santri pulih dan kasus ditutup.',
   };
 
@@ -1411,7 +1418,7 @@ class _TindakSheetState extends State<_TindakSheet> {
     final kelas = (santri?['kelas'] as Map?)?['namaKelas'];
     final lokasi = (d['lokasi'] as String?)?.trim();
     final dt = DateTime.tryParse('${d['tanggal']}')?.toLocal();
-    final stAwal = _st((d['status'] as String?) ?? 'BARU');
+    final stAwal = _st(_statusOf(d));
     final ringkas = [
       santri == null ? 'Umum' : '${santri['nama']}',
       if (kelas != null) '$kelas',
@@ -1419,11 +1426,11 @@ class _TindakSheetState extends State<_TindakSheet> {
     ].join(' • ');
 
     return _SheetShell(
-      title: 'Tindak Lanjuti Laporan',
-      subtitle: 'Pembaruan status & catatan kedaruratan',
+      title: 'Tindak Lanjuti',
+      subtitle: 'Perbarui status dan catatan penanganan',
       icon: Icons.edit_note_rounded,
-      iconBg: _DC.amberBg,
-      iconFg: _DC.goldDark,
+      iconBg: SC.goldSurface,
+      iconFg: SC.gold,
       footer: _footerButtons(
         context: context,
         submitLabel: 'Simpan Status',
@@ -1436,37 +1443,35 @@ class _TindakSheetState extends State<_TindakSheet> {
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Ringkasan laporan
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(color: _DC.surfaceDim, borderRadius: BorderRadius.circular(16)),
+            decoration: BoxDecoration(
+              color: SC.surface,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: SC.border),
+              boxShadow: softShadow,
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
-                    const Expanded(child: SizedBox()),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(color: stAwal.bg, borderRadius: BorderRadius.circular(999)),
-                      child: Text(stAwal.label,
-                          style: TextStyle(
-                              color: stAwal.fg, fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 0.6)),
+                    Expanded(
+                      child: Text('${d['jenis']}', style: sty(16, FontWeight.w800, SC.ink)),
                     ),
+                    _pill(stAwal.label.toUpperCase(), bg: stAwal.bg, fg: stAwal.fg),
                   ],
                 ),
-                Text('${d['jenis']}',
-                    style: const TextStyle(color: _DC.ink, fontSize: 16, fontWeight: FontWeight.w800)),
                 const SizedBox(height: 4),
-                Text(ringkas, style: const TextStyle(color: _DC.inkSecondary, fontSize: 13)),
+                Text(ringkas, style: sty(12.5, FontWeight.w500, SC.inkSecondary)),
                 const SizedBox(height: 8),
                 Row(
                   children: [
-                    const Icon(Icons.schedule_rounded, size: 15, color: _DC.goldDark),
+                    Icon(Icons.schedule_rounded, size: 14, color: SC.goldDark),
                     const SizedBox(width: 6),
                     Text(dt == null ? '-' : '${_tgl(dt)}, ${_jam(dt)}',
-                        style: const TextStyle(color: _DC.inkSecondary, fontSize: 12.5)),
+                        style: sty(12, FontWeight.w600, SC.inkSecondary)),
                   ],
                 ),
               ],
@@ -1474,8 +1479,7 @@ class _TindakSheetState extends State<_TindakSheet> {
           ),
           const SizedBox(height: 18),
 
-          // Status
-          _label('Status Penanganan', required: true),
+          _label('Status Penanganan', req: true),
           Row(
             children: [
               for (final s in const ['BARU', 'DITANGANI', 'SELESAI']) ...[
@@ -1488,34 +1492,23 @@ class _TindakSheetState extends State<_TindakSheet> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(Icons.info_outline_rounded, size: 15, color: _DC.goldDark),
+              Icon(Icons.info_outline_rounded, size: 14, color: SC.goldDark),
               const SizedBox(width: 6),
               Expanded(
                 child: Text(_hint[_status] ?? '',
-                    style: const TextStyle(color: _DC.goldDark, fontSize: 12.5, height: 1.35)),
+                    style: sty(12, FontWeight.w600, SC.goldDark, h: 1.4)),
               ),
             ],
           ),
           const SizedBox(height: 18),
 
-          // Tindak lanjut
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: Row(
-              children: [
-                const Text('Tindakan & Perkembangan Santri',
-                    style: TextStyle(color: _DC.ink, fontSize: 15, fontWeight: FontWeight.w800)),
-                const Spacer(),
-                Text('${_tindak.text.length} karakter',
-                    style: const TextStyle(color: _DC.inkSecondary, fontSize: 12)),
-              ],
-            ),
-          ),
+          _label('Tindakan & Perkembangan', kanan: '${_tindak.text.length} karakter'),
           TextField(
             controller: _tindak,
             maxLines: 6,
             minLines: 4,
             onChanged: (_) => setState(() {}),
+            style: sty(13.5, FontWeight.w500, SC.ink, h: 1.4),
             decoration: _dec('Tulis tindakan yang sudah dilakukan dan perkembangan kondisi santri.'),
           ),
           const SizedBox(height: 10),
@@ -1539,25 +1532,20 @@ class _TindakSheetState extends State<_TindakSheet> {
     return InkWell(
       borderRadius: BorderRadius.circular(16),
       onTap: () => setState(() => _status = s),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 14),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        padding: const EdgeInsets.symmetric(vertical: 13),
         decoration: BoxDecoration(
-          color: sel ? st.bg : _DC.surfaceDim,
+          color: sel ? st.bg : SC.surface,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: sel ? st.fg.withOpacity(0.35) : Colors.transparent, width: 1.5),
+          border: Border.all(color: sel ? st.fg.withOpacity(0.4) : SC.border, width: sel ? 1.4 : 1),
         ),
         child: Column(
           children: [
             Icon(sel ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
-                size: 22, color: sel ? st.fg : _DC.inkSecondary),
+                size: 21, color: sel ? st.fg : SC.inkMuted),
             const SizedBox(height: 6),
-            Text(st.label,
-                style: TextStyle(
-                  color: sel ? st.fg : _DC.inkSecondary,
-                  fontSize: 11.5,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 0.3,
-                )),
+            Text(st.label, style: sty(11.5, FontWeight.w800, sel ? st.fg : SC.inkSecondary)),
           ],
         ),
       ),
@@ -1571,11 +1559,11 @@ class _TindakSheetState extends State<_TindakSheet> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: _DC.surfaceContainer,
+          color: SC.surface,
           borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: SC.border),
         ),
-        child: Text(label,
-            style: const TextStyle(color: _DC.ink, fontSize: 12.5, fontWeight: FontWeight.w700)),
+        child: Text(label, style: sty(12, FontWeight.w700, SC.primary)),
       ),
     );
   }
