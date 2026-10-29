@@ -879,36 +879,23 @@ class _PendaftarDetailState extends State<_PendaftarDetail> {
     }
     final mime = RegExp(r'^data:([^;]+);').firstMatch(data)?.group(1) ?? '';
 
+    // SESUDAH
     if (mime.startsWith('image/')) {
+      final gambar = <_DokGambar>[];
+      var awal = 0;
+      for (final it in _dokumenList) {
+        final d = it[1];
+        final b = _decodeDataUri(d);
+        final m = RegExp(r'^data:([^;]+);').firstMatch(d ?? '')?.group(1) ?? '';
+        if (b != null && m.startsWith('image/')) {
+          if (it[0] == judul) awal = gambar.length;
+          gambar.add(_DokGambar(it[0]!, b));
+        }
+      }
+      if (!mounted) return;
       await showDialog(
         context: context,
-        builder: (ctx) => Dialog(
-          backgroundColor: PColors.surface,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Padding(
-                padding: EdgeInsets.fromLTRB(16, 12, 8, 4),
-                child: Row(
-                  children: [
-                    Expanded(child: Text(judul, style: PText.headlineSm)),
-                    IconButton(
-                      icon: Icon(Icons.close),
-                      onPressed: () => Navigator.pop(ctx),
-                    ),
-                  ],
-                ),
-              ),
-              Flexible(
-                child: InteractiveViewer(
-                  child: Image.memory(bytes, fit: BoxFit.contain),
-                ),
-              ),
-              SizedBox(height: 12),
-            ],
-          ),
-        ),
+        builder: (_) => _PratinjauDokumenDialog(items: gambar, awal: awal),
       );
     } else if (mime == 'application/pdf') {
       final dir = await getTemporaryDirectory();
@@ -920,12 +907,14 @@ class _PendaftarDetailState extends State<_PendaftarDetail> {
     }
   }
 
+  List<List<String?>> get _dokumenList => [
+        ['Pas Foto Ananda', _p['fotoUrl'] as String?],
+        ['Kartu Keluarga', _p['kartuKeluargaUrl'] as String?],
+        ['Akta Kelahiran', _p['aktaLahirUrl'] as String?],
+      ];
+
   List<Widget> _dokumenTiles() {
-    final items = <List<String?>>[
-      ['Pas Foto Ananda', _p['fotoUrl'] as String?],
-      ['Kartu Keluarga', _p['kartuKeluargaUrl'] as String?],
-      ['Akta Kelahiran', _p['aktaLahirUrl'] as String?],
-    ];
+    final items = _dokumenList;
     return [
       for (final it in items)
         Padding(
@@ -2042,6 +2031,262 @@ class _TahapanSeleksi extends StatelessWidget {
           ],
         );
       }),
+    );
+  }
+}
+
+class _DokGambar {
+  const _DokGambar(this.judul, this.bytes);
+  final String judul;
+  final Uint8List bytes;
+}
+
+class _PratinjauDokumenDialog extends StatefulWidget {
+  const _PratinjauDokumenDialog({required this.items, required this.awal});
+
+  final List<_DokGambar> items;
+  final int awal;
+
+  @override
+  State<_PratinjauDokumenDialog> createState() =>
+      _PratinjauDokumenDialogState();
+}
+
+class _PratinjauDokumenDialogState extends State<_PratinjauDokumenDialog> {
+  final _ctrl = TransformationController();
+  late int _i;
+  double _zoom = 1;
+  Size _stage = Size.zero;
+
+  @override
+  void initState() {
+    super.initState();
+    _i = widget.awal;
+    _ctrl.addListener(() {
+      final s = _ctrl.value.getMaxScaleOnAxis();
+      if ((s - _zoom).abs() > 0.01 && mounted) setState(() => _zoom = s);
+    });
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  void _pindah(int arah) {
+    _ctrl.value = Matrix4.identity();
+    setState(() {
+      _i += arah;
+      _zoom = 1;
+    });
+  }
+
+  void _setZoom(double s) {
+    final z = s.clamp(0.5, 4.0).toDouble();
+    final tx = _stage.width * (1 - z) / 2;
+    final ty = _stage.height * (1 - z) / 2;
+    _ctrl.value = Matrix4.translationValues(tx, ty, 0)
+      ..multiply(Matrix4.diagonal3Values(z, z, 1));
+  }
+
+  Widget _panah(IconData icon, VoidCallback onTap) {
+    return Material(
+      color: Colors.white,
+      shape: CircleBorder(side: BorderSide(color: PColors.border)),
+      child: InkWell(
+        customBorder: CircleBorder(),
+        onTap: onTap,
+        child: SizedBox(
+          width: 34,
+          height: 34,
+          child: Icon(icon, size: 20, color: PColors.ink),
+        ),
+      ),
+    );
+  }
+
+  Widget _barZoom() {
+    Widget tombol(IconData icon, VoidCallback onTap, {Color color = Colors.white}) {
+      return InkWell(
+        customBorder: CircleBorder(),
+        onTap: onTap,
+        child: SizedBox(
+          width: 32,
+          height: 32,
+          child: Icon(icon, size: 18, color: color),
+        ),
+      );
+    }
+
+    return Container(
+      padding: EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: SC.primary,
+        borderRadius: BorderRadius.circular(9999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          tombol(Icons.zoom_out, () => _setZoom(_zoom - 0.25)),
+          SizedBox(
+            width: 46,
+            child: Text(
+              '${(_zoom * 100).round()}%',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontFamily: 'Nunito',
+                fontSize: 12.5,
+                fontWeight: FontWeight.w700,
+                color: Colors.white,
+              ),
+            ),
+          ),
+          tombol(Icons.zoom_in, () => _setZoom(_zoom + 0.25)),
+          Container(
+            width: 1,
+            height: 16,
+            margin: EdgeInsets.symmetric(horizontal: 4),
+            color: Colors.white30,
+          ),
+          tombol(Icons.fit_screen, () => _setZoom(1), color: PColors.gold),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final n = widget.items.length;
+    final d = widget.items[_i];
+    final tinggiStage =
+        (MediaQuery.of(context).size.height * 0.5).clamp(240.0, 360.0).toDouble();
+
+    return Dialog(
+      backgroundColor: Colors.white,
+      surfaceTintColor: Colors.transparent,
+      insetPadding: EdgeInsets.all(16),
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: 500),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: EdgeInsets.fromLTRB(16, 14, 10, 12),
+              child: Row(
+                children: [
+                  Container(
+                    width: 38,
+                    height: 38,
+                    decoration: BoxDecoration(
+                      color: SC.sage,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(Icons.description_outlined,
+                        size: 20, color: SC.primary),
+                  ),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          d.judul,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontFamily: 'Nunito',
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                            color: PColors.ink,
+                          ),
+                        ),
+                        Text(
+                          'Dokumen ${_i + 1} dari $n',
+                          style: TextStyle(
+                            fontFamily: 'Nunito',
+                            fontSize: 12,
+                            color: PColors.inkSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: IconButton.styleFrom(
+                        backgroundColor: PColors.surfaceDim),
+                    icon: Icon(Icons.close, size: 18, color: PColors.ink),
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              height: tinggiStage,
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: PColors.surfaceDim,
+                border: Border(top: BorderSide(color: PColors.border)),
+              ),
+              child: Stack(
+                children: [
+                  Positioned.fill(
+                    child: LayoutBuilder(
+                      builder: (ctx, c) {
+                        _stage = Size(c.maxWidth, c.maxHeight);
+                        return InteractiveViewer(
+                          transformationController: _ctrl,
+                          minScale: 0.5,
+                          maxScale: 4,
+                          child: Padding(
+                            padding: EdgeInsets.fromLTRB(44, 16, 44, 56),
+                            child: Center(
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(10),
+                                child: Image.memory(
+                                  d.bytes,
+                                  fit: BoxFit.contain,
+                                  gaplessPlayback: true,
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  if (n > 1 && _i > 0)
+                    Positioned(
+                      left: 10,
+                      top: 0,
+                      bottom: 0,
+                      child: Center(
+                        child: _panah(Icons.chevron_left, () => _pindah(-1)),
+                      ),
+                    ),
+                  if (n > 1 && _i < n - 1)
+                    Positioned(
+                      right: 10,
+                      top: 0,
+                      bottom: 0,
+                      child: Center(
+                        child: _panah(Icons.chevron_right, () => _pindah(1)),
+                      ),
+                    ),
+                  Positioned(
+                    bottom: 12,
+                    left: 0,
+                    right: 0,
+                    child: Center(child: _barZoom()),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

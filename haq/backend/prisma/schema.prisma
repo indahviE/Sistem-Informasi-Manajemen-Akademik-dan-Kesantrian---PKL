@@ -168,8 +168,25 @@ model Tenant {
   jurnalMengajars    JurnalMengajar[]
   deletedAt          DateTime?
   UstadzMengajar     UstadzMengajar[]
+  berkas             TenantBerkas[]
 
   @@map("tenants")
+}
+
+model TenantBerkas {
+  id        String   @id @default(cuid())
+  tenantId  String
+  nama      String
+  namaFile  String
+  mime      String
+  ukuran    Int
+  data      Bytes    @db.LongBlob
+  createdAt DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@map("tenant_berkas")
 }
 
 model User {

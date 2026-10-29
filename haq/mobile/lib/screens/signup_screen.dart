@@ -24,6 +24,7 @@ import '../services/api_client.dart';
 import '../services/app_scope.dart';
 
 import 'landing_screen.dart';
+import '../widgets/berkas_legalitas.dart';
 /// Design tokens diambil langsung dari DESIGN.md
 /// (Islamic Academic & Kesantrian Experience).
 class PColors {
@@ -174,6 +175,12 @@ class _SignupScreenState extends State<SignupScreen> {
   final _alamat = TextEditingController();
   final _kode = TextEditingController();
   final _logo = TextEditingController();
+  final Map<String, Map<String, String>> _berkas = {};
+  static const _berkasSlots = [
+    'SK Kemenag / Izin Operasional',
+    'Akta Yayasan',
+    'KTP Pimpinan / PIC',
+  ];
   final Set<String> _karakteristik = {'Tahfidz Quran'};
 
   // Step 2 — Admin Awal
@@ -357,6 +364,7 @@ class _SignupScreenState extends State<SignupScreen> {
           _adminPhone.text.trim().isEmpty ? null : _adminPhone.text.trim(),
       'alamat': _alamat.text.trim(),
       'karakteristik': _karakteristik.toList(),
+      'berkas': _berkas.values.toList(),
     });
     final pesanSukses =
         'Pendaftaran berhasil. Menunggu persetujuan Super Admin.';
@@ -501,6 +509,27 @@ class _SignupScreenState extends State<SignupScreen> {
         const SizedBox(height: 10),
         _LogoUploadBox(controller: _logo),
         const SizedBox(height: 20),
+      Text('Berkas Legalitas (Opsional)', style: PText.labelLg),
+      const SizedBox(height: 4),
+      Text('JPG, PNG, atau PDF, maks. 2MB per berkas. Membantu mempercepat persetujuan.',
+          style: PText.bodySm),
+      const SizedBox(height: 10),
+      for (final slot in _berkasSlots)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: BerkasUploadField(
+            label: slot,
+            initialNamaFile: _berkas[slot]?['namaFile'],
+            onChanged: (data, namaFile) => setState(() {
+              if (data == null) {
+                _berkas.remove(slot);
+              } else {
+                _berkas[slot] = {'nama': slot, 'namaFile': namaFile ?? '', 'data': data};
+              }
+            }),
+          ),
+        ),
+        const SizedBox(height: 20),
         Row(
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
@@ -595,6 +624,7 @@ class _SignupScreenState extends State<SignupScreen> {
         _SummaryRow('Alamat', _alamat.text.trim()),
         _SummaryRow('Karakteristik', _karakteristik.join(', ')),
         _SummaryRow('Kode Tenant', _kode.text.trim()),
+        _SummaryRow('Berkas Legalitas', _berkas.isEmpty ? '-' : _berkas.keys.join(', ')),
         const SizedBox(height: 16),
         Divider(color: PColors.border, height: 1),
         const SizedBox(height: 16),

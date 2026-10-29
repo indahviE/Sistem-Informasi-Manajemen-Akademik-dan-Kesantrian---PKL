@@ -1,4 +1,5 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
+import type { Response } from 'express';
 import { TenantsService } from './tenants.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -95,6 +96,33 @@ export class TenantsController {
   @Post('trash/delete-permanent')
   hapusPermanen(@Body() dto: ApproveTenantDto, @CurrentUser() user: RequestUser, @Req() req: { ip?: string }) {
     return this.tenantsService.hapusPermanen(dto.tenantId, user, req.ip);
+  }
+
+  // Super Admin meminta link sementara untuk membuka satu berkas
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN)
+  @Get('berkas/:id/link')
+  linkBerkas(@Param('id') id: string) {
+    return this.tenantsService.buatLinkBerkas(id);
+  }
+
+  // Dibuka lewat browser; keamanan lewat token bertanda tangan + kedaluwarsa 5 menit
+  @Public()
+  @Get('berkas/file')
+  async berkasFile(
+    @Query('token') token: string,
+    @Query('download') download: string | undefined,
+    @Res() res: Response,
+  ) {
+    const berkas = await this.tenantsService.ambilBerkasDenganToken(token);
+    const mode = download === '1' ? 'attachment' : 'inline';
+    res.set({
+      'Content-Type': berkas.mime,
+      'Content-Disposition': `${mode}; filename*=UTF-8''${encodeURIComponent(berkas.namaFile || berkas.nama)}`,
+      'X-Content-Type-Options': 'nosniff',
+      'Cache-Control': 'private, no-store',
+    });
+    res.send(berkas.data);
   }
 
   @UseGuards(JwtAuthGuard)

@@ -493,13 +493,14 @@ class _TenantsScreenState extends State<TenantsScreen> {
       );
   }
 
-  Future<void> _action(Map<String, dynamic> t, String action) async {
+// SESUDAH
+  Future<bool> _action(Map<String, dynamic> t, String action) async {
     final nama = (t['namaPondok'] ?? 'Tenant').toString();
     final info = _infoAksi(action, nama);
 
     if (info != null) {
       final ok = await _konfirmasi(info);
-      if (!ok || !mounted) return;
+      if (!ok || !mounted) return false;
     }
 
     try {
@@ -518,7 +519,7 @@ class _TenantsScreenState extends State<TenantsScreen> {
         _ => ApiUrl.tenantSuspend,
       };
       await api.post(url, {'tenantId': t['id']});
-      if (!mounted) return;
+      if (!mounted) return false;
       if (info != null) {
         _snack(
           title: info.sukses,
@@ -527,6 +528,7 @@ class _TenantsScreenState extends State<TenantsScreen> {
         );
       }
       _load();
+      return true;
     } on ApiException catch (e) {
       _snack(
         title: 'Aksi Gagal',
@@ -534,6 +536,7 @@ class _TenantsScreenState extends State<TenantsScreen> {
         icon: Icons.error_outline_rounded,
         error: true,
       );
+      return false;
     } catch (e) {
       _snack(
         title: 'Aksi Gagal',
@@ -541,9 +544,10 @@ class _TenantsScreenState extends State<TenantsScreen> {
         icon: Icons.error_outline_rounded,
         error: true,
       );
+      return false;
     }
   }
-
+  
   // Konfirmasi hapus permanen sekarang ditangani langsung di _action,
   // fungsi ini dipertahankan supaya pemanggilnya tidak perlu diubah.
   Future<void> _confirmDeletePermanent(Map<String, dynamic> t) =>
@@ -553,15 +557,25 @@ class _TenantsScreenState extends State<TenantsScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => TenantDetailScreen(
-          tenant: t,
-          onApprove: () => _action(t, 'approve'),
-          onSuspend: () => _action(t, 'suspend'),
-          onRestore: () => _action(t, 'restore'),
-          onArchive: () => _action(t, 'archive'),
-          onUnarchive: () => _action(t, 'unarchive'),
-          onDelete: () => _action(t, 'delete'),
-        ),
+        builder: (detailCtx) {
+          // Jalankan aksi; kalau berhasil, tutup halaman detail.
+          Future<void> jalankan(String aksi) async {
+            final berhasil = await _action(t, aksi);
+            if (berhasil && detailCtx.mounted) {
+              Navigator.of(detailCtx).pop();
+            }
+          }
+
+          return TenantDetailScreen(
+            tenant: t,
+            onApprove: () => jalankan('approve'),
+            onSuspend: () => jalankan('suspend'),
+            onRestore: () => jalankan('restore'),
+            onArchive: () => jalankan('archive'),
+            onUnarchive: () => jalankan('unarchive'),
+            onDelete: () => jalankan('delete'),
+          );
+        },
       ),
     );
   }
@@ -1310,7 +1324,7 @@ class _TenantCard extends StatelessWidget {
               note: (tenant['catatanPending'] ??
                       'Menunggu validasi SK Kemenag & berkas legalitas pendaftaran baru.')
                   .toString(),
-              onReview: () {},
+              onReview: onTap,
             ),
           ],
           const SizedBox(height: 10),
