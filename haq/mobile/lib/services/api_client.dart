@@ -195,7 +195,9 @@ class ApiUrl {
 
   static const jurnalMengajar = '/jurnal-mengajar';
 
-  static const tenantSlugCheck = '/tenants/check-slug'; 
+  static const tenantSlugCheck = '/tenants/check-slug';
+  static String tenantBerkasLink(String id) => '/tenants/berkas/$id/link';
+  static const tenantBerkasFile = '/tenants/berkas/file'; 
 
   static const auditLog = '/audit-log';
   static const auditLogPondok = '/audit-log/pondok';

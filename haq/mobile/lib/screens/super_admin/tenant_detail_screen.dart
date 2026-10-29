@@ -10,9 +10,13 @@
 // dipindah ke dalam SingleChildScrollView, bukan membungkus semuanya.
 
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../services/api_client.dart';
+import '../../services/app_scope.dart';
+import '../../widgets/berkas_legalitas.dart';
 import 'tenants_screen.dart' show PColors, PText;
 
 const Map<String, IconData> kLogoIconOptions = {
@@ -60,6 +64,7 @@ class TenantDetailScreen extends StatefulWidget {
 enum _Tab { informasi, pengguna, langganan }
 
 class _TenantDetailScreenState extends State<TenantDetailScreen> {
+  final _berkasKey = GlobalKey();
   _Tab _tab = _Tab.informasi;
 
   Map<String, dynamic> get t => widget.tenant;
@@ -107,29 +112,36 @@ class _TenantDetailScreenState extends State<TenantDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+// SESUDAH
     return Scaffold(
       backgroundColor: PColors.background,
       body: SafeArea(
+        top: false,
         child: Column(
           children: [
-            _Header(onBack: () => Navigator.of(context).maybePop()),
             Expanded(
               child: SingleChildScrollView(
                 child: Center(
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 480),
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          _buildProfileCard(),
-                          const SizedBox(height: 16),
-                          _buildTabBar(),
-                          const SizedBox(height: 16),
-                          _buildTabContent(),
-                        ],
-                      ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _buildHero(context),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              _buildProfileCard(),
+                              const SizedBox(height: 16),
+                              _buildTabBar(),
+                              const SizedBox(height: 16),
+                              _buildTabContent(),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -140,12 +152,37 @@ class _TenantDetailScreenState extends State<TenantDetailScreen> {
         ),
       ),
     );
-  }
+      }
 
   // --------------------------------------------------------------------
   // Profile card
   // --------------------------------------------------------------------
-  Widget _buildProfileCard() {
+  Widget _heroStat(IconData icon, String value, String label, Color color) {
+    return Expanded(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 16, color: color),
+              const SizedBox(width: 5),
+              Text(value,
+                  style: TextStyle(
+                      fontFamily: 'Nunito',
+                      fontSize: 19,
+                      fontWeight: FontWeight.w800,
+                      color: color)),
+            ],
+          ),
+          const SizedBox(height: 2),
+          Text(label, style: PText.bodySm),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHero(BuildContext context) {
     final status = _status();
     final statusColor = switch (status) {
       'SUSPENDED' => PColors.errorText,
@@ -160,49 +197,190 @@ class _TenantDetailScreenState extends State<TenantDetailScreen> {
       _ => PColors.successBg,
     };
     final paket = _s(t['paket'], 'Basic');
-    final subdomain = _s(t['subdomain'] ??
-        '${_s(t['kodeTenant'] ?? t['slug'], 'tenant')}.sistempesantren.com');
-    final lokasi = _s(t['lokasi'] ?? t['kota'] ?? t['alamatSingkat'] ?? t['alamat']);
-    final tanggal =
-        _s(t['tanggalDaftar'] ?? t['createdAt'] ?? t['tanggalGabung']);
     final logo = t['logoUrl']?.toString();
+    final top = MediaQuery.of(context).padding.top + 12;
 
-    return _Card(
+    return Stack(
       children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _LogoAvatar(logo: logo, size: 52, iconKey: t['logoIcon']?.toString()),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 6,
-                    children: [
-                      _StatusBadge(
-                          label: status, bg: statusBg, fg: statusColor),
-                      _StatusBadge(
-                          icon: Icons.workspace_premium_outlined,
-                          label: paket,
-                          bg: PColors.goldSurface,
-                          fg: PColors.gold),
-                    ],
+        Padding(
+          padding: const EdgeInsets.only(bottom: 40),
+          child: Container(
+            width: double.infinity,
+            padding: EdgeInsets.fromLTRB(20, top, 20, 62),
+            clipBehavior: Clip.antiAlias,
+            decoration: const BoxDecoration(
+              borderRadius: BorderRadius.vertical(bottom: Radius.circular(32)),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [PColors.primary, Color(0xFF1B4D3E)],
+              ),
+            ),
+            child: Stack(
+              children: [
+                const Positioned.fill(
+                  child: IgnorePointer(
+                    child: CustomPaint(
+                      painter: _ArabesquePatternPainter(),
+                      size: Size.infinite,
+                    ),
                   ),
-                  const SizedBox(height: 6),
-                  Text(_s(t['namaPondok'] ?? t['nama']),
-                      style: PText.headlineSm.copyWith(fontSize: 16)),
-                  const SizedBox(height: 4),
-                  Text('slug: ${_s(t['kodeTenant'] ?? t['slug'])}',
-                      style: PText.bodySm),
+                ),
+                Positioned(
+                  right: -50,
+                  top: -60,
+                  child: Container(
+                    width: 170,
+                    height: 170,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.white.withOpacity(0.08),
+                    ),
+                  ),
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Material(
+                          color: Colors.white.withOpacity(0.16),
+                          shape: CircleBorder(
+                            side: BorderSide(
+                                color: Colors.white.withOpacity(0.28)),
+                          ),
+                          child: InkWell(
+                            customBorder: const CircleBorder(),
+                            onTap: () => Navigator.of(context).maybePop(),
+                            child: const SizedBox(
+                              width: 42,
+                              height: 42,
+                              child: Icon(Icons.arrow_back_rounded,
+                                  size: 20, color: Colors.white),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        const Expanded(
+                          child: Text(
+                            'Detail tenant',
+                            style: TextStyle(
+                              fontFamily: 'Nunito',
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        _LogoAvatar(
+                          logo: logo,
+                          size: 68,
+                          radius: 18,
+                          iconKey: t['logoIcon']?.toString(),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                _s(t['namaPondok'] ?? t['nama']),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontFamily: 'Nunito',
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.w800,
+                                  height: 1.2,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Wrap(
+                                spacing: 6,
+                                runSpacing: 6,
+                                children: [
+                                  _StatusBadge(
+                                      label: status,
+                                      bg: statusBg,
+                                      fg: statusColor),
+                                  _StatusBadge(
+                                      icon: Icons.workspace_premium_outlined,
+                                      label: paket,
+                                      bg: PColors.goldSurface,
+                                      fg: PColors.gold),
+                                  _StatusBadge(
+                                      label:
+                                          'slug: ${_s(t['kodeTenant'] ?? t['slug'])}',
+                                      bg: Colors.white.withOpacity(0.14),
+                                      fg: Colors.white),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+        Positioned(
+          left: 16,
+          right: 16,
+          bottom: 0,
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            decoration: BoxDecoration(
+              color: PColors.surface,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: PColors.border),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x1A0F3A2E),
+                  blurRadius: 18,
+                  offset: Offset(0, 8),
+                ),
+              ],
+            ),
+            child: IntrinsicHeight(
+              child: Row(
+                children: [
+                  _heroStat(Icons.groups_2_outlined, _s(t['jumlahUser'], '0'),
+                      'Total User', PColors.primary),
+                  Container(width: 1, color: PColors.border),
+                  _heroStat(Icons.school_outlined, _s(t['jumlahSantri'], '0'),
+                      'Santri Aktif', PColors.successText),
+                  Container(width: 1, color: PColors.border),
+                  _heroStat(Icons.class_outlined, _s(t['jumlahKelas'], '0'),
+                      'Kelas', PColors.gold),
                 ],
               ),
             ),
-          ],
+          ),
         ),
-        const SizedBox(height: 14),
+      ],
+    );
+  }
+
+  Widget _buildProfileCard() {
+    final subdomain = _s(t['subdomain'] ??
+        '${_s(t['kodeTenant'] ?? t['slug'], 'tenant')}.sistempesantren.com');
+    final lokasi =
+        _s(t['lokasi'] ?? t['kota'] ?? t['alamatSingkat'] ?? t['alamat']);
+    final tanggal =
+        _s(t['tanggalDaftar'] ?? t['createdAt'] ?? t['tanggalGabung']);
+
+    return _Card(
+      children: [
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           decoration: BoxDecoration(
@@ -211,51 +389,36 @@ class _TenantDetailScreenState extends State<TenantDetailScreen> {
           ),
           child: Row(
             children: [
-              const Icon(Icons.dns_outlined, size: 16, color: PColors.inkSecondary),
+              const Icon(Icons.dns_outlined,
+                  size: 16, color: PColors.inkSecondary),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(subdomain,
                     style: PText.bodySm.copyWith(color: PColors.ink),
                     overflow: TextOverflow.ellipsis),
               ),
-              const Icon(Icons.open_in_new, size: 15, color: PColors.inkSecondary),
+              const Icon(Icons.open_in_new,
+                  size: 15, color: PColors.inkSecondary),
             ],
           ),
         ),
         const SizedBox(height: 10),
         Row(
           children: [
-            const Icon(Icons.place_outlined, size: 14, color: PColors.inkSecondary),
+            const Icon(Icons.place_outlined,
+                size: 14, color: PColors.inkSecondary),
             const SizedBox(width: 4),
             Expanded(child: Text(lokasi, style: PText.bodySm)),
-            const Icon(Icons.event_outlined, size: 14, color: PColors.inkSecondary),
+            const Icon(Icons.event_outlined,
+                size: 14, color: PColors.inkSecondary),
             const SizedBox(width: 4),
             Text(tanggal, style: PText.bodySm),
-          ],
-        ),
-        const SizedBox(height: 14),
-        const Divider(color: PColors.border, height: 1),
-        const SizedBox(height: 14),
-        Row(
-          children: [
-            Expanded(
-                child: _MetricBox(
-                    label: 'Total User', value: _s(t['jumlahUser'], '0'))),
-            const SizedBox(width: 8),
-            Expanded(
-                child: _MetricBox(
-                    label: 'Santri Aktif',
-                    value: _s(t['jumlahSantri'], '0'))),
-            const SizedBox(width: 8),
-            Expanded(
-                child: _MetricBox(
-                    label: 'Kelas', value: _s(t['jumlahKelas'], '0'))),
           ],
         ),
       ],
     );
   }
-
+  
   // --------------------------------------------------------------------
   // Tabs
   // --------------------------------------------------------------------
@@ -309,10 +472,16 @@ class _TenantDetailScreenState extends State<TenantDetailScreen> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _buildAdminCard(),
-            const SizedBox(height: 16),
-            _buildBrandingCard(),
-          ],
+          BerkasLegalitasCard(
+            key: _berkasKey,
+            berkas: t['berkas'],
+            resolveUrl: _linkBerkas,
+          ),
+          const SizedBox(height: 16),
+          _buildAdminCard(),
+          const SizedBox(height: 16),
+          _buildBrandingCard(),
+        ],
         );
       case _Tab.pengguna:
         return _card(
@@ -546,6 +715,16 @@ class _TenantDetailScreenState extends State<TenantDetailScreen> {
   // --------------------------------------------------------------------
   // Bottom bar — background full width, konten di-center & di-constrain
   // --------------------------------------------------------------------
+  Future<String?> _linkBerkas(String id) async {
+    final api = AppScope.of(context).api;
+    final res = await api.get(ApiUrl.tenantBerkasLink(id));
+    final token = (res is Map) ? res['token'] : null;
+    if (token == null) {
+      throw ApiException(0, 'Server tidak mengirim token berkas.');
+    }
+    return '${api.baseUrl()}${ApiUrl.prefix}${ApiUrl.tenantBerkasFile}?token=$token';
+  }
+
   Widget _buildBottomBar(BuildContext context) {
     final status = _status();
 
@@ -553,15 +732,26 @@ class _TenantDetailScreenState extends State<TenantDetailScreen> {
     Widget rightBtn;
 
     if (status == 'PENDING') {
-      leftBtn = OutlinedButton(
-        onPressed: () {},
-        child: const Text('Tinjau Berkas'),
-      );
-      rightBtn = FilledButton(
-        onPressed: widget.onApprove,
-        child: const Text('Setujui & Aktifkan'),
-      );
-    } else if (status == 'SUSPENDED') {
+        leftBtn = OutlinedButton(
+          onPressed: () {
+            setState(() => _tab = _Tab.informasi);
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              final ctx = _berkasKey.currentContext;
+              if (ctx != null) {
+                Scrollable.ensureVisible(
+                  ctx,
+                  duration: const Duration(milliseconds: 300),
+                );
+              }
+            });
+          },
+          child: const Text('Tinjau Berkas'),
+        );
+        rightBtn = FilledButton(
+          onPressed: widget.onApprove,
+          child: const Text('Setujui & Aktifkan'),
+        );
+      } else if (status == 'SUSPENDED') {
       leftBtn = OutlinedButton.icon(
         onPressed: () => _hubungiPIC(context),
         icon: const Icon(Icons.chat_outlined, size: 16),
@@ -751,7 +941,6 @@ class _TenantDetailScreenState extends State<TenantDetailScreen> {
           TextButton(
             onPressed: () {
               Navigator.pop(ctx);
-              Navigator.of(context).maybePop();
               widget.onDelete?.call();
             },
             style: TextButton.styleFrom(foregroundColor: PColors.errorText),
@@ -1082,4 +1271,51 @@ class _LogoAvatar extends StatelessWidget {
       child: child,
     );
   }
+}
+
+class _ArabesquePatternPainter extends CustomPainter {
+  const _ArabesquePatternPainter();
+
+  static const double _tile = 48;
+  static const double _starRadius = _tile * 0.34;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.white.withOpacity(0.07)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.1;
+
+    for (double y = -_tile; y < size.height + _tile; y += _tile) {
+      for (double x = -_tile; x < size.width + _tile; x += _tile) {
+        _drawEightPointStar(canvas, Offset(x, y), _starRadius, paint);
+      }
+    }
+  }
+
+  void _drawEightPointStar(
+      Canvas canvas, Offset center, double r, Paint paint) {
+    final square1 = Path();
+    final square2 = Path();
+    for (int i = 0; i < 4; i++) {
+      final a1 = (math.pi / 2) * i;
+      final a2 = a1 + math.pi / 4;
+      final p1 = center + Offset(math.cos(a1), math.sin(a1)) * r;
+      final p2 = center + Offset(math.cos(a2), math.sin(a2)) * r;
+      if (i == 0) {
+        square1.moveTo(p1.dx, p1.dy);
+        square2.moveTo(p2.dx, p2.dy);
+      } else {
+        square1.lineTo(p1.dx, p1.dy);
+        square2.lineTo(p2.dx, p2.dy);
+      }
+    }
+    square1.close();
+    square2.close();
+    canvas.drawPath(square1, paint);
+    canvas.drawPath(square2, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _ArabesquePatternPainter oldDelegate) => false;
 }

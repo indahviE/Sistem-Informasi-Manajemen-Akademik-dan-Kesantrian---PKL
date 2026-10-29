@@ -1,5 +1,35 @@
-import { IsArray, IsEmail, IsNotEmpty, IsOptional, IsString, Matches, MinLength } from 'class-validator';
+import {
+  ArrayMaxSize,
+  IsArray,
+  IsEmail,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  Matches,
+  MaxLength,
+  MinLength,
+  ValidateNested,
+} from 'class-validator';
+import { Type } from 'class-transformer';
 import { IsUrlOrDataUri } from '../../common/validators/is-url-or-data-uri.validator';
+
+export class BerkasDto {
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(100)
+  nama: string;
+
+  @IsString()
+  @MaxLength(200)
+  namaFile: string;
+
+  @IsString()
+  @Matches(/^data:(image\/png|image\/jpeg|application\/pdf);base64,/, {
+    message: 'Format berkas harus JPG, PNG, atau PDF',
+  })
+  @MaxLength(3_000_000, { message: 'Ukuran berkas maksimal 2MB' })
+  data: string;
+}
 
 export class SignupTenantDto {
   @IsString()
@@ -36,6 +66,18 @@ export class SignupTenantDto {
   @IsString()
   @MinLength(6, { message: 'Password minimal 6 karakter' })
   adminPassword: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  adminPhone?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(5)
+  @ValidateNested({ each: true })
+  @Type(() => BerkasDto)
+  berkas?: BerkasDto[];
 }
 
 export class UpdateBrandingDto {

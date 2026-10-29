@@ -8,7 +8,8 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.service';
 import { Role, TenantStatus } from '@prisma/client';
-import { SignupTenantDto, UpdateBrandingDto } from './dto/tenant.dto';
+import { createHmac, timingSafeEqual } from 'crypto';
+import { BerkasDto, SignupTenantDto, UpdateBrandingDto } from './dto/tenant.dto';
 import { AuditKategori, AuditTingkat, JenisNotifikasi } from '@prisma/client';
 import { AuditService } from '../audit/audit.service';
 import { NotifikasiService } from '../notifikasi/notifikasi.service';
@@ -20,6 +21,36 @@ const STATUS_LABEL: Record<string, string> = {
   SUSPENDED: 'Suspended',
   ARCHIVED: 'Diarsipkan',
 };
+
+const BERKAS_MAX_BYTES = 2 * 1024 * 1024;
+const BERKAS_LINK_TTL_MS = 5 * 60 * 1000;
+
+function parseBerkas(b: BerkasDto) {
+  const m = /^data:([\w/+.-]+);base64,([\s\S]+)$/.exec(b.data);
+  if (!m) throw new BadRequestException(`Berkas "${b.nama}" tidak valid.`);
+
+  const mime = m[1].toLowerCase();
+  const buf = Buffer.from(m[2], 'base64');
+  if (buf.length === 0 || buf.length > BERKAS_MAX_BYTES) {
+    throw new BadRequestException(`Ukuran berkas "${b.nama}" maksimal 2MB.`);
+  }
+
+  const cocok =
+    (mime === 'application/pdf' && buf.subarray(0, 4).toString('latin1') === '%PDF') ||
+    (mime === 'image/png' && buf.subarray(0, 4).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47]))) ||
+    (mime === 'image/jpeg' && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff);
+  if (!cocok) {
+    throw new BadRequestException(`Isi berkas "${b.nama}" tidak sesuai formatnya.`);
+  }
+
+  return {
+    nama: b.nama,
+    namaFile: b.namaFile.replace(/[\\/\r\n"]/g, '_'),
+    mime,
+    ukuran: buf.length,
+    data: buf,
+  };
+}
 
 @Injectable()
 export class TenantsService {
@@ -60,6 +91,9 @@ export class TenantsService {
     const autoApprove = platformSetting?.autoApproveTenant ?? false;
     const initialStatus = autoApprove ? TenantStatus.AKTIF : TenantStatus.PENDING;
 
+    // Validasi berkas dulu, supaya kalau ada yang tidak valid belum ada data yang dibuat
+    const berkasData = (dto.berkas ?? []).map(parseBerkas);
+
     const passwordHash = await bcrypt.hash(dto.adminPassword, 10);
 
     const result = await this.prisma.$transaction(async (tx) => {
@@ -81,6 +115,7 @@ export class TenantsService {
           email: dto.adminEmail,
           passwordHash,
           role: Role.ADMIN,
+          noHp: dto.adminPhone?.trim() || null,
         },
       });
 
@@ -92,6 +127,12 @@ export class TenantsService {
       await tx.tahunAjaran.create({
         data: { tenantId: tenant.id, nama: '2026/2027', aktif: true },
       });
+
+      if (berkasData.length > 0) {
+        await tx.tenantBerkas.createMany({
+          data: berkasData.map((b) => ({ ...b, tenantId: tenant.id })),
+        });
+      }
 
       return {
         id: tenant.id,
@@ -137,7 +178,11 @@ export class TenantsService {
       orderBy: { tanggalDaftar: 'desc' },
       include: {
         _count: { select: { users: true, santris: true, kelas: true } },
-        adminAwal: { select: { nama: true, email: true } },
+        adminAwal: { select: { nama: true, email: true, noHp: true } },
+        berkas: {
+          select: { id: true, nama: true, namaFile: true, mime: true, ukuran: true },
+          orderBy: { createdAt: 'asc' },
+        },
       },
     });
     return tenants.map((t) => ({
@@ -147,6 +192,7 @@ export class TenantsService {
       jumlahKelas: t._count.kelas,
       adminNama: t.adminAwal?.nama,
       adminEmail: t.adminAwal?.email,
+      adminPhone: t.adminAwal?.noHp,
     }));
   }
 
@@ -319,7 +365,7 @@ export class TenantsService {
       where: { id: tenantId },
       include: {
         _count: { select: { users: true, santris: true, kelas: true, ustadzs: true } },
-        adminAwal: { select: { nama: true, email: true } },
+        adminAwal: { select: { nama: true, email: true, noHp: true } },
       },
     });
     if (!tenant) throw new NotFoundException('Tenant tidak ditemukan.');
@@ -327,7 +373,52 @@ export class TenantsService {
       ...tenant,
       adminNama: tenant.adminAwal?.nama,
       adminEmail: tenant.adminAwal?.email,
+      adminPhone: tenant.adminAwal?.noHp,
     };
+  }
+
+    // ===========================================================================
+  // Berkas legalitas — link sementara bertanda tangan HMAC
+  // ===========================================================================
+
+  private berkasSecret(): string {
+    const secret = process.env.BERKAS_LINK_SECRET || process.env.JWT_SECRET;
+    if (!secret) throw new Error('BERKAS_LINK_SECRET / JWT_SECRET belum diset.');
+    return secret;
+  }
+
+  private tandatangani(payload: string): string {
+    return createHmac('sha256', this.berkasSecret()).update(payload).digest('base64url');
+  }
+
+  async buatLinkBerkas(berkasId: string) {
+    const ada = await this.prisma.tenantBerkas.findUnique({
+      where: { id: berkasId },
+      select: { id: true },
+    });
+    if (!ada) throw new NotFoundException('Berkas tidak ditemukan.');
+
+    const payload = `${berkasId}.${Date.now() + BERKAS_LINK_TTL_MS}`;
+    return { token: `${payload}.${this.tandatangani(payload)}` };
+  }
+
+  async ambilBerkasDenganToken(token: string) {
+    const bagian = (token ?? '').split('.');
+    if (bagian.length !== 3) throw new BadRequestException('Link berkas tidak valid.');
+
+    const [id, exp, sig] = bagian;
+    const benar = Buffer.from(this.tandatangani(`${id}.${exp}`));
+    const diberi = Buffer.from(sig);
+    if (benar.length !== diberi.length || !timingSafeEqual(benar, diberi)) {
+      throw new BadRequestException('Link berkas tidak valid.');
+    }
+    if (Number(exp) < Date.now()) {
+      throw new BadRequestException('Link berkas sudah kedaluwarsa. Buka ulang dari aplikasi.');
+    }
+
+    const berkas = await this.prisma.tenantBerkas.findUnique({ where: { id } });
+    if (!berkas) throw new NotFoundException('Berkas tidak ditemukan.');
+    return berkas;
   }
 
   async getBranding(kodeTenant: string) {
