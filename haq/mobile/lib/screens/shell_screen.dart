@@ -198,7 +198,7 @@ class _ShellScreenState extends State<ShellScreen> {
     }
     // Rapor & Kelulusan: Admin (semua kelas) atau Ustadz yang jadi wali kelas
     // (hanya kelasnya). Ustadz biasa tidak melihat dua menu ini.
-    if (user.isAdmin || (user.isUstadz && user.isWaliKelas)) {
+    if (user.isAdmin || user.isPimpinan || (user.isUstadz && user.isWaliKelas)) {
       m.add(_MenuItem('Rapor Digital', Icons.description, (_) => const RaporScreen()));
       m.add(_MenuItem('Kelulusan & Wisuda', Icons.military_tech, (_) => const KelulusanScreen()));
     }
