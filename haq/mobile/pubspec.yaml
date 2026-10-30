@@ -48,10 +48,16 @@ flutter_launcher_icons:
   remove_alpha_ios: true
   adaptive_icon_background: "#03281A"
   adaptive_icon_foreground: "assets/icons/icon_HAQ_foreground.png"
+  web:
+    generate: true
+    image_path: "assets/icons/icon_HAQ.png"
+    background_color: "#03281A"
+    theme_color: "#03281A"
 
 flutter_native_splash:
   background_image: assets/splash/splashscreen-haq.png
   android_12:
     color: "#FEFEF0"
   ios: false
+  web: false
   fullscreen: true
