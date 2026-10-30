@@ -81,7 +81,7 @@ class _AppState extends State<App> {
     return AppScope(
       auth: widget.auth,
       child: MaterialApp(
-        title: 'SIM Pesantren',
+        title: 'HAQ',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.light(SC.primary),
         home: const GateScreen(),

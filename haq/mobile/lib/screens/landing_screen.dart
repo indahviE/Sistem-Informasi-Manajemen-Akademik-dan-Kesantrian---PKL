@@ -270,19 +270,11 @@ class _TenantHeaderCard extends StatelessWidget {
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              width: 56,
-              height: 56,
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [PColors.primary, PColors.primaryGradientEnd],
-                ),
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: const Icon(Icons.menu_book_rounded,
-                  color: Colors.white, size: 28),
+            Image.asset(
+              'assets/icons/logo_HAQ.png',
+              width: 72,
+              height: 72,
+              fit: BoxFit.contain,
             ),
             const SizedBox(width: 12),
             Expanded(

@@ -124,6 +124,13 @@ IconData _jenisIcon(String j) {
   }
 }
 
+/// Nama pembuat ujian. Kosong kalau backend belum mengirimnya.
+String _pembuatOf(Map<String, dynamic> u) {
+  final nama = u['dibuatOlehNama'];
+  if (nama is String && nama.trim().isNotEmpty) return nama.trim();
+  return '';
+}
+
 String _jenisOf(Map<String, dynamic> u) => (u['jenis'] ?? 'ULANGAN') as String;
 
 String _grade(double n, double kkm) {
@@ -706,6 +713,7 @@ class _UjianDetailScreenState extends State<UjianDetailScreen> {
         : (totalSantri is int && totalSantri > 0 ? '$kelasNama ($totalSantri)' : '$kelasNama');
     final tgl = _fmtTgl(u['tanggal']);
     final mapel = u['mapel']?['namaMapel'] ?? 'Umum';
+    final pembuat = _pembuatOf(u);
 
     String v(double? n, {int digits = 0}) =>
         !loaded || n == null ? '–' : n.toStringAsFixed(digits);
@@ -815,6 +823,7 @@ class _UjianDetailScreenState extends State<UjianDetailScreen> {
               if (tgl.isNotEmpty) info(Icons.event_outlined, tgl),
               if (u['durasiMenit'] != null) info(Icons.schedule, '${u['durasiMenit']} menit'),
               info(Icons.flag_outlined, 'KKM $_kkmText'),
+              if (pembuat.isNotEmpty) info(Icons.person_outline_rounded, 'Oleh $pembuat'),
             ],
           ),
           const SizedBox(height: 16),
