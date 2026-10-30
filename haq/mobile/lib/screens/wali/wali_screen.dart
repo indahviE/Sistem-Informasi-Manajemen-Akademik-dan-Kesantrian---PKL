@@ -145,7 +145,7 @@ class _WaliScreenState extends State<WaliScreen> {
       _tahfidzErr = hasil[2] == null;
       _nilai = (hasil[0] ?? [])..sort((a, b) => byTanggal(a, b, ['tanggal']));
       _absensi = (hasil[1] ?? [])..sort((a, b) => byTanggal(a, b, ['tanggal']));
-      _tahfidz = (hasil[2] ?? [])..sort((a, b) => byTanggal(a, b, ['tanggalSetor', 'tanggal']));
+      _tahfidz = hasil[2] ?? []; // urutan dari server (tanggalSetor desc, createdAt desc)
       _detailLoading = false;
     });
   }
@@ -588,48 +588,63 @@ class _WaliScreenState extends State<WaliScreen> {
   }
 
   // ----- Tahfidz -----
-  Widget _tahfidzTile(Map<String, dynamic> t) {
-    final juz = _first(t, ['juz']);
-    final hal = _first(t, ['halaman']);
-    final tgl = _tgl(_first(t, ['tanggalSetor', 'tanggal']));
-    final cat = _first(t, ['catatanUstadz', 'catatan']);
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(color: _WS.goldSurface, shape: BoxShape.circle),
-            child: Text(juz.isEmpty ? '-' : juz,
-                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: _WS.gold)),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Juz ${juz.isEmpty ? '-' : juz}${hal.isEmpty ? '' : ' • Hal. $hal'}',
-                    style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: _WS.ink)),
-                const SizedBox(height: 2),
-                Text(tgl, style: const TextStyle(fontSize: 11.5, color: _WS.inkSecondary)),
-                if (cat.isNotEmpty) ...[
-                  const SizedBox(height: 3),
-                  Text(cat,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                          fontSize: 11.5, fontStyle: FontStyle.italic, color: _WS.inkSecondary)),
-                ],
+Widget _tahfidzTile(Map<String, dynamic> t) {
+  final juz = _first(t, ['juz']);
+  final hal = _first(t, ['halaman']);
+  final tgl = _tgl(_first(t, ['tanggalSetor', 'tanggal']));
+  final cat = _first(t, ['catatanUstadz', 'catatan']);
+  final rentang = _rentangAyat(t);
+  final jenis = _huruf(_first(t, ['jenis']));
+  final kualitas = _huruf(_first(t, ['kualitas']));
+
+  // Halaman hanya ditampilkan untuk data lama, karena di data baru nilainya estimasi.
+  final judul = rentang.isNotEmpty
+      ? rentang
+      : 'Juz ${juz.isEmpty ? '-' : juz}${hal.isEmpty ? '' : ' • Hal. $hal'}';
+  final meta = [
+    if (rentang.isNotEmpty && juz.isNotEmpty) 'Juz $juz',
+    if (jenis.isNotEmpty) jenis,
+    if (kualitas.isNotEmpty) kualitas,
+    tgl,
+  ].join(' • ');
+
+  return Padding(
+    padding: const EdgeInsets.symmetric(vertical: 8),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 40,
+          height: 40,
+          alignment: Alignment.center,
+          decoration: const BoxDecoration(color: _WS.goldSurface, shape: BoxShape.circle),
+          child: Text(juz.isEmpty ? '-' : juz,
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: _WS.gold)),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(judul,
+                  style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: _WS.ink)),
+              const SizedBox(height: 2),
+              Text(meta, style: const TextStyle(fontSize: 11.5, color: _WS.inkSecondary)),
+              if (cat.isNotEmpty) ...[
+                const SizedBox(height: 3),
+                Text(cat,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        fontSize: 11.5, fontStyle: FontStyle.italic, color: _WS.inkSecondary)),
               ],
-            ),
+            ],
           ),
-        ],
-      ),
-    );
-  }
+        ),
+      ],
+    ),
+  );
+}
 
   Widget _tahfidzSection() {
     final items = _tahfidz.take(5).toList();
@@ -814,3 +829,42 @@ class _DonutPainter extends CustomPainter {
   bool shouldRepaint(covariant _DonutPainter old) =>
       old.values != values || old.colors != colors || old.track != track;
 }
+const _namaSurat = [
+  "Al-Fatihah", "Al-Baqarah", "Ali 'Imran", "An-Nisa'", "Al-Ma'idah", "Al-An'am",
+  "Al-A'raf", "Al-Anfal", "At-Taubah", "Yunus", "Hud", "Yusuf", "Ar-Ra'd", "Ibrahim",
+  "Al-Hijr", "An-Nahl", "Al-Isra'", "Al-Kahf", "Maryam", "Ta Ha", "Al-Anbiya'",
+  "Al-Hajj", "Al-Mu'minun", "An-Nur", "Al-Furqan", "Asy-Syu'ara'", "An-Naml",
+  "Al-Qasas", "Al-'Ankabut", "Ar-Rum", "Luqman", "As-Sajdah", "Al-Ahzab", "Saba'",
+  "Fatir", "Ya Sin", "As-Saffat", "Sad", "Az-Zumar", "Gafir", "Fussilat", "Asy-Syura",
+  "Az-Zukhruf", "Ad-Dukhan", "Al-Jasiyah", "Al-Ahqaf", "Muhammad", "Al-Fath",
+  "Al-Hujurat", "Qaf", "Az-Zariyat", "At-Tur", "An-Najm", "Al-Qamar", "Ar-Rahman",
+  "Al-Waqi'ah", "Al-Hadid", "Al-Mujadalah", "Al-Hasyr", "Al-Mumtahanah", "As-Saff",
+  "Al-Jumu'ah", "Al-Munafiqun", "At-Tagabun", "At-Talaq", "At-Tahrim", "Al-Mulk",
+  "Al-Qalam", "Al-Haqqah", "Al-Ma'arij", "Nuh", "Al-Jinn", "Al-Muzzammil",
+  "Al-Muddassir", "Al-Qiyamah", "Al-Insan", "Al-Mursalat", "An-Naba'", "An-Nazi'at",
+  "'Abasa", "At-Takwir", "Al-Infitar", "Al-Mutaffifin", "Al-Insyiqaq", "Al-Buruj",
+  "At-Tariq", "Al-A'la", "Al-Gasyiyah", "Al-Fajr", "Al-Balad", "Asy-Syams", "Al-Lail",
+  "Ad-Duha", "Asy-Syarh", "At-Tin", "Al-'Alaq", "Al-Qadr", "Al-Bayyinah",
+  "Az-Zalzalah", "Al-'Adiyat", "Al-Qari'ah", "At-Takasur", "Al-'Asr", "Al-Humazah",
+  "Al-Fil", "Quraisy", "Al-Ma'un", "Al-Kausar", "Al-Kafirun", "An-Nasr", "Al-Masad",
+  "Al-Ikhlas", "Al-Falaq", "An-Nas",
+];
+
+String _surat(int? n) =>
+    (n != null && n >= 1 && n <= _namaSurat.length) ? _namaSurat[n - 1] : '';
+
+/// "Al-Baqarah 1–20" atau "Al-Baqarah 5 – Ali 'Imran 10".
+/// Kosong kalau datanya dari jalur lama (belum ada surat/ayat).
+String _rentangAyat(Map<String, dynamic> t) {
+  final sm = int.tryParse(_first(t, ['suratMulai']));
+  final am = int.tryParse(_first(t, ['ayatMulai']));
+  final ss = int.tryParse(_first(t, ['suratSelesai']));
+  final as_ = int.tryParse(_first(t, ['ayatSelesai']));
+  if (sm == null || am == null || ss == null || as_ == null) return '';
+  final nm = _surat(sm), ns = _surat(ss);
+  if (nm.isEmpty || ns.isEmpty) return '';
+  return sm == ss ? '$nm $am–$as_' : '$nm $am – $ns $as_';
+}
+
+String _huruf(String s) =>
+    s.isEmpty ? '' : s[0].toUpperCase() + s.substring(1).toLowerCase();
