@@ -200,7 +200,10 @@ class _KonselingScreenState extends State<KonselingScreen> {
   Timer? _bannerTimer;
 
   /// Pimpinan/Mudir hanya memantau: tidak bisa membuat atau menghapus catatan.
-  bool get _readOnly => AppScope.of(context).user?.isPimpinan == true;
+  bool get _readOnly {
+    final u = AppScope.of(context).user;
+    return u?.isPimpinan == true || u?.isMusyrif == true;
+  }
 
   @override
   void initState() {

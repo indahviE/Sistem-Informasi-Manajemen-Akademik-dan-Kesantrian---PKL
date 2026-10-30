@@ -19,6 +19,7 @@ import 'akademik/tahfidz_screen.dart';
 import 'akademik/ujian_screen.dart';
 import 'akademik/rapor_screen.dart';
 import 'akademik/kelulusan_screen.dart';
+import 'akademik/tahun_ajaran_screen.dart';
 import 'kesantrian/pelanggaran_screen.dart';
 import 'kesantrian/perizinan_screen.dart';
 import 'kesantrian/kesehatan_screen.dart';
@@ -53,6 +54,7 @@ import 'billing/billing_tenant_screen.dart';
 import 'branding/branding_screen.dart';
 import 'akademik/jurnal_mengajar_screen.dart';
 import 'mudir/pengaturan_mudir_screen.dart';
+import 'mudir/notifikasi_mudir_screen.dart';
 import 'santri/santri_ui.dart' show SC;
 
 class ShellScreen extends StatefulWidget {
@@ -73,7 +75,7 @@ class _ShellScreenState extends State<ShellScreen> {
   // Fallback pin order used only when a role has more than 5 menu items
   // (super admin's 5-item menu is shown in full, without this cap).
   static const _pinned = ['Dashboard', 'Santri', 'Absensi', 'Kurikulum'];
-  static const _adminPinned = ['Dashboard', 'Santri', 'Absensi', 'PPDB Online'];
+  static const _adminPinned = ['Dashboard', 'Santri', 'Absensi', 'Kurikulum'];
   static const _waliPinned = ['Beranda', 'Anak Saya', 'Perizinan', 'Pelanggaran'];
 
   // Keeps the bottom nav pinned to a mobile-sized width and centered,
@@ -86,7 +88,7 @@ class _ShellScreenState extends State<ShellScreen> {
   _MenuItem? _activeExtra;
 
   // True kalau lagi nampilin Notifikasi (Super Admin / Admin / Wali / Ustadz).
-  // Bukan route terpisah â€” cuma nge-swap `body`, jadi AppBar (header role) &
+  // Bukan route terpisah — cuma nge-swap `body`, jadi AppBar (header role) &
   // bottom nav Shell otomatis tetap kepakai (nggak ilang kayak kalau di-push).
   bool _notifikasiOpen = false;
   int _unreadCount = 0;
@@ -107,7 +109,7 @@ class _ShellScreenState extends State<ShellScreen> {
     List<_MenuItem> chosen;
     if (all.length <= 5) {
       // Fits directly in the bottom bar (e.g. Super Admin: Beranda, Tenant,
-      // Audit Log, Billing, Pengaturan) â€” no "Lainnya" overflow needed.
+      // Audit Log, Billing, Pengaturan) — no "Lainnya" overflow needed.
       chosen = List.of(all);
     } else {
       chosen = <_MenuItem>[];
@@ -122,10 +124,14 @@ class _ShellScreenState extends State<ShellScreen> {
     }
 
     _navItems = chosen;
-    final more = all.where((e) => !chosen.contains(e)).toList();
-    final idxPengaturan = more.indexWhere((e) => e.label == 'Pengaturan');
-    if (idxPengaturan >= 0) more.add(more.removeAt(idxPengaturan));
-    _moreItems = more;
+    // Urut abjad, tapi "Pengaturan" selalu paling bawah.
+    _moreItems = all.where((e) => !chosen.contains(e)).toList()
+      ..sort((a, b) {
+        final ra = a.label == 'Pengaturan' ? 1 : 0;
+        final rb = b.label == 'Pengaturan' ? 1 : 0;
+        if (ra != rb) return ra.compareTo(rb);
+        return a.label.toLowerCase().compareTo(b.label.toLowerCase());
+      });
     if (_navIndex >= _navItems.length) _navIndex = 0;
     _activeExtra = null;
 
@@ -141,7 +147,7 @@ class _ShellScreenState extends State<ShellScreen> {
       final count = res is int ? res : int.tryParse('$res') ?? 0;
       if (mounted) setState(() => _unreadCount = count);
     } catch (_) {
-      // Diam-diam gagal â€” biar gak ganggu render header kalau lagi offline.
+      // Diam-diam gagal — biar gak ganggu render header kalau lagi offline.
     }
   }
 
@@ -175,9 +181,10 @@ class _ShellScreenState extends State<ShellScreen> {
       m.add(_MenuItem('Ustadz / Pembina', Icons.person_search, (_) => const UstadzListScreen()));
       m.add(_MenuItem('Mata Pelajaran', Icons.menu_book, (_) => const MapelListScreen()));
       m.add(_MenuItem('Kurikulum', Icons.folder_copy, (_) => const KurikulumScreen()));
+            m.add(_MenuItem('Tahun Ajaran', Icons.event_note, (_) => const TahunAjaranScreen()));
       if (user.isAdmin) {
       m.add(_MenuItem('Identitas Pondok', Icons.palette, (_) => const BrandingScreen()));
-      m.add(_MenuItem('& Tagihan', Icons.receipt_long, (_) => const BillingTenantScreen()));
+      m.add(_MenuItem('Tagihan', Icons.receipt_long, (_) => const BillingTenantScreen()));
       }
     }
 
@@ -188,6 +195,10 @@ class _ShellScreenState extends State<ShellScreen> {
       m.add(_MenuItem('Nilai', Icons.grade, (_) => const NilaiScreen()));
       m.add(_MenuItem('Tahfidz', Icons.auto_stories, (_) => const TahfidzScreen()));
       m.add(_MenuItem('Ujian & Remedial', Icons.fact_check, (_) => const UjianScreen()));
+    }
+    // Rapor & Kelulusan: Admin (semua kelas) atau Ustadz yang jadi wali kelas
+    // (hanya kelasnya). Ustadz biasa tidak melihat dua menu ini.
+    if (user.isAdmin || (user.isUstadz && user.isWaliKelas)) {
       m.add(_MenuItem('Rapor Digital', Icons.description, (_) => const RaporScreen()));
       m.add(_MenuItem('Kelulusan & Wisuda', Icons.military_tech, (_) => const KelulusanScreen()));
     }
@@ -220,16 +231,25 @@ class _ShellScreenState extends State<ShellScreen> {
     }
 
     if (user.isAdmin || user.isMusyrif) {
-      m.add(_MenuItem('Pelanggaran', Icons.gavel, (_) => const PelanggaranScreen()));
-      m.add(_MenuItem('Perizinan', Icons.exit_to_app, (_) => const PerizinanScreen()));
-      m.add(_MenuItem('Kesehatan', Icons.medical_services, (_) => const KesehatanScreen()));
+      m.add(_MenuItem('Pelanggaran', Icons.gavel,
+          (_) => PelanggaranScreen(onBack: () => _goToMenu('Dashboard'))));
+      m.add(_MenuItem('Perizinan', Icons.exit_to_app,
+          (_) => PerizinanScreen(onBack: () => _goToMenu('Dashboard'))));
+      m.add(_MenuItem('Kesehatan', Icons.medical_services, (_) => KesehatanScreen(onBack: () => _goToMenu('Dashboard'))));
       m.add(_MenuItem('Rekam Medis', Icons.health_and_safety, (_) => const RekamMedisScreen()));
-      m.add(_MenuItem('Kunjungan Wali', Icons.people, (_) => const KunjunganScreen()));
+      m.add(_MenuItem('Kunjungan Wali', Icons.people, (_) => KunjunganScreen(onBack: () => _goToMenu('Dashboard'))));
     }
 
     if (user.isPimpinan) {
-      m.add(_MenuItem('Pelanggaran', Icons.gavel, (_) => const PelanggaranScreen(subtitle: 'Pimpinan â€¢ Riwayat Pelanggaran')));
-      m.add(_MenuItem('Perizinan', Icons.exit_to_app, (_) => const PerizinanScreen()));
+      m.add(_MenuItem(
+          'Pelanggaran',
+          Icons.gavel,
+          (_) => PelanggaranScreen(
+                subtitle: 'Pimpinan • Riwayat Pelanggaran',
+                onBack: () => _goToMenu('Dashboard'),
+              )));
+      m.add(_MenuItem('Perizinan', Icons.exit_to_app,
+          (_) => PerizinanScreen(onBack: () => _goToMenu('Dashboard'))));
       m.add(_MenuItem('Kesehatan', Icons.medical_services, (_) => const KesehatanScreen()));
       m.add(_MenuItem('Rekam Medis', Icons.health_and_safety, (_) => const RekamMedisScreen()));
       m.add(_MenuItem('Kunjungan Wali', Icons.people, (_) => const KunjunganScreen()));
@@ -318,10 +338,7 @@ class _ShellScreenState extends State<ShellScreen> {
                       nama: user.nama,
                       email: user.email,
                       hasUnread: _unreadCount > 0,
-                      onNotifikasi: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const NotifikasiScreen()),
-                      ).then((_) => _loadUnreadCount()),
+                      onNotifikasi: () => setState(() => _notifikasiOpen = true),
                       onPengaturan: () => _goToMenu('Pengaturan'),
                       onLogout: _logout,
                     )
@@ -352,6 +369,7 @@ class _ShellScreenState extends State<ShellScreen> {
                               email: user.email,
                               hasUnread: _unreadCount > 0,
                               onNotifikasi: () => setState(() => _notifikasiOpen = true),
+                              onPengaturan: () => _goToMenu('Pengaturan'),
                               onLogout: _logout,
                             )
                       : AppBar(
@@ -429,7 +447,7 @@ class _ShellScreenState extends State<ShellScreen> {
                           onNavigate: _goToMenu,
                           onReadStateChanged: _loadUnreadCount,
                         )
-                      : (user.isMusyrif && _notifikasiOpen)
+                           : (user.isMusyrif && _notifikasiOpen)
                           ? NotifikasiMusyrifScreen(
                               onBack: () {
                                 setState(() => _notifikasiOpen = false);
@@ -438,10 +456,19 @@ class _ShellScreenState extends State<ShellScreen> {
                               onNavigate: _goToMenu,
                               onReadStateChanged: _loadUnreadCount,
                             )
-                          : active.builder(context),
+                          : (user.isPimpinan && _notifikasiOpen)
+                              ? NotifikasiMudirScreen(
+                                  onBack: () {
+                                    setState(() => _notifikasiOpen = false);
+                                    _loadUnreadCount();
+                                  },
+                                  onNavigate: _goToMenu,
+                                  onReadStateChanged: _loadUnreadCount,
+                                )
+                              : active.builder(context),
       bottomNavigationBar: Container(
         // Full-width fill supaya nggak ada strip abu-abu bawaan Scaffold yang
-        // keliatan di kiri-kanan kotak nav 480px â€” warnanya disamain persis
+        // keliatan di kiri-kanan kotak nav 480px — warnanya disamain persis
         // dengan background NavigationBar (PColors.surface).
         color: PColors.surface,
         child: Center(

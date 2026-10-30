@@ -35,7 +35,9 @@ const _kStatusAktif = 'RAWAT_JALAN';
 const _kStatusSembuh = 'SEMBUH';
 
 class KesehatanScreen extends StatefulWidget {
-  const KesehatanScreen({super.key});
+  const KesehatanScreen({super.key, this.onBack});
+
+  final VoidCallback? onBack;
 
   @override
   State<KesehatanScreen> createState() => _KesehatanScreenState();
@@ -257,16 +259,53 @@ class _KesehatanScreenState extends State<KesehatanScreen> {
     );
   }
 
+  /// Tombol kembali hanya untuk role musyrif.
+  bool get _showBack {
+    final isMusyrif = AppScope.of(context).user?.isMusyrif == true;
+    return isMusyrif && (widget.onBack != null || Navigator.of(context).canPop());
+  }
+
+  void _handleBack() {
+    if (widget.onBack != null) {
+      widget.onBack!();
+    } else {
+      Navigator.of(context).maybePop();
+    }
+  }
+
   Widget _header() {
     final n = DateTime.now();
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return Row(
       children: [
-        const Text('Kesehatan Santri',
-            style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800, color: _KC.ink)),
-        const SizedBox(height: 2),
-        Text('Catatan sakit & tindakan • ${_fmtIso(_iso(n))}',
-            style: const TextStyle(fontSize: 12, color: _KC.inkSecondary)),
+        if (_showBack) ...[
+          Container(
+            margin: const EdgeInsets.only(right: 12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFFEAE6DC)),
+            ),
+            child: IconButton(
+              onPressed: _handleBack,
+              tooltip: 'Kembali',
+              icon: Icon(Icons.arrow_back_rounded, color: SC.primary, size: 20),
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 42, minHeight: 42),
+            ),
+          ),
+        ],
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Kesehatan Santri',
+                  style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800, color: _KC.ink)),
+              const SizedBox(height: 2),
+              Text('Catatan sakit & tindakan • ${_fmtIso(_iso(n))}',
+                  style: const TextStyle(fontSize: 12, color: _KC.inkSecondary)),
+            ],
+          ),
+        ),
       ],
     );
   }

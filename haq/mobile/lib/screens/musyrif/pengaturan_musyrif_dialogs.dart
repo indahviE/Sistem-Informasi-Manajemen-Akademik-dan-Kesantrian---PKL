@@ -11,8 +11,25 @@
 // di dalam sheet, jadi form tidak tertutup dan isian tidak hilang.
 
 import 'package:flutter/material.dart';
-import '../signup_screen.dart' show PColors, PText;
 import '../../services/api_client.dart' show ApiException;
+import '../santri/santri_ui.dart';
+
+// Palet & gaya teks khusus dialog musyrif (tidak bergantung ke file lain).
+class _MT {
+  _MT._();
+  static const headlineSm = TextStyle(
+    fontFamily: 'Nunito', fontSize: 18, fontWeight: FontWeight.w600, height: 24 / 18, color: SC.ink,
+  );
+  static const bodySm = TextStyle(
+    fontFamily: 'Nunito', fontSize: 13, fontWeight: FontWeight.w400, height: 18 / 13, color: SC.inkSecondary,
+  );
+  static const labelMd = TextStyle(
+    fontFamily: 'Nunito', fontSize: 12, fontWeight: FontWeight.w600, height: 16 / 12, letterSpacing: 0.02,
+  );
+  static const labelSm = TextStyle(
+    fontFamily: 'Nunito', fontSize: 10, fontWeight: FontWeight.w600, height: 14 / 10, letterSpacing: 0.04,
+  );
+}
 
 // ============================================================================
 // Toast
@@ -33,8 +50,8 @@ class AppToast {
     // Di layar lebar (web/tablet) toast dibatasi 480px dan ditaruh di tengah.
     final side = width > 512 ? (width - 480) / 2 : 16.0;
 
-    final Color bg = isError ? PColors.errorBg : PColors.primary;
-    final Color fg = isError ? PColors.errorText : Colors.white;
+    final Color bg = isError ? SC.errorBg : SC.primary;
+    final Color fg = isError ? SC.errorText : Colors.white;
     final IconData icon =
         isError ? Icons.error_outline_rounded : Icons.check_circle_outline_rounded;
 
@@ -54,7 +71,7 @@ class AppToast {
               color: bg,
               borderRadius: BorderRadius.circular(14),
               border: isError
-                  ? Border.all(color: PColors.errorText.withOpacity(0.25))
+                  ? Border.all(color: SC.errorText.withOpacity(0.25))
                   : null,
               boxShadow: [
                 BoxShadow(color: Color(0x26000000), blurRadius: 12, offset: Offset(0, 4)),
@@ -67,7 +84,7 @@ class AppToast {
                 Expanded(
                   child: Text(
                     message,
-                    style: PText.labelMd.copyWith(color: fg, fontSize: 13),
+                    style: _MT.labelMd.copyWith(color: fg, fontSize: 13),
                   ),
                 ),
               ],
@@ -113,7 +130,7 @@ Future<bool?> _showSheet(BuildContext context, WidgetBuilder builder) {
     context: context,
     isScrollControlled: true,
     useSafeArea: true,
-    backgroundColor: PColors.surface,
+    backgroundColor: SC.surface,
     barrierColor: Color(0x66000000),
     constraints: BoxConstraints(maxWidth: 480),
     shape: RoundedRectangleBorder(
@@ -425,7 +442,7 @@ class _PasswordFieldState extends State<_PasswordField> {
           icon: Icon(
             _hidden ? Icons.visibility_outlined : Icons.visibility_off_outlined,
             size: 20,
-            color: PColors.inkSecondary,
+            color: SC.inkSecondary,
           ),
         ),
       ),
@@ -444,10 +461,10 @@ class _StrengthMeter extends StatelessWidget {
 
     const labels = ['', 'Lemah', 'Cukup', 'Kuat', 'Sangat kuat'];
     final color = score <= 1
-        ? PColors.errorText
+        ? SC.errorText
         : score == 2
-            ? PColors.pendingText
-            : PColors.primary;
+            ? SC.goldDark
+            : SC.primary;
 
     return Padding(
       padding: EdgeInsets.only(top: 10, left: 2, right: 2),
@@ -461,7 +478,7 @@ class _StrengthMeter extends StatelessWidget {
                     height: 4,
                     margin: EdgeInsets.only(right: i == 3 ? 0 : 4),
                     decoration: BoxDecoration(
-                      color: i < score ? color : PColors.inputBorder,
+                      color: i < score ? color : SC.border,
                       borderRadius: BorderRadius.circular(9999),
                     ),
                   ),
@@ -470,7 +487,7 @@ class _StrengthMeter extends StatelessWidget {
             ),
           ),
           SizedBox(width: 10),
-          Text(labels[score], style: PText.labelSm.copyWith(color: color)),
+          Text(labels[score], style: _MT.labelSm.copyWith(color: color)),
         ],
       ),
     );
@@ -512,7 +529,7 @@ class _SheetShell extends StatelessWidget {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: PColors.inputBorder,
+                  color: SC.border,
                   borderRadius: BorderRadius.circular(9999),
                 ),
               ),
@@ -523,17 +540,17 @@ class _SheetShell extends StatelessWidget {
                 Container(
                   width: 44,
                   height: 44,
-                  decoration: BoxDecoration(color: PColors.sage, shape: BoxShape.circle),
-                  child: Icon(icon, color: PColors.primary, size: 22),
+                  decoration: BoxDecoration(color: SC.sage, shape: BoxShape.circle),
+                  child: Icon(icon, color: SC.primary, size: 22),
                 ),
                 SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(title, style: PText.headlineSm),
+                      Text(title, style: _MT.headlineSm),
                       SizedBox(height: 2),
-                      Text(subtitle, style: PText.bodySm),
+                      Text(subtitle, style: _MT.bodySm),
                     ],
                   ),
                 ),
@@ -572,11 +589,11 @@ class _SheetActions extends StatelessWidget {
             child: TextButton(
               onPressed: saving ? null : onCancel,
               style: TextButton.styleFrom(
-                backgroundColor: PColors.surfaceDim,
-                foregroundColor: PColors.inkSecondary,
+                backgroundColor: SC.surfaceDim,
+                foregroundColor: SC.inkSecondary,
                 shape: shape,
               ),
-              child: Text('Batal', style: PText.labelMd.copyWith(color: PColors.inkSecondary)),
+              child: Text('Batal', style: _MT.labelMd.copyWith(color: SC.inkSecondary)),
             ),
           ),
         ),
@@ -588,8 +605,8 @@ class _SheetActions extends StatelessWidget {
             child: FilledButton(
               onPressed: saving ? null : onSubmit,
               style: FilledButton.styleFrom(
-                backgroundColor: PColors.primary,
-                disabledBackgroundColor: PColors.primary.withOpacity(0.7),
+                backgroundColor: SC.primary,
+                disabledBackgroundColor: SC.primary.withOpacity(0.7),
                 shape: shape,
               ),
               child: saving
@@ -598,7 +615,7 @@ class _SheetActions extends StatelessWidget {
                       height: 20,
                       child: CircularProgressIndicator(strokeWidth: 2.4, color: Colors.white),
                     )
-                  : Text(label, style: PText.labelMd.copyWith(color: Colors.white)),
+                  : Text(label, style: _MT.labelMd.copyWith(color: Colors.white)),
             ),
           ),
         ),
@@ -617,16 +634,16 @@ class _InlineError extends StatelessWidget {
     return Container(
       padding: EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: PColors.errorBg,
+        color: SC.errorBg,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.error_outline_rounded, size: 18, color: PColors.errorText),
+          Icon(Icons.error_outline_rounded, size: 18, color: SC.errorText),
           SizedBox(width: 8),
           Expanded(
-            child: Text(message, style: PText.bodySm.copyWith(color: PColors.errorText)),
+            child: Text(message, style: _MT.bodySm.copyWith(color: SC.errorText)),
           ),
         ],
       ),
@@ -646,17 +663,17 @@ InputDecoration _inputDecoration({
 
   return InputDecoration(
     labelText: label,
-    floatingLabelStyle: TextStyle(color: PColors.primary, fontWeight: FontWeight.w700),
-    prefixIcon: Icon(icon, size: 20, color: PColors.inkSecondary),
+    floatingLabelStyle: TextStyle(color: SC.primary, fontWeight: FontWeight.w700),
+    prefixIcon: Icon(icon, size: 20, color: SC.inkSecondary),
     suffixIcon: suffix,
     filled: true,
-    fillColor: PColors.surfaceDim,
+    fillColor: SC.surfaceDim,
     contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 16),
     border: border(Colors.transparent),
     enabledBorder: border(Colors.transparent),
     disabledBorder: border(Colors.transparent),
-    focusedBorder: border(PColors.primary, 1.5),
-    errorBorder: border(PColors.errorText),
-    focusedErrorBorder: border(PColors.errorText, 1.5),
+    focusedBorder: border(SC.primary, 1.5),
+    errorBorder: border(SC.errorText),
+    focusedErrorBorder: border(SC.errorText, 1.5),
   );
 }

@@ -267,6 +267,20 @@ class _KunjunganScreenState extends State<KunjunganScreen> {
     );
   }
 
+  /// Tombol kembali hanya untuk role musyrif.
+  bool get _showBack {
+    final isMusyrif = AppScope.of(context).user?.isMusyrif == true;
+    return isMusyrif && (widget.onBack != null || Navigator.of(context).canPop());
+  }
+
+  void _handleBack() {
+    if (widget.onBack != null) {
+      widget.onBack!();
+    } else {
+      Navigator.of(context).maybePop();
+    }
+  }
+
   Widget _buildHeader() {
     final jumlahBerlangsung = _items.where(_sedangBerlangsung).length;
     return Container(
@@ -277,9 +291,9 @@ class _KunjunganScreenState extends State<KunjunganScreen> {
       ),
       child: Row(
         children: [
-          if (widget.onBack != null) ...[
+          if (_showBack) ...[
             IconButton(
-              onPressed: widget.onBack,
+              onPressed: _handleBack,
               tooltip: 'Kembali',
               icon: Icon(Icons.arrow_back, color: SC.primary),
               padding: EdgeInsets.zero,

@@ -87,7 +87,9 @@ void _showPerizinanToast(BuildContext context, String title, {String? subtitle, 
 }
 
 class PerizinanScreen extends StatefulWidget {
-  const PerizinanScreen({super.key});
+  const PerizinanScreen({super.key, this.onBack});
+
+  final VoidCallback? onBack;
 
   @override
   State<PerizinanScreen> createState() => _PerizinanScreenState();
@@ -527,9 +529,40 @@ class _PerizinanScreenState extends State<PerizinanScreen> {
     );
   }
 
+  /// Tombol kembali hanya untuk role musyrif.
+  bool get _showBack {
+    final isMusyrif = AppScope.of(context).user?.isMusyrif == true;
+    return isMusyrif && (widget.onBack != null || Navigator.of(context).canPop());
+  }
+
+  void _handleBack() {
+    if (widget.onBack != null) {
+      widget.onBack!();
+    } else {
+      Navigator.of(context).maybePop();
+    }
+  }
+
   Widget _buildRiwayatHeader() {
     return Row(
       children: [
+        if (_showBack) ...[
+          Container(
+            margin: const EdgeInsets.only(right: 12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFFEAE6DC)),
+            ),
+            child: IconButton(
+              onPressed: _handleBack,
+              tooltip: 'Kembali',
+              icon: Icon(Icons.arrow_back_rounded, color: PColors.primary, size: 20),
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 42, minHeight: 42),
+            ),
+          ),
+        ],
         Container(
           width: 4,
           height: 18,

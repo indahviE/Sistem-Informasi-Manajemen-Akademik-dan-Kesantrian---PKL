@@ -97,8 +97,11 @@ class _AbsensiScreenState extends State<AbsensiScreen> {
   int _seq = 0; // penanda request terbaru, supaya respons lama diabaikan
   String? _error;
 
-    /// Pimpinan/Mudir hanya memantau: tidak bisa merekap atau mengubah absensi.
-  bool get _readOnly => AppScope.of(context).user?.isPimpinan == true;
+    /// Pimpinan/Mudir dan Musyrif hanya melihat: tidak bisa merekap atau mengubah absensi.
+  bool get _readOnly {
+    final u = AppScope.of(context).user;
+    return u?.isPimpinan == true || u?.isMusyrif == true;
+  }
 
   /// Terkunci = sudah direkap dan belum dibuka untuk diubah (selalu terkunci untuk Mudir).
   bool get _locked => _readOnly || (_saved && !_editing);
