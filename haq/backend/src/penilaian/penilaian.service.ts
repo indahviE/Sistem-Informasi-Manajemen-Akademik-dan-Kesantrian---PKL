@@ -462,6 +462,16 @@ export class PenilaianService {
       }
     }
 
+    // Nama pembuat: dibuatOleh hanya berisi userId, jadi cari namanya sekali untuk semua ujian
+    const pembuatIds = [...new Set(list.map((u) => u.dibuatOleh).filter((x): x is string => !!x))];
+    const pembuatUsers = pembuatIds.length
+      ? await this.prisma.user.findMany({
+          where: { id: { in: pembuatIds }, tenantId },
+          select: { id: true, nama: true },
+        })
+      : [];
+    const namaPembuat = new Map(pembuatUsers.map((p) => [p.id, p.nama]));
+
     return list.map((u) => {
       const batas = batasPerUjian.get(u.id);
       const totalSantri = u.kelasId
@@ -477,6 +487,7 @@ export class PenilaianService {
         kkm: u.mapel?.kkm ?? u.kkm,
         terkunci: !!u.dikunciPada,
         totalSantri,
+        dibuatOlehNama: u.dibuatOleh ? namaPembuat.get(u.dibuatOleh) ?? null : null,
       };
     });
   }
@@ -539,8 +550,16 @@ export class PenilaianService {
         })
       : undefined;
 
+    const pembuat = ujian.dibuatOleh
+      ? await this.prisma.user.findFirst({
+          where: { id: ujian.dibuatOleh, tenantId },
+          select: { nama: true },
+        })
+      : null;
+
     return {
       ...ujian,
+      dibuatOlehNama: pembuat?.nama ?? null,
       nilais,
       ...(santris ? { santris } : {}),
       // KKM efektif: ikut mata pelajaran (cadangan: KKM lama di ujian)

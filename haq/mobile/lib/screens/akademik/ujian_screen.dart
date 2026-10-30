@@ -103,6 +103,13 @@ _JenisStyle _jenisStyle(String j) {
   }
 }
 
+/// Nama pembuat ujian. Kosong kalau backend belum mengirimnya.
+String _pembuatOf(Map<String, dynamic> u) {
+  final nama = u['dibuatOlehNama'];
+  if (nama is String && nama.trim().isNotEmpty) return nama.trim();
+  return '';
+}
+
 String _jenisOf(Map<String, dynamic> u) => (u['jenis'] ?? 'ULANGAN') as String;
 double? _numOf(dynamic v) => v is num ? v.toDouble() : (v is String ? double.tryParse(v) : null);
 
@@ -349,7 +356,7 @@ class _UjianScreenState extends State<UjianScreen> {
       if (_filterRemedial && (_remedialById[u['id']] ?? 0) == 0) return false;
       if (q.isEmpty) return true;
       final s =
-          '${u['nama']} ${u['mapel']?['namaMapel'] ?? ''} ${u['kelas']?['namaKelas'] ?? ''}'
+          '${u['nama']} ${u['mapel']?['namaMapel'] ?? ''} ${u['kelas']?['namaKelas'] ?? ''} ${_pembuatOf(u)}'
               .toLowerCase();
       return s.contains(q);
     }).toList();
@@ -950,6 +957,7 @@ class _UjianScreenState extends State<UjianScreen> {
     final remed = _remedialById[u['id']] ?? (u['remedialAktif'] as int?) ?? 0;
     final mapel = u['mapel']?['namaMapel'] ?? 'Umum';
     final kelas = u['kelas']?['namaKelas'] ?? 'Semua kelas';
+    final pembuat = _pembuatOf(u);
 
     final String panelText;
     if (total == null) {
@@ -1033,6 +1041,21 @@ class _UjianScreenState extends State<UjianScreen> {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: sty(12, FontWeight.w500, SC.inkSecondary)),
+                          if (pembuat.isNotEmpty) ...[
+                            const SizedBox(height: 2),
+                            Row(
+                              children: [
+                                Icon(Icons.person_outline_rounded, size: 12, color: SC.inkMuted),
+                                const SizedBox(width: 4),
+                                Expanded(
+                                  child: Text('Oleh $pembuat',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: sty(11, FontWeight.w600, SC.inkMuted)),
+                                ),
+                              ],
+                            ),
+                          ],
                         ],
                       ),
                     ),
