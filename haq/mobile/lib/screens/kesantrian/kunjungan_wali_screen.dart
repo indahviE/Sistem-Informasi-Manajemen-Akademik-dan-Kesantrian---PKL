@@ -461,20 +461,37 @@ class _KunjunganScreenState extends State<KunjunganScreen> {
             const SizedBox(height: 12),
             SizedBox(
               width: double.infinity,
-              height: 40,
-              child: FilledButton.icon(
+              height: 44,
+              child: FilledButton(
                 onPressed: diproses ? null : () => _tandaiSelesai(k),
                 style: FilledButton.styleFrom(
                   backgroundColor: SC.primary,
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
                 ),
-                icon: diproses
-                    ? const SizedBox(
-                        width: 16, height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                      )
-                    : const Icon(Icons.check_circle_outline, size: 18, color: Colors.white),
-                label: Text('Tandai Selesai Dijenguk', style: sty(13, FontWeight.w700, Colors.white)),
+                // FittedBox(scaleDown): di layar HP yang sempit, ikon + teks
+                // mengecil otomatis supaya tetap satu baris dan tidak terpotong.
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      diproses
+                          ? const SizedBox(
+                              width: 16, height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                            )
+                          : const Icon(Icons.check_circle_outline, size: 18, color: Colors.white),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Tandai Selesai Dijenguk',
+                        maxLines: 1,
+                        softWrap: false,
+                        style: sty(13, FontWeight.w700, Colors.white),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
           ],
