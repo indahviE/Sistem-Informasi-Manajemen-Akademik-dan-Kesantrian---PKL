@@ -26,6 +26,8 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.4
+  flutter_native_splash: ^2.4.8
 
 flutter:
   uses-material-design: true
@@ -38,3 +40,18 @@ flutter:
           weight: 600
         - asset: assets/fonts/Nunito-Bold.ttf
           weight: 700
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/icons/icon_HAQ.png"
+  remove_alpha_ios: true
+  adaptive_icon_background: "#03281A"
+  adaptive_icon_foreground: "assets/icons/icon_HAQ_foreground.png"
+
+flutter_native_splash:
+  background_image: assets/splash/splash_screen.png
+  android_12:
+    color: "#FEFEF0"
+  ios: true
+  fullscreen: true
