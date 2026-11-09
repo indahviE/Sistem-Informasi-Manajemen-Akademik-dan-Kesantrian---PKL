@@ -107,6 +107,18 @@ async function main() {
     namaKelas: '7B', tingkat: '7', waliKelasId: 'musyrif-ali', tahunAjaranId: 'ta-2026-2027', createdAt: now,
   });
 
+  // ---------- penugasan mengajar ----------
+  // ID dokumen: {ustadzId}_{kelasId}_{mapelId}
+  const mengajar = [
+    ['ustadz-ahmad', 'kelas-7a', 'mapel-tahfidz'],
+    ['ustadz-ahmad', 'kelas-7a', 'mapel-arab'],
+    ['ustadz-ahmad', 'kelas-7a', 'mapel-fiqih'],
+    ['musyrif-ali', 'kelas-7b', 'mapel-tahfidz'],
+  ];
+  for (const [ustadzId, kelasId, mapelId] of mengajar) {
+    b.set(col('mengajar').doc(`${ustadzId}_${kelasId}_${mapelId}`), { ustadzId, kelasId, mapelId, createdAt: now });
+  }
+
   // ---------- wali ----------
   b.set(col('wali').doc('wali-budi'), { nama: 'H. Budi Santoso', noHp: '08123456789', hubungan: 'Ayah', userId: uid.wali, createdAt: now });
   b.set(col('wali').doc('wali-siti'), { nama: 'Ibu Siti Rahma', noHp: '08987654321', hubungan: 'Ibu', createdAt: now });
@@ -122,7 +134,7 @@ async function main() {
   }
 
   // Counter NIS otomatis: nomor pertama setelah seed = 20260001 (tidak bentrok dgn 2026001).
-  b.set(col('counters').doc('santri_2026'), { n: 0 });
+  // b.set(col('counters').doc('santri_2026'), { n: 0 }); // dimatikan supaya tidak mereset NIS otomatis
 
   await b.commit();
 
