@@ -4,7 +4,7 @@
   "description": "Sistem Informasi Manajemen Akademik & Kesantrian - Ma'had Al-Qur'an Wal Lughah (multi-tenant)",
   "private": true,
   "scripts": {
-    "build": "prisma generate && nest build",
+    "build": "nest build",
     "start": "nest start",
     "start:dev": "nest start --watch",
     "start:prod": "node dist/main",
