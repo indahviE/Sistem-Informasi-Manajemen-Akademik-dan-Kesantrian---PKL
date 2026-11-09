@@ -83,6 +83,20 @@ service cloud.firestore {
         allow update: if isAdmin(tid); // sudah direkap = terkunci, hanya admin
         allow delete: if false;
       }
+
+      // ===== NILAI =====
+      // ID dokumen: {santriId}_{mapelId}_{jenis}_{skill}_{tanggal}
+      match /nilai/{id} {
+        allow read: if isStaff(tid);
+        allow create: if isAdmin(tid)
+                      || (hasRole(tid, ['USTADZ'])
+                          && request.resource.data.kelasId in me().kelasIds);
+        allow update: if isAdmin(tid)
+                      || (hasRole(tid, ['USTADZ'])
+                          && resource.data.kelasId in me().kelasIds
+                          && request.resource.data.kelasId == resource.data.kelasId);
+        allow delete: if false;
+      }
     }
   }
 }
