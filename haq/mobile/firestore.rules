@@ -97,6 +97,17 @@ service cloud.firestore {
                           && request.resource.data.kelasId == resource.data.kelasId);
         allow delete: if false;
       }
+
+      // ===== TAHFIDZ =====
+      // ID dokumen: acak (satu santri boleh setor lebih dari sekali per hari)
+      match /tahfidz/{id} {
+        allow read: if isStaff(tid);
+        allow create: if isAdmin(tid)
+                      || hasRole(tid, ['MUSYRIF'])
+                      || (hasRole(tid, ['USTADZ'])
+                          && request.resource.data.kelasId in me().kelasIds);
+        allow update, delete: if false; // setoran tidak diubah/dihapus dari aplikasi
+      }
     }
   }
 }
