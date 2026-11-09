@@ -156,6 +156,18 @@ service cloud.firestore {
         allow create: if hasRole(tid, ['ADMIN', 'USTADZ']);
         allow update, delete: if false;
       }
+
+            match /notifikasi/{nid} {
+        allow read: if inTenant(tid) && resource.data.userId == request.auth.uid;
+        allow update: if inTenant(tid)
+          && resource.data.userId == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['statusBaca']);
+        allow create: if inTenant(tid)
+          && request.resource.data.userId == request.auth.uid
+          && request.resource.data.statusBaca == false
+          && request.resource.data.jenis in ['ABSENSI', 'NILAI'];
+        allow delete: if false;
+      }
     }
   }
 }
