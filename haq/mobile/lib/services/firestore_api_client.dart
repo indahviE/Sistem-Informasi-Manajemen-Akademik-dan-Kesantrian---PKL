@@ -3,6 +3,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'api_client.dart' show ApiClient, ApiException;
 
+part 'firestore/helpers.dart';
+part 'firestore/absensi.dart';
+
 /// Pengganti ApiClient (HTTP -> NestJS) dengan Firestore.
 /// Method get/post/patch/put/delete dan path-nya SAMA dengan ApiClient lama,
 /// jadi layar yang sudah ada tidak perlu diubah.
@@ -201,9 +204,10 @@ class FirestoreApiClient extends ApiClient {
 
         // ===== A: USTADZ/MUDIR =====
         case 'absensi':
-          if (s.length == 1 && method == 'GET') return _absensiList(q);
-          if (s.length == 1 && method == 'POST') return _absensiCreate(_body(body));
-          if (id == 'bulk' && method == 'POST') return _absensiBulk(_body(body));
+          {
+            final r = _routeAbsensi(method, s, q, body);
+            if (r != null) return await r;
+          }
           break;
 
           case 'nilai':
@@ -612,212 +616,8 @@ class FirestoreApiClient extends ApiClient {
     await _db.collection('users').doc(userId).update({'kelasIds': ids.toList()});
   }
 
-    // ===== A: USTADZ/MUDIR =====
-
-  void _roles(Map<String, dynamic> me, List<String> ok) {
-    if (!ok.contains(me['role'])) {
-      throw ApiException(403, 'Anda tidak punya akses untuk aksi ini.');
-    }
-  }
-
-  /// Kosong -> null.
-  String? _nn(dynamic v) {
-    final s = v?.toString().trim();
-    return (s == null || s.isEmpty) ? null : s;
-  }
-
-  /// Ambil tanggalnya saja, simpan sebagai ISO tengah malam UTC.
-  String _tgl(dynamic v) {
-    final s = (v ?? '').toString();
-    if (s.length < 10 || DateTime.tryParse(s.substring(0, 10)) == null) {
-      throw ApiException(400, 'Tanggal tidak valid');
-    }
-    return '${s.substring(0, 10)}T00:00:00Z';
-  }
-
-  /// ID tetap: {tanggal}_{mapelId}_{santriId}
-  String _absId(String tgl, String? mapelId, String santriId) =>
-      '${tgl.substring(0, 10)}_${mapelId ?? '-'}_$santriId';
-
-  void _cekStatus(dynamic st) {
-    if (st is! String || st.trim().isEmpty) throw ApiException(400, 'Status absensi wajib diisi');
-  }
-
-  // GET /absensi?santriId&kelasId&mapelId&startDate&endDate&page&perPage
-  Future<dynamic> _absensiList(Map<String, String> q) async {
-    final me = await _user();
-    // WALI_SANTRI sengaja belum didukung di sini, lihat catatan di bawah.
-    _roles(me, ['ADMIN', 'PIMPINAN', 'USTADZ', 'MUSYRIF']);
-
-    // Hanya rentang tanggal yang difilter di server (satu field, tidak butuh index).
-    Query<Map<String, dynamic>> ref = await _col('absensi');
-    if (_nn(q['startDate']) != null) {
-      ref = ref.where('tanggal', isGreaterThanOrEqualTo: _tgl(q['startDate']));
-    }
-    if (_nn(q['endDate']) != null) {
-      ref = ref.where('tanggal', isLessThanOrEqualTo: _tgl(q['endDate']));
-    }
-    var rows = (await ref.get()).docs.map(_map).toList();
-
-    final santri = {for (final s in await _all('santri')) s['id']: s};
-    if (_nn(q['santriId']) != null) rows = rows.where((r) => r['santriId'] == q['santriId']).toList();
-    if (_nn(q['mapelId']) != null) rows = rows.where((r) => r['mapelId'] == q['mapelId']).toList();
-    if (_nn(q['kelasId']) != null) {
-      rows = rows.where((r) => santri[r['santriId']]?['kelasId'] == q['kelasId']).toList();
-    }
-    rows.sort((a, b) {
-      final c = _cmp(b['tanggal'], a['tanggal']);
-      return c != 0 ? c : _cmp(b['id'], a['id']);
-    });
-
-    final paged = q.containsKey('page') || q.containsKey('perPage');
-    final page = int.tryParse(q['page'] ?? '') ?? 1;
-    final perPage = int.tryParse(q['perPage'] ?? '') ?? 20;
-    final slice = !paged
-        ? rows
-        : (((page - 1) * perPage) >= rows.length
-            ? <Map<String, dynamic>>[]
-            : rows.skip((page - 1) * perPage).take(perPage).toList());
-
-    final kelas = {for (final k in await _all('kelas')) k['id']: k};
-    final mapel = {for (final m in await _all('mapel')) m['id']: m};
-    final items = slice.map((r) {
-      final s = santri[r['santriId']];
-      final k = s == null ? null : kelas[s['kelasId']];
-      final m = mapel[r['mapelId']];
-      return {
-        ...r,
-        'santri': s == null
-            ? null
-            : {
-                'id': s['id'],
-                'nama': s['nama'],
-                'nis': s['nis'],
-                'kelas': k == null ? null : {'namaKelas': k['namaKelas']},
-              },
-        'mapel': m == null ? null : {'id': m['id'], 'namaMapel': m['namaMapel']},
-      };
-    }).toList();
-
-    if (!paged) return items; // mode lama: array biasa
-    return {'items': items, 'total': rows.length, 'page': page, 'perPage': perPage};
-  }
-
-  // POST /absensi (satu santri)
-  Future<Map<String, dynamic>> _absensiCreate(Map<String, dynamic> d) async {
-    final me = await _user();
-    _roles(me, ['ADMIN', 'USTADZ', 'MUSYRIF']);
-    final santriId = _nn(d['santriId']);
-    if (santriId == null) throw ApiException(400, 'santriId wajib diisi');
-    _cekStatus(d['status']);
-    final tgl = _tgl(d['tanggal']);
-    final mapelId = _nn(d['mapelId']);
-    await _must('santri', santriId, 'Santri');
-
-    final ref = await _ref('absensi', _absId(tgl, mapelId, santriId));
-    if ((await ref.get()).exists && me['role'] != 'ADMIN') {
-      throw ApiException(403, 'Absensi sudah direkap. Hanya admin yang dapat mengubahnya.');
-    }
-    final doc = {
-      'santriId': santriId,
-      'kelasId': _nn(d['kelasId']),
-      'mapelId': mapelId,
-      'tanggal': tgl,
-      'status': d['status'],
-      'catatan': d['catatan'],
-      'inputOleh': me['userId'],
-      'createdAt': _now(),
-    };
-    await ref.set(doc);
-    return {'id': ref.id, ...doc};
-  }
-
-  // POST /absensi/bulk  { kelasId, mapelId?, tanggal, items: [{santriId, status, catatan}] }
-  Future<Map<String, dynamic>> _absensiBulk(Map<String, dynamic> d) async {
-    final me = await _user();
-    _roles(me, ['ADMIN', 'USTADZ']);
-    final kelasId = _nn(d['kelasId']);
-    if (kelasId == null) throw ApiException(400, 'kelasId wajib diisi');
-    final tgl = _tgl(d['tanggal']);
-    final mapelId = _nn(d['mapelId']);
-    final raw = d['items'];
-    if (raw is! List || raw.isEmpty) throw ApiException(400, 'Items absensi wajib diisi');
-
-    // 1 santri = 1 entri (kalau dobel, yang terakhir dipakai)
-    final items = <String, Map<String, dynamic>>{};
-    for (final i in raw) {
-      final m = Map<String, dynamic>.from(i as Map);
-      final sid = _nn(m['santriId']);
-      if (sid == null) throw ApiException(400, 'santriId wajib diisi');
-      _cekStatus(m['status']);
-      items[sid] = m;
-    }
-    if (items.length > 450) throw ApiException(400, 'Maksimal 450 santri sekali simpan.');
-
-    // Ustadz hanya boleh mengabsen kelas yang ia ampu
-    if (me['role'] == 'USTADZ') {
-      final diampu = List<String>.from(me['kelasIds'] ?? const []);
-      if (!diampu.contains(kelasId)) throw ApiException(403, 'Ini bukan kelas yang Anda ampu.');
-    }
-
-    // Semua santri harus ada (dan untuk ustadz: anggota kelas ini)
-    final santriDocs = await Future.wait(items.keys.map((id) async => (await _ref('santri', id)).get()));
-    if (santriDocs.any((s) => !s.exists)) {
-      throw ApiException(404, 'Ada santri yang tidak ditemukan di pondok ini.');
-    }
-    if (me['role'] == 'USTADZ' && santriDocs.any((s) => s.data()?['kelasId'] != kelasId)) {
-      throw ApiException(403, 'Ada santri yang bukan anggota kelas ini.');
-    }
-
-    // Sudah direkap = terkunci; hanya ADMIN yang boleh mengubah
-    final col = await _col('absensi');
-    final ids = {for (final sid in items.keys) sid: _absId(tgl, mapelId, sid)};
-    final cek = await Future.wait(ids.values.map((i) => col.doc(i).get()));
-    final lamaKelas = await col
-        .where('kelasId', isEqualTo: kelasId)
-        .where('tanggal', isEqualTo: tgl)
-        .where('mapelId', isEqualTo: mapelId)
-        .limit(1)
-        .get();
-    final adaLama = lamaKelas.docs.isNotEmpty || cek.any((e) => e.exists);
-    if (adaLama && me['role'] != 'ADMIN') {
-      throw ApiException(403, 'Absensi sudah direkap. Hanya admin yang dapat mengubahnya.');
-    }
-
-    final sudahAda = {for (final e in cek) if (e.exists) e.id};
-    final batch = _db.batch();
-    items.forEach((sid, m) {
-      final ref = col.doc(ids[sid]);
-      if (sudahAda.contains(ref.id)) {
-        batch.update(ref, {
-          'status': m['status'],
-          'catatan': m['catatan'],
-          'inputOleh': me['userId'],
-          'updatedAt': _now(),
-        });
-      } else {
-        batch.set(ref, {
-          'santriId': sid,
-          'kelasId': kelasId,
-          'mapelId': mapelId,
-          'tanggal': tgl,
-          'status': m['status'],
-          'catatan': m['catatan'],
-          'inputOleh': me['userId'],
-          'createdAt': _now(),
-        });
-      }
-    });
-    await batch.commit();
-    return {'count': items.length, 'message': 'Absensi massal disimpan.'};
-  }
-
     // ===== NILAI =====
   static const _jenisNilai = ['HARIAN', 'ULANGAN', 'TAHFIDZ', 'BAHASA_ARAB'];
-
-  /// Tanggal hari ini menurut WIB (UTC+7), bukan zona perangkat.
-  String _hariIniWib() =>
-      _tgl(DateTime.now().toUtc().add(const Duration(hours: 7)).toIso8601String());
 
   /// ID tetap = pengganti unique (santri, mapel, jenis, skill, tanggal) -> input ulang menimpa.
   String _nilaiId(String santriId, String mapelId, String jenis, String skill, String tgl) {
@@ -1062,15 +862,6 @@ class FirestoreApiClient extends ApiClient {
     return n + ayat;
   }
 
-  /// Angka bulat opsional dalam rentang; null kalau tidak dikirim.
-  int? _cekInt(dynamic v, String label, int min, int max) {
-    if (v == null || (v is String && v.trim().isEmpty)) return null;
-    if (v is! num || v != v.toInt()) throw ApiException(400, '$label harus angka');
-    final n = v.toInt();
-    if (n < min || n > max) throw ApiException(400, '$label harus $min sampai $max');
-    return n;
-  }
-
   // GET /tahfidz?santriId&kelasId&jenis&startDate&endDate&page&perPage
   Future<dynamic> _tahfidzList(Map<String, String> q) async {
     final me = await _user();
@@ -1218,14 +1009,6 @@ class FirestoreApiClient extends ApiClient {
     return u.month >= 7 ? '${u.year}/${u.year + 1} - Ganjil' : '${u.year - 1}/${u.year} - Genap';
   }
 
-  DateTime? _parseTgl(dynamic v) {
-    final s = _nn(v);
-    if (s == null) return null;
-    final t = DateTime.tryParse(s);
-    if (t == null) throw ApiException(400, 'Tanggal tidak valid');
-    return t;
-  }
-
   /// Penugasan mengajar ustadz yang login: [{mapelId, kelasId}]
   Future<List<Map<String, dynamic>>> _tugas(Map<String, dynamic> me) async {
     final uid = me['ustadzId'] as String?;
@@ -1318,24 +1101,6 @@ class FirestoreApiClient extends ApiClient {
     if (v is! num) throw ApiException(400, '${p}Nilai harus angka');
     if (v < 0 || v > 100) throw ApiException(400, '${p}Nilai harus antara 0 sampai 100');
     return {'status': status, 'nilai': v.toDouble()};
-  }
-
-  Future<void> _audit(WriteBatch b, Map<String, dynamic> me, String action, String ujianId, String judul,
-      String desk, [Map<String, dynamic>? data, String tingkat = 'INFO']) async {
-    b.set(await _ref('auditLog'), {
-      'userId': me['userId'],
-      'userNama': me['nama'],
-      'userRole': me['role'],
-      'action': action,
-      'entity': 'Ujian',
-      'entityId': ujianId,
-      'kategori': 'DATA',
-      'tingkat': tingkat,
-      'judul': judul,
-      'deskripsi': desk,
-      'data': data,
-      'createdAt': _now(),
-    });
   }
 
   Future<Map<String, dynamic>> _joinUjian(Map<String, dynamic> u) async {
@@ -2667,9 +2432,6 @@ class FirestoreApiClient extends ApiClient {
   }
     // ===== A: DASHBOARD =====
   // Kerangka milik A. Cabang role lain (B dan C) diisi di fungsi masing-masing.
-
-  /// Tanggal hari ini (jam perangkat) dalam format yang sama dengan absensi.
-  String _hariIni() => _tgl(DateTime.now().toIso8601String());
 
   Future<List<Map<String, dynamic>>> _absensiHariIni() async {
     final ref = await _col('absensi');
