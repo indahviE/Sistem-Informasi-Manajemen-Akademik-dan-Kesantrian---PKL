@@ -846,7 +846,13 @@ export class PenilaianService {
           });
           if (rem) {
             if (rem.nilaiRemedial === null) {
-              await tx.remedial.update({ where: { id: rem.id }, data: { nilaiAwal: nilai } });
+              if (nilai >= kkm) {
+                // Nilai sudah mencapai KKM dan remedial belum dinilai,
+                // jadi remedial tidak diperlukan lagi.
+                await tx.remedial.delete({ where: { id: rem.id } });
+              } else {
+                await tx.remedial.update({ where: { id: rem.id }, data: { nilaiAwal: nilai } });
+              }
             } else if (nilai < kkm) {
               // Remedial sudah dinilai: hitung ulang nilai akhir dan statusnya
               const hitung = this.hitungRemedial(nilai, rem.nilaiRemedial, kkm);
