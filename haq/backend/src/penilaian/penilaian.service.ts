@@ -275,11 +275,29 @@ export class PenilaianService {
     if (ujian) this.assertTerbuka(ujian);
   }
 
-  private async assertBolehKelolaByUjianId(tenantId: string, ujianId: string | null | undefined, actor: Actor) {
-    if (!ujianId) return;
-    const ujian = await this.prisma.ujian.findFirst({ where: { id: ujianId, tenantId } });
-    if (ujian) await this.assertBolehKelola(tenantId, ujian, actor);
+// Hak kelola remedial. Dengan ujian: ikut aturan ujian. Tanpa ujian (data lama/yatim):
+// ustadz hanya boleh bila ia mengajar mapel remedial itu di kelas si santri.
+private async assertBolehKelolaRemedial(
+  tenantId: string,
+  rem: { ujianId: string | null; mapelId: string | null; santriId: string },
+  actor: Actor,
+) {
+  if (actor.role !== Role.USTADZ) return;
+  if (rem.ujianId) {
+    const ujian = await this.prisma.ujian.findFirst({ where: { id: rem.ujianId, tenantId } });
+    if (!ujian) throw new NotFoundException('Ujian remedial tidak ditemukan.');
+    await this.assertBolehKelola(tenantId, ujian, actor);
+    await this.assertSantriDipegang(tenantId, ujian, actor, [rem.santriId]);
+    return;
   }
+  const santri = await this.prisma.santri.findFirst({
+    where: { id: rem.santriId, tenantId },
+    select: { kelasId: true },
+  });
+  if (!(await this.punyaPenugasan(tenantId, actor, rem.mapelId, santri?.kelasId))) {
+    throw new ForbiddenException('Anda tidak mengajar mapel ini di kelas santri tersebut.');
+  }
+}
 
     // Kelas yang dijadikan wali kelas oleh ustadz ini.
   private async kelasWaliSaya(tenantId: string, actor: Actor): Promise<string[]> {
@@ -792,19 +810,24 @@ export class PenilaianService {
     });
   }
 
-  private async simpanNilai(tenantId: string, ujian: Ujian, dto: InputNilaiUjianDto, actor: Actor) {
-    const { status, nilai } = this.normalisasiNilai(dto);
-    const ujianId = ujian.id;
-    const lama = await this.prisma.nilaiUjian.findUnique({
-      where: { ujianId_santriId: { ujianId, santriId: dto.santriId } },
-    });
-    const berubah = !!lama && (lama.nilai !== nilai || lama.status !== status);
-    const susulan = this.adalahSusulanMasuk(lama, dto);
-    const kkm = await this.getKkm(tenantId, ujian);
+private async simpanNilai(
+  tx: Prisma.TransactionClient,
+  tenantId: string,
+  ujian: Ujian,
+  dto: InputNilaiUjianDto,
+  actor: Actor,
+  kkm: number,
+) {
+  const { status, nilai } = this.normalisasiNilai(dto);
+  const ujianId = ujian.id;
+  const lama = await tx.nilaiUjian.findUnique({
+    where: { ujianId_santriId: { ujianId, santriId: dto.santriId } },
+  });
+  const berubah = !!lama && (lama.nilai !== nilai || lama.status !== status);
+  const susulan = this.adalahSusulanMasuk(lama, dto);
 
-    return this.prisma.$transaction(async (tx) => {
-      const hasil = await tx.nilaiUjian.upsert({
-        where: { ujianId_santriId: { ujianId, santriId: dto.santriId } },
+  const hasil = await tx.nilaiUjian.upsert({
+            where: { ujianId_santriId: { ujianId, santriId: dto.santriId } },
         create: {
           tenantId,
           ujianId,
@@ -870,7 +893,6 @@ export class PenilaianService {
         }
       }
       return hasil;
-    });
   }
 
   async inputNilaiUjian(tenantId: string, ujianId: string, dto: InputNilaiUjianDto, user?: RequestUser) {
@@ -880,8 +902,8 @@ export class PenilaianService {
     await this.assertSantri(tenantId, dto.santriId);
     await this.assertSantriDipegang(tenantId, ujian, actor, [dto.santriId]);
     await this.assertBolehInput(tenantId, ujian, [dto]);
-    return this.simpanNilai(tenantId, ujian, dto, actor);
-  }
+    const kkm = await this.getKkm(tenantId, ujian);
+    return this.prisma.$transaction((tx) => this.simpanNilai(tx, tenantId, ujian, dto, actor, kkm));  }
 
   async inputNilaiUjianBulk(tenantId: string, ujianId: string, items: InputNilaiUjianDto[], user?: RequestUser) {
     const actor = this.actor(user);
@@ -904,11 +926,19 @@ export class PenilaianService {
     // Saat terkunci, semua item harus berupa nilai susulan; kalau ada satu saja yang bukan, seluruhnya ditolak
     await this.assertBolehInput(tenantId, ujian, items);
 
+// KKM diambil sekali, lalu semua item disimpan dalam satu transaksi:
+// kalau satu gagal, seluruhnya dibatalkan.
+const kkm = await this.getKkm(tenantId, ujian);
+return this.prisma.$transaction(
+  async (tx) => {
     const hasil = [];
     for (const item of items) {
-      hasil.push(await this.simpanNilai(tenantId, ujian, item, actor));
+      hasil.push(await this.simpanNilai(tx, tenantId, ujian, item, actor, kkm));
     }
     return hasil;
+  },
+  { timeout: 30000 },
+);
   }
 
   async removeNilaiUjian(tenantId: string, ujianId: string, nilaiId: string, user?: RequestUser) {
@@ -955,15 +985,20 @@ export class PenilaianService {
 
   async createRemedial(tenantId: string, dto: CreateRemedialDto, user?: RequestUser) {
     const actor = this.actor(user);
-    await this.assertSantri(tenantId, dto.santriId);
+    const santri = await this.assertSantri(tenantId, dto.santriId);
     if (dto.ujianId) {
       const ujian = await this.prisma.ujian.findFirst({ where: { id: dto.ujianId, tenantId } });
       if (!ujian) throw new NotFoundException('Ujian tidak ditemukan.');
       await this.assertBolehKelola(tenantId, ujian, actor);
       await this.assertSantriDipegang(tenantId, ujian, actor, [dto.santriId]);
       this.assertTerbuka(ujian);
-    }
-    return this.prisma.remedial.create({
+    } else if (actor.role === Role.USTADZ) {
+      // Tanpa ujian, ustadz harus mengajar mapel itu di kelas si santri
+      if (!(await this.punyaPenugasan(tenantId, actor, dto.mapelId, santri.kelasId))) {
+        throw new ForbiddenException('Anda tidak mengajar mapel ini di kelas santri tersebut.');
+      }
+    }    
+return this.prisma.remedial.create({
       data: {
         tenantId,
         santriId: dto.santriId,
@@ -984,7 +1019,7 @@ export class PenilaianService {
     const actor = this.actor(user);
     const found = await this.prisma.remedial.findFirst({ where: { id, tenantId } });
     if (!found) throw new NotFoundException('Remedial tidak ditemukan.');
-    await this.assertBolehKelolaByUjianId(tenantId, found.ujianId, actor);
+    await this.assertBolehKelolaRemedial(tenantId, found, actor);
     await this.assertUjianTerbukaById(tenantId, found.ujianId);
     return this.prisma.remedial.update({
       where: { id },
@@ -1000,7 +1035,7 @@ export class PenilaianService {
     const actor = this.actor(user);
     const found = await this.prisma.remedial.findFirst({ where: { id, tenantId } });
     if (!found) throw new NotFoundException('Remedial tidak ditemukan.');
-    await this.assertBolehKelolaByUjianId(tenantId, found.ujianId, actor);
+    await this.assertBolehKelolaRemedial(tenantId, found, actor);
     await this.assertUjianTerbukaById(tenantId, found.ujianId);
     return this.prisma.remedial.delete({ where: { id } });
   }
@@ -1332,16 +1367,36 @@ export class PenilaianService {
   }
 
   // ===== KELULUSAN =====
-  async findAllKelulusan(tenantId: string) {
+  async findAllKelulusan(tenantId: string, user?: RequestUser) {
+    const actor = this.actor(user);
+    let batasan: Prisma.KelulusanWhereInput = {};
+    if (actor.role === Role.WALI_SANTRI) {
+      // Wali hanya melihat kelulusan anaknya sendiri
+      batasan = { santri: { waliId: { in: await this.waliIdsSaya(tenantId, actor) } } };
+    } else if (actor.role === Role.USTADZ) {
+      // Ustadz hanya melihat santri di kelas yang ia walikan (sama seperti rapor)
+      batasan = { santri: { kelasId: { in: await this.kelasWaliSaya(tenantId, actor) } } };
+    }
     return this.prisma.kelulusan.findMany({
-      where: { tenantId },
-      include: { santri: { select: { id: true, nama: true, nis: true, kelasId: true, kelas: { select: { id: true, namaKelas: true } } } } },
+      where: { tenantId, ...batasan },
+      include: {
+        santri: {
+          select: {
+            id: true,
+            nama: true,
+            nis: true,
+            kelasId: true,
+            kelas: { select: { id: true, namaKelas: true } },
+          },
+        },
+      },
       orderBy: { tanggalKelulusan: 'desc' },
     });
   }
 
-  async createKelulusan(tenantId: string, dto: CreateKelulusanDto) {
-    await this.assertSantri(tenantId, dto.santriId);
+  async createKelulusan(tenantId: string, dto: CreateKelulusanDto, user?: RequestUser) {
+    const santri = await this.assertSantri(tenantId, dto.santriId);
+    await this.assertWaliKelasSantri(tenantId, santri, this.actor(user));
     let predikat: PredikatKelulusan | undefined;
     if (dto.predikat) {
       predikat = PredikatKelulusan[dto.predikat as keyof typeof PredikatKelulusan];
@@ -1369,9 +1424,13 @@ export class PenilaianService {
     });
   }
 
-  async updateKelulusan(tenantId: string, id: string, dto: UpdateKelulusanDto) {
-    const found = await this.prisma.kelulusan.findFirst({ where: { id, tenantId } });
+  async updateKelulusan(tenantId: string, id: string, dto: UpdateKelulusanDto, user?: RequestUser) {
+    const found = await this.prisma.kelulusan.findFirst({
+      where: { id, tenantId },
+      include: { santri: { select: { kelasId: true } } },
+    });
     if (!found) throw new NotFoundException('Data kelulusan tidak ditemukan.');
+    await this.assertWaliKelasSantri(tenantId, found.santri, this.actor(user));
     let predikat: PredikatKelulusan | undefined;
     if (dto.predikat) {
       predikat = PredikatKelulusan[dto.predikat as keyof typeof PredikatKelulusan];
