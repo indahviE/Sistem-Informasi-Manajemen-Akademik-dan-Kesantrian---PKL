@@ -1,0 +1,30 @@
+      // ===== KELULUSAN =====
+      // ID dokumen = santriId
+      match /kelulusan/{id} {
+        allow read: if hasRole(tid, ['ADMIN', 'PIMPINAN', 'USTADZ'])
+                    || (hasRole(tid, ['WALI_SANTRI']) && id in me().santriIds);
+        allow create, update: if hasRole(tid, ['ADMIN', 'USTADZ']);
+        allow delete: if isAdmin(tid);
+      }
+
+      // ===== RAPOR =====
+      // ID dokumen: {santriId}_{periode}
+      match /rapor/{id} {
+        allow read: if hasRole(tid, ['ADMIN', 'PIMPINAN', 'USTADZ'])
+                    || (hasRole(tid, ['WALI_SANTRI'])
+                        && resource.data.status == 'TERBIT'
+                        && resource.data.santriId in me().santriIds);
+        allow create: if isAdmin(tid)
+                      || (hasRole(tid, ['USTADZ'])
+                          && request.resource.data.kelasId in me().kelasIds);
+        allow update, delete: if isAdmin(tid)
+                      || (hasRole(tid, ['USTADZ'])
+                          && resource.data.kelasId in me().kelasIds);
+      }
+
+      // Jejak audit (kunci, buka kunci, ubah/hapus nilai): tidak bisa diubah dari aplikasi
+      match /auditLog/{id} {
+        allow read: if hasRole(tid, ['ADMIN', 'PIMPINAN']);
+        allow create: if hasRole(tid, ['ADMIN', 'USTADZ']);
+        allow update, delete: if false;
+      }

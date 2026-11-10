@@ -1,0 +1,28 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{db}/documents {
+
+    // ---------- helper ----------
+    function signedIn() { return request.auth != null; }
+    function me() { return get(/databases/$(db)/documents/users/$(request.auth.uid)).data; }
+    function inTenant(tid) { return signedIn() && me().tenantId == tid; }
+    function hasRole(tid, roles) { return inTenant(tid) && me().role in roles; }
+    function isAdmin(tid) { return hasRole(tid, ['ADMIN']); }
+    function isStaff(tid) { return hasRole(tid, ['ADMIN', 'PIMPINAN', 'USTADZ', 'MUSYRIF']); }
+
+    // ---------- users ----------
+    // Dokumen akun: tenantId, role, ustadzId, kelasIds, santriIds (untuk wali)
+    match /users/{uid} {
+      allow read: if signedIn() && (request.auth.uid == uid
+                      || (me().role == 'ADMIN' && me().tenantId == resource.data.tenantId));
+      // Admin boleh ubah akun di pondoknya sendiri (mis. sinkron kelasIds).
+      allow update: if signedIn() && me().role == 'ADMIN'
+                      && me().tenantId == resource.data.tenantId
+                      && request.resource.data.tenantId == resource.data.tenantId
+                      && request.resource.data.role == resource.data.role;
+      allow create, delete: if false; // pembuatan akun lewat Cloud Function / Admin SDK
+    }
+
+    // ---------- tenants ----------
+    match /tenants/{tid} {
+      allow read: if inTenant(tid);
