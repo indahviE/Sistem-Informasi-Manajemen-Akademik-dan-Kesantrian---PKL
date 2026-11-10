@@ -9,6 +9,3 @@
           && request.resource.data.jenis in ['ABSENSI', 'NILAI'];
         allow delete: if false;
       }
-    }
-  }
-}

@@ -1,0 +1,14 @@
+      // ===== JURNAL MENGAJAR =====
+      match /jurnalMengajar/{id} {
+        allow read: if hasRole(tid, ['ADMIN', 'PIMPINAN'])
+                    || (hasRole(tid, ['USTADZ']) && resource.data.inputOleh == request.auth.uid);
+        allow create: if isAdmin(tid)
+                      || (hasRole(tid, ['USTADZ'])
+                          && request.resource.data.inputOleh == request.auth.uid);
+        allow update: if isAdmin(tid)
+                      || (hasRole(tid, ['USTADZ'])
+                          && resource.data.inputOleh == request.auth.uid
+                          && request.resource.data.inputOleh == resource.data.inputOleh);
+        allow delete: if isAdmin(tid)
+                      || (hasRole(tid, ['USTADZ']) && resource.data.inputOleh == request.auth.uid);
+      }

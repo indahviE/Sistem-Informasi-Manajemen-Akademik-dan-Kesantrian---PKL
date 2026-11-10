@@ -13,6 +13,7 @@ part 'firestore/ujian.dart';
 part 'firestore/rapor.dart';
 part 'firestore/dashboard.dart';
 part 'firestore/santri_kelas.dart';
+part 'firestore/jurnal.dart';
 
 /// Pengganti ApiClient (HTTP -> NestJS) dengan Firestore.
 /// Method get/post/patch/put/delete dan path-nya SAMA dengan ApiClient lama,
@@ -246,6 +247,13 @@ class FirestoreApiClient extends ApiClient {
             if (r != null) return await r;
           }
           break;
+
+        case 'jurnal-mengajar':
+          {
+            final r = _routeJurnal(method, s, q, body);
+            if (r != null) return await r;
+          }
+          break;  
 
         case 'kelulusan':
           {
