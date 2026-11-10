@@ -1,19 +1,15 @@
-import 'package:firebase_core/firebase_core.dart';
-import 'services/firestore_api_client.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'config/api_config.dart';
 import 'services/api_client.dart';
 import 'services/app_scope.dart';
 import 'services/auth_state.dart';
-import 'firebase_options.dart';
 import 'screens/gate_screen.dart';
 import 'screens/santri/santri_ui.dart' show SC;
 import 'theme/app_theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
   // PERBAIKAN: default-nya, kalau ada widget yang lempar exception saat
   // build, Flutter Web (terutama build release/profile) kadang cuma
@@ -39,7 +35,14 @@ void main() async {
 
   late final ApiClient api;
   late final AuthState auth;
-  api = FirestoreApiClient();
+  api = ApiClient(
+    baseUrl: () => ApiConfig.baseUrl,
+    getAccessToken: () => auth.getAccessToken(),
+    getRefreshToken: () => auth.getRefreshToken(),
+    refreshTokens: (rt) => auth.refresh(rt),
+    saveTokens: (at, rt) => auth.saveTokens(at, rt),
+    clearTokens: () => auth.logout(),
+  );
   auth = AuthState(api);
   await auth.init(isWeb: isWeb);
 
