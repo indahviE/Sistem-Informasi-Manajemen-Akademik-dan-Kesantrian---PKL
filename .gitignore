@@ -1,4 +1,8 @@
-node_modules/ 
-dist/ 
-haq-project/ 
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+.backend.pid
+haq-project/
 haq/backend.zip

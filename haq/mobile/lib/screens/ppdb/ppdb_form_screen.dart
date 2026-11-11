@@ -304,6 +304,14 @@ class _PpdbFormScreenState extends State<PpdbFormScreen> {
         return 'Format email tidak valid.';
       }
     }
+    if (s == 3) {
+      final total = _fotoAnak.text.length +
+          _kartuKeluarga.text.length +
+          _aktaLahir.text.length;
+      if (total > 4000000) {
+        return 'Total ukuran berkas terlalu besar. Gunakan foto atau PDF yang lebih kecil.';
+      }
+    }
     return null;
   }
 
@@ -864,7 +872,7 @@ class _PpdbFormScreenState extends State<PpdbFormScreen> {
   Widget _buildStepBerkas() {
     return _SectionCard(
       title: 'Unggah Berkas',
-      subtitle: 'PNG / JPG / PDF, maksimal 2MB per berkas',
+      subtitle: 'Foto atau PDF, maksimal 1MB per berkas',
       icon: Icons.folder_copy_outlined,
       children: [
         _UploadTile(
@@ -1393,7 +1401,7 @@ class _UploadTileState extends State<_UploadTile> {
   bool _busy = false;
   String? _error;
 
-  static const int _maxBytes = 2 * 1024 * 1024;
+  static const int _maxBytes = 1024 * 1024; // 1 MB  static const int _maxBytes = 1024 * 1024; // 1 MB
 
   bool get _hasFile => widget.controller.text.trim().isNotEmpty;
 
@@ -1419,52 +1427,66 @@ class _UploadTileState extends State<_UploadTile> {
 
   Future<void> _pick() async {
     try {
-      if (widget.kind == _BerkasKind.photoOnly) {
-        final source = await showModalBottomSheet<ImageSource>(
-          context: context,
-          backgroundColor: PColors.surface,
-          shape: const RoundedRectangleBorder(
-            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-          ),
-          builder: (ctx) => SafeArea(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
+      final isPhoto = widget.kind == _BerkasKind.photoOnly;
+
+      final choice = await showModalBottomSheet<String>(
+        context: context,
+        backgroundColor: PColors.surface,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        builder: (ctx) => SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.photo_camera_outlined,
+                    color: PColors.primary),
+                title: Text(isPhoto ? 'Ambil Foto' : 'Foto dengan Kamera'),
+                onTap: () => Navigator.pop(ctx, 'camera'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library_outlined,
+                    color: PColors.primary),
+                title: const Text('Pilih dari Galeri'),
+                onTap: () => Navigator.pop(ctx, 'gallery'),
+              ),
+              if (!isPhoto)
                 ListTile(
-                  leading: const Icon(Icons.photo_camera_outlined,
+                  leading: const Icon(Icons.picture_as_pdf_outlined,
                       color: PColors.primary),
-                  title: const Text('Ambil Foto'),
-                  onTap: () => Navigator.pop(ctx, ImageSource.camera),
+                  title: const Text('Pilih File PDF (maks. 1MB)'),
+                  onTap: () => Navigator.pop(ctx, 'pdf'),
                 ),
-                ListTile(
-                  leading: const Icon(Icons.photo_library_outlined,
-                      color: PColors.primary),
-                  title: const Text('Pilih dari Galeri'),
-                  onTap: () => Navigator.pop(ctx, ImageSource.gallery),
-                ),
-              ],
-            ),
+            ],
           ),
-        );
-        if (source == null) return;
-        final xfile =
-            await ImagePicker().pickImage(source: source, imageQuality: 85);
-        if (xfile == null) return;
-        final bytes = await xfile.readAsBytes();
-        final ext = xfile.name.contains('.')
-            ? xfile.name.split('.').last.toLowerCase()
-            : 'jpg';
-        _store(bytes, ext);
-      } else {
+        ),
+      );
+      if (choice == null) return;
+
+      if (choice == 'pdf') {
         final result = await FilePicker.platform.pickFiles(
           type: FileType.custom,
-          allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'],
+          allowedExtensions: ['pdf'],
           withData: true,
         );
         if (result == null || result.files.single.bytes == null) return;
-        final file = result.files.single;
-        _store(file.bytes!, (file.extension ?? '').toLowerCase());
+        _store(result.files.single.bytes!, 'pdf');
+        return;
       }
+
+      final xfile = await ImagePicker().pickImage(
+        source: choice == 'camera' ? ImageSource.camera : ImageSource.gallery,
+        maxWidth: isPhoto ? 1024 : 1600,
+        maxHeight: isPhoto ? 1024 : 1600,
+        imageQuality: 70,
+      );
+      if (xfile == null) return;
+      final bytes = await xfile.readAsBytes();
+      final ext = xfile.name.contains('.')
+          ? xfile.name.split('.').last.toLowerCase()
+          : 'jpg';
+      _store(bytes, ext);
     } catch (_) {
       if (mounted) setState(() => _error = 'Gagal membuka berkas. Coba lagi.');
     }
@@ -1473,7 +1495,8 @@ class _UploadTileState extends State<_UploadTile> {
   void _store(List<int> bytes, String ext) {
     if (!mounted) return;
     if (bytes.length > _maxBytes) {
-      setState(() => _error = 'Ukuran berkas maksimal 2MB.');
+      setState(() => _error =
+          'Ukuran berkas maksimal 1MB. Untuk PDF, coba foto dokumennya saja.');
       return;
     }
     final mime = switch (ext) {
