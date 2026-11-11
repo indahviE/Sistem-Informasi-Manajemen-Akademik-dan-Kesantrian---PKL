@@ -19,12 +19,12 @@ import 'dart:convert';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../services/api_client.dart';
 import '../services/app_scope.dart';
 
 import 'landing_screen.dart';
-import '../widgets/berkas_legalitas.dart';
 /// Design tokens diambil langsung dari DESIGN.md
 /// (Islamic Academic & Kesantrian Experience).
 class PColors {
@@ -283,6 +283,13 @@ class _SignupScreenState extends State<SignupScreen> {
       setState(() => _error = 'Alamat Lengkap & Wilayah wajib diisi.');
       return false;
     }
+    final totalBytes = _logo.text.length +
+        _berkas.values.fold<int>(0, (s, b) => s + (b['data'] ?? '').length);
+    if (totalBytes > 4000000) {
+      setState(() => _error =
+          'Total ukuran logo dan berkas terlalu besar. Gunakan foto atau PDF yang lebih kecil.');
+      return false;
+    }
     if (!_slugValid) {
       setState(() => _error =
           'Kode Tenant wajib diisi (huruf kecil, angka, dan strip saja).');
@@ -511,13 +518,13 @@ class _SignupScreenState extends State<SignupScreen> {
         const SizedBox(height: 20),
       Text('Berkas Legalitas (Opsional)', style: PText.labelLg),
       const SizedBox(height: 4),
-      Text('JPG, PNG, atau PDF, maks. 2MB per berkas. Membantu mempercepat persetujuan.',
+      Text('JPG, PNG, atau PDF, maks. 1MB per berkas. Membantu mempercepat persetujuan.',
           style: PText.bodySm),
       const SizedBox(height: 10),
       for (final slot in _berkasSlots)
         Padding(
           padding: const EdgeInsets.only(bottom: 8),
-          child: BerkasUploadField(
+          child: _BerkasTile(
             label: slot,
             initialNamaFile: _berkas[slot]?['namaFile'],
             onChanged: (data, namaFile) => setState(() {
@@ -1079,8 +1086,8 @@ class _LogoUploadBoxState extends State<_LogoUploadBox> {
     if (file.bytes == null) return;
 
     final sizeBytes = file.bytes!.length;
-    if (sizeBytes > 2 * 1024 * 1024) {
-      setState(() => _error = 'Ukuran logo maksimal 2MB.');
+    if (sizeBytes > 1024 * 1024) {
+      setState(() => _error = 'Ukuran logo maksimal 1MB.');
       return;
     }
 
@@ -1148,7 +1155,7 @@ class _LogoUploadBoxState extends State<_LogoUploadBox> {
                   style: PText.labelLg.copyWith(color: PColors.primary),
                 ),
                 const SizedBox(height: 4),
-                Text('PNG atau JPG transparan (maks. 2MB)', style: PText.bodySm, textAlign: TextAlign.center),
+                Text('PNG atau JPG transparan (maks. 1MB)', style: PText.bodySm, textAlign: TextAlign.center),
                 const SizedBox(height: 10),
                 if (_error != null)
                   _Pill(icon: Icons.error_outline, label: _error!, bg: PColors.errorBg, fg: PColors.errorText)
@@ -1171,6 +1178,224 @@ class _LogoUploadBoxState extends State<_LogoUploadBox> {
           ),
         );
       },
+    );
+  }
+}
+
+  class _BerkasTile extends StatefulWidget {
+  const _BerkasTile({
+    super.key,
+    required this.label,
+    required this.onChanged,
+    this.initialNamaFile,
+  });
+
+  final String label;
+  final String? initialNamaFile;
+  final void Function(String? data, String? namaFile) onChanged;
+
+  @override
+  State<_BerkasTile> createState() => _BerkasTileState();
+}
+
+class _BerkasTileState extends State<_BerkasTile> {
+  static const int _maxBytes = 1024 * 1024; // 1 MB
+
+  String? _namaFile;
+  String? _info; // mis. "PDF • 340 KB"
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _namaFile = widget.initialNamaFile;
+  }
+
+  bool get _hasFile => _namaFile != null && _namaFile!.isNotEmpty;
+
+  Future<void> _pick() async {
+    try {
+      final choice = await showModalBottomSheet<String>(
+        context: context,
+        backgroundColor: PColors.surface,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        builder: (ctx) => SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.photo_camera_outlined,
+                    color: PColors.primary),
+                title: const Text('Foto dengan Kamera'),
+                onTap: () => Navigator.pop(ctx, 'camera'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library_outlined,
+                    color: PColors.primary),
+                title: const Text('Pilih dari Galeri'),
+                onTap: () => Navigator.pop(ctx, 'gallery'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.picture_as_pdf_outlined,
+                    color: PColors.primary),
+                title: const Text('Pilih File PDF (maks. 1MB)'),
+                onTap: () => Navigator.pop(ctx, 'pdf'),
+              ),
+            ],
+          ),
+        ),
+      );
+      if (choice == null) return;
+
+      if (choice == 'pdf') {
+        final result = await FilePicker.platform.pickFiles(
+          type: FileType.custom,
+          allowedExtensions: ['pdf'],
+          withData: true,
+        );
+        if (result == null || result.files.single.bytes == null) return;
+        final f = result.files.single;
+        _store(f.bytes!, 'pdf', f.name);
+        return;
+      }
+
+      final xfile = await ImagePicker().pickImage(
+        source: choice == 'camera' ? ImageSource.camera : ImageSource.gallery,
+        maxWidth: 1600,
+        maxHeight: 1600,
+        imageQuality: 70,
+      );
+      if (xfile == null) return;
+      final bytes = await xfile.readAsBytes();
+      final ext = xfile.name.contains('.')
+          ? xfile.name.split('.').last.toLowerCase()
+          : 'jpg';
+      _store(bytes, ext, xfile.name);
+    } catch (_) {
+      if (mounted) setState(() => _error = 'Gagal membuka berkas. Coba lagi.');
+    }
+  }
+
+  void _store(List<int> bytes, String ext, String namaFile) {
+    if (!mounted) return;
+    if (bytes.length > _maxBytes) {
+      setState(() => _error =
+          'Ukuran berkas maksimal 1MB. Untuk PDF, coba foto dokumennya saja.');
+      return;
+    }
+    final mime = switch (ext) {
+      'jpg' || 'jpeg' => 'image/jpeg',
+      'png' => 'image/png',
+      'pdf' => 'application/pdf',
+      _ => 'application/octet-stream',
+    };
+    final jenis = switch (mime) {
+      'image/jpeg' => 'JPG',
+      'image/png' => 'PNG',
+      'application/pdf' => 'PDF',
+      _ => 'Berkas',
+    };
+    final ukuran = bytes.length >= 1024 * 1024
+        ? '${(bytes.length / (1024 * 1024)).toStringAsFixed(1)} MB'
+        : '${(bytes.length / 1024).round()} KB';
+
+    setState(() {
+      _namaFile = namaFile;
+      _info = '$jenis • $ukuran';
+      _error = null;
+    });
+    widget.onChanged('data:$mime;base64,${base64Encode(bytes)}', namaFile);
+  }
+
+  void _remove() {
+    setState(() {
+      _namaFile = null;
+      _info = null;
+      _error = null;
+    });
+    widget.onChanged(null, null);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final hasFile = _hasFile;
+    final hasError = _error != null;
+    final accent = hasError
+        ? PColors.errorText
+        : hasFile
+            ? PColors.successText
+            : PColors.inkSecondary;
+
+    return GestureDetector(
+      onTap: _pick,
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: hasFile ? PColors.successBg : PColors.surfaceDim,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: hasError
+                ? PColors.errorBorder
+                : hasFile
+                    ? PColors.successBorder
+                    : PColors.border,
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: hasFile ? Colors.white : PColors.sage,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                hasFile ? Icons.check_rounded : Icons.upload_file_outlined,
+                size: 20,
+                color: hasFile ? PColors.successText : PColors.primary,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(widget.label, style: PText.labelLg),
+                  const SizedBox(height: 2),
+                  Text(
+                    _error ??
+                        (hasFile
+                            ? (_info != null
+                                ? '$_namaFile • $_info'
+                                : _namaFile!)
+                            : 'Ketuk untuk pilih berkas'),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: PText.bodySm.copyWith(color: accent),
+                  ),
+                ],
+              ),
+            ),
+            if (hasFile)
+              IconButton(
+                onPressed: _remove,
+                tooltip: 'Hapus',
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                icon: const Icon(Icons.close_rounded,
+                    size: 20, color: PColors.inkSecondary),
+              )
+            else
+              Icon(
+                hasError ? Icons.error_outline : Icons.chevron_right,
+                color: accent,
+              ),
+          ],
+        ),
+      ),
     );
   }
 }
