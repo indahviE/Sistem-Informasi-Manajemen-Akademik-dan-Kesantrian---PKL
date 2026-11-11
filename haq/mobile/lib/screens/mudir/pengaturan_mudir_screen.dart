@@ -23,6 +23,7 @@
 //   }
 
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:sim_pesantren/services/api_client.dart';
 import 'package:sim_pesantren/services/app_scope.dart';
 import 'package:sim_pesantren/screens/santri/santri_ui.dart';
@@ -41,6 +42,7 @@ class _PM {
 
   // Aksen emas tetap.
   static const gold = Color(0xFFC5A059);
+  static const goldBright = Color(0xFFF9D77E); // ikon highlight "Bantuan Teknis"
 
   static const background = Color(0xFFFAF9F5);
   static const surface = Colors.white;
@@ -53,6 +55,10 @@ class _PM {
 
 TextStyle _t(double size, FontWeight w, Color c, {double? height}) =>
     TextStyle(fontFamily: 'Nunito', fontSize: size, fontWeight: w, color: c, height: height);
+
+// Nomor WhatsApp bantuan teknis (format internasional tanpa +).
+// Kosong = tombol menampilkan info "belum diatur".
+const String _kNomorBantuan = '628996733553';
 
 // Toggle notifikasi mudir (key = nama field di backend / UserNotifSetting).
 const List<({String key, String title, String desc})> _notifItems = [
@@ -149,6 +155,64 @@ class _PengaturanMudirScreenState extends State<PengaturanMudirScreen> {
   void _showError(String message) {
     if (!mounted) return;
     AppToast.error(context, message);
+  }
+
+  void _showInfo(
+    String message, {
+    IconData icon = Icons.hourglass_top_rounded,
+  }) {
+    if (!mounted) return;
+    final w = MediaQuery.of(context).size.width;
+    final side = w > 472 ? (w - 440) / 2 : 16.0;
+
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: _PM.primary,
+          elevation: 6,
+          margin: EdgeInsets.fromLTRB(side, 0, side, 16),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          duration: const Duration(seconds: 3),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(color: _PM.gold.withOpacity(0.5)),
+          ),
+          content: Row(
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: _PM.gold.withOpacity(0.18),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, size: 18, color: _PM.gold),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  message,
+                  style: _t(13.5, FontWeight.w800, Colors.white, height: 1.3),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+  }
+
+  Future<void> _hubungiBantuan() async {
+    if (_kNomorBantuan.isEmpty) {
+      _showInfo('Nomor bantuan teknis belum diatur.', icon: Icons.info_outline_rounded);
+      return;
+    }
+    final ok = await launchUrl(
+      Uri.parse('https://wa.me/$_kNomorBantuan'),
+      mode: LaunchMode.externalApplication,
+    );
+    if (!ok) _showError('Tidak bisa membuka WhatsApp.');
   }
 
   // ---------------------------------------------------------------- profil
@@ -301,10 +365,44 @@ class _PengaturanMudirScreenState extends State<PengaturanMudirScreen> {
           const SizedBox(height: 16),
           _Reveal(index: 3, child: _NotifCard(values: _notif, onChanged: _toggleNotif)),
           const SizedBox(height: 16),
-          _Reveal(index: 4, child: _LogoutButton(onPressed: _confirmLogout)),
+          _Reveal(
+            index: 4,
+            child: _PanduanCard(
+              items: [
+                _PanduanItem(
+                  icon: Icons.description_outlined,
+                  title: 'Pedoman & Tata Tertib',
+                  subtitle: 'Dokumen resmi tata tertib pondok',
+                  onTap: () => _showInfo('Fitur ini akan segera tersedia.'),
+                ),
+                _PanduanItem(
+                  icon: Icons.menu_book_outlined,
+                  title: 'Buku Panduan Mudir',
+                  subtitle: 'Tata cara memantau laporan, santri & kegiatan',
+                  onTap: () => _showInfo('Fitur ini akan segera tersedia.'),
+                ),
+                _PanduanItem(
+                  icon: Icons.shield_outlined,
+                  title: 'Kebijakan Privasi & Enkripsi Santri',
+                  subtitle: 'Standar perlindungan data pribadi',
+                  onTap: () => _showInfo('Fitur ini akan segera tersedia.'),
+                ),
+                _PanduanItem(
+                  icon: Icons.support_agent_outlined,
+                  title: 'Hubungi Bantuan Teknis IT',
+                  subtitle: 'Layanan siaga WhatsApp 24/7',
+                  external: true,
+                  highlight: true,
+                  onTap: _hubungiBantuan,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          _Reveal(index: 5, child: _LogoutButton(onPressed: _confirmLogout)),
           const SizedBox(height: 18),
           _Reveal(
-            index: 5,
+            index: 6,
             child: Center(
               child: Column(
                 children: [
@@ -1038,6 +1136,125 @@ class _NotifRow extends StatelessWidget {
           const SizedBox(width: 12),
           _Toggle(value: value, onChanged: onChanged),
         ],
+      ),
+    );
+  }
+}
+
+// ============================================================================
+// Panduan & Bantuan
+// ============================================================================
+
+class _PanduanItem {
+  const _PanduanItem({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+    this.external = false,
+    this.highlight = false,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+  final bool external;
+  final bool highlight;
+}
+
+class _PanduanCard extends StatelessWidget {
+  const _PanduanCard({required this.items});
+
+  final List<_PanduanItem> items;
+
+  @override
+  Widget build(BuildContext context) {
+    return _SectionCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Tanpa `const` supaya warna ikut berubah saat tema pondok diganti.
+          _SectionHeader(
+            icon: Icons.help_outline_rounded,
+            title: 'Panduan & Bantuan',
+            subtitle: 'Dokumen resmi dan dukungan teknis',
+          ),
+          const SizedBox(height: 8),
+          for (var i = 0; i < items.length; i++) ...[
+            if (i > 0) const Divider(height: 1, color: _PM.line, indent: 52),
+            _PanduanRow(item: items[i]),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _PanduanRow extends StatelessWidget {
+  const _PanduanRow({required this.item});
+
+  final _PanduanItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: item.onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 2),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: item.highlight ? _PM.primary : _PM.surfaceDim,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                item.icon,
+                size: 20,
+                color: item.highlight ? _PM.goldBright : _PM.primary,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    item.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: _t(13, FontWeight.w800, _PM.primary),
+                  ),
+                  const SizedBox(height: 1),
+                  Text(
+                    item.subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: _t(11.5, FontWeight.w500, _PM.inkSecondary),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              width: 28,
+              height: 28,
+              decoration: BoxDecoration(
+                color: item.highlight ? _PM.sage : _PM.surfaceDim,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                item.external ? Icons.open_in_new_rounded : Icons.chevron_right_rounded,
+                size: 17,
+                color: item.highlight ? _PM.primary : _PM.inkSecondary,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
