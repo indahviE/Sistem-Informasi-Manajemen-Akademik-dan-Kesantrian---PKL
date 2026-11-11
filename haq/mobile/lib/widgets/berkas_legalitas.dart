@@ -809,6 +809,50 @@ class _PratinjauBerkasDialogState extends State<_PratinjauBerkasDialog> {
     );
   }
 
+  // Tombol footer dialog. Isi (ikon + teks) dibungkus FittedBox(scaleDown)
+  // supaya label panjang seperti "Buka di tab baru" mengecil otomatis di layar
+  // sempit, bukan terpotong. Padding horizontal dikecilkan dan tinggi sedikit
+  // dinaikkan (48) agar teks tidak mepet/terpotong secara vertikal.
+  Widget _tombolFooter({
+    required IconData icon,
+    required String label,
+    required VoidCallback? onPressed,
+  }) {
+    return SizedBox(
+      height: 48,
+      child: OutlinedButton(
+        onPressed: onPressed,
+        style: OutlinedButton.styleFrom(
+          foregroundColor: _C.primary,
+          side: const BorderSide(color: _C.border),
+          shape: const StadiumBorder(),
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+        ),
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 16),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                maxLines: 1,
+                softWrap: false,
+                style: const TextStyle(
+                  fontFamily: 'Nunito',
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  height: 1.2,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final b = _b;
@@ -925,53 +969,23 @@ class _PratinjauBerkasDialogState extends State<_PratinjauBerkasDialog> {
               child: Row(
                 children: [
                   Expanded(
-                    child: SizedBox(
-                      height: 44,
-                      child: OutlinedButton.icon(
-                        onPressed: _bisaDibuka ? _unduh : null,
-                        icon: const Icon(Icons.download, size: 16),
-                        label: const Text(
-                          'Unduh',
-                          style: TextStyle(
-                            fontFamily: 'Nunito',
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: _C.primary,
-                          side: const BorderSide(color: _C.border),
-                          shape: const StadiumBorder(),
-                        ),
-                      ),
+                    child: _tombolFooter(
+                      icon: Icons.download,
+                      label: 'Unduh',
+                      onPressed: _bisaDibuka ? _unduh : null,
                     ),
                   ),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: SizedBox(
-                      height: 44,
-                      child: OutlinedButton.icon(
-                        onPressed: _bisaDibuka
-                            ? () => launchUrl(
-                                  Uri.parse(_url!),
-                                  mode: LaunchMode.externalApplication,
-                                )
-                            : null,
-                        icon: const Icon(Icons.open_in_new, size: 16),
-                        label: const Text(
-                          'Buka di tab baru',
-                          style: TextStyle(
-                            fontFamily: 'Nunito',
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: _C.primary,
-                          side: const BorderSide(color: _C.border),
-                          shape: const StadiumBorder(),
-                        ),
-                      ),
+                    child: _tombolFooter(
+                      icon: Icons.open_in_new,
+                      label: 'Buka di tab baru',
+                      onPressed: _bisaDibuka
+                          ? () => launchUrl(
+                                Uri.parse(_url!),
+                                mode: LaunchMode.externalApplication,
+                              )
+                          : null,
                     ),
                   ),
                 ],
