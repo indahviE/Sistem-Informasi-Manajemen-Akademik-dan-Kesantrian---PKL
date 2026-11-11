@@ -225,20 +225,29 @@ export class PenilaianController {
   // ===== Kelulusan & Wisuda Tahfidz =====
   @Roles(...TERBATAS, Role.USTADZ)
   @Get('kelulusan')
-  findAllKelulusan(@TenantId() tenantId: string) {
-    return this.penilaianService.findAllKelulusan(tenantId);
+  findAllKelulusan(@TenantId() tenantId: string, @CurrentUser() user: RequestUser) {
+    return this.penilaianService.findAllKelulusan(tenantId, user);
   }
 
   @Roles(...WRITE)
   @Post('kelulusan')
-  createKelulusan(@TenantId() tenantId: string, @Body() dto: CreateKelulusanDto) {
-    return this.penilaianService.createKelulusan(tenantId, dto);
+  createKelulusan(
+    @TenantId() tenantId: string,
+    @Body() dto: CreateKelulusanDto,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return this.penilaianService.createKelulusan(tenantId, dto, user);
   }
 
   @Roles(...WRITE)
   @Patch('kelulusan/:id')
-  updateKelulusan(@TenantId() tenantId: string, @Param('id') id: string, @Body() dto: UpdateKelulusanDto) {
-    return this.penilaianService.updateKelulusan(tenantId, id, dto);
+  updateKelulusan(
+    @TenantId() tenantId: string,
+    @Param('id') id: string,
+    @Body() dto: UpdateKelulusanDto,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return this.penilaianService.updateKelulusan(tenantId, id, dto, user);
   }
 
   @Roles(Role.ADMIN)

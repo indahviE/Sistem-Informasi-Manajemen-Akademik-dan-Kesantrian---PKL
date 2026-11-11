@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "500389338134",
+    "project_id": "sim-pesantren-37bf6",
+    "storage_bucket": "sim-pesantren-37bf6.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:500389338134:android:ff14f29a20be801b646937",
+        "android_client_info": {
+          "package_name": "id.sistempesantren.sim_pesantren"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBEBEiIcgmo4pdP5nItyBJuyBW8FnEt_p0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
