@@ -56,7 +56,8 @@ class LandingScreen extends StatefulWidget {
   const LandingScreen({super.key, this.successMessage});
 
   /// Pesan sukses opsional yang ditampilkan sekali (mis. setelah signup
-  /// pondok berhasil) lewat SnackBar begitu halaman ini terbuka.
+  /// pondok berhasil) lewat toast di bagian atas layar begitu halaman ini
+  /// terbuka.
   final String? successMessage;
 
   @override
@@ -95,40 +96,18 @@ class _LandingScreenState extends State<LandingScreen> {
     }
   }
 
-  /// Toast sukses bergaya sama dengan "Perubahan tersimpan" di
-  /// pengaturan_screen.dart — background hijau tua (PColors.primary),
-  /// teks putih bold, mengambang dengan rounded corner.
+  /// Toast sukses ringkas di bagian atas layar (Overlay), jadi tidak ikut
+  /// naik saat keyboard terbuka dan tidak melebar di layar kecil.
   void _showSuccessToast(String message) {
-    ScaffoldMessenger.of(context).clearSnackBars();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        behavior: SnackBarBehavior.floating,
-        backgroundColor: PColors.primary,
-        elevation: 6,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14),
-        ),
-        width: 480,
-        duration: const Duration(seconds: 4),
-        content: Row(
-          children: [
-            const Icon(Icons.check_circle, size: 20, color: Colors.white),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                message,
-                style: const TextStyle(
-                  fontFamily: 'Nunito',
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.white,
-                ),
-              ),
-            ),
-          ],
-        ),
+    final overlay = Overlay.of(context);
+    late OverlayEntry entry;
+    entry = OverlayEntry(
+      builder: (_) => _SuccessToast(
+        message: message,
+        onDone: () => entry.remove(),
       ),
     );
+    overlay.insert(entry);
   }
 
   /// Deteksi kode tenant dari subdomain (Flutter Web saja).
@@ -245,6 +224,115 @@ class _LandingScreenState extends State<LandingScreen> {
                   const SizedBox(height: 20),
                   const _FooterBrand(),
                 ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ============================================================================
+// Toast sukses (Overlay, posisi di atas layar)
+// ============================================================================
+
+class _SuccessToast extends StatefulWidget {
+  const _SuccessToast({required this.message, required this.onDone});
+
+  final String message;
+  final VoidCallback onDone;
+
+  @override
+  State<_SuccessToast> createState() => _SuccessToastState();
+}
+
+class _SuccessToastState extends State<_SuccessToast>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 220),
+  );
+  bool _closing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _c.forward();
+    Future.delayed(const Duration(seconds: 3), _close);
+  }
+
+  Future<void> _close() async {
+    if (!mounted || _closing) return;
+    _closing = true;
+    await _c.reverse();
+    if (mounted) widget.onDone();
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final top = MediaQuery.of(context).padding.top + 12;
+    return Positioned(
+      top: top,
+      left: 16,
+      right: 16,
+      child: Align(
+        alignment: Alignment.topCenter,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 360),
+          child: FadeTransition(
+            opacity: _c,
+            child: SlideTransition(
+              position: Tween<Offset>(
+                begin: const Offset(0, -0.3),
+                end: Offset.zero,
+              ).animate(CurvedAnimation(parent: _c, curve: Curves.easeOut)),
+              child: Material(
+                color: Colors.transparent,
+                child: GestureDetector(
+                  onTap: _close,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: PColors.primary,
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Color(0x33000000),
+                          blurRadius: 10,
+                          offset: Offset(0, 3),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.check_circle,
+                            size: 18, color: Colors.white),
+                        const SizedBox(width: 8),
+                        Flexible(
+                          child: Text(
+                            widget.message,
+                            style: const TextStyle(
+                              fontFamily: 'Nunito',
+                              fontSize: 12.5,
+                              height: 1.3,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               ),
             ),
           ),
